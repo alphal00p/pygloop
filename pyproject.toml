@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pygloop"
+version = "0.1.0"
+description = "Python project steering gammaloop and spenso for various tailored custom applications in HEP"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+  "gammaloop",
+  "matplotlib",
+  "numpy",
+  "progressbar2",
+  "symbolica",
+  "vegas",
+  "ufo-model-loader",
+]
+
+[tool.basedpyright]
+# Placeholder: set your preferred type checking mode.
+typeCheckingMode = "standard"
+# Placeholder: tune unused import reporting.
+#reportUnusedImport = "none"

@@ -1,0 +1,7 @@
+gammaloop
+matplotlib
+numpy
+progressbar2
+symbolica
+vegas
+ufo-model-loader

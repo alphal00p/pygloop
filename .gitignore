@@ -1,0 +1,18 @@
+# Ignore everything under each outputs subfolder except the keep file
+/outputs/dot_files/*
+!/outputs/dot_files/__dot_files__
+
+/outputs/evaluators/*
+!/outputs/evaluators/__evaluators__
+
+/outputs/gammaloop_states/*
+!/outputs/gammaloop_states/__gammaloop_states__
+
+/outputs/integration_workspaces/*
+!/outputs/integration_workspaces/__integration_workspaces__
+
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
