@@ -229,13 +229,16 @@ class GGHHH(object):
         else:
             card = f"process -p {process_id} -i {integrand_name}"
 
-        momenta_str = "[" + ",".join("[" + ",".join(f"{vi:.16e}" for vi in v.to_list()) + "]" for v in momenta) + "]"
+        momenta_in = list(momenta)
+        # momenta_in[0] = "dependent"  # type: ignore
+        # momenta_in = ["dependent"] + momenta_in[:-1]
+        # fmt: off
+        momenta_str = "[" + ",".join("[" + ",".join(f"{vi:.16e}" for vi in v.to_list()) + "]" if not isinstance(v, str) else f'"{v}"' for v in momenta_in) + "]"
+         # fmt: on
         helicities_str = "[" + ",".join(f"{h:+d}" for h in helicities) + "]"
+        kinematics_set_command = f'set {card} kv kinematics.externals={{"type":"constant","data":{{"momenta":{momenta_str},"helicities":{helicities_str}}}}}'  # fmt: off
 
-        set_command = (
-            f'set {card} kv kinematics.externals={{"type":"constant","data":{{"momenta":{momenta_str},"helicities":{helicities_str}}}}}'  # nopep8
-        )
-        self.gl_worker.run(set_command)
+        self.gl_worker.run(kinematics_set_command)
 
     def set_model(self) -> None:
         self.gl_worker.run("import model sm-default.json")
@@ -288,6 +291,7 @@ class GGHHH(object):
                     pjoin(DOTS_FOLDER, self.name, "GGHHH_1L_generated_graphs.dot"),
                     GGHHH_1L_dot_files,
                 )
+                self.gl_worker.run("save dot")
                 self.save_state()
                 GGHHH_1L_dot_files_processed = self.process_1L_generated_graphs(DotGraphs(dot_str=GGHHH_1L_dot_files))
                 GGHHH_1L_dot_files_processed.save_to_file(pjoin(DOTS_FOLDER, self.name, "GGHHH_1L_processed.dot"))
@@ -575,7 +579,7 @@ class GGHHH(object):
         amplitudes, _cross_sections = self.gl_worker.list_outputs()
         if "GGHHH_1L_processed" not in amplitudes:
             raise pygloopException(
-                "Amplitude GGHHH_1L_processed not found in GammaLoop state. Generate graphs and code first with the generate subcommand."
+                f"Amplitude GGHHH_1L_processed not found in GammaLoop state. Generate graphs and code first with the generate subcommand. Available amplitudes: {list(amplitudes.keys())}"
             )  # nopep8
 
         integration_options = {

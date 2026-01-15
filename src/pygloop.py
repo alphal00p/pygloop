@@ -248,7 +248,8 @@ def main(argv: list[str] | None = None) -> int:
         case "integrate":
             if args.seed is not None:
                 random.seed(args.seed)
-                logger.info("Note that setting the random seed only ensure reproducible results with the naive integrator and a single core.")
+                if args.integrator == "naive" and args.n_cores != 1:
+                    logger.info("Note that setting the random seed only ensure reproducible results with the naive integrator and a single core.")
 
             if args.n_cores > multiprocessing.cpu_count():
                 raise pygloopException(
