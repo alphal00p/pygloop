@@ -40,6 +40,7 @@
 from __future__ import annotations
 
 import copy
+import json
 import logging
 import math
 import multiprocessing
@@ -591,6 +592,7 @@ class GGHHH(object):
         workspace_dir = pjoin(INTEGRATION_WORKSPACE_FOLDER, self.name, "GGHHH_1L_processed")
         if not os.path.exists(workspace_dir):
             os.makedirs(workspace_dir, exist_ok=True)
+        results_path = pjoin(workspace_dir, "result.txt")
         integrate_command = [
             [
                 "integrate",
@@ -598,7 +600,7 @@ class GGHHH(object):
             ["-p", str(amplitudes["GGHHH_1L_processed"])],
             ["-i", "GGHHH_1L_processed"],
             ["--workspace-path", f"{workspace_dir}"],
-            ["--result-path", f"{pjoin(workspace_dir, 'result.txt')}"],
+            ["--result-path", f"{results_path}"],
         ]
         if target is not None:
             if isinstance(target, complex):
@@ -612,9 +614,25 @@ class GGHHH(object):
 
         integrate_command = " ".join(" ".join(itg_o for itg_o in itg_opt) for itg_opt in integrate_command)
         logger.info(f"Running GammaLoop integration with command:\n{Colour.GREEN}{integrate_command}{Colour.END}")
+        t_start = time.time()
         self.gl_worker.run(integrate_command)  # nopep8
+        t_elapsed = time.time() - t_start
 
-        return IntegrationResult(0.0, 0.0)  # Placeholder for actual implementation
+        res = None
+        if os.path.isfile(results_path):
+            with open(results_path, "r") as f_res:
+                res = json.load(f_res)
+
+        integration_result = IntegrationResult(0.0, 0.0)
+        if res is None:
+            logger.error(f"GammaLoop integration finished but no result file found at '{results_path}'.")
+        else:
+            if opts.get("phase", "real") == "real":
+                central, error = res["result"]["re"], res["error"]["re"]
+            else:
+                central, error = res["result"]["im"], res["error"]["im"]
+            integration_result = IntegrationResult(central, error, n_samples=res["neval"], elapsed_time=t_elapsed)
+        return integration_result
 
     @staticmethod
     def naive_worker(builder_inputs: tuple[Any], n_points: int, call_args: list[Any]) -> IntegrationResult:
