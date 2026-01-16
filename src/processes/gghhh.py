@@ -1,41 +1,65 @@
 # Targets for the pentagon one-loop integral with cyclic ordering of the external legs
+# IMPORTANT: the results below comes from the raw amplitude AMP(1,5) of MADLOOP *divided by -2* to account for Tr(t^a t^b) = 1/2 delta^{ab}.
+# Hel 1 is : --000
+# Hel 2 is : -+000
+# Hel 3 is : +-000
+# Hel 4 is : ++000
+#
+# This amplitude graph never has any pole.
+
+# 0.5000000000000000D+03   0.0000000000000000D+00   0.0000000000000000D+00   0.5000000000000000D+03
+# 0.5000000000000000D+03   0.0000000000000000D+00   0.0000000000000000D+00  -0.5000000000000000D+03
+# 0.4385555662246945D+03   0.1553322001835378D+03   0.3480160396513587D+03  -0.1773773615718412D+03
+# 0.3563696374921922D+03  -0.1680238900851100D+02  -0.3187291102436005D+03   0.9748719163688098D+02
+# 0.2050747962831133D+03  -0.1385298111750267D+03  -0.2928692940775817D+02   0.7989016993496030D+02
 
 # # Physical top mass (MT=ymt=173.0)
 #  >>> IHEL =            1
-#  AMPL(1,5)=  (1.04797351827708700E-005,-3.10221476928555495E-006)
-#  AMPL(2,5)=               (0.0000000000000000,0.0000000000000000)
-#  AMPL(3,5)=               (0.0000000000000000,0.0000000000000000)
+#  AMPL(1,5)=  (-3.14551938508347352E-006,4.46854051027942967E-006)
 #  >>> IHEL =            2
-#  AMPL(1,5)=  (3.43982816165510339E-006,-4.37583082527465044E-006)
-#  AMPL(2,5)=               (0.0000000000000000,0.0000000000000000)
-#  AMPL(3,5)=               (0.0000000000000000,0.0000000000000000)
+#  AMPL(1,5)=   (9.55408514080194571E-009,2.78298167757932416E-006)
 #  >>> IHEL =            3
-#  AMPL(1,5)=   (1.61953388872297102E-005,1.01663368773165568E-005)
-#  AMPL(2,5)=               (0.0000000000000000,0.0000000000000000)
-#  AMPL(3,5)=               (0.0000000000000000,0.0000000000000000)
+#  AMPL(1,5)= (-3.19380629855654766E-006,-9.01168425551671615E-006)
 #  >>> IHEL =            4
-#  AMPL(1,5)=   (3.81867713646866972E-006,1.09200222409934052E-005)
-#  AMPL(2,5)=               (0.0000000000000000,0.0000000000000000)
-#  AMPL(3,5)=               (0.0000000000000000,0.0000000000000000)
+#  AMPL(1,5)=  (1.89203604685291554E-006,-5.46603099163412881E-006)
 
 # # Unphysical top mass (MT=ymt=1000.0)
 #  >>> IHEL =            1
-#  AMPL(1,5)= (-1.02363024890799164E-003,-8.21013094813083811E-004)
-#  AMPL(2,5)=               (0.0000000000000000,0.0000000000000000)
-#  AMPL(3,5)=               (0.0000000000000000,0.0000000000000000)
+#  AMPL(1,5)=   (6.56089133881205492E-004,4.17078968906596113E-006)
 #  >>> IHEL =            2
-#  AMPL(1,5)=  (-6.47958680844227421E-006,1.75170899033368962E-005)
-#  AMPL(2,5)=               (0.0000000000000000,0.0000000000000000)
-#  AMPL(3,5)=               (0.0000000000000000,0.0000000000000000)
+#  AMPL(1,5)= (-2.89630814594050972E-006,-8.87804989993630875E-006)
 #  >>> IHEL =            3
-#  AMPL(1,5)= (-6.47958681025284355E-006,-1.75170899017972546E-005)
-#  AMPL(2,5)=               (0.0000000000000000,0.0000000000000000)
-#  AMPL(3,5)=               (0.0000000000000000,0.0000000000000000)
+#  AMPL(1,5)=  (-2.89630814768248677E-006,8.87804990034476668E-006)
 #  >>> IHEL =            4
-#  AMPL(1,5)=  (-1.02363024890779475E-003,8.21013094813327214E-004)
-#  AMPL(2,5)=               (0.0000000000000000,0.0000000000000000)
-#  AMPL(3,5)=               (0.0000000000000000,0.0000000000000000)
+#  AMPL(1,5)=  (6.56089133881216768E-004,-4.17078968913725420E-006)
 
+# 0.5000000000000000D+03   0.0000000000000000D+00   0.0000000000000000D+00   0.5000000000000000D+03
+# 0.5000000000000000D+03   0.0000000000000000D+00   0.0000000000000000D+00  -0.5000000000000000D+03
+# 0.4622059639026168D+03   0.1678033838387855D+03   0.2872919263250002D+03  -0.2954906538418281D+03
+# 0.1553689858956567D+03  -0.6346487586464051D+02  -0.3905281750811410D+02   0.5442066477367285D+02
+# 0.3824250502017265D+03  -0.1043385079741450D+03  -0.2482391088168861D+03   0.2410699890681553D+03
+
+# # Physical top mass (MT=ymt=173.0)
+
+#  >>> IHEL =            1
+#  AMPL(1,5)=   (1.79229062116069573E-005,5.23819986497045118E-007)
+#  >>> IHEL =            2
+#  AMPL(1,5)=   (1.35530147927836316E-005,2.77672899246084792E-006)
+#  >>> IHEL =            3
+#  AMPL(1,5)=  (5.03924664020387931E-007,-1.45537484583090386E-005)
+#  >>> IHEL =            4
+#  AMPL(1,5)=   (1.80944073681505885E-005,3.67594748147673556E-006)
+
+# # Unphysical top mass (MT=ymt=1000.0)
+
+#  >>> IHEL =            1
+#  AMPL(1,5)=  (6.09909283686016468E-004,-1.09117176750885081E-006)
+#  >>> IHEL =            2
+#  AMPL(1,5)= (-7.88985817775678482E-006,-1.08700048931499477E-005)
+#  >>> IHEL =            3
+#  AMPL(1,5)=  (-7.88985817821675929E-006,1.08700048932430332E-005)
+#  >>> IHEL =            4
+#  AMPL(1,5)=   (6.09909283686009963E-004,1.09117176736822661E-006)
 
 from __future__ import annotations
 
@@ -181,6 +205,7 @@ class GGHHH(object):
             self.gl_worker.run(f"set process -p {output_id} -i {output_name} file {self.runtime_toml_config_path}")  # fmt: off
             self.set_sample_point(self.ps_point, self.helicities, str(output_id), output_name)
 
+        self.save_state()
         # Cache some quantities for performance
         self.cache = {}
 
@@ -230,14 +255,16 @@ class GGHHH(object):
             card = f"process -p {process_id} -i {integrand_name}"
 
         momenta_in = list(momenta)
-        # momenta_in[0] = "dependent"  # type: ignore
-        # momenta_in = ["dependent"] + momenta_in[:-1]
+        # Place dependent last to ensure that the incoming are exactly longitudinal
+        # so that polarization vector definitions don't suddenly jump
+        momenta_in[-1] = "dependent"  # type: ignore
         # fmt: off
         momenta_str = "[" + ",".join("[" + ",".join(f"{vi:.16e}" for vi in v.to_list()) + "]" if not isinstance(v, str) else f'"{v}"' for v in momenta_in) + "]"
          # fmt: on
         helicities_str = "[" + ",".join(f"{h:+d}" for h in helicities) + "]"
-        kinematics_set_command = f'set {card} kv kinematics.externals={{"type":"constant","data":{{"momenta":{momenta_str},"helicities":{helicities_str}}}}}'  # fmt: off
 
+        kinematics_set_command = f'set {card} kv kinematics.externals={{"type":"constant","data":{{"momenta":{momenta_str},"helicities":{helicities_str}}}}}'  # fmt: off
+        print(kinematics_set_command)
         self.gl_worker.run(kinematics_set_command)
 
     def set_model(self) -> None:

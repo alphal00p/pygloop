@@ -19,9 +19,10 @@ max_prob_ratio = 100.0
 
 [stability]
 check_on_norm = true
+rotation_axis = []
 
-[[stability.rotation_axis]]
-type = "z"
+#[[stability.rotation_axis]]
+#type = "z"
 
 [[stability.levels]]
 precision = "Double"

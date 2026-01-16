@@ -6,6 +6,7 @@ import argparse
 import logging
 import multiprocessing
 import random
+import re
 import sys
 import time
 from pprint import pformat
@@ -26,7 +27,12 @@ if SRC_DIR not in sys.path:
 
 def main(argv: list[str] | None = None) -> int:
     # create the top-level parser
-    parser = argparse.ArgumentParser(prog="pygloop")
+    class FloatArgParser(argparse.ArgumentParser):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self._negative_number_matcher = re.compile(r"^-?\d+(\.\d*)?([eE][-+]?\d+)?$")  # type: ignore
+
+    parser = FloatArgParser(prog="pygloop")
 
     # Add options common to all subcommands
     _ = parser.add_argument("--verbosity", "-v", type=str, choices=["debug", "info", "critical"], default="info",
@@ -50,23 +56,19 @@ def main(argv: list[str] | None = None) -> int:
     _ = parser.add_argument("--m_higgs", type=float, default=125.0,
         help="Higgs mass. Default = %(default)s GeV",
     )  # fmt: off
-    parser.add_argument(
-        "-pg1",
-        type=float,
-        nargs=4,
-        default=[500.0, 0.0, 0.0, 500.0],
+    parser.add_argument("--pg1", "-pg1", type=float, nargs=4, default=[500.0, 0.0, 0.0, 500.0],
         help="Four-momentum of the first gluon. Default = %(default)s GeV",
-    )  # noqa # fmt: off
-    parser.add_argument("-pg2", type=float, nargs=4, default=[500.0, 0.0, 0.0, -500.0],
+    )  # fmt: off
+    parser.add_argument("--pg2", "-pg2", type=float, nargs=4, default=[500.0, 0.0, 0.0, -500.0],
         help="Four-momentum of the second gluon. Default = %(default)s GeV",
     )  # fmt: off
-    parser.add_argument("-ph1", type=float, nargs=4, default=[0.4385555662246945e03, 0.1553322001835378e03, 0.3480160396513587e03, -0.1773773615718412e03],
+    parser.add_argument("--ph1", "-ph1", type=float, nargs=4, default=[0.4385555662246945e03, 0.1553322001835378e03, 0.3480160396513587e03, -0.1773773615718412e03],
         help="Four-momentum of the first Higgs. Default = %(default)s GeV",
     )  # fmt: off
-    parser.add_argument("-ph2", type=float, nargs=4, default=[0.3563696374921922e03, -0.1680238900851100e02, -0.3187291102436005e03, 0.9748719163688098e02],
+    parser.add_argument("--ph2", "-ph2", type=float, nargs=4, default=[0.3563696374921922e03, -0.1680238900851100e02, -0.3187291102436005e03, 0.9748719163688098e02],
         help="Four-momentum of the second Higgs. Default = %(default)s GeV",
     )  # fmt: off
-    parser.add_argument("-ph3", type=float, nargs=4, default=[0.2050747962831133e03, -0.1385298111750267e03, -0.2928692940775817e02, 0.7989016993496030e02],
+    parser.add_argument("--ph3", "-ph3", type=float, nargs=4, default=[0.2050747962831133e03, -0.1385298111750267e03, -0.2928692940775817e02, 0.7989016993496030e02],
         help="Four-momentum of the third Higgs. Default = %(default)s GeV",
     )  # fmt: off
     parser.add_argument("--helicities", type=int, nargs=5, default=[+1, +1, +0, +0, +0],
@@ -125,7 +127,7 @@ def main(argv: list[str] | None = None) -> int:
         help="Number of cores to run with. Default = %(default)s",
     )  # fmt: off
 
-    parser_integrate.add_argument("--target", "-t", nargs=1, type=complex, default=None,
+    parser_integrate.add_argument("--target", "-t", type=complex, default=None,
         help="Target value for the integration. Default = %(default)s",
     )  # fmt: off
     parser_integrate.add_argument("--phase", "-p", type=str, default="real", choices=["real", "imag"],
