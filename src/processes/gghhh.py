@@ -77,12 +77,10 @@ from typing import Any, Callable
 
 import progressbar
 import vegas  # type: ignore
-from gammaloop import (
-    GammaLoopAPI,  # pyright: ignore
-    LogLevel,  # type: ignore
-    evaluate_graph_overall_factor,  # type: ignore # noqa: F401
-    git_version,  # type: ignore
-)
+
+from gammaloop import GammaLoopAPI, LogLevel, evaluate_graph_overall_factor, git_version  # isort: skip # type: ignore # noqa: F401
+
+
 from matplotlib.typing import CapStyleType, ColorType  # noqa: F401
 from symbolica import E, Expression, NumericalIntegrator, Sample
 
@@ -147,7 +145,7 @@ class GGHHH(object):
         self.e_cm = math.sqrt(abs((self.ps_point[0] + self.ps_point[1]).squared()))
 
         gl_states_folder = pjoin(GAMMALOOP_STATES_FOLDER, self.name)
-
+        self.clean = clean
         if os.path.exists(gl_states_folder):
             if clean:
                 logger.info(f"Removing existing GammaLoop state in {Colour.GREEN}{gl_states_folder}{Colour.END}")  # nopep8
@@ -207,7 +205,7 @@ class GGHHH(object):
 
         self.save_state()
         # Cache some quantities for performance
-        self.cache = {}
+        self.cache: dict[str, Any] = {}
 
         logger.setLevel(start_logger_level)
 
@@ -264,7 +262,7 @@ class GGHHH(object):
         helicities_str = "[" + ",".join(f"{h:+d}" for h in helicities) + "]"
 
         kinematics_set_command = f'set {card} kv kinematics.externals={{"type":"constant","data":{{"momenta":{momenta_str},"helicities":{helicities_str}}}}}'  # fmt: off
-        print(kinematics_set_command)
+        logger.debug("Setting kinematic point with:\n%s", kinematics_set_command)
         self.gl_worker.run(kinematics_set_command)
 
     def set_model(self) -> None:
@@ -301,61 +299,104 @@ class GGHHH(object):
 
         return processed_graphs
 
+    def process_2L_generated_graphs(self, graphs: DotGraphs) -> DotGraphs:
+        processed_graphs = DotGraphs()
+        for g_input in graphs:
+            g = copy.deepcopy(g_input)
+            attrs = g.get_attributes()
+            attrs["num"] = f'"{expr_to_string(g.get_numerator())}"'
+            attrs["projector"] = f'"{expr_to_string(g.get_projector() * self.get_color_projector())}"'
+
+            g.set_local_numerators_to_one()
+            processed_graphs.append(g)
+
+        return processed_graphs
+
     def generate_graphs(self) -> None:
+        graphs_process_name = self.get_integrand_name(suffix="_generated_graphs")
+        integrand_name = self.get_integrand_name()
+        amplitudes, _cross_sections = self.gl_worker.list_outputs()
+        base_name = self.get_integrand_name(suffix="")
+        if graphs_process_name in amplitudes:
+            logger.info(f"Graphs for amplitude {graphs_process_name} already generated and recycled.")
+            return
         match self.n_loops:
             case 1:
-                amplitudes, _cross_sections = self.gl_worker.list_outputs()
-                if "GGHHH_1L_generated_graphs" not in amplitudes:
-                    logger.info("Generating one-loop graphs ...")
-                    self.gl_worker.run(
-                        "generate amp g g > h h h / u d c s b QED==3 [{1}] --only-diagrams --numerator-grouping only_detect_zeroes --select-graphs GL15 --loop-momentum-bases GL15=8 -p GGHHH_1L -i GGHHH_1L_generated_graphs"
-                    )
-                    self.gl_worker.run("save state -o")
-                else:
-                    logger.info("One-loop graphs for GGHHH already generated and recycled.")
-                GGHHH_1L_dot_files = self.gl_worker.get_dot_files(process_id=None, integrand_name="GGHHH_1L_generated_graphs")
+                logger.info("Generating one-loop graphs ...")
+                self.gl_worker.run(
+                    f"generate amp g g > h h h / u d c s b QED==3 [{{1}}] --only-diagrams --numerator-grouping only_detect_zeroes --select-graphs GL15 --loop-momentum-bases GL15=8 -p {base_name} -i {graphs_process_name}"
+                )
+                self.gl_worker.run("save state -o")
+                GGHHH_1L_dot_files = self.gl_worker.get_dot_files(process_id=None, integrand_name=graphs_process_name)
                 write_text_with_dirs(
-                    pjoin(DOTS_FOLDER, self.name, "GGHHH_1L_generated_graphs.dot"),
+                    pjoin(DOTS_FOLDER, self.name, f"{graphs_process_name}.dot"),
                     GGHHH_1L_dot_files,
                 )
                 self.gl_worker.run("save dot")
                 self.save_state()
                 GGHHH_1L_dot_files_processed = self.process_1L_generated_graphs(DotGraphs(dot_str=GGHHH_1L_dot_files))
-                GGHHH_1L_dot_files_processed.save_to_file(pjoin(DOTS_FOLDER, self.name, "GGHHH_1L_processed.dot"))
+                GGHHH_1L_dot_files_processed.save_to_file(pjoin(DOTS_FOLDER, self.name, f"{integrand_name}.dot"))
             case 2:
-                raise NotImplementedError("Implement two-loop graph generation.")
+                logger.info("Generating two-loop graphs ...")
+                self.gl_worker.run(
+                    f"generate amp g g > h h h | g h t t~ QED==3 [{{2}}] --only-diagrams --numerator-grouping only_detect_zeroes --veto-vertex-interactions V_6 V_9 V_36 V_37 --number-of-fermion-loops 1 1 --select-graphs GL303 -p {base_name} -i {graphs_process_name}"
+                )
+                self.gl_worker.run("save state -o")
+                GGHHH_2L_dot_files = self.gl_worker.get_dot_files(process_id=None, integrand_name=graphs_process_name)
+                write_text_with_dirs(
+                    pjoin(DOTS_FOLDER, self.name, f"{graphs_process_name}.dot"),
+                    GGHHH_2L_dot_files,
+                )
+                self.gl_worker.run("save dot")
+                self.save_state()
+                GGHHH_2L_dot_files_processed = self.process_2L_generated_graphs(DotGraphs(dot_str=GGHHH_2L_dot_files))
+                GGHHH_2L_dot_files_processed.save_to_file(pjoin(DOTS_FOLDER, self.name, f"{integrand_name}.dot"))
             case _:
                 raise pygloopException(f"Number of loops {self.n_loops} not supported.")
+
+    def generate_spenso_code(self) -> None:
+        evaluator_path = pjoin(EVALUATORS_FOLDER, self.name, f"{self.get_integrand_name()}.so")
+        if os.path.isfile(evaluator_path):
+            if self.clean:
+                logger.info(f"Removing existing spenso evaluator {evaluator_path} and re-generating it.")
+                os.remove(evaluator_path)
+            else:
+                logger.info(f"Spenso evaluator {evaluator_path} already generated and recycled.")
+                return
+        logger.critical(f"Spenso code generation for {self.get_integrand_name()}.so not yet implemented.")
+        # raise NotImplementedError("Implement spenso code generation.")
 
     def generate_gammaloop_code(self) -> None:
         amplitudes, _cross_sections = self.gl_worker.list_outputs()
-        match self.n_loops:
-            case 1:
-                if "GGHHH_1L_processed" in amplitudes:
-                    logger.info("One-loop amplitude for GGHHH already generated and recycled.")
-                    return
-                if not os.path.isfile(pjoin(DOTS_FOLDER, "GGHHH", "GGHHH_1L_processed.dot")):
-                    raise pygloopException(
-                        f"Processed dot file not found at {pjoin(DOTS_FOLDER, 'GGHHH', 'GGHHH_1L_processed.dot')}. Generate graphs first."
-                    )  # nopep8
-                if "GGHHH_1L_generated_graphs" not in amplitudes:
-                    raise pygloopException(
-                        "Amplitude with named integrand GGHHH_1L_generated_graphs not found in GammaLoop state. Generate graphs first."
-                    )  # nopep8
-                self.gl_worker.run(
-                    f"import graphs {pjoin(DOTS_FOLDER, 'GGHHH', 'GGHHH_1L_processed.dot')} -p {amplitudes['GGHHH_1L_generated_graphs']} -i GGHHH_1L_processed"
-                )
-                self.gl_worker.run(f"generate existing -p {amplitudes['GGHHH_1L_generated_graphs']} -i GGHHH_1L_processed")
-            case 2:
-                raise NotImplementedError("Implement two-loop graph generation.")
-            case _:
-                raise pygloopException(f"Number of loops {self.n_loops} not supported.")
+        integrand_name = self.get_integrand_name()
+        process_graphs_name = self.get_integrand_name(suffix="_generated_graphs")
+        if process_graphs_name not in amplitudes:
+            raise pygloopException(f"Amplitude with named integrand {process_graphs_name} not found in GammaLoop state. Generate graphs first.")
+        if integrand_name in amplitudes:
+            logger.info(f"Amplitude {integrand_name} already generated and recycled.")
+            return
+        if not os.path.isfile(pjoin(DOTS_FOLDER, "GGHHH", f"{integrand_name}.dot")):
+            raise pygloopException(f"Processed dot file not found at {pjoin(DOTS_FOLDER, 'GGHHH', f'{integrand_name}.dot')}. Generate graphs first.")
+
+        self.gl_worker.run(
+            f"import graphs {pjoin(DOTS_FOLDER, 'GGHHH', f'{integrand_name}.dot')} -p {amplitudes[process_graphs_name]} -i {integrand_name}"
+        )
+        self.gl_worker.run(f"generate existing -p {amplitudes[process_graphs_name]} -i {integrand_name}")
+        # match self.n_loops:
+        #     case 1:
+        #         self.gl_worker.run(
+        #             f"import graphs {pjoin(DOTS_FOLDER, 'GGHHH', f'{integrand_name}.dot')} -p {amplitudes[process_graphs_name]} -i {integrand_name}"
+        #         )
+        #         self.gl_worker.run(f"generate existing -p {amplitudes[process_graphs_name]} -i {process_graphs_name}")
+        #     case 2:
+        #         self.gl_worker.run(
+        #             f"import graphs {pjoin(DOTS_FOLDER, 'GGHHH', f'{integrand_name}.dot')} -p {amplitudes[process_graphs_name]} -i {integrand_name}"
+        #         )
+        #         self.gl_worker.run(f"generate existing -p {amplitudes[process_graphs_name]} -i {process_graphs_name}")
+        #     case _:
+        #         raise pygloopException(f"Number of loops {self.n_loops} not supported.")
 
         self.save_state()
-
-    def generate_spenso_code(self) -> None:
-        logger.critical("Spenso code generation not yet implemented.")
-        # raise NotImplementedError("Implement spenso code generation.")
 
     def valide_ps_point(self) -> None:
         # Only perform sanity checks if in the physical region
@@ -469,6 +510,8 @@ class GGHHH(object):
                     wgt = wgt.imag
                 final_wgt = wgt * jac
             else:
+                if self.n_loops != 1:
+                    raise pygloopException("Multi-channeling only implemented for one-loop processes.")
                 final_wgt = 0.0
                 multi_channeling_power = 3
                 q_offsets = [
@@ -522,31 +565,28 @@ class GGHHH(object):
             )
             return 0.0
 
+    def get_integrand_name(self, suffix="_processed"):
+        match self.n_loops:
+            case 1 | 2:
+                return f"{self.name}_{self.n_loops}L{suffix}"
+            case _:
+                raise pygloopException(f"Number of loops {self.n_loops} not supported.")
+
     def gammaloop_integrand(self, loop_momenta: list[Vector]) -> complex:
         try:
             process_id = self.cache["process_id"]
         except KeyError:
             amplitudes, _cross_sections = self.gl_worker.list_outputs()
-            match self.n_loops:
-                case 1:
-                    if "GGHHH_1L_processed" not in amplitudes:
-                        raise pygloopException(
-                            "Amplitude GGHHH_1L_processed not found in GammaLoop state. Generate graphs and code first with the generate subcommand."
-                        )
-                    process_id = amplitudes["GGHHH_1L_processed"]
-                case 2:
-                    if "GGHHH_2L_processed" not in amplitudes:
-                        raise pygloopException(
-                            "Amplitude GGHHH_2L_processed not found in GammaLoop state. Generate graphs and code first with the generate subcommand."
-                        )
-                    process_id = amplitudes["GGHHH_2L_processed"]
-                case _:
-                    raise pygloopException(f"Number of loops {self.n_loops} not supported.")
+            if self.get_integrand_name() not in amplitudes:
+                raise pygloopException(
+                    f"Amplitude {self.get_integrand_name()} not found in GammaLoop state. Generate graphs and code first with the generate subcommand."
+                )
+            process_id = amplitudes[self.get_integrand_name()]
             self.cache["process_id"] = process_id
 
         res, _jac = self.gl_worker.inspect(
             process_id=process_id,
-            integrand_name="GGHHH_1L_processed",
+            integrand_name=self.get_integrand_name(),
             point=[ki for k in loop_momenta for ki in k.to_list()],
             use_f128=False,
             force_radius=False,
@@ -603,10 +643,11 @@ class GGHHH(object):
         if opts.get("integrand_implementation", "gammaloop") != "gammaloop":
             raise pygloopException("GammaLoop integrator only supports 'gammaloop' integrand implementation.")
 
+        integrand_name = self.get_integrand_name()
         amplitudes, _cross_sections = self.gl_worker.list_outputs()
-        if "GGHHH_1L_processed" not in amplitudes:
+        if integrand_name not in amplitudes:
             raise pygloopException(
-                f"Amplitude GGHHH_1L_processed not found in GammaLoop state. Generate graphs and code first with the generate subcommand. Available amplitudes: {list(amplitudes.keys())}"
+                f"Amplitude {integrand_name} not found in GammaLoop state. Generate graphs and code first with the generate subcommand. Available amplitudes: {list(amplitudes.keys())}"
             )  # nopep8
 
         integration_options = {
@@ -617,10 +658,10 @@ class GGHHH(object):
             "seed": opts.get("seed", 1337),
         }
         self.gl_worker.run(
-            f"set process -p {amplitudes['GGHHH_1L_processed']} -i GGHHH_1L_processed kv {' '.join('integrator.%s=%s' % (k, str(v)) for k, v in integration_options.items())}"
+            f"set process -p {amplitudes[integrand_name]} -i {integrand_name} kv {' '.join('integrator.%s=%s' % (k, str(v)) for k, v in integration_options.items())}"
         )
 
-        workspace_dir = pjoin(INTEGRATION_WORKSPACE_FOLDER, self.name, "GGHHH_1L_processed")
+        workspace_dir = pjoin(INTEGRATION_WORKSPACE_FOLDER, self.name, integrand_name)
         if not os.path.exists(workspace_dir):
             os.makedirs(workspace_dir, exist_ok=True)
         results_path = pjoin(workspace_dir, "result.txt")
@@ -628,8 +669,8 @@ class GGHHH(object):
             [
                 "integrate",
             ],
-            ["-p", str(amplitudes["GGHHH_1L_processed"])],
-            ["-i", "GGHHH_1L_processed"],
+            ["-p", str(amplitudes[integrand_name])],
+            ["-i", integrand_name],
             ["--workspace-path", f"{workspace_dir}"],
             ["--result-path", f"{results_path}"],
         ]
@@ -643,10 +684,10 @@ class GGHHH(object):
         if opts.get("restart", False):
             integrate_command.append(["--restart"])
 
-        integrate_command = " ".join(" ".join(itg_o for itg_o in itg_opt) for itg_opt in integrate_command)
-        logger.info(f"Running GammaLoop integration with command:\n{Colour.GREEN}{integrate_command}{Colour.END}")
+        integrate_command_str = " ".join(" ".join(itg_o for itg_o in itg_opt) for itg_opt in integrate_command)
+        logger.info(f"Running GammaLoop integration with command:\n{Colour.GREEN}{integrate_command_str}{Colour.END}")
         t_start = time.time()
-        self.gl_worker.run(integrate_command)  # nopep8
+        self.gl_worker.run(integrate_command_str)  # nopep8
         t_elapsed = time.time() - t_start
 
         res = None
@@ -946,7 +987,7 @@ class GGHHH(object):
         import matplotlib.pyplot as plt  # type: ignore # nopep8
         import numpy as np
         from mpl_toolkits.mplot3d import (
-            Axes3D,  # type: ignore # noqa: F401 # nopep8
+            Axes3D,  # type: ignore # noqa: F401 # nopep8 # fmt: off
         )
 
         fixed_x = None

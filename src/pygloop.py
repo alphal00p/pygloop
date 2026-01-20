@@ -96,9 +96,6 @@ def main(argv: list[str] | None = None) -> int:
     parser_generate.add_argument("--generation-type", "-t", type=str, nargs=1, choices=["gammaloop", "spenso", "all"], default="all",
         help="Select generation type",
     )  # fmt: off
-    parser_generate.add_argument("--x_space", action="store_true", default=False,
-        help="Inspect a point given in x-space. Default = %(default)s",
-    )  # fmt: off
 
     # create the parser for the "inspect" command
     parser_inspect = subparsers.add_parser("inspect", help="Inspect evaluation of a sample point of the integration space.")
