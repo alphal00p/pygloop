@@ -79,12 +79,12 @@ import progressbar
 import vegas  # type: ignore
 
 from gammaloop import GammaLoopAPI, LogLevel, evaluate_graph_overall_factor, git_version  # isort: skip # type: ignore # noqa: F401
-from symbolica.community.idenso import simplify_gamma, simplify_color, simplify_metrics
-from symbolica.community.spenso import *
-
 from matplotlib.typing import CapStyleType, ColorType  # noqa: F401
 from symbolica import E, Expression, NumericalIntegrator, Sample
+from symbolica.community.idenso import simplify_color, simplify_gamma, simplify_metrics
+from symbolica.community.spenso import *
 
+from processes.dy_utils import DYDotGraphs
 from utils.utils import (
     CONFIGS_FOLDER,  # noqa: F401
     DOTS_FOLDER,  # noqa: F401
@@ -94,7 +94,6 @@ from utils.utils import (
     OUTPUTS_FOLDER,  # noqa: F401
     PYGLOOP_FOLDER,
     Colour,
-    DotGraphs,
     IntegrationResult,
     SymbolicaSample,
     chunks,
@@ -104,10 +103,7 @@ from utils.utils import (
     set_gammaloop_level,
     set_tmp_logger_level,  # noqa: F401
     write_text_with_dirs,
-    my_graph,
 )
-
-
 from utils.vectors import LorentzVector, Vector
 
 pjoin = os.path.join
@@ -288,33 +284,37 @@ class DY(object):
         self.gl_worker.run("save state -o")
 
     def get_color_projector(self) -> Expression:
-        return E("spenso::g(spenso::cof(3,gammalooprs::hedge(1)),spenso::dind(spenso::cof(3,gammalooprs::hedge(3))))*spenso::g(spenso::cof(3,gammalooprs::hedge(0)),spenso::dind(spenso::cof(3,gammalooprs::hedge(2))))")
-
+        return E(
+            "spenso::g(spenso::cof(3,gammalooprs::hedge(1)),spenso::dind(spenso::cof(3,gammalooprs::hedge(3))))*spenso::g(spenso::cof(3,gammalooprs::hedge(0)),spenso::dind(spenso::cof(3,gammalooprs::hedge(2))))"
+        )
 
     def get_spin_projector(self) -> Expression:
-        return E("spenso::gamma(spenso::bis(4,gammalooprs::hedge(0)),spenso::bis(4,gammalooprs::hedge(2)),spenso::mink(4,mu))*gammalooprs::Q(0,spenso::mink(4,mu))*spenso::gamma(spenso::bis(4,gammalooprs::hedge(3)),spenso::bis(4,gammalooprs::hedge(1)),spenso::mink(4,nu))*gammalooprs::Q(1,spenso::mink(4,nu))")
+        return E(
+            "spenso::gamma(spenso::bis(4,gammalooprs::hedge(0)),spenso::bis(4,gammalooprs::hedge(2)),spenso::mink(4,mu))*gammalooprs::Q(0,spenso::mink(4,mu))*spenso::gamma(spenso::bis(4,gammalooprs::hedge(3)),spenso::bis(4,gammalooprs::hedge(1)),spenso::mink(4,nu))*gammalooprs::Q(1,spenso::mink(4,nu))"
+        )
 
-
-
-
-
-
-
-    def process_1L_generated_graphs(self, graphs: DotGraphs) -> DotGraphs:
-        processed_graphs = DotGraphs()
+    def process_1L_generated_graphs(self, graphs: DYDotGraphs) -> DYDotGraphs:
+        processed_graphs = DYDotGraphs()
         for g_input in graphs:
             g = copy.deepcopy(g_input)
             attrs = g.get_attributes()
             print("NUMERATOR = ", str(g.get_numerator().to_canonical_string()))
-            #print("NUMERATOR = ", str(simplify_color(self.get_color_projector()*g.get_numerator())))
-            print("NUMERATOR = ", str(simplify_gamma(self.get_spin_projector()*g.get_numerator()).to_canonical_string()))
-            print("NUMERATOR = ", str(simplify_metrics(simplify_gamma(simplify_color(self.get_color_projector()*self.get_spin_projector()*g.get_numerator()))).to_canonical_string()))
-            expr=simplify_metrics(simplify_gamma(simplify_color(self.get_color_projector()*self.get_spin_projector()*g.get_numerator())))
-            print("NUMERATOR = ", str(expr.replace(E("gammalooprs::Q(x_,y___)*gammalooprs::Q(z_,y___)"),E("dot(x_,z_)"),repeat=True)))
+            # print("NUMERATOR = ", str(simplify_color(self.get_color_projector()*g.get_numerator())))
+            print("NUMERATOR = ", str(simplify_gamma(self.get_spin_projector() * g.get_numerator()).to_canonical_string()))
+            print(
+                "NUMERATOR = ",
+                str(
+                    simplify_metrics(
+                        simplify_gamma(simplify_color(self.get_color_projector() * self.get_spin_projector() * g.get_numerator()))
+                    ).to_canonical_string()
+                ),
+            )
+            expr = simplify_metrics(simplify_gamma(simplify_color(self.get_color_projector() * self.get_spin_projector() * g.get_numerator())))
+            print("NUMERATOR = ", str(expr.replace(E("gammalooprs::Q(x_,y___)*gammalooprs::Q(z_,y___)"), E("dot(x_,z_)"), repeat=True)))
 
-            #from pprint import pprint
+            # from pprint import pprint
             g.get_vacuum_graph()
-            #pprint([str(e)
+            # pprint([str(e)
             print("####incoming edges####")
             for e in g.get_incoming_edges():
                 pprint(str(e))
@@ -322,10 +322,10 @@ class DY(object):
             for e in g.get_outgoing_edges():
                 pprint(str(e))
 
-            g.enumerate_cutkosky_cuts(g.get_incoming_edges(),g.get_outgoing_edges())
+            g.enumerate_cutkosky_cuts(g.get_incoming_edges(), g.get_outgoing_edges())
 
-            #my_g=my_graph(g)
-            #my_g.translate()
+            # my_g=my_graph(g)
+            # my_g.translate()
 
             attrs["num"] = f'"{expr_to_string(g.get_numerator())}"'
             attrs["projector"] = f'"{expr_to_string(g.get_projector() * self.get_color_projector())}"'
@@ -335,8 +335,8 @@ class DY(object):
 
         return processed_graphs
 
-    def process_2L_generated_graphs(self, graphs: DotGraphs) -> DotGraphs:
-        processed_graphs = DotGraphs()
+    def process_2L_generated_graphs(self, graphs: DYDotGraphs) -> DYDotGraphs:
+        processed_graphs = DYDotGraphs()
         for g_input in graphs:
             g = copy.deepcopy(g_input)
             attrs = g.get_attributes()
@@ -370,7 +370,7 @@ class DY(object):
                 )
                 self.gl_worker.run("save dot")
                 self.save_state()
-                DY_1L_dot_files_processed = self.process_1L_generated_graphs(DotGraphs(dot_str=DY_1L_dot_files))
+                DY_1L_dot_files_processed = self.process_1L_generated_graphs(DYDotGraphs(dot_str=DY_1L_dot_files))
                 DY_1L_dot_files_processed.save_to_file(pjoin(DOTS_FOLDER, self.name, f"{integrand_name}.dot"))
             case 2:
                 logger.info("Generating two-loop graphs ...")
@@ -385,7 +385,7 @@ class DY(object):
                 )
                 self.gl_worker.run("save dot")
                 self.save_state()
-                DY_2L_dot_files_processed = self.process_2L_generated_graphs(DotGraphs(dot_str=DY_2L_dot_files))
+                DY_2L_dot_files_processed = self.process_2L_generated_graphs(DYDotGraphs(dot_str=DY_2L_dot_files))
                 DY_2L_dot_files_processed.save_to_file(pjoin(DOTS_FOLDER, self.name, f"{integrand_name}.dot"))
             case _:
                 raise pygloopException(f"Number of loops {self.n_loops} not supported.")

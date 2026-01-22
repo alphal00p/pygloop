@@ -75,15 +75,28 @@ import time
 from pprint import pformat, pprint  # noqa: F401
 from typing import Any, Callable
 
+import numpy  # noqa: F401
 import progressbar
 import vegas  # type: ignore
 
 from gammaloop import GammaLoopAPI, LogLevel, evaluate_graph_overall_factor, git_version  # isort: skip # type: ignore # noqa: F401
 
-
 from matplotlib.typing import CapStyleType, ColorType  # noqa: F401
-from symbolica import E, Expression, NumericalIntegrator, Sample
+from symbolica import (
+    E,
+    Evaluator,
+    Expression,
+    NumericalIntegrator,
+    Replacement,
+    S,
+    Sample,
+)
 
+from symbolica.community.idenso import simplify_gamma, simplify_metrics, simplify_color, cook_indices  # isort: skip # noqa: F401
+from symbolica.community.spenso import TensorLibrary, TensorNetwork
+from ufo_model_loader.commands import Model
+
+from utils.polarizations import ixxxxx
 from utils.utils import (
     CONFIGS_FOLDER,  # noqa: F401
     DOTS_FOLDER,  # noqa: F401
@@ -92,9 +105,13 @@ from utils.utils import (
     INTEGRATION_WORKSPACE_FOLDER,  # noqa: F401
     OUTPUTS_FOLDER,  # noqa: F401
     PYGLOOP_FOLDER,
+    CFFStructure,
+    CFFTerm,
     Colour,
+    DotGraph,
     DotGraphs,
     IntegrationResult,
+    ParamBuilder,
     SymbolicaSample,
     chunks,
     expr_to_string,
@@ -115,6 +132,19 @@ RESCALING: float = 10.0
 
 class GGHHH(object):
     name = "GGHHH"
+
+    SB = {
+        "etaSelector": S("pygloop::ηs"),
+        "etaSigma": S("pygloop::ση"),
+        "energySign": S("pygloop::σE"),
+        "Qspatial": S("pygloop::Qs"),
+        "Kspatial": S("pygloop::Ks"),
+        "Q": S("pygloop::Q"),
+        "o_id": S("pygloop::o_id"),
+        "f_id": S("pygloop::f_id"),
+        "vector_pol": S("gammalooprs::ϵ"),
+        "externalP": S("gammalooprs::P"),
+    }
 
     def __init__(
         self,
@@ -148,10 +178,10 @@ class GGHHH(object):
         self.clean = clean
         if os.path.exists(gl_states_folder):
             if clean:
-                logger.info(f"Removing existing GammaLoop state in {Colour.GREEN}{gl_states_folder}{Colour.END}")  # nopep8
+                logger.info(f"Removing existing GammaLoop state in {Colour.GREEN}{gl_states_folder}{Colour.END}")  # fmt: off
                 shutil.rmtree(gl_states_folder)
             else:
-                logger.info(f"Reusing existing GammaLoop state in {Colour.GREEN}{gl_states_folder}{Colour.END}")  # nopep8
+                logger.info(f"Reusing existing GammaLoop state in {Colour.GREEN}{gl_states_folder}{Colour.END}")  # fmt: off
 
         logger_level = logger.getEffectiveLevel()
         if logger_level <= logging.DEBUG:
@@ -167,7 +197,7 @@ class GGHHH(object):
 
         logger.info(
             f"Initializing GammaLoop API (git {Colour.BLUE}{git_version}{Colour.END}) for process {Colour.GREEN}{self.name}{Colour.END}"
-        )  # nopep8
+        )  # fmt: off
         self.gl_worker = GammaLoopAPI(
             pjoin(PYGLOOP_FOLDER, "outputs", "gammaloop_states", self.name),
             log_file_name=self.name,
@@ -180,7 +210,7 @@ class GGHHH(object):
 
         self.toml_config_path = toml_config_path
         logger.info(f"Setting gammaloop starting configuration from toml file {Colour.BLUE}{toml_config_path}{Colour.END}.")
-        self.gl_worker.run(f"set global file {toml_config_path}")  # nopep8
+        self.gl_worker.run(f"set global file {toml_config_path}")  # fmt: off
         self.setup_gl_worker()
 
         amplitudes, cross_sections = self.gl_worker.list_outputs()
@@ -222,6 +252,12 @@ class GGHHH(object):
             logger_level=logging.CRITICAL,
         )
         return copied_self
+
+    def get_model(self):
+        try:
+            return Model.from_json(self.gl_worker.get_model())
+        except Exception as e:
+            raise pygloopException(f"Could not get model from GammaLoop worker. Error: {e}") from e
 
     def builder_inputs(self) -> tuple:
         return (self.m_top, self.m_higgs, self.ps_point, self.helicities, self.n_loops, self.toml_config_path, self.runtime_toml_config_path)
@@ -289,7 +325,7 @@ class GGHHH(object):
     def process_1L_generated_graphs(self, graphs: DotGraphs) -> DotGraphs:
         processed_graphs = DotGraphs()
         for g_input in graphs:
-            g = copy.deepcopy(g_input)
+            g: DotGraph = copy.deepcopy(g_input)
             attrs = g.get_attributes()
             attrs["num"] = f'"{expr_to_string(g.get_numerator())}"'
             attrs["projector"] = f'"{expr_to_string(g.get_projector() * self.get_color_projector())}"'
@@ -333,7 +369,6 @@ class GGHHH(object):
                     GGHHH_1L_dot_files,
                 )
                 self.gl_worker.run("save dot")
-                self.save_state()
                 GGHHH_1L_dot_files_processed = self.process_1L_generated_graphs(DotGraphs(dot_str=GGHHH_1L_dot_files))
                 GGHHH_1L_dot_files_processed.save_to_file(pjoin(DOTS_FOLDER, self.name, f"{integrand_name}.dot"))
             case 2:
@@ -348,11 +383,248 @@ class GGHHH(object):
                     GGHHH_2L_dot_files,
                 )
                 self.gl_worker.run("save dot")
-                self.save_state()
                 GGHHH_2L_dot_files_processed = self.process_2L_generated_graphs(DotGraphs(dot_str=GGHHH_2L_dot_files))
                 GGHHH_2L_dot_files_processed.save_to_file(pjoin(DOTS_FOLDER, self.name, f"{integrand_name}.dot"))
             case _:
                 raise pygloopException(f"Number of loops {self.n_loops} not supported.")
+
+        amplitudes, _cross_sections = self.gl_worker.list_outputs()
+        if graphs_process_name not in amplitudes:
+            raise pygloopException(f"Amplitude with named integrand {graphs_process_name} not found in GammaLoop state. Generate graphs first.")
+
+        if not os.path.isfile(pjoin(DOTS_FOLDER, self.name, f"{integrand_name}.dot")):
+            raise pygloopException(
+                f"Processed dot file not found at {pjoin(DOTS_FOLDER, self.name, f'{integrand_name}.dot')}. Generate graphs first."
+            )
+
+        self.gl_worker.run(
+            f"import graphs {pjoin(DOTS_FOLDER, self.name, f'{integrand_name}.dot')} -p {amplitudes[graphs_process_name]} -i {integrand_name}"
+        )
+
+        self.save_state()
+
+    def get_model_parameters(self) -> list[tuple[Expression, complex]]:
+        model = self.get_model()
+        res = []
+        for param in model.parameters:
+            if param.value is None:
+                raise pygloopException(f"Model parameter '{param.name}' has no value.")
+            res.append((E(f"UFO::{param.name}"), param.value))
+        return res
+
+    def get_model_couplings(self) -> list[tuple[Expression, complex]]:
+        model = self.get_model()
+        res = []
+        for coupl in model.couplings:
+            if coupl.value is None:
+                raise pygloopException(f"Model coupling '{coupl.name}' has no value.")
+            res.append((E(f"UFO::{coupl.name}"), coupl.value))
+        return res
+
+    def get_constants_for_evaluator(self) -> dict[Expression, Expression]:
+        # TODO
+        return {E("spenso::TR"): E("1/2")}
+
+    def initialize_param_builders(
+        self,
+        integrand_param_builder: ParamBuilder,
+        input_params_param_builder: ParamBuilder,
+    ):
+        # Update model parameters
+        model_inputs = self.get_model_parameters() + self.get_model_couplings()
+        for param, value in model_inputs:
+            integrand_param_builder.set_parameter((param,), value)
+            input_params_param_builder.set_parameter((param,), value)
+
+        # Set external momenta
+        for i_p, p in enumerate(self.ps_point):
+            input_params_param_builder.set_parameter_values((self.SB["externalP"], E(str(i_p))), [complex(p_i) for p_i in p.to_list()])
+
+        # Add the polarization vectors
+        for e_i in [0, 1]:
+            pol_vector = ixxxxx(self.ps_point[e_i].to_list(), 0.0, self.helicities[e_i], 1)[2::]
+            integrand_param_builder.set_parameter_values((self.SB["vector_pol"], E(str(e_i))), [complex(pol_i) for pol_i in pol_vector])
+
+    def set_from_sample(
+        self,
+        ks: list[Vector] | None,
+        cff_term: CFFTerm | None,
+        family_id: int | None,
+        integrand_param_builder: ParamBuilder,
+        input_params_evaluator: Evaluator,
+        input_params_param_builder: ParamBuilder,
+    ) -> None:
+        # Set loop momenta and emr momenta
+        if ks is not None:
+            for i_k, k in enumerate(ks):
+                input_params_param_builder.set_parameter_values((self.SB["Kspatial"], E(str(i_k))), [complex(k_i) for k_i in k.to_list()])
+
+            # Evaluate derived inputs
+            derived_inputs = input_params_evaluator.evaluate_complex(input_params_param_builder.get_values()[None, :])[0]
+            integrand_param_builder.set_parameter_values_within_range(0, len(derived_inputs), derived_inputs)
+
+        # Add the E-surfaces selectors
+        if cff_term is not None and family_id is not None:
+            integrand_param_builder.set_parameter_values((self.SB["etaSigma"], self.SB["o_id"], self.SB["f_id"]), cff_term.masks[family_id])
+
+        # Add the energy signs
+        if cff_term is not None:
+            integrand_param_builder.set_parameter_values((self.SB["energySign"], self.SB["o_id"]), cff_term.orientation_signs)
+
+    def build_integrand_evaluator(self, graph: DotGraph, integrand: Expression, cff_structure: CFFStructure) -> tuple[Evaluator, ParamBuilder]:
+        internal_edges = graph.get_internal_edges()
+        max_internal_edge_id = 0 if len(internal_edges) == 0 else max(int(e.get("id")) for e in internal_edges)
+
+        param_builder = ParamBuilder()
+
+        # START of "computable parameters" listing
+        # Add on-shell energies and external momenta energies
+        param_builder.add_parameter_list((CFFStructure.SB["E"],), max_internal_edge_id + 1)
+        # Add the spatial part of momenta
+        for e_i in range(max_internal_edge_id + 1):
+            param_builder.add_parameter_list((self.SB["Qspatial"], E(str(e_i))), 3)
+        # END of "computable parameters" listing
+
+        # Add the polarization vectors
+        for e_i in [0, 1]:
+            param_builder.add_parameter_list((self.SB["vector_pol"], E(str(e_i))), 4)
+
+        # Add the E-surfaces selectors
+        param_builder.add_parameter_list((self.SB["etaSigma"], self.SB["o_id"], self.SB["f_id"]), len(cff_structure.e_surfaces))
+        # Add the energy signs
+        param_builder.add_parameter_list((self.SB["energySign"], self.SB["o_id"]), max_internal_edge_id + 1)
+
+        model_inputs = self.get_model_parameters() + self.get_model_couplings()
+        for param, value in model_inputs:
+            param_builder.add_parameter((param,))
+            param_builder.set_parameter((param,), value)
+
+        # fmt: off
+        evaluator = integrand.evaluator(
+            constants = self.get_constants_for_evaluator(),
+            functions = {}, # type: ignore
+            params = param_builder.get_parameters(),
+            iterations = 100,
+            n_cores = 8,
+            verbose = False,
+            external_functions = None,
+            conditionals = [self.SB["etaSelector"],]
+        )
+
+        return (evaluator, param_builder)
+
+    def build_full_integrand_evaluator(
+        self, integrand_expression: Expression, cff_structure: CFFStructure, integrand_param_builder: ParamBuilder
+    ) -> Evaluator:
+        selector_execution = [
+            Replacement(self.SB["etaSelector"](E("1"), E("true_"), E("false_")), E("true_")),
+            Replacement(self.SB["etaSelector"](E("0"), E("true_"), E("false_")), E("false_")),
+        ]
+        input_params = integrand_param_builder.get_parameters()
+        constants = self.get_constants_for_evaluator()
+        full_evaluator = None
+        for cff_term in cff_structure.expressions:
+            orientation_substitutions = []
+            for o_i, o in enumerate(cff_term.orientation):
+                orientation_substitutions.append(
+                    Replacement(self.SB["energySign"](self.SB["o_id"], E(str(o_i))), E("-1") if o.is_reversed() else E("1"))
+                )
+            orientation_substituted_integrand = integrand_expression.replace_multiple(orientation_substitutions)
+            for _f_i, f in enumerate(cff_term.families):
+                e_surface_selector_substitutions = []
+                for eta_i, is_present in enumerate(f):
+                    e_surface_selector_substitutions.append(
+                        Replacement(self.SB["etaSigma"](self.SB["o_id"], self.SB["f_id"], E(str(eta_i))), E("1") if is_present else E("0"))
+                    )
+                concretized_integrand = orientation_substituted_integrand.replace_multiple(e_surface_selector_substitutions)
+                concretized_integrand = concretized_integrand.replace_multiple(selector_execution)
+                concretized_evaluator = concretized_integrand.evaluator(
+                    constants=constants,
+                    functions={},  # type: ignore
+                    params=input_params,
+                    iterations=100,
+                    n_cores=8,
+                    verbose=False,
+                    external_functions=None,
+                    conditionals=None,
+                )
+                if full_evaluator is None:
+                    full_evaluator = concretized_evaluator
+                else:
+                    full_evaluator.merge(concretized_evaluator)
+
+        assert full_evaluator is not None
+        return full_evaluator
+
+    def build_parameter_evaluators(self, graph: DotGraph) -> tuple[Evaluator, ParamBuilder]:
+        internal_edges = graph.get_internal_edges()
+        external_edges = graph.get_external_edges()
+        max_internal_edge_id = 0 if len(internal_edges) == 0 else max(int(e.get("id")) for e in internal_edges)
+        max_external_edge_id = 0 if len(external_edges) == 0 else max(int(e.get("id")) for e in external_edges)  # noqa: F841
+
+        lmb_projections = [Replacement(source, target) for source, target in graph.get_emr_replacements(head=self.SB["Q"].get_name())]
+        computable_parameters = []
+        model = self.get_model()
+        edges = graph.dot.get_edges()
+
+        # Add evaluation rules for the energies
+        for e_i in range(max_internal_edge_id):
+            if e_i <= max_external_edge_id:
+                external_energy = self.SB["Q"](E(f"{e_i}"), E("0"))
+                external_energy = external_energy.replace_multiple(lmb_projections, repeat=True)
+                computable_parameters.append(external_energy)
+            else:
+                particle = model.get_particle(edges[e_i].get("particle").replace('"', ""))
+                on_shell_energy = E("0")
+                for i in range(1, 4):
+                    on_shell_energy += self.SB["Q"](E(f"{e_i}"), E(str(i))) * self.SB["Q"](E(f"{e_i}"), E(str(i)))
+                if particle.mass.name.upper() != "ZERO":
+                    on_shell_energy += S(f"UFO::{particle.mass.name}") ** 2
+                on_shell_energy = on_shell_energy ** E("1/2")
+                on_shell_energy = on_shell_energy.replace_multiple(lmb_projections, repeat=True)
+                # Map to Kspatial
+                on_shell_energy = on_shell_energy.replace(E("gammalooprs::K(x_,y_)"), self.SB["Kspatial"](E("x_"), E("y_-1")))
+                computable_parameters.append(on_shell_energy)
+
+        # Add evaluation rules for the spatial EMR momenta
+        for e_i in range(max_internal_edge_id + 1):
+            for i in range(1, 4):
+                spatial_momentum = self.SB["Q"](E(f"{e_i}"), E(str(i)))
+                spatial_momentum = spatial_momentum.replace_multiple(lmb_projections, repeat=True)
+                # Map to Kspatial
+                spatial_momentum = spatial_momentum.replace(E("gammalooprs::K(x_,y_)"), self.SB["Kspatial"](E("x_"), E("y_-1")))
+                computable_parameters.append(spatial_momentum)
+
+        # Now the param builder for these input parameters calculations
+        param_builder = ParamBuilder()
+
+        # External 4-momenta
+        for e_i in range(max_external_edge_id + 1):
+            param_builder.add_parameter_list((self.SB["externalP"], E(str(e_i))), 4)
+
+        # Internal loop 3-momenta
+        for i_lmb in range(self.n_loops):
+            param_builder.add_parameter_list((self.SB["Kspatial"], E(str(i_lmb))), 3)
+
+        # And finally the model parameters as they are needed for the particle masses
+        model_inputs = self.get_model_parameters() + self.get_model_couplings()
+        for param, value in model_inputs:
+            param_builder.add_parameter((param,))
+            param_builder.set_parameter((param,), value)
+
+        # We can now build the evaluator
+        # TODO @Ben: add support for conditionals
+        evaluator = Expression.evaluator_multiple(
+            computable_parameters,
+            constants={},
+            functions={},  # type: ignore
+            params=param_builder.get_parameters(),
+            iterations=100,
+            n_cores=8,
+            verbose=False,
+            external_functions=None,  # type: ignore
+        )
+        return (evaluator, param_builder)
 
     def generate_spenso_code(self) -> None:
         evaluator_path = pjoin(EVALUATORS_FOLDER, self.name, f"{self.get_integrand_name()}.so")
@@ -363,38 +635,180 @@ class GGHHH(object):
             else:
                 logger.info(f"Spenso evaluator {evaluator_path} already generated and recycled.")
                 return
-        logger.critical(f"Spenso code generation for {self.get_integrand_name()}.so not yet implemented.")
+
+        integrand_name = self.get_integrand_name()
+        amplitudes, _cross_sections = self.gl_worker.list_outputs()
+        if integrand_name not in amplitudes:
+            raise pygloopException(
+                f"Amplitude {self.get_integrand_name()} not found in GammaLoop state. Generate graphs and code first with the generate subcommand."
+            )
+        process_id = amplitudes[integrand_name]
+
+        graph_name = None
+        match self.n_loops:
+            case 1:
+                graph_name = "GL15"
+            case 2:
+                graph_name = "GL303"
+            case _:
+                raise pygloopException(f"Number of loops {self.n_loops} not supported.")
+
+        gghhh_dot_graphs = DotGraphs(dot_str=self.gl_worker.get_dot_files(process_id=process_id, integrand_name=integrand_name))
+
+        gghhh_graph = gghhh_dot_graphs.get_graph(graph_name)
+
+        cff_structure = self.gl_worker.generate_cff_as_json_string(
+            dot_string=gghhh_graph.to_string(),
+            subgraph_nodes=[],
+            reverse_dangling=[],
+            orientation_pattern=None,
+        )
+
+        numerator = simplify_color(gghhh_graph.get_numerator() * gghhh_graph.get_projector())
+        # The SM UFO stupidly writes ProjP + ProjM instead of the identity for the yukawa interaction, simply this away...
+        numerator = numerator.replace(E("spenso::projm(x_,y_)+spenso::projp(x_,y_)"), E("spenso::g(x_,y_)"), repeat=True)
+
+        hep_lib = TensorLibrary.hep_lib()
+        tn = TensorNetwork(cook_indices(numerator), hep_lib)
+
+        tn.execute(hep_lib)
+        numerator_expr = tn.result_scalar()
+
+        # Unwrap spenso::cind(x)
+        numerator_expr = numerator_expr.replace(E("spenso::cind(x_)"), E("x_"), repeat=True)
+
+        # Now substitute with on-shell energies, and rename spatial components
+        numerator_expr = numerator_expr.replace(
+            E("gammalooprs::Q(x_,0)"), self.SB["energySign"](self.SB["o_id"], E("x_")) * CFFStructure.SB["E"](S("x_")), repeat=True
+        )
+        numerator_expr = numerator_expr.replace(E("gammalooprs::Q(x_,i_)"), self.SB["Qspatial"](S("x_"), S("i_") - 1), repeat=True)
+
+        # print(numerator_expr.to_canonical_string())
+        # stop
+        # fmt: off
+        #         tn_A = TensorNetwork(
+        #             E("""
+
+        # (
+        #       UFO::MT*spenso::g(spenso::bis(4,gammalooprs::hedge(10)),spenso::bis(4,gammalooprs::hedge(9)))
+        #     +   gammalooprs::Q(7,spenso::mink(4,gammalooprs::edge(7,1)))
+        #       * spenso::gamma(spenso::bis(4,gammalooprs::hedge(10)),spenso::bis(4,gammalooprs::hedge(9)),spenso::mink(4,gammalooprs::edge(7,1)))
+        # )*(
+        #       UFO::MT*spenso::g(spenso::bis(4,gammalooprs::hedge(11)),spenso::bis(4,gammalooprs::hedge(12)))
+        #     +   gammalooprs::Q(8,spenso::mink(4,gammalooprs::edge(8,1)))
+        #       * spenso::gamma(spenso::bis(4,gammalooprs::hedge(12)),spenso::bis(4,gammalooprs::hedge(11)),spenso::mink(4,gammalooprs::edge(8,1)))
+        # )*(
+        #       UFO::MT*spenso::g(spenso::bis(4,gammalooprs::hedge(13)),spenso::bis(4,gammalooprs::hedge(14)))
+        #     +   gammalooprs::Q(9,spenso::mink(4,gammalooprs::edge(9,1)))
+        #       * spenso::gamma(spenso::bis(4,gammalooprs::hedge(14)),spenso::bis(4,gammalooprs::hedge(13)),spenso::mink(4,gammalooprs::edge(9,1)))
+        # )*(
+        #       UFO::MT*spenso::g(spenso::bis(4,gammalooprs::hedge(5)),spenso::bis(4,gammalooprs::hedge(6)))
+        #     +   gammalooprs::Q(5,spenso::mink(4,gammalooprs::edge(5,1)))
+        #       * spenso::gamma(spenso::bis(4,gammalooprs::hedge(6)),spenso::bis(4,gammalooprs::hedge(5)),spenso::mink(4,gammalooprs::edge(5,1)))
+        # )*(
+        #       UFO::MT*spenso::g(spenso::bis(4,gammalooprs::hedge(7)),spenso::bis(4,gammalooprs::hedge(8)))
+        #     +   gammalooprs::Q(6,spenso::mink(4,gammalooprs::edge(6,1)))
+        #       * spenso::gamma(spenso::bis(4,gammalooprs::hedge(8)),spenso::bis(4,gammalooprs::hedge(7)),spenso::mink(4,gammalooprs::edge(6,1)))
+        # )*(
+        #     spenso::projm(spenso::bis(4,gammalooprs::hedge(13)),spenso::bis(4,gammalooprs::hedge(10)))+spenso::projp(spenso::bis(4,gammalooprs::hedge(13)),spenso::bis(4,gammalooprs::hedge(10)))
+        # )*(
+        #     spenso::projm(spenso::bis(4,gammalooprs::hedge(5)),spenso::bis(4,gammalooprs::hedge(14)))+spenso::projp(spenso::bis(4,gammalooprs::hedge(5)),spenso::bis(4,gammalooprs::hedge(14)))
+        # )*(
+        #     spenso::projm(spenso::bis(4,gammalooprs::hedge(7)),spenso::bis(4,gammalooprs::hedge(6)))+spenso::projp(spenso::bis(4,gammalooprs::hedge(7)),spenso::bis(4,gammalooprs::hedge(6)))
+        # )*1𝑖*UFO::GC_11^2*UFO::GC_94^3*spenso::TR
+        # *gammalooprs::ϵ(0,spenso::mink(4,gammalooprs::hedge(0)))
+        # *gammalooprs::ϵ(1,spenso::mink(4,gammalooprs::hedge(1)))
+        # *spenso::gamma(spenso::bis(4,gammalooprs::hedge(11)),spenso::bis(4,gammalooprs::hedge(8)),spenso::mink(4,gammalooprs::hedge(0)))
+        # *spenso::gamma(spenso::bis(4,gammalooprs::hedge(9)),spenso::bis(4,gammalooprs::hedge(12)),spenso::mink(4,gammalooprs::hedge(1)))
+        #             """),
+        #             hep_lib,
+        #         )
+
+        try:
+            cff_structure = json.loads(cff_structure)
+        except json.JSONDecodeError as e:
+            raise pygloopException(f"Error decoding CFF structure JSON: {e}") from e
+        cff_structure = CFFStructure(cff_structure)
+        # print(cff_structure.__str__(show_families=True))
+        # stop
+
+        # print(cff_structure.__str__(show_families=True))
+        # Build a CFF term evaluators, with each esurface wrapped around a selector
+        cff_term = E("1")
+        for e_surf in cff_structure.e_surfaces:
+            cff_term *= self.SB["etaSelector"](self.SB["etaSigma"](self.SB["o_id"], self.SB["f_id"], e_surf.id), e_surf.expression, E("1"))
+
+        internal_edges = gghhh_graph.get_internal_edges()
+        external_edges = gghhh_graph.get_external_edges()
+        max_internal_edge_id = 0 if len(internal_edges) == 0 else max(int(e.get("id")) for e in internal_edges)
+        max_external_edge_id = 0 if len(external_edges) == 0 else max(int(e.get("id")) for e in external_edges)  # noqa: F841
+
+        # Add the CFF normalization factor
+        for e_i in range(max_internal_edge_id+1):
+            if e_i > max_external_edge_id:
+                continue
+            cff_term *= E("2")*CFFStructure.SB["E"](E(str(e_i)))
+
+        integrand_expression = numerator_expr / cff_term
+
+        # Build the integrand evaluator
+        parametric_integrand_evaluator, integrand_param_builder = self.build_integrand_evaluator(gghhh_graph, integrand_expression, cff_structure)
+
+        # Build the aggregated summed integrand evaluator
+        full_integrand_evaluator = self.build_full_integrand_evaluator(integrand_expression,cff_structure,integrand_param_builder)
+
+        # Now build the input parameter evaluator
+        params_evaluator, params_param_builder = self.build_parameter_evaluators(gghhh_graph)
+
+        self.initialize_param_builders(integrand_param_builder,params_param_builder)
+        # Now build the param_builder for this
+        # fmt: off
+        self.set_from_sample(
+                ks=[Vector(100.,200.,300.),],
+                cff_term = cff_structure.expressions[0],
+                family_id = 0,
+                integrand_param_builder = integrand_param_builder,
+                input_params_evaluator = params_evaluator,
+                input_params_param_builder = params_param_builder
+        )
+
+        test_eval_result = parametric_integrand_evaluator.evaluate_complex(integrand_param_builder.get_values()[None, :])[0].sum()
+        print("Evaluation of integrand from CFF term #0:",test_eval_result)
+
+        self.set_from_sample(
+                ks=[Vector(100.,200.,300.),],
+                cff_term = None,
+                family_id = None,
+                integrand_param_builder = integrand_param_builder,
+                input_params_evaluator = params_evaluator,
+                input_params_param_builder = params_param_builder
+        )
+
+        test_eval_result = full_integrand_evaluator.evaluate_complex(integrand_param_builder.get_values()[None, :])[0].sum()
+        print("Evaluation of complete integrand using the aggregated evaluator term #0:", test_eval_result)
+
+        # fmt: on
+
         # raise NotImplementedError("Implement spenso code generation.")
 
     def generate_gammaloop_code(self) -> None:
         amplitudes, _cross_sections = self.gl_worker.list_outputs()
         integrand_name = self.get_integrand_name()
         process_graphs_name = self.get_integrand_name(suffix="_generated_graphs")
-        if process_graphs_name not in amplitudes:
+        if process_graphs_name not in amplitudes or integrand_name not in amplitudes:
             raise pygloopException(f"Amplitude with named integrand {process_graphs_name} not found in GammaLoop state. Generate graphs first.")
-        if integrand_name in amplitudes:
+        if not os.path.isfile(pjoin(DOTS_FOLDER, self.name, f"{integrand_name}.dot")):
+            raise pygloopException(
+                f"Processed dot file not found at {pjoin(DOTS_FOLDER, self.name, f'{integrand_name}.dot')}. Generate graphs first."
+            )
+        if os.path.isfile(pjoin(PYGLOOP_FOLDER, "outputs", "gammaloop_states", self.name, f"{integrand_name}_is_generated")):
             logger.info(f"Amplitude {integrand_name} already generated and recycled.")
             return
-        if not os.path.isfile(pjoin(DOTS_FOLDER, "GGHHH", f"{integrand_name}.dot")):
-            raise pygloopException(f"Processed dot file not found at {pjoin(DOTS_FOLDER, 'GGHHH', f'{integrand_name}.dot')}. Generate graphs first.")
 
-        self.gl_worker.run(
-            f"import graphs {pjoin(DOTS_FOLDER, 'GGHHH', f'{integrand_name}.dot')} -p {amplitudes[process_graphs_name]} -i {integrand_name}"
-        )
         self.gl_worker.run(f"generate existing -p {amplitudes[process_graphs_name]} -i {integrand_name}")
-        # match self.n_loops:
-        #     case 1:
-        #         self.gl_worker.run(
-        #             f"import graphs {pjoin(DOTS_FOLDER, 'GGHHH', f'{integrand_name}.dot')} -p {amplitudes[process_graphs_name]} -i {integrand_name}"
-        #         )
-        #         self.gl_worker.run(f"generate existing -p {amplitudes[process_graphs_name]} -i {process_graphs_name}")
-        #     case 2:
-        #         self.gl_worker.run(
-        #             f"import graphs {pjoin(DOTS_FOLDER, 'GGHHH', f'{integrand_name}.dot')} -p {amplitudes[process_graphs_name]} -i {integrand_name}"
-        #         )
-        #         self.gl_worker.run(f"generate existing -p {amplitudes[process_graphs_name]} -i {process_graphs_name}")
-        #     case _:
-        #         raise pygloopException(f"Number of loops {self.n_loops} not supported.")
+
+        with open(os.path.isfile(pjoin(PYGLOOP_FOLDER, "outputs", "gammaloop_states", self.name, f"{integrand_name}_is_generated")), "w") as f:
+            f.write("generated")
 
         self.save_state()
 
@@ -518,15 +932,15 @@ class GGHHH(object):
                     Vector(0.0, 0.0, 0.0),
                     self.ps_point[1].spatial(),
                     (self.ps_point[1] - self.ps_point[2]).spatial(),
-                    (self.ps_point[1] - self.ps_point[2] - self.ps_point[3]).spatial(),  # nopep8
-                    (self.ps_point[1] - self.ps_point[2] - self.ps_point[3] - self.ps_point[4]).spatial(),  # nopep8
+                    (self.ps_point[1] - self.ps_point[2] - self.ps_point[3]).spatial(),  # fmt: off
+                    (self.ps_point[1] - self.ps_point[2] - self.ps_point[3] - self.ps_point[4]).spatial(),  # fmt: off
                 ]
                 for i_channel in range(5):
                     if multi_channeling is True or multi_channeling == i_channel:
                         k, jac = self.parameterize(xs, parameterization, q_offsets[i_channel] * -1)
                         inv_oses = [
                             1.0 / math.sqrt((k + q_offsets[i_prop]).squared() + self.m_top**2)
-                            for i_prop in range(5)  # nopep8
+                            for i_prop in range(5)  # fmt: off
                         ]
                         wgt = self.integrand([k], integrand_implementation)
                         if phase == "real":
@@ -538,12 +952,12 @@ class GGHHH(object):
             if math.isnan(final_wgt):
                 logger.debug(
                     f"Integrand evaluated to NaN at xs = [{Colour.BLUE}{', '.join(f'{xi:+.16e}' for xi in xs)}{Colour.END}]. Setting it to zero"
-                )  # nopep8
+                )  # fmt: off
                 final_wgt = 0.0
         except ZeroDivisionError:
             logger.debug(
                 f"Integrand divided by zero at xs = [{Colour.BLUE}{', '.join(f'{xi:+.16e}' for xi in xs)}{Colour.END}]. Setting it to zero"
-            )  # nopep8
+            )  # fmt: off
             final_wgt = 0.0
 
         return final_wgt
@@ -648,7 +1062,7 @@ class GGHHH(object):
         if integrand_name not in amplitudes:
             raise pygloopException(
                 f"Amplitude {integrand_name} not found in GammaLoop state. Generate graphs and code first with the generate subcommand. Available amplitudes: {list(amplitudes.keys())}"
-            )  # nopep8
+            )  # fmt: off
 
         integration_options = {
             "n_start": opts.get("points_per_iteration", 100_000),
@@ -687,7 +1101,7 @@ class GGHHH(object):
         integrate_command_str = " ".join(" ".join(itg_o for itg_o in itg_opt) for itg_opt in integrate_command)
         logger.info(f"Running GammaLoop integration with command:\n{Colour.GREEN}{integrate_command_str}{Colour.END}")
         t_start = time.time()
-        self.gl_worker.run(integrate_command_str)  # nopep8
+        self.gl_worker.run(integrate_command_str)  # fmt: off
         t_elapsed = time.time() - t_start
 
         res = None
@@ -962,7 +1376,7 @@ class GGHHH(object):
         for i_iter in range(opts["n_iterations"]):
             logger.info(
                 f"Symbolica integration: starting iteration {Colour.GREEN}{i_iter + 1}/{opts['n_iterations']}{Colour.END} using {Colour.BLUE}{opts['points_per_iteration']}{Colour.END} points ..."
-            )  # nopep8
+            )  # fmt: off
             samples = integrator.sample(opts["points_per_iteration"], rng)
             res = GGHHH.symbolica_integrand_function(
                 self,
@@ -984,10 +1398,10 @@ class GGHHH(object):
 
     @set_gammaloop_level(logging.ERROR, logging.INFO)
     def plot(self, **opts):
-        import matplotlib.pyplot as plt  # type: ignore # nopep8
+        import matplotlib.pyplot as plt  # type: ignore # fmt: off
         import numpy as np
         from mpl_toolkits.mplot3d import (
-            Axes3D,  # type: ignore # noqa: F401 # nopep8 # fmt: off
+            Axes3D,  # type: ignore # noqa: F401 # fmt: off # fmt: off
         )
 
         fixed_x = None
@@ -1093,17 +1507,17 @@ class GGHHH(object):
                     opts["range"][1],
                 ],  # type: ignore
                 cmap="viridis",
-            )  # type: ignore # nopep8
+            )  # type: ignore # fmt: off
             plt.colorbar(label=f"log10(I({','.join(xs)}))")
         else:
             # Create a 3D plot
             fig = plt.figure(figsize=(10, 8))
             ax = fig.add_subplot(111, projection="3d")
             # Plot the surface
-            surf = ax.plot_surface(X, Y, Z, cmap="viridis")  # type: ignore # nopep8
+            surf = ax.plot_surface(X, Y, Z, cmap="viridis")  # type: ignore # fmt: off
             # Add a color bar which maps values to colors
             fig.colorbar(surf, shrink=0.5, aspect=5)
-            ax.set_zlabel(f"log10(I({','.join(xs)}))")  # type: ignore # nopep8
+            ax.set_zlabel(f"log10(I({','.join(xs)}))")  # type: ignore # fmt: off
 
         plt.xlabel(f"{xs[opts['xs'][0]]}")
         plt.ylabel(f"{xs[opts['xs'][1]]}")
@@ -1111,7 +1525,7 @@ class GGHHH(object):
         plt.show()
 
 
-def _plot_worker_init(base: "GGHHH", config: dict[str, Any]) -> None:
+def _plot_worker_init(base: GGHHH, config: dict[str, Any]) -> None:
     proc = multiprocessing.current_process()
     proc._plot_worker = copy.deepcopy(base)  # type: ignore
     proc._plot_config = config  # type: ignore

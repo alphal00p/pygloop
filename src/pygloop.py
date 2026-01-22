@@ -12,6 +12,7 @@ import time
 from pprint import pformat
 
 from processes.gghhh import GGHHH
+from processes.template_process import TemplateProcess
 from utils.utils import (
     SRC_DIR,
     Colour,
@@ -80,7 +81,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--clean", "-c", action="store_true", default=False,
         help="Clean existing generated states before generating new ones. Default = %(default)s",
     )  # fmt: off
-    parser.add_argument("--process", "-p", type=str, choices=["gghhh"], default="gghhh",
+    parser.add_argument("--process", "-p", type=str, choices=["gghhh", "template_process"], default="gghhh",
         help="Process to consider. Default = %(default)s",
     )  # fmt: off
     parser.add_argument("--integrand-implementation", "-ii", type=str, default="gammaloop", choices=["gammaloop", "spenso"],
@@ -192,6 +193,17 @@ def main(argv: list[str] | None = None) -> int:
                 runtime_toml_config_path=args.runtime_configuration,
                 clean=args.clean,
             )
+        case "template_process":
+            process = TemplateProcess(
+                args.m_top,
+                args.m_higgs,
+                ps_point,
+                args.helicities,
+                args.n_loops,
+                toml_config_path=args.gammaloop_configuration,
+                runtime_toml_config_path=args.runtime_configuration,
+                clean=args.clean,
+            )
         case _:
             raise pygloopException(f"Process {args.process} not implemented.")
 
@@ -199,11 +211,11 @@ def main(argv: list[str] | None = None) -> int:
         case "generate":
             logger.info("Generating graphs ...")
             process.generate_graphs()
-            if args.generation_type == "gammaloop" or args.generation_type == "all":
+            if "gammaloop" in args.generation_type or "all" in args.generation_type:
                 logger.info("Generating gammaloop code ...")
                 process.generate_gammaloop_code()
                 logger.info("Gammaloop code generation completed.")
-            if args.generation_type == "spenso" or args.generation_type == "all":
+            if "spenso" in args.generation_type or "all" in args.generation_type:
                 logger.info("Generating spenso code ...")
                 process.generate_spenso_code()
                 logger.info("Spenso code generation completed.")
