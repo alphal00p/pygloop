@@ -82,7 +82,7 @@ from gammaloop import GammaLoopAPI, LogLevel, evaluate_graph_overall_factor, git
 from matplotlib.typing import CapStyleType, ColorType  # noqa: F401
 from symbolica import E, Expression, NumericalIntegrator, Sample
 from symbolica.community.idenso import simplify_color, simplify_gamma, simplify_metrics
-from symbolica.community.spenso import *
+from symbolica.community.spenso import *  # noqa: F403 # type: ignore
 
 from processes.dy_utils import DYDotGraphs
 from utils.utils import (

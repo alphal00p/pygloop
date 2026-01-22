@@ -1,12 +1,13 @@
-import os
+import re
+from collections import deque
+from itertools import combinations
 from pprint import pprint
 from typing import List, Optional, Tuple
 
-import numpy
 import pydot
 from pydot import Edge, Node  # noqa: F401
 
-from utils.utils import DotGraph, DotGraphs
+from utils.utils import DotGraph, DotGraphs, logger, pygloopException  # noqa: F401
 from utils.vectors import LorentzVector, Vector  # noqa: F401
 
 
@@ -271,6 +272,29 @@ class DYDotGraph(DotGraph):
 
 
 class DYDotGraphs(DotGraphs):
+    def __init__(self, dot_str: str | None = None, dot_path: str | None = None):
+        if dot_str is None and dot_path is None:
+            return
+        if dot_path is not None and dot_str is not None:
+            raise pygloopException("Only one of dot_str or dot_path should be provided.")
+
+        if dot_path:
+            dot_graphs = pydot.graph_from_dot_file(dot_path)
+            if dot_graphs is None:
+                raise ValueError(f"No graphs found in DOT file: {dot_path}")
+            self.extend([DYDotGraph(g) for g in dot_graphs])
+        elif dot_str:
+            dot_graphs = pydot.graph_from_dot_data(dot_str)
+            if dot_graphs is None:
+                raise ValueError("No graphs found in DOT data string.")
+            self.extend([DYDotGraph(g) for g in dot_graphs])
+
+    def get_graph(self, graph_name) -> DYDotGraph:
+        for g in self:
+            if g.dot.get_name() == graph_name:
+                return g
+        raise KeyError(f"Graph with name {graph_name} not found.")
+
     def filter_particle_definition(self, particles):
         newgraphs = []
 

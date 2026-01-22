@@ -3,8 +3,8 @@ import math
 import os
 from enum import StrEnum
 from functools import wraps
-from pprint import pprint
-from typing import Any, Iterator, List, Optional, Tuple
+from pprint import pprint  # noqa: F401
+from typing import Any, Iterator
 
 import numpy
 import pydot
