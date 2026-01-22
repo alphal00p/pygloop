@@ -1,0 +1,56 @@
+[global.generation.evaluator]
+iterative_orientation_optimization = true
+
+[global.generation.threshold_subtraction]
+enable_thresholds = true
+
+[global.generation.orientation_pattern]
+
+[global.generation.compile]
+inline_asm = true
+optimization_level = "O3"
+fast_math = true
+unsafe_math = true
+custom = []
+
+[global.generation.tropical_subgraph_table]
+panic_on_fail = false
+disable_tropical_generation = false
+
+[global.generation.uv]
+generate_integrated = true
+
+[global.generation.uv.vakint]
+form_exe_path = "form"
+python_exe_path = "python3"
+evaluation_methods = []
+#evaluation_methods = [
+#    "alphaloop",
+#    "matad",
+#    "fmft",
+#]
+run_time_decimal_precision = 100
+clean_tmp_dir = true
+normalization = "MSbar"
+
+[global.generation.uv.vakint.matad]
+expand_masters = true
+susbstitute_masters = true
+substitute_hpls = true
+direct_numerical_substition = true
+
+[global.generation.uv.vakint.fmft]
+expand_masters = true
+susbstitute_masters = true
+
+[global.generation.uv.vakint.pysecdec]
+quiet = true
+relative_precision = 0.0000001
+min_n_evals = 10000
+max_n_evals = 1000000000000
+
+[global.n_cores]
+feyngen = 1
+generate = 1
+compile = 1
+integrate = 1
