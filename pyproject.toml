@@ -23,10 +23,10 @@ dependencies = [
 typeCheckingMode = "standard"
 # Placeholder: tune unused import reporting.
 #reportUnusedImport = "none"
-ignore = ["src/processes/dy_utils.py","src/processes/dy.py"]
+ignore = ["src/processes/dy/*.py"]
 
 [tool.ruff]
 src = ["src"]
 
 [tool.ruff.lint]
-per-file-ignores = { "src/processes/dy_utils.py" = ["ALL"], "src/processes/dy.py" = ["ALL"] }
+per-file-ignores = { "src/processes/dy/*.py" = ["ALL"]}

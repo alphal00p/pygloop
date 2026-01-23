@@ -11,7 +11,8 @@ import sys
 import time
 from pprint import pformat
 
-from processes.gghhh import GGHHH
+from processes.dy.dy import DY
+from processes.gghhh.gghhh import GGHHH
 from processes.template_process import TemplateProcess
 from utils.utils import (
     SRC_DIR,
@@ -81,7 +82,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--clean", "-c", action="store_true", default=False,
         help="Clean existing generated states before generating new ones. Default = %(default)s",
     )  # fmt: off
-    parser.add_argument("--process", "-p", type=str, choices=["gghhh", "template_process"], default="gghhh",
+    parser.add_argument("--process", "-p", type=str, choices=["gghhh", "template_process", "dy"], default="gghhh",
         help="Process to consider. Default = %(default)s",
     )  # fmt: off
     parser.add_argument("--integrand-implementation", "-ii", type=str, default="gammaloop", choices=["gammaloop", "spenso"],
@@ -195,6 +196,17 @@ def main(argv: list[str] | None = None) -> int:
             )
         case "template_process":
             process = TemplateProcess(
+                args.m_top,
+                args.m_higgs,
+                ps_point,
+                args.helicities,
+                args.n_loops,
+                toml_config_path=args.gammaloop_configuration,
+                runtime_toml_config_path=args.runtime_configuration,
+                clean=args.clean,
+            )
+        case "dy":
+            process = DY(
                 args.m_top,
                 args.m_higgs,
                 ps_point,

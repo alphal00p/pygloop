@@ -84,7 +84,7 @@ from symbolica import E, Expression, NumericalIntegrator, Sample
 from symbolica.community.idenso import simplify_color, simplify_gamma, simplify_metrics
 from symbolica.community.spenso import *  # noqa: F403 # type: ignore
 
-from processes.dy_utils import DYDotGraphs
+from processes.dy.dy_utils import DYDotGraphs
 from utils.utils import (
     CONFIGS_FOLDER,  # noqa: F401
     DOTS_FOLDER,  # noqa: F401
