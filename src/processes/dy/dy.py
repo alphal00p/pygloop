@@ -313,7 +313,7 @@ class DY(object):
             print("NUMERATOR = ", str(expr.replace(E("gammalooprs::Q(x_,y___)*gammalooprs::Q(z_,y___)"), E("dot(x_,z_)"), repeat=True)))
 
             # from pprint import pprint
-            g.get_vacuum_graph()
+            vacuum_g=g.get_vacuum_graph()
             # pprint([str(e)
             print("####incoming edges####")
             for e in g.get_incoming_edges():
@@ -323,6 +323,22 @@ class DY(object):
                 pprint(str(e))
 
             g.enumerate_cutkosky_cuts(g.get_incoming_edges(), g.get_outgoing_edges())
+
+
+
+            print("----------  SPANNING TREE ----------")
+            T=vacuum_g.get_spanning_tree()
+            print(len(T))
+            for e in T:
+                pprint(str(e))
+
+            print("----------  CYCLE BASIS ----------")
+            B=vacuum_g.get_cycle_basis()
+            print(len(B))
+            for c in B:
+                print("----cycle----")
+                for e in c:
+                    pprint(str(e))
 
             # my_g=my_graph(g)
             # my_g.translate()

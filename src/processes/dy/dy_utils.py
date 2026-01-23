@@ -9,9 +9,150 @@ from pydot import Edge, Node  # noqa: F401
 
 from utils.utils import DotGraph, DotGraphs, logger, pygloopException  # noqa: F401
 from utils.vectors import LorentzVector, Vector  # noqa: F401
+from symbolica import E, Expression, NumericalIntegrator, Sample
+
+
+def Es(expr: str) -> Expression:
+    return E(expr.replace('"', ""), default_namespace="gammalooprs")
+
+class VacuumDotGraph(object):
+    def __init__(self, dot_graph: pydot.Dot, num):
+        self.dot = dot_graph
+        self.num = num
+
+    @staticmethod
+    def _strip_quotes(s: str) -> str:
+        s = s.strip()
+        return s[1:-1] if len(s) >= 2 and s[0] == '"' and s[-1] == '"' else s
+
+    def _node_key(self, endpoint: str, collapse_ports: bool = True) -> str:
+        ep = self._strip_quotes(endpoint)
+        if collapse_ports and ":" in ep:
+            return ep.split(":", 1)[0]
+        return ep
+
+    def _base_node(self, endpoint: str) -> str:
+        ep = DYDotGraph._strip_quotes(endpoint)
+        parsed = self._parse_port_endpoint(ep)
+        return parsed[0] if parsed else ep
+
+    def _edge_is_cut_value(self, e: pydot.Edge) -> int:
+        attrs = e.get_attributes() or {}
+        val = attrs.get("is_cut", "0")
+        return int(self._strip_quotes(str(val)))
+
+    def _parse_port_endpoint(self, endpoint: str) -> Optional[Tuple[str, int]]:
+        """
+        Parse 'a:b' (possibly quoted) -> ('a', b). Returns None if not matching.
+        """
+        ep = DYDotGraph._strip_quotes(endpoint)
+        m = re.fullmatch(r"([^:]+):(\d+)", ep)
+        if not m:
+            return None
+        return m.group(1), int(m.group(2))
+
+    def boundary_edges(self, S):
+
+        out = []
+        for e in self.dot.get_edges():
+            u = self._base_node(e.get_source())
+            v = self._base_node(e.get_destination())
+            if (u in S and v not in S) or (u not in S and v in S):
+                out.append(e)
+        return out
+
+    def get_spanning_tree(self):
+        edges = self.dot.get_edges()
+        if not edges:
+            return []
+
+        root = self._node_key(edges[0].get_source())
+        S = {root}
+        T = []
+
+        changed = True
+        while changed:
+            changed = False
+            for e in self.boundary_edges(S):
+                u = self._node_key(e.get_source())
+                v = self._node_key(e.get_destination())
+
+                if u in S and v not in S:
+                    S.add(v); T.append(e); changed = True
+                    break
+                if v in S and u not in S:
+                    S.add(u); T.append(e); changed = True
+                    break
+
+        return T
+
+    def get_cycle_basis(self):
+        T=set(self.get_spanning_tree())
+        L=set(self.dot.get_edges())-set(T)
+
+        cycles=[]
+
+        for e in L:
+            cycle=T.union({e})
+            check=True
+            while check:
+                counter=0
+                for e in cycle:
+                    if len(set(self.boundary_edges({self._node_key(e.get_destination())})).intersection(cycle))==1 or len(set(self.boundary_edges({self._node_key(e.get_source())})).intersection(cycle))==1:
+                        cycle=cycle - {e}
+                        break
+                    else:
+                        counter+=1
+
+                if counter==len(cycle):
+                    check=False
+            cycles.append(cycle)
+
+        return cycles
+
+    #def compute_winding(self,cycle):
+
+    #    v_start=cycle[0].get_source()
+
+    #    while v_end!=v_start:
+
+
+
+
+
+
+
+
+
+
 
 
 class DYDotGraph(DotGraph):
+
+    def __init__(self, dot_graph: pydot.Dot):
+        self.dot = dot_graph
+
+    def get_numerator(self, include_overall_factor=False) -> Expression:
+        num = E("1")
+        for node in self.dot.get_nodes():
+            if node.get_name() not in ["edge", "node"]:
+                n_num = node.get("num")
+                if n_num:
+                    num *= Es(n_num)
+        for edge in self.dot.get_edges():
+            e_num = edge.get("num")
+            if e_num:
+                num *= Es(e_num)
+
+        g_attrs = self.dot.get_attributes()
+        if "num" in g_attrs:
+            num *= Es(g_attrs["num"])
+        if include_overall_factor and "overall_factor_evaluated" in g_attrs:
+            num *= Es(g_attrs["overall_factor_evaluated"])
+
+        return num
+
+
     @staticmethod
     def _strip_quotes(s: str) -> str:
         s = s.strip()
@@ -155,9 +296,7 @@ class DYDotGraph(DotGraph):
                     vacuum_graph.add_edge(self.remove_edge_attr(self.edge_fusion(e, ep), "lmb_rep"))
                     paired_up.append(ep)
 
-        # TODO: RETURN VACUUM GRAPH
-        for e in vacuum_graph.get_edges():
-            pprint(str(e))
+        return VacuumDotGraph(vacuum_graph,self.get_numerator(include_overall_factor=True))
 
     def _base_node(self, endpoint: str) -> str:
         ep = DYDotGraph._strip_quotes(endpoint)
