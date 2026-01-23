@@ -756,24 +756,17 @@ class GGHHH(object):
             "full_integrand_evaluator": full_evaluator,
             "input_parameters_evaluator": params_evaluator,
         }
+        # # Test integrands
+        # self.set_from_sample(
+        #     self.spenso_evaluators[integrand_name]["full_integrand_evaluator"], # type: ignore
+        #     self.spenso_evaluators[integrand_name]["input_parameters_evaluator"], # type: ignore
+        #     ks = [ Vector(100.0, 200.0, 300.0), ],
+        # )  # fmt: off
 
-        self.set_from_sample(
-            self.spenso_evaluators[integrand_name]["parametric_integrand_evaluator"], # type: ignore
-            self.spenso_evaluators[integrand_name]["input_parameters_evaluator"], # type: ignore
-            ks = [ Vector(100.0, 200.0, 300.0), ],
-        )  # fmt: off
-
-        # Test integrands
-        self.set_from_sample(
-            self.spenso_evaluators[integrand_name]["full_integrand_evaluator"], # type: ignore
-            self.spenso_evaluators[integrand_name]["input_parameters_evaluator"], # type: ignore
-            ks = [ Vector(100.0, 200.0, 300.0), ],
-        )  # fmt: off
-
-        full_result = self.spenso_evaluators[integrand_name]["full_integrand_evaluator"].evaluate(eager=True).sum()
-        print("Full integrand test evaluation result (eager):", full_result)
-        full_result = self.spenso_evaluators[integrand_name]["full_integrand_evaluator"].evaluate(eager=False).sum()
-        print("Full integrand test evaluation result (compiled):", full_result)
+        # full_result = self.spenso_evaluators[integrand_name]["full_integrand_evaluator"].evaluate(eager=True).sum()  # type: ignore
+        # print("Full integrand test evaluation result (eager):", full_result)
+        # full_result = self.spenso_evaluators[integrand_name]["full_integrand_evaluator"].evaluate(eager=False).sum()  # type: ignore
+        # print("Full integrand test evaluation result (compiled):", full_result)
 
     def generate_gammaloop_code(self) -> None:
         amplitudes, _cross_sections = self.gl_worker.list_outputs()
