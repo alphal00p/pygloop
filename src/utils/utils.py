@@ -10,7 +10,7 @@ import numpy
 import pydot
 from numpy.typing import NDArray
 from pydot import Edge, Node  # noqa: F401
-from symbolica import E, Expression, Replacement, S, Sample
+from symbolica import E, Evaluator, Expression, Replacement, S, Sample
 
 from utils.vectors import LorentzVector, Vector  # noqa: F401
 
@@ -179,8 +179,17 @@ class ParamBuilder(list):
 
         return params
 
-    def get_values(self) -> numpy.ndarray:
+    def get_values(self) -> NDArray[numpy.complex128]:
         return self.np
+
+
+class PygloopEvaluator(object):
+    def __init__(self, evaluator: Evaluator, param_builder: ParamBuilder):
+        self.evaluator = evaluator
+        self.param_builder = param_builder
+
+    def __call__(self) -> NDArray[numpy.complex128]:
+        return self.evaluator.evaluate_complex(self.param_builder.get_values()[None, :])
 
 
 class SymbolicaSample(object):

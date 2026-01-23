@@ -67,17 +67,11 @@ import copy
 import json
 import logging
 import math
-import multiprocessing
 import os
-import random
 import shutil
 import time
 from pprint import pformat, pprint  # noqa: F401
-from typing import Any, Callable
-
-import numpy  # noqa: F401
-import progressbar
-import vegas  # type: ignore
+from typing import Any
 
 from gammaloop import GammaLoopAPI, LogLevel, evaluate_graph_overall_factor, git_version  # isort: skip # type: ignore # noqa: F401
 
@@ -86,17 +80,18 @@ from symbolica import (
     E,
     Evaluator,
     Expression,
-    NumericalIntegrator,
     Replacement,
     S,
-    Sample,
 )
 
 from symbolica.community.idenso import simplify_gamma, simplify_metrics, simplify_color, cook_indices  # isort: skip # noqa: F401
 from symbolica.community.spenso import TensorLibrary, TensorNetwork
 from ufo_model_loader.commands import Model
 
+from utils.naive_integrator import naive_integrator as run_naive_integrator
+from utils.plotting import plot_integrand
 from utils.polarizations import ixxxxx
+from utils.symbolica_integrator import symbolica_integrator as run_symbolica_integrator
 from utils.utils import (
     CONFIGS_FOLDER,  # noqa: F401
     DOTS_FOLDER,  # noqa: F401
@@ -112,8 +107,6 @@ from utils.utils import (
     DotGraphs,
     IntegrationResult,
     ParamBuilder,
-    SymbolicaSample,
-    chunks,
     expr_to_string,
     logger,
     pygloopException,
@@ -122,6 +115,7 @@ from utils.utils import (
     write_text_with_dirs,
 )
 from utils.vectors import LorentzVector, Vector
+from utils.vegas_integrator import vegas_integrator as run_vegas_integrator
 
 pjoin = os.path.join
 
@@ -1030,8 +1024,7 @@ class GGHHH(object):
                     **opts,
                 )
             case "vegas":
-                return GGHHH.vegas_integrator(
-                    self,
+                return self.vegas_integrator(
                     parameterisation,
                     integrand_implementation,
                     target,
@@ -1120,24 +1113,6 @@ class GGHHH(object):
             integration_result = IntegrationResult(central, error, n_samples=res["neval"], elapsed_time=t_elapsed)
         return integration_result
 
-    @staticmethod
-    def naive_worker(builder_inputs: tuple[Any], n_points: int, call_args: list[Any]) -> IntegrationResult:
-        process_instance = GGHHH(*builder_inputs, clean=False, logger_level=logging.CRITICAL)  # type: ignore
-        this_result = IntegrationResult(0.0, 0.0)
-        t_start = time.time()
-        for _ in range(n_points):
-            xs = [random.random() for _ in range(3)]
-            weight = process_instance.integrand_xspace(xs, *call_args)
-            if this_result.max_wgt is None or abs(weight) > abs(this_result.max_wgt):
-                this_result.max_wgt = weight
-                this_result.max_wgt_point = xs
-            this_result.central_value += weight
-            this_result.error += weight**2
-            this_result.n_samples += 1
-        this_result.elapsed_time += time.time() - t_start
-
-        return this_result
-
     @set_gammaloop_level(logging.ERROR, logging.INFO)
     def naive_integrator(
         self,
@@ -1146,95 +1121,7 @@ class GGHHH(object):
         target,
         **opts,
     ) -> IntegrationResult:
-        integration_result = IntegrationResult(0.0, 0.0)
-
-        function_call_args = [parameterisation, integrand_implementation, opts["phase"], opts["multi_channeling"]]
-        for i_iter in range(opts["n_iterations"]):
-            logger.info(
-                f"Naive integration: starting iteration {Colour.GREEN}{i_iter + 1}/{opts['n_iterations']}{Colour.END} using {Colour.BLUE}{
-                    opts['points_per_iteration']
-                }{Colour.END} points ..."
-            )
-            if opts["n_cores"] > 1:
-                n_points_per_core = opts["points_per_iteration"] // opts["n_cores"]
-                all_args = [
-                    (self.builder_inputs(), n_points_per_core, function_call_args),
-                ] * (opts["n_cores"] - 1)
-                all_args.append(
-                    (
-                        self.builder_inputs(),
-                        opts["points_per_iteration"] - sum(a[1] for a in all_args),
-                        function_call_args,
-                    )
-                )
-                with multiprocessing.Pool(processes=opts["n_cores"]) as pool:
-                    all_results = pool.starmap(GGHHH.naive_worker, all_args)
-
-                # Combine results
-                for result in all_results:
-                    integration_result.combine_with(result)
-            else:
-                integration_result.combine_with(
-                    GGHHH.naive_worker(
-                        self.builder_inputs(),
-                        opts["points_per_iteration"],
-                        function_call_args,
-                    )
-                )
-            # Normalize a copy for temporary printout
-            processed_result = copy.deepcopy(integration_result)
-            processed_result.normalize()
-            logger.info(f"... result after this iteration:\n{processed_result.str_report(target)}")
-
-        # Normalize results
-        integration_result.normalize()
-
-        return integration_result
-
-    @staticmethod
-    def vegas_worker(
-        process_builder_inputs: tuple[Any], id: int, all_xs: list[list[float]], call_args: list[Any]
-    ) -> tuple[int, list[float], IntegrationResult]:
-        res = IntegrationResult(0.0, 0.0)
-        t_start = time.time()
-        all_weights = []
-        process = GGHHH(*process_builder_inputs, clean=False, logger_level=logging.CRITICAL)  # type: ignore
-        for xs in all_xs:
-            weight = process.integrand_xspace(xs, *call_args)
-            all_weights.append(weight)
-            if res.max_wgt is None or abs(weight) > abs(res.max_wgt):
-                res.max_wgt = weight
-                res.max_wgt_point = xs
-            res.central_value += weight
-            res.error += weight**2
-            res.n_samples += 1
-        res.elapsed_time += time.time() - t_start
-
-        return (id, all_weights, res)
-
-    @staticmethod
-    def vegas_functor(process: GGHHH, res: IntegrationResult, n_cores: int, call_args: list[Any]) -> Callable[[list[list[float]]], list[float]]:
-        @vegas.batchintegrand
-        def f(all_xs):
-            all_weights = []
-            if n_cores > 1:
-                all_args = [
-                    (process.builder_inputs(), i_chunk, all_xs_split, call_args)
-                    for i_chunk, all_xs_split in enumerate(chunks(all_xs, len(all_xs) // n_cores + 1))
-                ]
-                with multiprocessing.Pool(processes=n_cores) as pool:
-                    all_results = pool.starmap(GGHHH.vegas_worker, all_args)
-                for _id, wgts, this_result in sorted(all_results, key=lambda x: x[0]):
-                    all_weights.extend(wgts)
-                    res.combine_with(this_result)
-                return all_weights
-            else:
-                _id, wgts, this_result = GGHHH.vegas_worker(process.builder_inputs(), 0, all_xs, call_args)
-                all_weights.extend(wgts)
-                res.combine_with(this_result)
-            return all_weights
-
-        return f
+        return run_naive_integrator(self, parameterisation, integrand_implementation, target, **opts)
 
     @set_gammaloop_level(logging.ERROR, logging.INFO)
     def vegas_integrator(
@@ -1244,109 +1131,7 @@ class GGHHH(object):
         _target,
         **opts,
     ) -> IntegrationResult:
-        integration_result = IntegrationResult(0.0, 0.0)
-
-        integrator = vegas.Integrator( 3 * [ [0, 1], ])  # fmt: off
-
-        local_worker = GGHHH.vegas_functor(
-            self,
-            integration_result,
-            opts["n_cores"],
-            [
-                parameterisation,
-                integrand_implementation,
-                opts.get("phase", "real"),
-                opts["multi_channeling"],
-            ],
-        )
-        # Adapt grid
-        integrator(
-            local_worker,
-            nitn=opts["n_iterations"],
-            neval=opts["points_per_iteration"],
-            analyzer=vegas.reporter(),
-        )
-        # Final result
-        result = integrator(
-            local_worker,
-            nitn=opts["n_iterations"],
-            neval=opts["points_per_iteration"],
-            analyzer=vegas.reporter(),
-        )
-
-        integration_result.central_value = result.mean
-        integration_result.error = result.sdev
-        return integration_result
-
-    @staticmethod
-    def symbolica_worker(
-        process_builder_inputs: tuple[Any],
-        id: int,
-        multi_channeling: bool,
-        all_xs: list[SymbolicaSample],
-        call_args: list[Any],
-    ) -> tuple[int, list[float], IntegrationResult]:
-        res = IntegrationResult(0.0, 0.0)
-        t_start = time.time()
-        all_weights = []
-        process = GGHHH(*process_builder_inputs, clean=False, logger_level=logging.CRITICAL)  # type: ignore
-        for xs in all_xs:
-            if not multi_channeling:
-                weight = process.integrand_xspace(xs.c, *( call_args + [False, ]))  # fmt: off
-            else:
-                weight = process.integrand_xspace(xs.c, *(call_args + [xs.d[0]]))
-            all_weights.append(weight)
-            if res.max_wgt is None or abs(weight) > abs(res.max_wgt):
-                res.max_wgt = weight
-                if not multi_channeling:
-                    res.max_wgt_point = xs.c
-                else:
-                    res.max_wgt_point = xs.d + xs.c
-            res.central_value += weight
-            res.error += weight**2
-            res.n_samples += 1
-        res.elapsed_time += time.time() - t_start
-
-        return (id, all_weights, res)
-
-    @staticmethod
-    def symbolica_integrand_function(
-        process: GGHHH,
-        res: IntegrationResult,
-        n_cores: int,
-        multi_channeling: bool,
-        call_args: list[Any],
-        samples: list[Sample],
-    ) -> list[float]:
-        all_weights = []
-        if n_cores > 1:
-            all_args = [
-                (
-                    process.builder_inputs(),
-                    i_chunk,
-                    multi_channeling,
-                    [SymbolicaSample(s) for s in all_xs_split],
-                    call_args,
-                )
-                for i_chunk, all_xs_split in enumerate(chunks(samples, len(samples) // n_cores + 1))
-            ]
-            with multiprocessing.Pool(processes=n_cores) as pool:
-                all_results = pool.starmap(GGHHH.symbolica_worker, all_args)
-            for _id, wgts, this_result in sorted(all_results, key=lambda x: x[0]):
-                all_weights.extend(wgts)
-                res.combine_with(this_result)
-            return all_weights
-        else:
-            _id, wgts, this_result = GGHHH.symbolica_worker(
-                process.builder_inputs(),
-                0,
-                multi_channeling,
-                [SymbolicaSample(s) for s in samples],
-                call_args,
-            )
-            all_weights.extend(wgts)
-            res.combine_with(this_result)
-        return all_weights
+        return run_vegas_integrator(self, parameterisation, integrand_implementation, _target, **opts)
 
     @set_gammaloop_level(logging.ERROR, logging.INFO)
     def symbolica_integrator(
@@ -1356,207 +1141,8 @@ class GGHHH(object):
         target,
         **opts,
     ) -> IntegrationResult:
-        integration_result = IntegrationResult(0.0, 0.0)
-
-        if opts["multi_channeling"]:
-            integrator = NumericalIntegrator.discrete(
-                [
-                    NumericalIntegrator.continuous(3),
-                    NumericalIntegrator.continuous(3),
-                    NumericalIntegrator.continuous(3),
-                    NumericalIntegrator.continuous(3),
-                    NumericalIntegrator.continuous(3),
-                ]
-            )
-        else:
-            integrator = NumericalIntegrator.continuous(3)
-
-        rng = integrator.rng(seed=opts["seed"], stream_id=0)
-
-        for i_iter in range(opts["n_iterations"]):
-            logger.info(
-                f"Symbolica integration: starting iteration {Colour.GREEN}{i_iter + 1}/{opts['n_iterations']}{Colour.END} using {Colour.BLUE}{opts['points_per_iteration']}{Colour.END} points ..."
-            )  # fmt: off
-            samples = integrator.sample(opts["points_per_iteration"], rng)
-            res = GGHHH.symbolica_integrand_function(
-                self,
-                integration_result,
-                opts["n_cores"],
-                opts["multi_channeling"],
-                [parameterisation, integrand_implementation, opts.get("phase", "real")],
-                samples,
-            )
-            integrator.add_training_samples(samples, res)
-
-            # Learning rate is 1.5
-            avg, err, _chi_sq = integrator.update(continuous_learning_rate=1.5, discrete_learning_rate=1.5)  # type: ignore
-            integration_result.central_value = avg
-            integration_result.error = err
-            logger.info(f"... result after this iteration:\n{integration_result.str_report(target)}")
-
-        return integration_result
+        return run_symbolica_integrator(self, parameterisation, integrand_implementation, target, **opts)
 
     @set_gammaloop_level(logging.ERROR, logging.INFO)
     def plot(self, **opts):
-        import matplotlib.pyplot as plt  # type: ignore # fmt: off
-        import numpy as np
-        from mpl_toolkits.mplot3d import (
-            Axes3D,  # type: ignore # noqa: F401 # fmt: off # fmt: off
-        )
-
-        fixed_x = None
-        for i_x in range(3):
-            if i_x not in opts["xs"]:
-                fixed_x = i_x
-                break
-        if fixed_x is None:
-            raise pygloopException("At least one x must be fixed (0,1 or 2).")
-        n_bins = opts["mesh_size"]
-        # Create a grid of x and y values within the range [0., 1.]
-        # Apply small offset to avoid divisions by zero
-        offset = 1e-6
-        x = np.linspace(opts["range"][0] + offset, opts["range"][1] - offset, n_bins)
-        y = np.linspace(opts["range"][0] + offset, opts["range"][1] - offset, n_bins)
-        X, Y = np.meshgrid(x, y)
-
-        # Calculate the values of f(x, y) for each point in the grid
-        Z = np.zeros((n_bins, n_bins))
-        # Calculate the values of f(x, y) for each point in the grid using nested loops
-        xs = [
-            0.0,
-        ] * 3
-        xs[fixed_x] = opts["fixed_x"]
-        nb_cores = max(1, int(opts.get("nb_cores", 1)))
-        total = n_bins * n_bins
-        logger.info(f"Evaluating function on grid for plotting over {nb_cores} cores...")
-
-        def sequential_plotting():
-            for idx in progressbar.progressbar(range(total), max_value=total):
-                i, j = divmod(idx, n_bins)
-                xs[opts["xs"][0]] = X[i, j]
-                xs[opts["xs"][1]] = Y[i, j]
-                if opts["x_space"]:
-                    Z[i, j] = self.integrand_xspace(  # type: ignore
-                        xs,  # type: ignore
-                        opts["parameterisation"],
-                        opts["integrand_implementation"],
-                        opts.get("phase", "real"),
-                        opts["multi_channeling"],
-                    )
-                else:
-                    wgt = self.integrand([Vector(xs[0], xs[1], xs[2])], opts["integrand_implementation"])  # type: ignore
-                    match opts.get("phase", None):
-                        case "real":
-                            Z[i, j] = wgt.real  # type: ignore
-                        case "imag":
-                            Z[i, j] = wgt.imag  # type: ignore
-                        case _:
-                            Z[i, j] = abs(wgt)  # type: ignore
-
-        if nb_cores == 1:
-            sequential_plotting()
-        else:
-            config = {
-                "fixed_x": fixed_x,
-                "fixed_value": opts["fixed_x"],
-                "xs0": opts["xs"][0],
-                "xs1": opts["xs"][1],
-                "x_space": opts["x_space"],
-                "parameterisation": opts["parameterisation"],
-                "integrand_implementation": opts["integrand_implementation"],
-                "phase": opts.get("phase", "real") if opts["x_space"] else opts.get("phase", None),
-                "multi_channeling": opts["multi_channeling"],
-            }
-            try:
-                ctx = multiprocessing.get_context("fork")
-                chunk_size = max(1, total // (nb_cores * 4))
-                tasks = ((i, j, float(X[i, j]), float(Y[i, j])) for i in range(n_bins) for j in range(n_bins))
-                with ctx.Pool(processes=nb_cores, initializer=_plot_worker_init, initargs=(self, config)) as pool:
-                    for i, j, val in progressbar.progressbar(  # type: ignore
-                        pool.imap_unordered(_plot_worker, tasks, chunksize=chunk_size),
-                        max_value=total,
-                    ):
-                        Z[i, j] = val
-            except ValueError:
-                logger.warning("Multiprocessing start method does not support forking; running sequentially.")
-                sequential_plotting()
-        logger.info("Done")
-
-        # Take the logarithm of the function values, handling cases where the value is 0
-        with np.errstate(divide="ignore"):
-            log_Z = np.log10(np.abs(Z))
-            # Replace -inf with 0 for visualization
-            log_Z[log_Z == -np.inf] = 0
-
-        if opts["x_space"]:
-            xs = ["x0", "x1", "x2"]
-        else:
-            xs = ["kx", "ky", "kz"]
-        xs[fixed_x] = str(opts["fixed_x"])
-
-        if not opts["3D"]:
-            # Create the heatmap using matplotlib
-            plt.figure(figsize=(8, 6))
-            plt.imshow(
-                log_Z,
-                origin="lower",
-                extent=[
-                    opts["range"][0],
-                    opts["range"][1],
-                    opts["range"][0],
-                    opts["range"][1],
-                ],  # type: ignore
-                cmap="viridis",
-            )  # type: ignore # fmt: off
-            plt.colorbar(label=f"log10(I({','.join(xs)}))")
-        else:
-            # Create a 3D plot
-            fig = plt.figure(figsize=(10, 8))
-            ax = fig.add_subplot(111, projection="3d")
-            # Plot the surface
-            surf = ax.plot_surface(X, Y, Z, cmap="viridis")  # type: ignore # fmt: off
-            # Add a color bar which maps values to colors
-            fig.colorbar(surf, shrink=0.5, aspect=5)
-            ax.set_zlabel(f"log10(I({','.join(xs)}))")  # type: ignore # fmt: off
-
-        plt.xlabel(f"{xs[opts['xs'][0]]}")
-        plt.ylabel(f"{xs[opts['xs'][1]]}")
-        plt.title(f"log10(I({','.join(xs)}))")
-        plt.show()
-
-
-def _plot_worker_init(base: GGHHH, config: dict[str, Any]) -> None:
-    proc = multiprocessing.current_process()
-    proc._plot_worker = copy.deepcopy(base)  # type: ignore
-    proc._plot_config = config  # type: ignore
-
-
-def _plot_worker(task: tuple[int, int, float, float]) -> tuple[int, int, float]:
-    proc = multiprocessing.current_process()
-    worker = getattr(proc, "_plot_worker", None)
-    config = getattr(proc, "_plot_config", None)
-    if worker is None or config is None:
-        raise pygloopException("Plot worker is not initialized.")
-    i, j, x_val, y_val = task
-    xs = [0.0, 0.0, 0.0]
-    xs[config["fixed_x"]] = config["fixed_value"]
-    xs[config["xs0"]] = x_val
-    xs[config["xs1"]] = y_val
-    if config["x_space"]:
-        val = worker.integrand_xspace(
-            xs,
-            config["parameterisation"],
-            config["integrand_implementation"],
-            config["phase"],
-            config["multi_channeling"],
-        )
-    else:
-        wgt = worker.integrand([Vector(xs[0], xs[1], xs[2])], config["integrand_implementation"])
-        match config["phase"]:
-            case "real":
-                val = wgt.real
-            case "imag":
-                val = wgt.imag
-            case _:
-                val = abs(wgt)
-    return i, j, val
+        return plot_integrand(self, **opts)
