@@ -9,7 +9,6 @@ description = "Python project steering gammaloop and spenso for various tailored
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-  "gammaloop",
   "matplotlib",
   "numpy",
   "progressbar2",

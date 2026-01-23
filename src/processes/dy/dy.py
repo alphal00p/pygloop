@@ -406,7 +406,7 @@ class DY(object):
             case _:
                 raise pygloopException(f"Number of loops {self.n_loops} not supported.")
 
-    def generate_spenso_code(self) -> None:
+    def generate_spenso_code(self, *args, **opts) -> None:
         evaluator_path = pjoin(EVALUATORS_FOLDER, self.name, f"{self.get_integrand_name()}.so")
         if os.path.isfile(evaluator_path):
             if self.clean:

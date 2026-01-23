@@ -36,6 +36,10 @@ def main(argv: list[str] | None = None) -> int:
 
     parser = FloatArgParser(prog="pygloop")
 
+    parser.add_argument("--process", "-p", type=str, choices=["gghhh", "template_process", "dy"], default="gghhh",
+        help="Process to consider. Default = %(default)s",
+    )  # fmt: off
+
     # Add options common to all subcommands
     _ = parser.add_argument("--verbosity", "-v", type=str, choices=["debug", "info", "critical"], default="info",
         help="Set verbosity level",
@@ -82,10 +86,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--clean", "-c", action="store_true", default=False,
         help="Clean existing generated states before generating new ones. Default = %(default)s",
     )  # fmt: off
-    parser.add_argument("--process", "-p", type=str, choices=["gghhh", "template_process", "dy"], default="gghhh",
-        help="Process to consider. Default = %(default)s",
-    )  # fmt: off
-    parser.add_argument("--integrand-implementation", "-ii", type=str, default="gammaloop", choices=["gammaloop", "spenso"],
+
+    parser.add_argument("--integrand-implementation", "-ii", type=str, default="gammaloop", choices=["gammaloop", "spenso_parametric", "spenso_summed"],
         help="Integrand implementation to employ. Default = %(default)s",
     )  # fmt: off
     parser.add_argument("--multi_channeling", "-mc", action="store_true", default=False, help="Consider a multi-channeled integrand.")
@@ -98,7 +100,14 @@ def main(argv: list[str] | None = None) -> int:
     parser_generate.add_argument("--generation-type", "-t", type=str, nargs=1, choices=["gammaloop", "spenso", "all"], default="all",
         help="Select generation type",
     )  # fmt: off
-
+    parser_generate.add_argument(
+        "--full_spenso_integrand_strategy",
+        "-g",
+        type=str,
+        choices=["merging", "sum"],
+        default=None,
+        help="Strategy to generate the full spenso integrand when explicitly summing over orientation in the evaluator for performances. Default = %(default)s",
+    )
     # create the parser for the "inspect" command
     parser_inspect = subparsers.add_parser("inspect", help="Inspect evaluation of a sample point of the integration space.")
     parser_inspect.add_argument("--point", "-p", type=float, nargs="*",
@@ -229,7 +238,7 @@ def main(argv: list[str] | None = None) -> int:
                 logger.info("Gammaloop code generation completed.")
             if "spenso" in args.generation_type or "all" in args.generation_type:
                 logger.info("Generating spenso code ...")
-                process.generate_spenso_code()
+                process.generate_spenso_code(full_spenso_integrand_strategy=args.full_spenso_integrand_strategy)
                 logger.info("Spenso code generation completed.")
 
         case "inspect":
@@ -311,4 +320,4 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    SystemExit(main())

@@ -1,4 +1,3 @@
-gammaloop
 matplotlib
 numpy
 progressbar2

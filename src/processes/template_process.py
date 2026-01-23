@@ -67,13 +67,13 @@ class TemplateProcess(object):
         logger.warning(f"{Colour.YELLOW}TemplateProcess placeholder invoked for '{feature}'. No implementation is available yet.{Colour.END}")
         raise pygloopException(f"TemplateProcess placeholder does not implement '{feature}' yet.")
 
-    def generate_graphs(self) -> None:  # type: ignore
+    def generate_graphs(self, *args, **opts) -> None:  # type: ignore
         self._placeholder("generate_graphs")
 
-    def generate_gammaloop_code(self) -> None:  # type: ignore
+    def generate_gammaloop_code(self, *args, **opts) -> None:  # type: ignore
         self._placeholder("generate_gammaloop_code")
 
-    def generate_spenso_code(self) -> None:  # type: ignore
+    def generate_spenso_code(self, *args, **opts) -> None:  # type: ignore
         self._placeholder("generate_spenso_code")
 
     def parameterize(self, xs: list[float], parameterisation: str, origin: Vector | None = None) -> tuple[Vector, float]:  # type: ignore

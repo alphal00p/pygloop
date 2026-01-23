@@ -77,6 +77,8 @@ class GGHHH(object):
         "externalP": S("gammalooprs::P"),
     }
 
+    SPENSO_EVALUATOR_NAMES = ["parametric_integrand_evaluator", "full_integrand_evaluator", "input_parameters_evaluator"]
+
     def __init__(
         self,
         m_top: float,
@@ -130,7 +132,7 @@ class GGHHH(object):
             f"Initializing GammaLoop API (git {Colour.BLUE}{git_version}{Colour.END}) for process {Colour.GREEN}{self.name}{Colour.END}"
         )  # fmt: off
         self.gl_worker = GammaLoopAPI(
-            pjoin(PYGLOOP_FOLDER, "outputs", "gammaloop_states", self.name),
+            pjoin(GAMMALOOP_STATES_FOLDER, self.name),
             log_file_name=self.name,
             log_level=gl_log_level,
         )
@@ -159,7 +161,9 @@ class GGHHH(object):
         logger.info(f"Setting runtime configuration for all outputs from toml file: {Colour.BLUE}{runtime_toml_config_path}{Colour.END}.")  # fmt: off
         for output_name, output_id in amplitudes.items():
             # Currently bugged: not all functionalities available on integrands not yet generated
-            if "_generated_graphs" in output_name:
+            if not os.path.isdir(
+                pjoin(GAMMALOOP_STATES_FOLDER, self.name, "processes", "amplitudes", self.get_integrand_name(suffix=""), output_name, "integrand")
+            ):
                 continue
             self.gl_worker.run(f"set process -p {output_id} -i {output_name} file {self.runtime_toml_config_path}")  # fmt: off
             self.set_sample_point(self.ps_point, self.helicities, str(output_id), output_name)
@@ -167,6 +171,37 @@ class GGHHH(object):
         self.save_state()
         # Cache some quantities for performance
         self.cache: dict[str, Any] = {}
+
+        self.spenso_evaluators: dict[str, dict[str, PygloopEvaluator] | None] = {}
+
+        # Loading spenso integrand evaluators if there are any already generated
+        for integrand_name in [ self.get_integrand_name(), ]:  # fmt: off
+            integrand_evaluator_directory = pjoin(EVALUATORS_FOLDER, self.name, integrand_name)
+            if self.clean and os.path.exists(integrand_evaluator_directory):
+                logger.info(f"Removing existing evaluators in {Colour.GREEN}{integrand_evaluator_directory}{Colour.END}")  # fmt: off
+                shutil.rmtree(integrand_evaluator_directory)
+                self.spenso_evaluators[integrand_name] = None
+                continue
+
+            evaluators = {}
+            one_evaluator_found = False
+            integrand_param_builders = []
+            parameters_param_builders = []
+            for evaluator_name in GGHHH.SPENSO_EVALUATOR_NAMES:
+                if os.path.exists(pjoin(integrand_evaluator_directory, f"{GGHHH.SPENSO_EVALUATOR_NAMES[0]}.so")):
+                    one_evaluator_found = True
+                    evaluators[evaluator_name] = PygloopEvaluator.load(pjoin(EVALUATORS_FOLDER, self.name, integrand_name), evaluator_name)
+                    if evaluator_name == "input_parameters_evaluator":
+                        parameters_param_builders.append(evaluators[evaluator_name].param_builder)
+                    else:
+                        integrand_param_builders.append(evaluators[evaluator_name].param_builder)
+                else:
+                    evaluators[evaluator_name] = None
+            if one_evaluator_found:
+                self.spenso_evaluators[integrand_name] = evaluators
+                self.initialize_param_builders(integrand_param_builders, parameters_param_builders[0])
+            else:
+                self.spenso_evaluators[integrand_name] = None
 
         logger.setLevel(start_logger_level)
 
@@ -395,7 +430,7 @@ class GGHHH(object):
                 input_params_evaluator.param_builder.set_parameter_values((self.SB["Kspatial"], E(str(i_k))), [complex(k_i) for k_i in k.to_list()])
 
             # Evaluate derived inputs
-            derived_inputs = input_params_evaluator()
+            derived_inputs = input_params_evaluator.evaluate()
             integrand_param_builder.set_parameter_values_within_range(0, len(derived_inputs), derived_inputs)
 
         # Add the E-surfaces selectors
@@ -406,7 +441,7 @@ class GGHHH(object):
         if cff_term is not None:
             integrand_param_builder.set_parameter_values((self.SB["energySign"], self.SB["o_id"]), cff_term.orientation_signs)
 
-    def build_integrand_evaluator(self, graph: DotGraph, integrand: Expression, cff_structure: CFFStructure) -> PygloopEvaluator:
+    def build_parametric_integrand_evaluator(self, graph: DotGraph, integrand: Expression, cff_structure: CFFStructure) -> PygloopEvaluator:
         internal_edges = graph.get_internal_edges()
         max_internal_edge_id = 0 if len(internal_edges) == 0 else max(int(e.get("id")) for e in internal_edges)
 
@@ -446,10 +481,10 @@ class GGHHH(object):
             conditionals = [self.SB["etaSelector"],]
         )
 
-        return PygloopEvaluator(evaluator, param_builder)
+        return PygloopEvaluator(evaluator, param_builder, "parametric_integrand_evaluator", additional_data={'cff_structure': copy.deepcopy(cff_structure)})
 
     def build_full_integrand_evaluator(
-        self, integrand_expression: Expression, cff_structure: CFFStructure, integrand_param_builder: ParamBuilder, strategy="merging"
+        self, integrand_expression: Expression, cff_structure: CFFStructure, integrand_param_builder: ParamBuilder, strategy: str = "merging"
     ) -> PygloopEvaluator:
         if strategy not in ["merging", "sum"]:
             raise pygloopException(f"Evaluation combination strategy '{strategy}' not supported.")
@@ -510,7 +545,7 @@ class GGHHH(object):
             )
 
         assert full_evaluator is not None
-        return PygloopEvaluator(full_evaluator, param_builder=copy.deepcopy(integrand_param_builder))
+        return PygloopEvaluator(full_evaluator, copy.deepcopy(integrand_param_builder), "full_integrand_evaluator")
 
     def build_parameter_evaluators(self, graph: DotGraph) -> PygloopEvaluator:
         internal_edges = graph.get_internal_edges()
@@ -581,19 +616,29 @@ class GGHHH(object):
             external_functions=None,  # type: ignore
         )
 
-        return PygloopEvaluator(evaluator, param_builder)
+        return PygloopEvaluator(evaluator, param_builder, "input_parameters_evaluator", output_length=len(computable_parameters))
 
-    def generate_spenso_code(self) -> None:
-        evaluator_path = pjoin(EVALUATORS_FOLDER, self.name, f"{self.get_integrand_name()}.so")
-        if os.path.isfile(evaluator_path):
-            if self.clean:
-                logger.info(f"Removing existing spenso evaluator {evaluator_path} and re-generating it.")
-                os.remove(evaluator_path)
-            else:
-                logger.info(f"Spenso evaluator {evaluator_path} already generated and recycled.")
-                return
-
+    def generate_spenso_code(
+        self, *args, full_spenso_integrand_strategy: str | None = None, evaluators_compilation_options: dict[str, Any] | None = None, **opts
+    ) -> None:
         integrand_name = self.get_integrand_name()
+
+        if self.spenso_evaluators[integrand_name] is not None:
+            logger.info(f"Reusing existing Spenso evaluators for integrand {Colour.GREEN}{integrand_name}{Colour.END}.")  # fmt: off
+            return
+
+        if full_spenso_integrand_strategy not in [None, "merging", "sum"]:
+            raise pygloopException(
+                f"Full spenso integrand strategy '{full_spenso_integrand_strategy}' not recognized. Input should be one of: None, 'merging', 'sum'."
+            )
+
+        spenso_evaluator_compilation_options = {
+            "inline_asm": "default",
+            "optimization_level": 3,
+            "native": True,
+        }
+        spenso_evaluator_compilation_options.update(evaluators_compilation_options or {})
+
         amplitudes, _cross_sections = self.gl_worker.list_outputs()
         if integrand_name not in amplitudes:
             raise pygloopException(
@@ -642,58 +687,20 @@ class GGHHH(object):
 
         # print(numerator_expr.to_canonical_string())
         # stop
-        # fmt: off
-        #         tn_A = TensorNetwork(
-        #             E("""
-
-        # (
-        #       UFO::MT*spenso::g(spenso::bis(4,gammalooprs::hedge(10)),spenso::bis(4,gammalooprs::hedge(9)))
-        #     +   gammalooprs::Q(7,spenso::mink(4,gammalooprs::edge(7,1)))
-        #       * spenso::gamma(spenso::bis(4,gammalooprs::hedge(10)),spenso::bis(4,gammalooprs::hedge(9)),spenso::mink(4,gammalooprs::edge(7,1)))
-        # )*(
-        #       UFO::MT*spenso::g(spenso::bis(4,gammalooprs::hedge(11)),spenso::bis(4,gammalooprs::hedge(12)))
-        #     +   gammalooprs::Q(8,spenso::mink(4,gammalooprs::edge(8,1)))
-        #       * spenso::gamma(spenso::bis(4,gammalooprs::hedge(12)),spenso::bis(4,gammalooprs::hedge(11)),spenso::mink(4,gammalooprs::edge(8,1)))
-        # )*(
-        #       UFO::MT*spenso::g(spenso::bis(4,gammalooprs::hedge(13)),spenso::bis(4,gammalooprs::hedge(14)))
-        #     +   gammalooprs::Q(9,spenso::mink(4,gammalooprs::edge(9,1)))
-        #       * spenso::gamma(spenso::bis(4,gammalooprs::hedge(14)),spenso::bis(4,gammalooprs::hedge(13)),spenso::mink(4,gammalooprs::edge(9,1)))
-        # )*(
-        #       UFO::MT*spenso::g(spenso::bis(4,gammalooprs::hedge(5)),spenso::bis(4,gammalooprs::hedge(6)))
-        #     +   gammalooprs::Q(5,spenso::mink(4,gammalooprs::edge(5,1)))
-        #       * spenso::gamma(spenso::bis(4,gammalooprs::hedge(6)),spenso::bis(4,gammalooprs::hedge(5)),spenso::mink(4,gammalooprs::edge(5,1)))
-        # )*(
-        #       UFO::MT*spenso::g(spenso::bis(4,gammalooprs::hedge(7)),spenso::bis(4,gammalooprs::hedge(8)))
-        #     +   gammalooprs::Q(6,spenso::mink(4,gammalooprs::edge(6,1)))
-        #       * spenso::gamma(spenso::bis(4,gammalooprs::hedge(8)),spenso::bis(4,gammalooprs::hedge(7)),spenso::mink(4,gammalooprs::edge(6,1)))
-        # )*(
-        #     spenso::projm(spenso::bis(4,gammalooprs::hedge(13)),spenso::bis(4,gammalooprs::hedge(10)))+spenso::projp(spenso::bis(4,gammalooprs::hedge(13)),spenso::bis(4,gammalooprs::hedge(10)))
-        # )*(
-        #     spenso::projm(spenso::bis(4,gammalooprs::hedge(5)),spenso::bis(4,gammalooprs::hedge(14)))+spenso::projp(spenso::bis(4,gammalooprs::hedge(5)),spenso::bis(4,gammalooprs::hedge(14)))
-        # )*(
-        #     spenso::projm(spenso::bis(4,gammalooprs::hedge(7)),spenso::bis(4,gammalooprs::hedge(6)))+spenso::projp(spenso::bis(4,gammalooprs::hedge(7)),spenso::bis(4,gammalooprs::hedge(6)))
-        # )*1𝑖*UFO::GC_11^2*UFO::GC_94^3*spenso::TR
-        # *gammalooprs::ϵ(0,spenso::mink(4,gammalooprs::hedge(0)))
-        # *gammalooprs::ϵ(1,spenso::mink(4,gammalooprs::hedge(1)))
-        # *spenso::gamma(spenso::bis(4,gammalooprs::hedge(11)),spenso::bis(4,gammalooprs::hedge(8)),spenso::mink(4,gammalooprs::hedge(0)))
-        # *spenso::gamma(spenso::bis(4,gammalooprs::hedge(9)),spenso::bis(4,gammalooprs::hedge(12)),spenso::mink(4,gammalooprs::hedge(1)))
-        #             """),
-        #             hep_lib,
-        #         )
 
         try:
             cff_structure = json.loads(cff_structure)
         except json.JSONDecodeError as e:
             raise pygloopException(f"Error decoding CFF structure JSON: {e}") from e
         cff_structure = CFFStructure(cff_structure)
-        # print(cff_structure.__str__(show_families=True))
+
         # stop
 
         # print(cff_structure.__str__(show_families=True))
         # Build a CFF term evaluators, with each esurface wrapped around a selector
         cff_term = E("1")
         for e_surf in cff_structure.e_surfaces:
-            cff_term *= self.SB["etaSelector"](self.SB["etaSigma"](self.SB["o_id"], self.SB["f_id"], e_surf.id), e_surf.expression, E("1"))
+            cff_term *= self.SB["etaSelector"](self.SB["etaSigma"](self.SB["o_id"], self.SB["f_id"], e_surf.id), e_surf.expression, 1)
 
         internal_edges = gghhh_graph.get_internal_edges()
         external_edges = gghhh_graph.get_external_edges()
@@ -701,66 +708,72 @@ class GGHHH(object):
         max_external_edge_id = 0 if len(external_edges) == 0 else max(int(e.get("id")) for e in external_edges)  # noqa: F841
 
         # Add the CFF normalization factor
-        for e_i in range(max_internal_edge_id+1):
+        for e_i in range(max_internal_edge_id + 1):
             if e_i > max_external_edge_id:
                 continue
-            cff_term *= E("2")*CFFStructure.SB["E"](E(str(e_i)))
+            cff_term *= 2 * CFFStructure.SB["E"](E(str(e_i)))
 
+        # cff_term = E("1")
+        # numerator_expr = E("1")
+
+        # print(numerator_expr.to_canonical_string())
         integrand_expression = numerator_expr / cff_term
 
         # Build the integrand evaluator
-        parametric_evaluator= self.build_integrand_evaluator(gghhh_graph, integrand_expression, cff_structure)
+        parametric_evaluator = self.build_parametric_integrand_evaluator(gghhh_graph, integrand_expression, cff_structure)
 
         # Build the aggregated summed integrand evaluator
-        full_evaluator_via_merging = self.build_full_integrand_evaluator(integrand_expression,cff_structure,parametric_evaluator.param_builder, strategy="merging")
-        full_evaluator_via_sum = self.build_full_integrand_evaluator(integrand_expression,cff_structure,parametric_evaluator.param_builder, strategy="sum")
+        if full_spenso_integrand_strategy is not None:
+            full_evaluator = self.build_full_integrand_evaluator(
+                integrand_expression, cff_structure, parametric_evaluator.param_builder, strategy=full_spenso_integrand_strategy
+            )
+        else:
+            full_evaluator = None
 
         # Now build the input parameter evaluator
+        # This is technically not necessary, I was just curious to see how performance looks like when not using function maps for the on-shell energies and emr decomposition
         params_evaluator = self.build_parameter_evaluators(gghhh_graph)
 
         self.initialize_param_builders(
-            [parametric_evaluator.param_builder, full_evaluator_via_merging.param_builder, full_evaluator_via_sum.param_builder],
-            params_evaluator.param_builder
-        )
-        # Now build the param_builder for this
-        # fmt: off
-        test_eval_result = complex(0.,0.)
-        # First set the momenta, common to all
-        self.set_from_sample(
-                parametric_evaluator, params_evaluator,
-                ks=[Vector(100.,200.,300.),],
-        )
-        for cff_term in cff_structure.expressions:
-            for f_i in range(len(cff_term.families)):
-                # Finally set the orientation and family id
-                self.set_from_sample(
-                    parametric_evaluator, params_evaluator,
-                    ks=None,
-                    cff_term = cff_term,
-                    family_id = f_i
-                )
-                test_eval_result += parametric_evaluator().sum()
-        print("Evaluation of integrand from explict sum of parametric integrand:",test_eval_result)
+            [parametric_evaluator.param_builder] + [full_evaluator.param_builder,] if full_evaluator is not None else [],
+            params_evaluator.param_builder,
+        )  # fmt: off
+
+        evaluator_directory = pjoin(EVALUATORS_FOLDER, self.name, self.get_integrand_name())
+        os.makedirs(evaluator_directory, exist_ok=True)
+
+        parametric_evaluator.compile(evaluator_directory, **spenso_evaluator_compilation_options)
+        parametric_evaluator.save(evaluator_directory)
+        params_evaluator.compile(evaluator_directory, **spenso_evaluator_compilation_options)
+        params_evaluator.save(evaluator_directory)
+        if full_evaluator is not None:
+            full_evaluator.compile(evaluator_directory, **spenso_evaluator_compilation_options)
+            full_evaluator.save(evaluator_directory)
+
+        logger.info(f"Saved spenso integrand evaluators to {Colour.GREEN}{evaluator_directory}{Colour.END}")
+        self.spenso_evaluators[integrand_name] = {  # type: ignore
+            "parametric_integrand_evaluator": parametric_evaluator,
+            "full_integrand_evaluator": full_evaluator,
+            "input_parameters_evaluator": params_evaluator,
+        }
 
         self.set_from_sample(
-            full_evaluator_via_merging, params_evaluator,
-            ks=[Vector(100.,200.,300.),]
-        )
+            self.spenso_evaluators[integrand_name]["parametric_integrand_evaluator"], # type: ignore
+            self.spenso_evaluators[integrand_name]["input_parameters_evaluator"], # type: ignore
+            ks = [ Vector(100.0, 200.0, 300.0), ],
+        )  # fmt: off
 
-        test_eval_result = full_evaluator_via_merging().sum()
-        print("Evaluation of complete integrand using the aggregated merged evaluator:", test_eval_result)
-
+        # Test integrands
         self.set_from_sample(
-            full_evaluator_via_sum, params_evaluator,
-            ks=[Vector(100.,200.,300.),]
-        )
+            self.spenso_evaluators[integrand_name]["full_integrand_evaluator"], # type: ignore
+            self.spenso_evaluators[integrand_name]["input_parameters_evaluator"], # type: ignore
+            ks = [ Vector(100.0, 200.0, 300.0), ],
+        )  # fmt: off
 
-        test_eval_result = full_evaluator_via_sum().sum()
-        print("Evaluation of complete integrand using the aggregated summed evaluator:", test_eval_result)
-
-        # fmt: on
-
-        # raise NotImplementedError("Implement spenso code generation.")
+        full_result = self.spenso_evaluators[integrand_name]["full_integrand_evaluator"].evaluate(eager=True).sum()
+        print("Full integrand test evaluation result (eager):", full_result)
+        full_result = self.spenso_evaluators[integrand_name]["full_integrand_evaluator"].evaluate(eager=False).sum()
+        print("Full integrand test evaluation result (compiled):", full_result)
 
     def generate_gammaloop_code(self) -> None:
         amplitudes, _cross_sections = self.gl_worker.list_outputs()
@@ -936,8 +949,10 @@ class GGHHH(object):
     def integrand(self, loop_momenta: list[Vector], integrand_implementation: str) -> complex:
         try:
             match integrand_implementation:
-                case "spenso":
-                    return self.spenso_integrand(loop_momenta)
+                case "spenso_parametric":
+                    return self.spenso_integrand(loop_momenta, parametric=True)
+                case "spenso_summed":
+                    return self.spenso_integrand(loop_momenta, parametric=False)
                 case "gammaloop":
                     return self.gammaloop_integrand(loop_momenta)
                 case _:
@@ -980,8 +995,37 @@ class GGHHH(object):
         )
         return res
 
-    def spenso_integrand(self, loop_momentum: list[Vector]) -> complex:
-        raise NotImplementedError("Implement spenso integrand.")
+    def spenso_integrand(self, loop_momenta: list[Vector], parametric=False, prefer_eager_mode=False) -> complex:
+        try:
+            integrand_name = self.cache["integrand_name"]
+        except KeyError:
+            integrand_name = self.get_integrand_name()
+            self.cache["integrand_name"] = integrand_name
+
+        if self.spenso_evaluators[integrand_name] is None:
+            raise pygloopException(f"Spenso evaluators for integrand {integrand_name} not generated yet. Run generate_spenso_code first.")
+
+        parameters_evaluator = self.spenso_evaluators[integrand_name]["input_parameters_evaluator"]  # type: ignore
+        if not parametric:
+            full_evaluator = self.spenso_evaluators[integrand_name]["full_integrand_evaluator"]  # type: ignore
+            if full_evaluator is None:
+                raise pygloopException("Full spenso integrand evaluator not built.")
+            self.set_from_sample(full_evaluator, parameters_evaluator, ks=loop_momenta)  # fmt: off
+            return full_evaluator.evaluate(eager=prefer_eager_mode).sum()
+
+        else:
+            parametric_evaluator = self.spenso_evaluators[integrand_name]["parametric_integrand_evaluator"]  # type: ignore
+            cff_structure = parametric_evaluator.additional_data["cff_structure"]
+
+            final_result = complex(0.0, 0.0)
+
+            self.set_from_sample(parametric_evaluator, parameters_evaluator, ks=loop_momenta)  # fmt: off
+            for cff_term in cff_structure.expressions:
+                for f_i in range(len(cff_term.families)):
+                    self.set_from_sample(parametric_evaluator, parameters_evaluator, cff_term=cff_term, family_id=f_i)
+                    final_result += parametric_evaluator.evaluate(eager=prefer_eager_mode).sum()
+
+            return final_result
 
     def integrate(
         self,

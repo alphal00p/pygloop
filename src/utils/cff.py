@@ -35,7 +35,7 @@ class CFFTerm(object):
         self.id = id
         self.orientation = orientation
         self.orientation_signs = numpy.zeros(len(orientation), complex)
-        self.orientation_signs[:] = [-np_cmplx_one if o.is_reversed else np_cmplx_one for o in orientation]
+        self.orientation_signs[:] = [-np_cmplx_one if o.is_reversed() else np_cmplx_one for o in orientation]
         self.expression = expression
         self.families = families
         self.masks = []
@@ -102,14 +102,17 @@ class CFFStructure(object):
         return "\n".join(res)
 
     @classmethod
-    def expression_from_node(cls, node_id: int, nodes_list: list[dict]) -> Expression:
+    def expression_from_node(cls, node_id: int, nodes_list: list[dict]) -> tuple[Expression, Expression]:
         eta = cls.SB["eta"](nodes_list[node_id]["data"]["Esurface"])
         if len(nodes_list[node_id]["children"]) == 0:
-            return eta
+            return (eta, 1 / eta)
         children_expression = E("0")
+        children_expression_inv = E("0")
         for child in nodes_list[node_id]["children"]:
-            children_expression += CFFStructure.expression_from_node(child, nodes_list)
-        return eta * children_expression
+            child_expression, child_expression_inv = CFFStructure.expression_from_node(child, nodes_list)
+            children_expression += child_expression
+            children_expression_inv += child_expression_inv
+        return (eta * children_expression, (1 / eta) * children_expression_inv)
 
     def build_cff_expression(self):
         for e_id, e_surf in enumerate(self.cff_dict["surfaces"]["esurface_cache"]):
@@ -117,7 +120,7 @@ class CFFStructure(object):
 
         for o_id, o_info in enumerate(self.cff_dict["orientations"]):
             nodes = o_info["expression"]["nodes"]
-            o_expression = CFFStructure.expression_from_node(0, nodes)
+            o_expression, o_expression_inv = CFFStructure.expression_from_node(0, nodes)
 
             o_families = []
             expanded_cff_expression = o_expression.expand()
@@ -135,7 +138,7 @@ class CFFStructure(object):
                 CFFTerm(
                     id=o_id,
                     orientation=tuple(EdgeOrientation.from_str(d) for d in o_info["data"]["orientation"]),
-                    expression=o_expression,
+                    expression=o_expression_inv,
                     families=tuple(o_families),
                 )
             )

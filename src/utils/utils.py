@@ -1,6 +1,8 @@
+import json
 import logging
 import math
 import os
+import pickle
 from enum import StrEnum
 from functools import wraps
 from pprint import pprint  # noqa: F401
@@ -10,7 +12,14 @@ import numpy
 import pydot
 from numpy.typing import NDArray
 from pydot import Edge, Node  # noqa: F401
-from symbolica import E, Evaluator, Expression, Replacement, S, Sample
+from symbolica import (
+    CompiledComplexEvaluator,
+    E,
+    Evaluator,
+    Expression,
+    Replacement,
+    Sample,
+)
 
 from utils.vectors import LorentzVector, Vector  # noqa: F401
 
@@ -184,12 +193,166 @@ class ParamBuilder(list):
 
 
 class PygloopEvaluator(object):
-    def __init__(self, evaluator: Evaluator, param_builder: ParamBuilder):
-        self.evaluator = evaluator
-        self.param_builder = param_builder
+    @staticmethod
+    def load(dir: str, name: str) -> "PygloopEvaluator":
+        param_builder_path = os.path.join(dir, f"{name}_param_builder.json")
+        lib_path = os.path.join(dir, f"{name}.so")
 
-    def __call__(self) -> NDArray[numpy.complex128]:
-        return self.evaluator.evaluate_complex(self.param_builder.get_values()[None, :])[0]
+        if not os.path.isfile(param_builder_path):
+            raise pygloopException(f"Could not find parameter builder file '{param_builder_path}'.")
+        if not os.path.isfile(lib_path):
+            raise pygloopException(f"Could not find compiled evaluator library '{lib_path}'.")
+
+        with open(param_builder_path, "r", encoding="utf-8") as handle:
+            data = json.load(handle)
+
+        stored_name = data.get("name")
+        parameters_data = data.get("parameters")
+        values_data = data.get("values")
+        output_length = data.get("output_length")
+        if parameters_data is None or values_data is None:
+            raise pygloopException(f"Malformed parameter builder file '{param_builder_path}'.")
+        if stored_name is None or output_length is None:
+            raise pygloopException(f"Malformed parameter builder file '{param_builder_path}'.")
+        if stored_name != name:
+            raise pygloopException(f"Loaded evaluator name '{stored_name}' does not match expected '{name}'.")
+
+        param_builder = ParamBuilder()
+        for param in parameters_data:
+            head_data = param.get("head")
+            range_data = param.get("range")
+            if head_data is None or range_data is None or len(range_data) != 2:
+                raise pygloopException(f"Malformed parameter entry in '{param_builder_path}'.")
+            head = tuple(E(expr) for expr in head_data)
+            min_idx, max_idx = int(range_data[0]), int(range_data[1])
+            param_builder.positions[head] = (min_idx, max_idx)
+            param_builder.order.append(head)
+
+        values: list[complex] = []
+        for value in values_data:
+            if isinstance(value, (int, float)):
+                values.append(complex(value))
+            elif isinstance(value, list) and len(value) == 2:
+                values.append(complex(value[0], value[1]))
+            else:
+                raise pygloopException(f"Malformed parameter value entry in '{param_builder_path}'.")
+
+        param_builder.np = numpy.array(values, dtype=numpy.complex128)
+
+        max_index = max((rng[1] for rng in param_builder.positions.values()), default=0)
+        if max_index != len(param_builder.np):
+            raise pygloopException(f"Parameter value array length ({len(param_builder.np)}) does not match declared ranges (max index {max_index}).")
+
+        additional_data_path = os.path.join(dir, f"{name}_additional_data.pkl")
+        additional_data: dict[str, Any] = {}
+        if os.path.isfile(additional_data_path):
+            try:
+                with open(additional_data_path, "rb") as handle:
+                    loaded_additional = pickle.load(handle)
+                if isinstance(loaded_additional, dict):
+                    additional_data = loaded_additional
+                else:
+                    raise pygloopException(f"Additional data in '{additional_data_path}' is not a dictionary.")
+            except Exception as e:
+                raise pygloopException(f"Error loading additional data from '{additional_data_path}': {e}") from e
+
+        loaded_evaluator = PygloopEvaluator(None, param_builder, stored_name, int(output_length), additional_data=additional_data)
+        try:
+            loaded_evaluator.compiled_evaluator = CompiledComplexEvaluator.load(
+                lib_path, stored_name, len(loaded_evaluator.param_builder.np), loaded_evaluator.output_length
+            )
+        except Exception as e:
+            raise pygloopException(f"Error loading compiled evaluator from '{lib_path}': {e}") from e
+
+        loaded_evaluator.eager_evaluator = None
+        return loaded_evaluator
+
+    def save(self, dir: str):
+        lib_path = os.path.join(dir, f"{self.name}.so")
+        if not os.path.isfile(lib_path):
+            raise pygloopException(f"Compiled evaluator library '{lib_path}' not found. Please compile the evaluator before saving.")
+
+        param_builder_path = os.path.join(dir, f"{self.name}_param_builder.json")
+
+        parameters = []
+        for head in self.param_builder.order:
+            min_idx, max_idx = self.param_builder.positions[head]
+            parameters.append(
+                {
+                    "head": [expr.to_canonical_string() for expr in head],
+                    "range": [int(min_idx), int(max_idx)],
+                }
+            )
+
+        values = [[float(complex(v).real), float(complex(v).imag)] for v in self.param_builder.np.tolist()]
+
+        data = {
+            "name": self.name,
+            "output_length": self.output_length,
+            "parameters": parameters,
+            "values": values,
+        }
+
+        with open(param_builder_path, "w", encoding="utf-8") as handle:
+            json.dump(data, handle, indent=2)
+
+        if self.additional_data:
+            additional_data_path = os.path.join(dir, f"{self.name}_additional_data.pkl")
+            with open(additional_data_path, "wb") as handle:
+                pickle.dump(self.additional_data, handle)
+
+    def __init__(
+        self,
+        evaluator: Evaluator | None,
+        param_builder: ParamBuilder,
+        name: str,
+        output_length: int = 1,
+        additional_data: dict[str, Any] | None = None,
+    ):
+        self.eager_evaluator: Evaluator | None = evaluator
+        self.compiled_evaluator: CompiledComplexEvaluator | None = None
+        self.param_builder = param_builder
+        self.name = name
+        self.additional_data = additional_data or {}
+        self.output_length = output_length
+
+    def get_eager_evaluator(self) -> Evaluator:
+        if self.eager_evaluator is None:
+            raise pygloopException(f"Eager evaluator for '{self.name}' not available.")
+        return self.eager_evaluator
+
+    def get_compiled_evaluator(self) -> CompiledComplexEvaluator:
+        if self.compiled_evaluator is None:
+            raise pygloopException(f"Compiled evaluator for '{self.name}' not available.")
+        return self.compiled_evaluator
+
+    def compile(self, out_dir: str, **opts):
+        pygloop_default_options = {
+            "inline_asm": "default",
+            "optimization_level": 3,
+            "native": True,
+        }
+        pygloop_default_options.update(opts)
+        self.compiled_evaluator = self.get_eager_evaluator().compile(
+            self.name,
+            os.path.join(out_dir, f"{self.name}.cpp"),
+            os.path.join(out_dir, f"{self.name}.so"),
+            "complex",
+            **pygloop_default_options,
+        )
+
+    def evaluate(self, eager: bool | None = None) -> NDArray[numpy.complex128]:
+        if eager is True:
+            return self.get_eager_evaluator().evaluate_complex(self.param_builder.get_values()[None, :])[0]
+        elif eager is False:
+            return self.get_compiled_evaluator().evaluate(self.param_builder.get_values()[None, :])[0]
+        else:
+            if self.compiled_evaluator is not None:
+                return self.compiled_evaluator.evaluate(self.param_builder.get_values()[None, :])[0]
+            elif self.eager_evaluator is not None:
+                return self.eager_evaluator.evaluate_complex(self.param_builder.get_values()[None, :])[0]
+            else:
+                raise pygloopException(f"No evaluator available for '{self.name}'.")
 
 
 class SymbolicaSample(object):
