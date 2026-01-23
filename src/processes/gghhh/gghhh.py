@@ -1,66 +1,3 @@
-# Targets for the pentagon one-loop integral with cyclic ordering of the external legs
-# IMPORTANT: the results below comes from the raw amplitude AMP(1,5) of MADLOOP *divided by -2* to account for Tr(t^a t^b) = 1/2 delta^{ab}.
-# Hel 1 is : --000
-# Hel 2 is : -+000
-# Hel 3 is : +-000
-# Hel 4 is : ++000
-#
-# This amplitude graph never has any pole.
-
-# 0.5000000000000000D+03   0.0000000000000000D+00   0.0000000000000000D+00   0.5000000000000000D+03
-# 0.5000000000000000D+03   0.0000000000000000D+00   0.0000000000000000D+00  -0.5000000000000000D+03
-# 0.4385555662246945D+03   0.1553322001835378D+03   0.3480160396513587D+03  -0.1773773615718412D+03
-# 0.3563696374921922D+03  -0.1680238900851100D+02  -0.3187291102436005D+03   0.9748719163688098D+02
-# 0.2050747962831133D+03  -0.1385298111750267D+03  -0.2928692940775817D+02   0.7989016993496030D+02
-
-# # Physical top mass (MT=ymt=173.0)
-#  >>> IHEL =            1
-#  AMPL(1,5)=  (-3.14551938508347352E-006,4.46854051027942967E-006)
-#  >>> IHEL =            2
-#  AMPL(1,5)=   (9.55408514080194571E-009,2.78298167757932416E-006)
-#  >>> IHEL =            3
-#  AMPL(1,5)= (-3.19380629855654766E-006,-9.01168425551671615E-006)
-#  >>> IHEL =            4
-#  AMPL(1,5)=  (1.89203604685291554E-006,-5.46603099163412881E-006)
-
-# # Unphysical top mass (MT=ymt=1000.0)
-#  >>> IHEL =            1
-#  AMPL(1,5)=   (6.56089133881205492E-004,4.17078968906596113E-006)
-#  >>> IHEL =            2
-#  AMPL(1,5)= (-2.89630814594050972E-006,-8.87804989993630875E-006)
-#  >>> IHEL =            3
-#  AMPL(1,5)=  (-2.89630814768248677E-006,8.87804990034476668E-006)
-#  >>> IHEL =            4
-#  AMPL(1,5)=  (6.56089133881216768E-004,-4.17078968913725420E-006)
-
-# 0.5000000000000000D+03   0.0000000000000000D+00   0.0000000000000000D+00   0.5000000000000000D+03
-# 0.5000000000000000D+03   0.0000000000000000D+00   0.0000000000000000D+00  -0.5000000000000000D+03
-# 0.4622059639026168D+03   0.1678033838387855D+03   0.2872919263250002D+03  -0.2954906538418281D+03
-# 0.1553689858956567D+03  -0.6346487586464051D+02  -0.3905281750811410D+02   0.5442066477367285D+02
-# 0.3824250502017265D+03  -0.1043385079741450D+03  -0.2482391088168861D+03   0.2410699890681553D+03
-
-# # Physical top mass (MT=ymt=173.0)
-
-#  >>> IHEL =            1
-#  AMPL(1,5)=   (1.79229062116069573E-005,5.23819986497045118E-007)
-#  >>> IHEL =            2
-#  AMPL(1,5)=   (1.35530147927836316E-005,2.77672899246084792E-006)
-#  >>> IHEL =            3
-#  AMPL(1,5)=  (5.03924664020387931E-007,-1.45537484583090386E-005)
-#  >>> IHEL =            4
-#  AMPL(1,5)=   (1.80944073681505885E-005,3.67594748147673556E-006)
-
-# # Unphysical top mass (MT=ymt=1000.0)
-
-#  >>> IHEL =            1
-#  AMPL(1,5)=  (6.09909283686016468E-004,-1.09117176750885081E-006)
-#  >>> IHEL =            2
-#  AMPL(1,5)= (-7.88985817775678482E-006,-1.08700048931499477E-005)
-#  >>> IHEL =            3
-#  AMPL(1,5)=  (-7.88985817821675929E-006,1.08700048932430332E-005)
-#  >>> IHEL =            4
-#  AMPL(1,5)=   (6.09909283686009963E-004,1.09117176736822661E-006)
-
 from __future__ import annotations
 
 import copy
@@ -88,6 +25,7 @@ from symbolica.community.idenso import simplify_gamma, simplify_metrics, simplif
 from symbolica.community.spenso import TensorLibrary, TensorNetwork
 from ufo_model_loader.commands import Model
 
+from utils.cff import CFFStructure, CFFTerm
 from utils.naive_integrator import naive_integrator as run_naive_integrator
 from utils.plotting import plot_integrand
 from utils.polarizations import ixxxxx
@@ -100,13 +38,12 @@ from utils.utils import (
     INTEGRATION_WORKSPACE_FOLDER,  # noqa: F401
     OUTPUTS_FOLDER,  # noqa: F401
     PYGLOOP_FOLDER,
-    CFFStructure,
-    CFFTerm,
     Colour,
     DotGraph,
     DotGraphs,
     IntegrationResult,
     ParamBuilder,
+    PygloopEvaluator,
     expr_to_string,
     logger,
     pygloopException,
@@ -421,13 +358,14 @@ class GGHHH(object):
 
     def initialize_param_builders(
         self,
-        integrand_param_builder: ParamBuilder,
+        integrand_param_builders: list[ParamBuilder],
         input_params_param_builder: ParamBuilder,
     ):
         # Update model parameters
         model_inputs = self.get_model_parameters() + self.get_model_couplings()
         for param, value in model_inputs:
-            integrand_param_builder.set_parameter((param,), value)
+            for itg_pb in integrand_param_builders:
+                itg_pb.set_parameter((param,), value)
             input_params_param_builder.set_parameter((param,), value)
 
         # Set external momenta
@@ -437,24 +375,27 @@ class GGHHH(object):
         # Add the polarization vectors
         for e_i in [0, 1]:
             pol_vector = ixxxxx(self.ps_point[e_i].to_list(), 0.0, self.helicities[e_i], 1)[2::]
-            integrand_param_builder.set_parameter_values((self.SB["vector_pol"], E(str(e_i))), [complex(pol_i) for pol_i in pol_vector])
+            for itg_pb in integrand_param_builders:
+                itg_pb.set_parameter_values((self.SB["vector_pol"], E(str(e_i))), [complex(pol_i) for pol_i in pol_vector])
 
     def set_from_sample(
         self,
-        ks: list[Vector] | None,
-        cff_term: CFFTerm | None,
-        family_id: int | None,
-        integrand_param_builder: ParamBuilder,
-        input_params_evaluator: Evaluator,
-        input_params_param_builder: ParamBuilder,
+        integrand_evaluator: PygloopEvaluator,
+        input_params_evaluator: PygloopEvaluator | None = None,
+        ks: list[Vector] | None = None,
+        cff_term: CFFTerm | None = None,
+        family_id: int | None = None,
     ) -> None:
+        integrand_param_builder = integrand_evaluator.param_builder
+
         # Set loop momenta and emr momenta
         if ks is not None:
+            assert input_params_evaluator is not None
             for i_k, k in enumerate(ks):
-                input_params_param_builder.set_parameter_values((self.SB["Kspatial"], E(str(i_k))), [complex(k_i) for k_i in k.to_list()])
+                input_params_evaluator.param_builder.set_parameter_values((self.SB["Kspatial"], E(str(i_k))), [complex(k_i) for k_i in k.to_list()])
 
             # Evaluate derived inputs
-            derived_inputs = input_params_evaluator.evaluate_complex(input_params_param_builder.get_values()[None, :])[0]
+            derived_inputs = input_params_evaluator()
             integrand_param_builder.set_parameter_values_within_range(0, len(derived_inputs), derived_inputs)
 
         # Add the E-surfaces selectors
@@ -465,7 +406,7 @@ class GGHHH(object):
         if cff_term is not None:
             integrand_param_builder.set_parameter_values((self.SB["energySign"], self.SB["o_id"]), cff_term.orientation_signs)
 
-    def build_integrand_evaluator(self, graph: DotGraph, integrand: Expression, cff_structure: CFFStructure) -> tuple[Evaluator, ParamBuilder]:
+    def build_integrand_evaluator(self, graph: DotGraph, integrand: Expression, cff_structure: CFFStructure) -> PygloopEvaluator:
         internal_edges = graph.get_internal_edges()
         max_internal_edge_id = 0 if len(internal_edges) == 0 else max(int(e.get("id")) for e in internal_edges)
 
@@ -505,18 +446,23 @@ class GGHHH(object):
             conditionals = [self.SB["etaSelector"],]
         )
 
-        return (evaluator, param_builder)
+        return PygloopEvaluator(evaluator, param_builder)
 
     def build_full_integrand_evaluator(
-        self, integrand_expression: Expression, cff_structure: CFFStructure, integrand_param_builder: ParamBuilder
-    ) -> Evaluator:
+        self, integrand_expression: Expression, cff_structure: CFFStructure, integrand_param_builder: ParamBuilder, strategy="merging"
+    ) -> PygloopEvaluator:
+        if strategy not in ["merging", "sum"]:
+            raise pygloopException(f"Evaluation combination strategy '{strategy}' not supported.")
+
         selector_execution = [
             Replacement(self.SB["etaSelector"](E("1"), E("true_"), E("false_")), E("true_")),
             Replacement(self.SB["etaSelector"](E("0"), E("true_"), E("false_")), E("false_")),
         ]
         input_params = integrand_param_builder.get_parameters()
         constants = self.get_constants_for_evaluator()
-        full_evaluator = None
+
+        full_expression: Expression = E("0")
+        full_evaluator: Evaluator | None = None
         for cff_term in cff_structure.expressions:
             orientation_substitutions = []
             for o_i, o in enumerate(cff_term.orientation):
@@ -532,25 +478,41 @@ class GGHHH(object):
                     )
                 concretized_integrand = orientation_substituted_integrand.replace_multiple(e_surface_selector_substitutions)
                 concretized_integrand = concretized_integrand.replace_multiple(selector_execution)
-                concretized_evaluator = concretized_integrand.evaluator(
-                    constants=constants,
-                    functions={},  # type: ignore
-                    params=input_params,
-                    iterations=100,
-                    n_cores=8,
-                    verbose=False,
-                    external_functions=None,
-                    conditionals=None,
-                )
-                if full_evaluator is None:
-                    full_evaluator = concretized_evaluator
-                else:
-                    full_evaluator.merge(concretized_evaluator)
+                if strategy == "sum":
+                    full_expression += concretized_integrand
+                elif strategy == "merging":
+                    concretized_evaluator = concretized_integrand.evaluator(
+                        constants=constants,
+                        functions={},  # type: ignore
+                        params=input_params,
+                        iterations=100,
+                        n_cores=8,
+                        verbose=False,
+                        external_functions=None,
+                        conditionals=None,
+                    )
+                    if full_evaluator is None:
+                        full_evaluator = concretized_evaluator
+                    else:
+                        full_evaluator.merge(concretized_evaluator)
+
+        if strategy == "sum":
+            logger.info("Generating full evaluator with symbolica from explicitly summed expression")
+            full_evaluator = full_expression.evaluator(
+                constants=constants,
+                functions={},  # type: ignore
+                params=input_params,
+                iterations=100,
+                n_cores=8,
+                verbose=False,
+                external_functions=None,
+                conditionals=None,
+            )
 
         assert full_evaluator is not None
-        return full_evaluator
+        return PygloopEvaluator(full_evaluator, param_builder=copy.deepcopy(integrand_param_builder))
 
-    def build_parameter_evaluators(self, graph: DotGraph) -> tuple[Evaluator, ParamBuilder]:
+    def build_parameter_evaluators(self, graph: DotGraph) -> PygloopEvaluator:
         internal_edges = graph.get_internal_edges()
         external_edges = graph.get_external_edges()
         max_internal_edge_id = 0 if len(internal_edges) == 0 else max(int(e.get("id")) for e in internal_edges)
@@ -618,7 +580,8 @@ class GGHHH(object):
             verbose=False,
             external_functions=None,  # type: ignore
         )
-        return (evaluator, param_builder)
+
+        return PygloopEvaluator(evaluator, param_builder)
 
     def generate_spenso_code(self) -> None:
         evaluator_path = pjoin(EVALUATORS_FOLDER, self.name, f"{self.get_integrand_name()}.so")
@@ -746,40 +709,54 @@ class GGHHH(object):
         integrand_expression = numerator_expr / cff_term
 
         # Build the integrand evaluator
-        parametric_integrand_evaluator, integrand_param_builder = self.build_integrand_evaluator(gghhh_graph, integrand_expression, cff_structure)
+        parametric_evaluator= self.build_integrand_evaluator(gghhh_graph, integrand_expression, cff_structure)
 
         # Build the aggregated summed integrand evaluator
-        full_integrand_evaluator = self.build_full_integrand_evaluator(integrand_expression,cff_structure,integrand_param_builder)
+        full_evaluator_via_merging = self.build_full_integrand_evaluator(integrand_expression,cff_structure,parametric_evaluator.param_builder, strategy="merging")
+        full_evaluator_via_sum = self.build_full_integrand_evaluator(integrand_expression,cff_structure,parametric_evaluator.param_builder, strategy="sum")
 
         # Now build the input parameter evaluator
-        params_evaluator, params_param_builder = self.build_parameter_evaluators(gghhh_graph)
+        params_evaluator = self.build_parameter_evaluators(gghhh_graph)
 
-        self.initialize_param_builders(integrand_param_builder,params_param_builder)
+        self.initialize_param_builders(
+            [parametric_evaluator.param_builder, full_evaluator_via_merging.param_builder, full_evaluator_via_sum.param_builder],
+            params_evaluator.param_builder
+        )
         # Now build the param_builder for this
         # fmt: off
+        test_eval_result = complex(0.,0.)
+        # First set the momenta, common to all
         self.set_from_sample(
+                parametric_evaluator, params_evaluator,
                 ks=[Vector(100.,200.,300.),],
-                cff_term = cff_structure.expressions[0],
-                family_id = 0,
-                integrand_param_builder = integrand_param_builder,
-                input_params_evaluator = params_evaluator,
-                input_params_param_builder = params_param_builder
+        )
+        for cff_term in cff_structure.expressions:
+            for f_i in range(len(cff_term.families)):
+                # Finally set the orientation and family id
+                self.set_from_sample(
+                    parametric_evaluator, params_evaluator,
+                    ks=None,
+                    cff_term = cff_term,
+                    family_id = f_i
+                )
+                test_eval_result += parametric_evaluator().sum()
+        print("Evaluation of integrand from explict sum of parametric integrand:",test_eval_result)
+
+        self.set_from_sample(
+            full_evaluator_via_merging, params_evaluator,
+            ks=[Vector(100.,200.,300.),]
         )
 
-        test_eval_result = parametric_integrand_evaluator.evaluate_complex(integrand_param_builder.get_values()[None, :])[0].sum()
-        print("Evaluation of integrand from CFF term #0:",test_eval_result)
+        test_eval_result = full_evaluator_via_merging().sum()
+        print("Evaluation of complete integrand using the aggregated merged evaluator:", test_eval_result)
 
         self.set_from_sample(
-                ks=[Vector(100.,200.,300.),],
-                cff_term = None,
-                family_id = None,
-                integrand_param_builder = integrand_param_builder,
-                input_params_evaluator = params_evaluator,
-                input_params_param_builder = params_param_builder
+            full_evaluator_via_sum, params_evaluator,
+            ks=[Vector(100.,200.,300.),]
         )
 
-        test_eval_result = full_integrand_evaluator.evaluate_complex(integrand_param_builder.get_values()[None, :])[0].sum()
-        print("Evaluation of complete integrand using the aggregated evaluator term #0:", test_eval_result)
+        test_eval_result = full_evaluator_via_sum().sum()
+        print("Evaluation of complete integrand using the aggregated summed evaluator:", test_eval_result)
 
         # fmt: on
 
