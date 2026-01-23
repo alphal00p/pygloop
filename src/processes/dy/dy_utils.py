@@ -110,11 +110,159 @@ class VacuumDotGraph(object):
 
         return cycles
 
-    #def compute_winding(self,cycle):
+    def get_simple_cycles(self):
+        edges = list(self.dot.get_edges())
+        if not edges:
+            return []
 
-    #    v_start=cycle[0].get_source()
+        adj = {}
+        for e in edges:
+            u = self._node_key(e.get_source())
+            v = self._node_key(e.get_destination())
+            adj.setdefault(u, []).append(e)
+            adj.setdefault(v, []).append(e)
 
-    #    while v_end!=v_start:
+        nodes = sorted(adj.keys())
+        seen = set()
+        cycles = []
+
+        def other_node(edge: pydot.Edge, node: str) -> Optional[str]:
+            u = self._node_key(edge.get_source())
+            v = self._node_key(edge.get_destination())
+            if u == node:
+                return v
+            if v == node:
+                return u
+            return None
+
+        def dfs(start, current, parent_edge, path_nodes, path_edges):
+            for edge in adj[current]:
+                if edge is parent_edge:
+                    continue
+                nxt = other_node(edge, current)
+                if nxt is None:
+                    continue
+                if nxt == start:
+                    if len(path_nodes) >= 2:
+                        key = frozenset(id(e) for e in path_edges + [edge])
+                        if key not in seen:
+                            seen.add(key)
+                            cycles.append(set(path_edges + [edge]))
+                    continue
+                if nxt in path_nodes:
+                    continue
+                if nxt < start:
+                    continue
+                dfs(start, nxt, edge, path_nodes + [nxt], path_edges + [edge])
+
+        for start in nodes:
+            dfs(start, start, None, [start], [])
+
+        return cycles
+
+    def compute_winding(self, cycle) -> int:
+        edges = list(cycle)
+        if not edges:
+            return 0
+
+        adj = {}
+        for e in edges:
+            u = self._node_key(e.get_source())
+            v = self._node_key(e.get_destination())
+            adj.setdefault(u, []).append(e)
+            adj.setdefault(v, []).append(e)
+
+        def other_node(edge: pydot.Edge, node: str) -> Optional[str]:
+            u = self._node_key(edge.get_source())
+            v = self._node_key(edge.get_destination())
+            if u == node:
+                return v
+            if v == node:
+                return u
+            return None
+
+        start = min(adj.keys())
+        first_edge = min(adj[start], key=lambda e: other_node(e, start))
+
+        winding = 0
+        visited = set()
+        current = start
+        prev_edge = None
+
+        while True:
+            if prev_edge is None:
+                edge = first_edge
+            else:
+                candidates = [e for e in adj[current] if e is not prev_edge]
+                if not candidates:
+                    raise ValueError("Cycle is not well-formed")
+                edge = min(candidates, key=lambda e: other_node(e, current))
+
+            if edge in visited:
+                break
+            visited.add(edge)
+
+            next_node = other_node(edge, current)
+            if next_node is None:
+                raise ValueError("Cycle is not well-formed")
+
+            src = self._node_key(edge.get_source())
+            dst = self._node_key(edge.get_destination())
+            direction = 1 if (src == current and dst == next_node) else -1
+            winding += self._edge_is_cut_value(edge) * direction
+
+            prev_edge = edge
+            current = next_node
+            if current == start:
+                break
+            if len(visited) > len(edges):
+                raise ValueError("Cycle is not well-formed")
+
+        if len(visited) != len(edges):
+            raise ValueError("Cycle is not well-formed")
+
+        return winding
+
+    def get_nonzero_winding_cycles(self):
+        cycles = self.get_simple_cycles()
+        return [cycle for cycle in cycles if self.compute_winding(cycle) != 0]
+
+    def get_cutkosky_cuts(self):
+        cycles = self.get_nonzero_winding_cycles()
+        if not cycles:
+            return [set()]
+
+        cycle_edges = [list(cycle) for cycle in cycles]
+        solutions = []
+
+        def is_superset_of_solution(candidate):
+            return any(sol.issubset(candidate) for sol in solutions)
+
+        def add_solution(candidate):
+            for sol in list(solutions):
+                if candidate.issubset(sol):
+                    solutions.remove(sol)
+            solutions.append(candidate)
+
+        def backtrack(idx, current):
+            if is_superset_of_solution(current):
+                return
+            if idx == len(cycle_edges):
+                add_solution(set(current))
+                return
+
+            cycle = cycle_edges[idx]
+            if any(e in current for e in cycle):
+                backtrack(idx + 1, current)
+                return
+
+            for e in cycle:
+                current.add(e)
+                backtrack(idx + 1, current)
+                current.remove(e)
+
+        backtrack(0, set())
+        return solutions
 
 
 

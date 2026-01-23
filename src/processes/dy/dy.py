@@ -325,6 +325,13 @@ class DY(object):
             g.enumerate_cutkosky_cuts(g.get_incoming_edges(), g.get_outgoing_edges())
 
 
+            print("----------  VACUUM GRAPH ----------")
+
+            for e in vacuum_g.dot.get_edges():
+                pprint(str(e))
+
+            # my_g=my_graph(g)
+            # my_g.translate()
 
             print("----------  SPANNING TREE ----------")
             T=vacuum_g.get_spanning_tree()
@@ -337,6 +344,22 @@ class DY(object):
             print(len(B))
             for c in B:
                 print("----cycle----")
+                print(vacuum_g.compute_winding(c))
+                for e in c:
+                    pprint(str(e))
+
+            print("---------- SIMPLE CYCLES ----------")
+            B=vacuum_g.get_simple_cycles()
+            print(len(B))
+            for c in B:
+                print("----cycle----")
+                print(vacuum_g.compute_winding(c))
+                for e in c:
+                    pprint(str(e))
+
+            print("----------  CUTKOSKY CUTS ----------")
+            for c in vacuum_g.get_cutkosky_cuts():
+                print("----cutkosky cut----")
                 for e in c:
                     pprint(str(e))
 
