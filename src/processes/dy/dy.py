@@ -127,6 +127,7 @@ class DY(object):
         runtime_toml_config_path: str | None = None,
         clean=True,
         logger_level: int | None = None,
+        **opts,
     ):
         start_logger_level = logger.getEffectiveLevel()
         if logger_level is not None:
@@ -313,7 +314,7 @@ class DY(object):
             print("NUMERATOR = ", str(expr.replace(E("gammalooprs::Q(x_,y___)*gammalooprs::Q(z_,y___)"), E("dot(x_,z_)"), repeat=True)))
 
             # from pprint import pprint
-            vacuum_g=g.get_vacuum_graph()
+            vacuum_g = g.get_vacuum_graph()
             # pprint([str(e)
             print("####incoming edges####")
             for e in g.get_incoming_edges():
@@ -324,7 +325,6 @@ class DY(object):
 
             g.enumerate_cutkosky_cuts(g.get_incoming_edges(), g.get_outgoing_edges())
 
-
             print("----------  VACUUM GRAPH ----------")
 
             for e in vacuum_g.dot.get_edges():
@@ -334,13 +334,13 @@ class DY(object):
             # my_g.translate()
 
             print("----------  SPANNING TREE ----------")
-            T=vacuum_g.get_spanning_tree()
+            T = vacuum_g.get_spanning_tree()
             print(len(T))
             for e in T:
                 pprint(str(e))
 
             print("----------  CYCLE BASIS ----------")
-            B=vacuum_g.get_cycle_basis()
+            B = vacuum_g.get_cycle_basis()
             print(len(B))
             for c in B:
                 print("----cycle----")
@@ -349,7 +349,7 @@ class DY(object):
                     pprint(str(e))
 
             print("---------- SIMPLE CYCLES ----------")
-            B=vacuum_g.get_simple_cycles()
+            B = vacuum_g.get_simple_cycles()
             print(len(B))
             for c in B:
                 print("----cycle----")
@@ -364,7 +364,7 @@ class DY(object):
                     pprint(str(e))
 
             print("----------  I/F CUTKOSKY CUTS ----------")
-            initial_cuts, final_cuts = vacuum_g.get_cutkosky_cuts_IF([],["a"])
+            initial_cuts, final_cuts = vacuum_g.get_cutkosky_cuts_IF([], ["a"])
             print("----INITIAL----")
             for c in initial_cuts:
                 print("----cutkosky cut----")
@@ -379,9 +379,9 @@ class DY(object):
             for c in initial_cuts:
                 for cp in final_cuts:
                     print("-----connectivity check-----")
-                    cut_info=vacuum_g.cut_splits_into_two_components(c,cp,True)
+                    cut_info = vacuum_g.cut_splits_into_two_components(c, cp, True)
                     print(cut_info)
-                    new_graph_cut = vacuum_g.set_cut_labels(c,cp,cut_info)
+                    new_graph_cut = vacuum_g.set_cut_labels(c, cp, cut_info)
                     print("---cut1---")
                     for e in c:
                         pprint(str(e))
@@ -393,30 +393,25 @@ class DY(object):
                     for e in new_graph_cut.get_edges():
                         pprint(str(e))
 
+            routed_graphs = vacuum_g.cut_graphs_with_routing([], ["a"])
 
-            routed_graphs=vacuum_g.cut_graphs_with_routing([],["a"])
-
-#            for graph_info in routed_graphs:
-#                print("-----ROUTED GRAPH-----")
-#                print("***initial_cut***")
-#                for e in graph_info[0]:
-#                    pprint(str(e))
-#                print("***final_cut***")
-#                for e in graph_info[1]:
-#                    pprint(str(e))
-#                print("***partition1***")
-#                for e in graph_info[2][0]:
-#                    pprint(str(e))
-#                print("***partition2***")
-#                for e in graph_info[2][1]:
-#                    pprint(str(e))
-                #print("***edges***")
-                #for e in graph_info[3].get_edges():
-                #    pprint(str(e))
-
-
-
-
+            #            for graph_info in routed_graphs:
+            #                print("-----ROUTED GRAPH-----")
+            #                print("***initial_cut***")
+            #                for e in graph_info[0]:
+            #                    pprint(str(e))
+            #                print("***final_cut***")
+            #                for e in graph_info[1]:
+            #                    pprint(str(e))
+            #                print("***partition1***")
+            #                for e in graph_info[2][0]:
+            #                    pprint(str(e))
+            #                print("***partition2***")
+            #                for e in graph_info[2][1]:
+            #                    pprint(str(e))
+            # print("***edges***")
+            # for e in graph_info[3].get_edges():
+            #    pprint(str(e))
 
             # my_g.translate()
 

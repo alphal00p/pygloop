@@ -57,6 +57,8 @@ def ixxxxx(p, fmass, nhel, nsf):
 
     else:
         sqp0p3 = sqrt(max(p[0] + p[3], 0.0)) * nsf
+        print(p)
+        print(sqp0p3)
         if sqp0p3 == 0.0:
             chi1 = complex(-nhel * sqrt(2.0 * p[0]), 0.0)
         else:
@@ -72,7 +74,6 @@ def ixxxxx(p, fmass, nhel, nsf):
             fi[3] = chi[0]
             fi[4] = complex(0.0, 0.0)
             fi[5] = complex(0.0, 0.0)
-
     return fi
 
 

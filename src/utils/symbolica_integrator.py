@@ -105,7 +105,7 @@ def symbolica_integrator(
             ]
         )
     else:
-        integrator = NumericalIntegrator.continuous(3)
+        integrator = NumericalIntegrator.continuous(process_instance.n_loops * 3)
 
     rng = integrator.rng(seed=opts["seed"], stream_id=0)
 

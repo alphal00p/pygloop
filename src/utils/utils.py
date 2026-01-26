@@ -3,10 +3,12 @@ import logging
 import math
 import os
 import pickle
+import statistics
+import timeit
 from enum import StrEnum
 from functools import wraps
 from pprint import pprint  # noqa: F401
-from typing import Any, Iterator
+from typing import Any, Callable, Dict, Iterator, Optional, Tuple
 
 import numpy
 import pydot
@@ -571,3 +573,88 @@ class DotGraphs(list):
 
     def save_to_file(self, file_path: str):
         write_text_with_dirs(file_path, "\n\n".join([g.to_string() for g in self]))
+
+
+def time_function(
+    func: Callable[..., Any],
+    *args: Any,
+    repeats: int = 7,
+    target_time: float = 0.2,  # desired seconds per repeat
+    warmup_evals: int = 5,
+    number: Optional[int] = None,  # override auto-chosen call count
+    timer: Callable[[], float] = timeit.default_timer,
+    **kwargs: Any,
+) -> Tuple[Any, Dict[str, Any]]:
+    """
+    Benchmark `func(*args, **kwargs)` using timeit.repeat in-code.
+
+    - If `number` is None, choose it from a timing estimate derived from the warmup evals,
+      aiming for ~`target_time` seconds per repeat.
+    - Returns: (result, stats_dict)
+    """
+    if repeats < 1:
+        raise ValueError("repeats must be >= 1")
+    if warmup_evals < 1:
+        raise ValueError("warmup_evals must be >= 1")
+    if target_time <= 0:
+        raise ValueError("target_time must be > 0")
+
+    def stmt() -> Any:
+        return func(*args, **kwargs)
+
+    # Warmup + estimate time per call (using warmup evals)
+    # Measure loop overhead and subtract it to reduce bias.
+    t0 = timer()
+    last = None
+    for _ in range(warmup_evals):
+        last = stmt()
+    t1 = timer()
+
+    o0 = timer()
+    for _ in range(warmup_evals):
+        pass
+    o1 = timer()
+
+    warmup_total = t1 - t0
+    loop_overhead = o1 - o0
+    adjusted = warmup_total - loop_overhead
+    if adjusted <= 0:
+        # fallback if subtraction overshoots (very fast funcs)
+        per_call_est = warmup_total / warmup_evals
+    else:
+        per_call_est = adjusted / warmup_evals
+
+    if number is None:
+        if per_call_est <= 0:
+            n = 1
+        else:
+            n = int(target_time / per_call_est)
+            if n < 1:
+                n = 1
+            # avoid pathological huge counts if estimate is extremely small
+            if n > 10_000_000:
+                n = 10_000_000
+    else:
+        n = int(number)
+        if n < 1:
+            raise ValueError("number must be >= 1")
+
+    # Final measurements
+    times = timeit.repeat(stmt, repeat=repeats, number=n, timer=timer)
+    per_call = [t / n for t in times]
+
+    stats = {
+        "number": n,
+        "repeats": repeats,
+        "target_time_s": target_time,
+        "warmup_evals": warmup_evals,
+        "warmup_total_s": warmup_total,
+        "loop_overhead_s": loop_overhead,
+        "per_call_est_s": per_call_est,
+        "min_s": min(per_call),
+        "median_s": statistics.median(per_call),
+        "mean_s": statistics.mean(per_call),
+        "stdev_s": statistics.pstdev(per_call),
+        "all_s": per_call,
+    }
+    return last, stats

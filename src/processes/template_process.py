@@ -23,6 +23,7 @@ class TemplateProcess(object):
         runtime_toml_config_path: str | None = None,
         clean: bool = True,
         logger_level: int | None = None,
+        **opts,
     ):
         self.m_top = m_top
         self.m_higgs = m_higgs

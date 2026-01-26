@@ -71,7 +71,7 @@ def vegas_integrator(
     """Run VEGAS integration for a process instance."""
     integration_result = IntegrationResult(0.0, 0.0)
 
-    integrator = vegas.Integrator(3 * [[0, 1]])
+    integrator = vegas.Integrator(process_instance.n_loops * 3 * [[0, 1]])
 
     local_worker = vegas_functor(
         process_instance,

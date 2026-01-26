@@ -13,7 +13,7 @@ def naive_worker(process_cls, builder_inputs: tuple[Any], n_points: int, call_ar
     this_result = IntegrationResult(0.0, 0.0)
     t_start = time.time()
     for _ in range(n_points):
-        xs = [random.random() for _ in range(3)]
+        xs = [random.random() for _ in range(process_instance.n_loops * 3)]
         weight = process_instance.integrand_xspace(xs, *call_args)
         if this_result.max_wgt is None or abs(weight) > abs(this_result.max_wgt):
             this_result.max_wgt = weight

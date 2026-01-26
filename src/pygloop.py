@@ -11,6 +11,8 @@ import sys
 import time
 from pprint import pformat
 
+from numpy.random.mtrand import gamma
+
 from processes.dy.dy import DY
 from processes.gghhh.gghhh import GGHHH
 from processes.template_process import TemplateProcess
@@ -20,6 +22,7 @@ from utils.utils import (
     logger,
     pygloopException,
     setup_logging,
+    time_function,
 )
 from utils.vectors import LorentzVector, Vector
 
@@ -40,6 +43,10 @@ def main(argv: list[str] | None = None) -> int:
         help="Process to consider. Default = %(default)s",
     )  # fmt: off
 
+    parser.add_argument("--overwrite-process-basename", "-o", type=str, default=None,
+        help="Overwrite the default process basename used for generated files. Default = <DEFAULT_PROCESS_NAME_SET_BY_PROCESS_CLASS>",
+    )  # fmt: off
+
     # Add options common to all subcommands
     _ = parser.add_argument("--verbosity", "-v", type=str, choices=["debug", "info", "critical"], default="info",
         help="Set verbosity level",
@@ -54,6 +61,9 @@ def main(argv: list[str] | None = None) -> int:
     )  # fmt: off
     parser.add_argument("--runtime-configuration", "-r", metavar="toml_config_path", default=None,
         help="Specify a toml file containing the integration configuration (only for gammaloop integrator). Default = ./configs/<PROCESS_NAME>/integrate.toml",
+    )  # fmt: off
+    parser.add_argument("--gammaloop-settings", "-s", metavar="gammaloop_settings", type=str, nargs="*", default=None,
+        help='specify gammaloop settings to override toml. Format list of space-separated instructions. -s "set global kv global.n_cores.feyngen=12" "set global kv global.generation.evaluator.iterative_orientation_optimization=false"',
     )  # fmt: off
 
     parser.add_argument("--m_top", type=float, default=173.0,
@@ -104,7 +114,7 @@ def main(argv: list[str] | None = None) -> int:
         "--full_spenso_integrand_strategy",
         "-g",
         type=str,
-        choices=["merging", "sum"],
+        choices=["merging", "summing", "function_map"],
         default=None,
         help="Strategy to generate the full spenso integrand when explicitly summing over orientation in the evaluator for performances. Default = %(default)s",
     )
@@ -147,6 +157,12 @@ def main(argv: list[str] | None = None) -> int:
     parser_integrate.add_argument("--restart", "-r", action="store_true", default=False,
         help="Restart the integration from previous results. Default = %(default)s",
     )  # fmt: off
+    parser_integrate.add_argument("--n-iterations-hornerscheme", "-nhorner", type=int, default=100,
+        help="Number of iterations for the Horner scheme optimization. Default = %(default)s",
+    )  # fmt: off
+    parser_integrate.add_argument("--n-iterations-cpe", "-ncpe", type=int, default=None,
+        help="Number of iterations for the CPE optimization. Default = until exhaustion",
+    )  # fmt: off
 
     # Create the parser for the "plot" command
     parser_plot = subparsers.add_parser("plot", help="Plot the integrand.")
@@ -172,6 +188,16 @@ def main(argv: list[str] | None = None) -> int:
         help="Number of cores to use for plotting. Default = %(default)s",
     )  # fmt: off
 
+    parser_plot = subparsers.add_parser("bench", help="bench the integrand.")
+    parser_plot.add_argument("--n_evals", "-n", type=int, default=None,
+        help="Number of points to benchmark. Default = %(default)s",
+    )  # fmt: off
+    parser_plot.add_argument("--target_time", "-t", type=float, default=1.0,
+        help="Target time for the timing profile per repeat. Default = %(default)s",
+    )  # fmt: off
+    parser_plot.add_argument("--repeat", "-r", type=int, default=5,
+        help="Number of repeats for the timing profile. Default = %(default)s",
+    )  # fmt: off
     args = parser.parse_args(argv)
     setup_logging()
 
@@ -193,6 +219,8 @@ def main(argv: list[str] | None = None) -> int:
 
     match args.process:
         case "gghhh":
+            if args.overwrite_process_basename is not None:
+                GGHHH.name = args.overwrite_process_basename
             process = GGHHH(
                 args.m_top,
                 args.m_higgs,
@@ -202,8 +230,11 @@ def main(argv: list[str] | None = None) -> int:
                 toml_config_path=args.gammaloop_configuration,
                 runtime_toml_config_path=args.runtime_configuration,
                 clean=args.clean,
+                gammaloop_settings=args.gammaloop_settings,
             )
         case "template_process":
+            if args.overwrite_process_basename is not None:
+                TemplateProcess.name = args.overwrite_process_basename
             process = TemplateProcess(
                 args.m_top,
                 args.m_higgs,
@@ -213,8 +244,11 @@ def main(argv: list[str] | None = None) -> int:
                 toml_config_path=args.gammaloop_configuration,
                 runtime_toml_config_path=args.runtime_configuration,
                 clean=args.clean,
+                gammaloop_settings=args.gammaloop_settings,
             )
         case "dy":
+            if args.overwrite_process_basename is not None:
+                DY.name = args.overwrite_process_basename
             process = DY(
                 args.m_top,
                 args.m_higgs,
@@ -224,6 +258,7 @@ def main(argv: list[str] | None = None) -> int:
                 toml_config_path=args.gammaloop_configuration,
                 runtime_toml_config_path=args.runtime_configuration,
                 clean=args.clean,
+                gammaloop_settings=args.gammaloop_settings,
             )
         case _:
             raise pygloopException(f"Process {args.process} not implemented.")
@@ -238,7 +273,9 @@ def main(argv: list[str] | None = None) -> int:
                 logger.info("Gammaloop code generation completed.")
             if "spenso" in args.generation_type or "all" in args.generation_type:
                 logger.info("Generating spenso code ...")
-                process.generate_spenso_code(full_spenso_integrand_strategy=args.full_spenso_integrand_strategy)
+                process.generate_spenso_code(
+                    full_spenso_integrand_strategy=args.full_spenso_integrand_strategy,
+                )
                 logger.info("Spenso code generation completed.")
 
         case "inspect":
@@ -313,6 +350,29 @@ def main(argv: list[str] | None = None) -> int:
 
         case "plot":
             process.plot(**vars(args))
+
+        case "bench":
+            process.set_log_level(logging.CRITICAL)
+            try:
+                disk_size = process.get_size_on_disk(args.integrand_implementation)  # type: ignore
+            except Exception:
+                disk_size = None
+
+            if disk_size is None:
+                logger.info(f"{Colour.BLUE}Size on disk [MB]: {Colour.END}{Colour.RED}N/A{Colour.END}")
+            else:
+                logger.info(f"{Colour.BLUE}Size on disk [MB]: {Colour.END}{Colour.GREEN}{disk_size / 1_000_000.0:.2f}{Colour.END}")
+
+            def f():
+                k_to_inspect = [Vector(*[random.random() for _ in range(3)]) for _ in range(args.n_loops)]
+                process.integrand(k_to_inspect, args.integrand_implementation)
+
+            res, st = time_function(f, repeats=args.repeat, target_time=args.target_time, number=args.n_evals, warmup_evals=2)
+            # logger.info("Last eval result:", res)
+            logger.info(f"{Colour.BLUE}calls / run      : {Colour.END}{st['number']}")
+            logger.info(f"{Colour.BLUE}median (µs)      : {Colour.END}{Colour.GREEN}{st['median_s'] * 1e6:.1f}{Colour.END}")
+            logger.info(f"{Colour.BLUE}min    (µs)      : {Colour.END}{Colour.GREEN}{st['min_s'] * 1e6:.1f}{Colour.END}")
+
         case _:
             raise pygloopException(f"Command {args.command} not implemented.")
 
