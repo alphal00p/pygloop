@@ -453,6 +453,47 @@ class VacuumDotGraph(object):
 
         return graph
 
+    def check_routing(self,graph, partition):
+
+        edges=graph.get_edges()
+        nodes = []
+        for e in edges:
+            nodes.append(self._node_key(e.get_source()))
+            nodes.append(self._node_key(e.get_destination()))
+        nodes = sorted(set(nodes))
+
+        for v in nodes:
+            bdry=self.boundary_edges({v})
+            sum_mom_k=0
+            sum_mom_p1=0
+            sum_mom_p2=0
+            for e in bdry:
+                for ep in edges:
+                    if ep.get_attributes()["id"] == e.get_attributes()["id"]:
+                        sigma=1 if self._node_key(ep.get_source())==v else -1
+                        sum_mom_k+=sp.Rational(ep.get_attributes()["routing_k0"])*sigma
+                        sum_mom_p1+=sp.Rational(ep.get_attributes()["routing_p1"])*sigma
+                        sum_mom_p2+=sp.Rational(ep.get_attributes()["routing_p2"])*sigma
+            if sum_mom_k!=0 or sum_mom_p1!=0 or sum_mom_p2!=0:
+                print(f"Error at node {v}: sum_mom_k={sum_mom_k}, sum_mom_p1={sum_mom_p1}, sum_mom_p2={sum_mom_p2}")
+                return False
+
+        for i in range(0,1):
+            sum_k=0
+            sum_p1=0
+            sum_p2=0
+            for e in partition[i]:
+                for ep in edges:
+                    if ep.get_attributes()["id"] == e.get_attributes()["id"]:
+                        sum_k+=sp.Rational(ep.get_attributes()["routing_k0"])*sp.Rational(ep.get_attributes()["is_cut"])
+                        sum_p1+=sp.Rational(ep.get_attributes()["routing_p1"])*sp.Rational(ep.get_attributes()["is_cut"])
+                        sum_p2+=sp.Rational(ep.get_attributes()["routing_p2"])*sp.Rational(ep.get_attributes()["is_cut"])
+            if sum_k!=0 or sum_p1!=(1 if i==0 else 0) or sum_p2!=(1 if i==1 else 0):
+                print(f"Error at partition {i}: sum_k={sum_k}, sum_p1={sum_p1}, sum_p2={sum_p2}")
+                return False
+
+        return True
+
     def cut_graphs_with_routing(self, initial_massive, final_massive):
         initial_cuts, final_cuts = self.get_cutkosky_cuts_IF(initial_massive, final_massive)
         routed_cut_graphs=[]
@@ -469,40 +510,22 @@ class VacuumDotGraph(object):
                 V2 = B | C
                 yield V1, V2
 
-        print("--------CUT PAIRS--------")
-        print(len(initial_cuts))
-        print(len(final_cuts))
         for initial_cut in initial_cuts:
             for final_cut in final_cuts:
-                print("--------CUT PAIR--------")
                 connected_components = self.cut_splits_into_two_components(initial_cut,final_cut,True)
-                print("***initial_cut***")
-                for e in initial_cut:
-                    pprint(str(e))
-                print("***final_cut***")
-                for e in final_cut:
-                    pprint(str(e))
-                print("***connected_components***")
-                print(connected_components)
                 if connected_components[0]:
                     graph = self.set_cut_labels(initial_cut, final_cut, connected_components)
                     all_pair_list = all_pairs(initial_cut)
-                    print("***partitions***")
                     for V1, V2 in all_pair_list:
-                        print("---V1---")
-                        for e in V1:
-                            print(e)
-                        print("---V2---")
-                        for e in V2:
-                            print(e)
-                        print("--------")
                         graph = self.route_cut_graph(graph, initial_cut, final_cut, [V1, V2])
-                        print("-----routed graph-----")
-                        for e in graph.get_edges():
-                            print(e)
                         routed_cut_graphs.append([initial_cut, final_cut, [V1, V2], graph])
+                        if not self.check_routing(graph, [V1, V2]):
+                            print("ERROR: Routing is wrongly assigned")
+                            return
 
         return routed_cut_graphs
+
+
 
 
 
