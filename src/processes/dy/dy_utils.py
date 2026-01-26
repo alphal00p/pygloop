@@ -469,15 +469,38 @@ class VacuumDotGraph(object):
                 V2 = B | C
                 yield V1, V2
 
-        for initial_cut, final_cut in zip(initial_cuts, final_cuts):
-            connected_components = self.cut_splits_into_two_components(initial_cut,final_cut,True)
-
-            if connected_components[0]:
-                graph = self.set_cut_labels(initial_cut, final_cut, connected_components)
-                all_pairs=all_pairs(initial_cut)
-                for V1, V2 in all_pairs:
-                    graph = self.route_cut_graph(graph, initial_cut, final_cut, [V1, V2])
-                    routed_cut_graphs.append([initial_cut, final_cut, [V1, V2], graph])
+        print("--------CUT PAIRS--------")
+        print(len(initial_cuts))
+        print(len(final_cuts))
+        for initial_cut in initial_cuts:
+            for final_cut in final_cuts:
+                print("--------CUT PAIR--------")
+                connected_components = self.cut_splits_into_two_components(initial_cut,final_cut,True)
+                print("***initial_cut***")
+                for e in initial_cut:
+                    pprint(str(e))
+                print("***final_cut***")
+                for e in final_cut:
+                    pprint(str(e))
+                print("***connected_components***")
+                print(connected_components)
+                if connected_components[0]:
+                    graph = self.set_cut_labels(initial_cut, final_cut, connected_components)
+                    all_pair_list = all_pairs(initial_cut)
+                    print("***partitions***")
+                    for V1, V2 in all_pair_list:
+                        print("---V1---")
+                        for e in V1:
+                            print(e)
+                        print("---V2---")
+                        for e in V2:
+                            print(e)
+                        print("--------")
+                        graph = self.route_cut_graph(graph, initial_cut, final_cut, [V1, V2])
+                        print("-----routed graph-----")
+                        for e in graph.get_edges():
+                            print(e)
+                        routed_cut_graphs.append([initial_cut, final_cut, [V1, V2], graph])
 
         return routed_cut_graphs
 
