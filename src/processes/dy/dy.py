@@ -363,7 +363,36 @@ class DY(object):
                 for e in c:
                     pprint(str(e))
 
-            # my_g=my_graph(g)
+            print("----------  I/F CUTKOSKY CUTS ----------")
+            initial_cuts, final_cuts = vacuum_g.get_cutkosky_cuts_IF([],["a"])
+            print("----INITIAL----")
+            for c in initial_cuts:
+                print("----cutkosky cut----")
+                for e in c:
+                    pprint(str(e))
+            print("----FINAL----")
+            for c in final_cuts:
+                print("----cutkosky cut----")
+                for e in c:
+                    pprint(str(e))
+
+            for c in initial_cuts:
+                for cp in final_cuts:
+                    print("-----connectivity check-----")
+                    cut_info=vacuum_g.cut_splits_into_two_components(c,cp,True)
+                    print(cut_info)
+                    new_graph_cut = vacuum_g.set_cut_labels(c,cp,cut_info)
+                    print("---cut1---")
+                    for e in c:
+                        pprint(str(e))
+                    print("---cut2---")
+                    for e in cp:
+                        pprint(str(e))
+
+                    print("----cut labels----")
+                    for e in new_graph_cut.get_edges():
+                        pprint(str(e))
+
             # my_g.translate()
 
             attrs["num"] = f'"{expr_to_string(g.get_numerator())}"'

@@ -4,6 +4,7 @@ from itertools import combinations
 from pprint import pprint
 from typing import List, Optional, Tuple
 
+import copy
 import pydot
 from pydot import Edge, Node  # noqa: F401
 
@@ -263,6 +264,115 @@ class VacuumDotGraph(object):
 
         backtrack(0, set())
         return solutions
+
+    def get_cutkosky_cuts_IF(self, initial_massive, final_massive):
+        cuts=self.get_cutkosky_cuts()
+
+        initial_cuts=[]
+        final_cuts=[]
+
+        for c in cuts:
+
+            massive_in_cut = []
+
+            for e in c:
+                particle = self._strip_quotes(str(e.get_attributes().get("particle", "")))
+                if particle not in ["d","d~","g"]:
+                    massive_in_cut.append(particle)
+
+            if massive_in_cut==initial_massive:
+                initial_cuts.append(c)
+            if massive_in_cut==final_massive:
+                final_cuts.append(c)
+
+        return initial_cuts, final_cuts
+
+    def cut_splits_into_two_components(self, initial_cut, final_cut, return_components: bool = False):
+        removed = set(initial_cut) | set(final_cut)
+
+        nodes = []
+
+        for e in self.dot.get_edges():
+            nodes.append(self._node_key(e.get_source()))
+            nodes.append(self._node_key(e.get_destination()))
+
+        nodes = sorted(set(nodes))
+        if not nodes:
+            return False
+
+        adj = {n: set() for n in nodes}
+        for e in self.dot.get_edges():
+            if e in removed:
+                continue
+            u = self._node_key(e.get_source())
+            v = self._node_key(e.get_destination())
+            if u == v:
+                continue
+            adj.setdefault(u, set()).add(v)
+            adj.setdefault(v, set()).add(u)
+
+        seen = set()
+        components = 0
+        component_nodes = []
+        for n in nodes:
+            if n in seen:
+                continue
+            components += 1
+            stack = [n]
+            seen.add(n)
+            comp = {n}
+            while stack:
+                cur = stack.pop()
+                for nxt in adj.get(cur, ()):
+                    if nxt not in seen:
+                        seen.add(nxt)
+                        stack.append(nxt)
+                        comp.add(nxt)
+            component_nodes.append(comp)
+            if not return_components and components > 2:
+                return False
+
+        result = components == 2
+        if return_components:
+            return result, component_nodes
+        return result
+
+
+    def set_cut_labels(self, initial_cut, final_cut, connected_components):
+        graph=copy.deepcopy(self.dot)
+
+        for e in graph.get_edges():
+            attrs = dict(e.get_attributes() or {})
+            if e in initial_cut:
+                if self._node_key(e.get_source()) in connected_components[1][0]:
+                    attrs["is_cut"] = "-1"
+                else:
+                    attrs["is_cut"] = "1"
+            elif e in final_cut:
+                if self._node_key(e.get_source()) in connected_components[1][0]:
+                    attrs["is_cut"] = "1"
+                else:
+                    attrs["is_cut"] = "-1"
+            else:
+                attrs["is_cut"] = "0"
+            e.set("is_cut", attrs.get("is_cut", "0"))
+
+        return graph
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
