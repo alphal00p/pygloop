@@ -393,6 +393,31 @@ class DY(object):
                     for e in new_graph_cut.get_edges():
                         pprint(str(e))
 
+
+            routed_graphs=vacuum_g.cut_graphs_with_routing([],["a"])
+
+            for graph_info in routed_graphs:
+                print("-----ROUTED GRAPH-----")
+                print("***initial_cut***")
+                for e in graph_info[0]:
+                    pprint(str(e))
+                print("***final_cut***")
+                for e in graph_info[1]:
+                    pprint(str(e))
+                print("***partition1***")
+                for e in graph_info[2][0]:
+                    pprint(str(e))
+                print("***partition2***")
+                for e in graph_info[2][1]:
+                    pprint(str(e))
+                #print("***edges***")
+                #for e in graph_info[3].get_edges():
+                #    pprint(str(e))
+
+
+
+
+
             # my_g.translate()
 
             attrs["num"] = f'"{expr_to_string(g.get_numerator())}"'

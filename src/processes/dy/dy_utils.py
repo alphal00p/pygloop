@@ -1,13 +1,13 @@
 import re
 from collections import deque
-from itertools import combinations
+from itertools import combinations, product
 from pprint import pprint
 from typing import List, Optional, Tuple
 
+import sympy as sp
 import copy
 import pydot
 from pydot import Edge, Node  # noqa: F401
-
 from utils.utils import DotGraph, DotGraphs, logger, pygloopException  # noqa: F401
 from utils.vectors import LorentzVector, Vector  # noqa: F401
 from symbolica import E, Expression, NumericalIntegrator, Sample
@@ -287,7 +287,7 @@ class VacuumDotGraph(object):
 
         return initial_cuts, final_cuts
 
-    def cut_splits_into_two_components(self, initial_cut, final_cut, return_components: bool = False):
+    def cut_splits_into_two_components(self, initial_cut, final_cut, return_components: bool = True):
         removed = set(initial_cut) | set(final_cut)
 
         nodes = []
@@ -359,26 +359,127 @@ class VacuumDotGraph(object):
 
         return graph
 
+    def route_cut_graph(self, graph, initial_cut, final_cut, partition=None, p1=1, p2=1, root=None):
 
+        ### Assume partition is a list containing two sets of indexes mapping to elements of initial_cut
+        if partition is None:
+            return graph
+        if len(partition) != 2:
+            raise ValueError("partition must contain exactly two subsets of initial_cut indexes")
 
+        edges = graph.get_edges()
+        if not edges:
+            return graph
 
+        nodes = []
+        for e in edges:
+            nodes.append(self._node_key(e.get_source()))
+            nodes.append(self._node_key(e.get_destination()))
+        nodes = sorted(set(nodes))
+        if not nodes:
+            return graph
+        if root is None:
+            root = nodes[0]
 
+        rows = []
+        rhs = []
 
+        for v in nodes:
+            if v == root:
+                continue
+            row = [0] * len(edges)
+            for i, e in enumerate(edges):
+                src = self._node_key(e.get_source())
+                dst = self._node_key(e.get_destination())
+                if src == v:
+                    row[i] = 1
+                elif dst == v:
+                    row[i] = -1
+            rows.append(row)
+            rhs.append(0)
 
+        def _add_partition_row(part):
+            row = [0] * len(edges)
+            for i, e in enumerate(edges):
+                if e in part:
+                    row[i] = float(e.get_attributes().get("is_cut", 0))
+                else:
+                    row[i] = 0
+            rows.append(row)
+            rhs.append(0)
 
+        part1, part2 = partition
+        _add_partition_row(part1)
+        _add_partition_row(part2)
 
+        if rows:
+            A = sp.Matrix(rows)
+            b = sp.Matrix(rhs)
+        else:
+            A = sp.Matrix.zeros(0, len(edges))
+            b = sp.Matrix([])
 
+        # Particular solutions for p1=1,p2=0 and p1=0,p2=1
+        if A.rows:
+            b1 = sp.Matrix(b)
+            b2 = sp.Matrix(b)
+            b1[-2] = 1
+            b1[-1] = 0
+            b2[-2] = 0
+            b2[-1] = 1
+            sol1, params1 = A.gauss_jordan_solve(b1)
+            sol2, params2 = A.gauss_jordan_solve(b2)
+            if params1:
+                sol1 = sol1.subs({p: 0 for p in params1})
+            if params2:
+                sol2 = sol2.subs({p: 0 for p in params2})
+            u_p1 = sol1
+            u_p2 = sol2
+        else:
+            u_p1 = sp.Matrix([0] * len(edges))
+            u_p2 = sp.Matrix([0] * len(edges))
 
+        # Nullspace basis for free components
+        if A.rows:
+            nullspace = A.nullspace()
+        else:
+            nullspace = [sp.eye(len(edges))[:, i] for i in range(len(edges))]
 
+        for i, e in enumerate(edges):
+            e.set("routing_p1", str(sp.nsimplify(u_p1[i])))
+            e.set("routing_p2", str(sp.nsimplify(u_p2[i])))
+            for k, vec in enumerate(nullspace):
+                e.set(f"routing_k{k}", str(sp.nsimplify(vec[i])))
 
+        return graph
 
+    def cut_graphs_with_routing(self, initial_massive, final_massive):
+        initial_cuts, final_cuts = self.get_cutkosky_cuts_IF(initial_massive, final_massive)
+        routed_cut_graphs=[]
 
+        def all_pairs(V):
+            V = list(V)
+            for labels in product("ABC", repeat=len(V)):
+                if "A" not in labels or "B" not in labels:
+                    continue
+                A = {v for v, lab in zip(V, labels) if lab == "A"}
+                B = {v for v, lab in zip(V, labels) if lab == "B"}
+                C = {v for v, lab in zip(V, labels) if lab == "C"}
+                V1 = A | C
+                V2 = B | C
+                yield V1, V2
 
+        for initial_cut, final_cut in zip(initial_cuts, final_cuts):
+            connected_components = self.cut_splits_into_two_components(initial_cut,final_cut,True)
 
+            if connected_components[0]:
+                graph = self.set_cut_labels(initial_cut, final_cut, connected_components)
+                all_pairs=all_pairs(initial_cut)
+                for V1, V2 in all_pairs:
+                    graph = self.route_cut_graph(graph, initial_cut, final_cut, [V1, V2])
+                    routed_cut_graphs.append([initial_cut, final_cut, [V1, V2], graph])
 
-
-
-
+        return routed_cut_graphs
 
 
 
@@ -491,7 +592,9 @@ class DYDotGraph(DotGraph):
         attrs = dict(e1.get_attributes() or {})
         attrs["is_cut"] = "1"
 
-        e_new = self.remove_edge_attr(pydot.Edge(u, v, **attrs), "lmb_rep")
+        ee = self.remove_edge_attr(pydot.Edge(u, v, **attrs), "lmb_rep")
+
+        e_new = self.remove_edge_attr(ee, "num")
 
         # Create the fused edge
         return e_new
@@ -540,7 +643,9 @@ class DYDotGraph(DotGraph):
             else:
                 ep = self.copy_edge(e)
                 ep.set("is_cut", "0")
-                vacuum_graph.add_edge(self.remove_edge_attr(ep, "lmb_rep"))
+                self.remove_edge_attr(ep, "lmb_rep")
+                self.remove_edge_attr(ep, "num")
+                vacuum_graph.add_edge(ep)
 
         if len(incoming_edges) != len(outgoing_edges):
             raise pygloopException("Vacuum graph is not balanced.")
