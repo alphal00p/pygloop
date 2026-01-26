@@ -11,8 +11,6 @@ import sys
 import time
 from pprint import pformat
 
-from numpy.random.mtrand import gamma
-
 from processes.dy.dy import DY
 from processes.gghhh.gghhh import GGHHH
 from processes.template_process import TemplateProcess
@@ -90,7 +88,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--helicities", type=int, nargs=5, default=[+1, +1, +0, +0, +0],
         help="Helicities of the particles in the process. Default = %(default)s",
     )  # fmt: off
-    parser.add_argument("--n_loops", type=int, choices=[1, 2], default=1,
+    parser.add_argument("--n_loops", type=int, choices=[1, 2, 3], default=1,
         help="Number of loops in the process. Default = %(default)s",
     )  # fmt: off
     parser.add_argument("--clean", "-c", action="store_true", default=False,

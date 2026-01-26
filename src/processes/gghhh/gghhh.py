@@ -40,6 +40,7 @@ from utils.utils import (
     INTEGRATION_WORKSPACE_FOLDER,  # noqa: F401
     OUTPUTS_FOLDER,  # noqa: F401
     PYGLOOP_FOLDER,
+    RESOURCES_FOLDER,  # noqa: F401
     Colour,
     DotGraph,
     DotGraphs,
@@ -65,7 +66,7 @@ RESCALING: float = 10.0
 
 class GGHHH(object):
     name = "GGHHH"
-    name_for_config_cards = "GGHHH"
+    name_for_resources = "GGHHH"
 
     ENABLE_ASM_COMPILATION = True
 
@@ -149,7 +150,7 @@ class GGHHH(object):
         self.set_log_level(logger_level)
 
         if toml_config_path is None:
-            toml_config_path = pjoin(CONFIGS_FOLDER, self.name_for_config_cards, "generate.toml")
+            toml_config_path = pjoin(CONFIGS_FOLDER, self.name_for_resources, "generate.toml")
 
         self.toml_config_path = toml_config_path
         logger.info(f"Setting gammaloop starting configuration from toml file {Colour.BLUE}{toml_config_path}{Colour.END}.")
@@ -165,7 +166,7 @@ class GGHHH(object):
             logger.info(f"Available cross sections: {Colour.GREEN}{pformat(cross_sections)}{Colour.END}")
 
         if runtime_toml_config_path is None:
-            runtime_toml_config_path = pjoin(CONFIGS_FOLDER, self.name_for_config_cards, "runtime.toml")
+            runtime_toml_config_path = pjoin(CONFIGS_FOLDER, self.name_for_resources, "runtime.toml")
         self.runtime_toml_config_path = runtime_toml_config_path
 
         logger.info(f"Setting runtime configuration for all outputs from toml file: {Colour.BLUE}{runtime_toml_config_path}{Colour.END}.")  # fmt: off
@@ -318,6 +319,18 @@ class GGHHH(object):
 
         return processed_graphs
 
+    def process_3L_generated_graphs(self, graphs: DotGraphs) -> DotGraphs:
+        processed_graphs = DotGraphs()
+        for g_input in graphs:
+            g = copy.deepcopy(g_input)
+            attrs = g.get_attributes()
+            attrs["num"] = f'"{expr_to_string(g.get_numerator())}"'
+            attrs["projector"] = f'"{expr_to_string(g.get_projector() * self.get_color_projector())}"'
+            g.set_local_numerators_to_one()
+            processed_graphs.append(g)
+
+        return processed_graphs
+
     def process_2L_generated_graphs(self, graphs: DotGraphs) -> DotGraphs:
         processed_graphs = DotGraphs()
         for g_input in graphs:
@@ -367,6 +380,20 @@ class GGHHH(object):
                 self.gl_worker.run("save dot")
                 GGHHH_2L_dot_files_processed = self.process_2L_generated_graphs(DotGraphs(dot_str=GGHHH_2L_dot_files))
                 GGHHH_2L_dot_files_processed.save_to_file(pjoin(DOTS_FOLDER, self.name, f"{integrand_name}.dot"))
+            case 3:
+                logger.info("Importing three-loop graphs ...")
+                three_loop_input_dot_graphs = pjoin(RESOURCES_FOLDER, self.name_for_resources, "3L_graphs.dot")
+                print(f"import graphs {three_loop_input_dot_graphs} -p {base_name} -i {graphs_process_name}")
+                self.gl_worker.run(f"import graphs {three_loop_input_dot_graphs} -p {base_name} -i {graphs_process_name}")
+                self.gl_worker.run("save state -o")
+                GGHHH_3L_dot_files = self.gl_worker.get_dot_files(process_id=None, integrand_name=graphs_process_name)
+                write_text_with_dirs(
+                    pjoin(DOTS_FOLDER, self.name, f"{graphs_process_name}.dot"),
+                    GGHHH_3L_dot_files,
+                )
+                self.gl_worker.run("save dot")
+                GGHHH_3L_dot_files_processed = self.process_3L_generated_graphs(DotGraphs(dot_str=GGHHH_3L_dot_files))
+                GGHHH_3L_dot_files_processed.save_to_file(pjoin(DOTS_FOLDER, self.name, f"{integrand_name}.dot"))
             case _:
                 raise pygloopException(f"Number of loops {self.n_loops} not supported.")
 
@@ -892,6 +919,8 @@ class GGHHH(object):
                 graph_name = "GL15"
             case 2:
                 graph_name = "GL303"
+            case 3:
+                graph_name = "pentaboxbox"
             case _:
                 raise pygloopException(f"Number of loops {self.n_loops} not supported.")
 
@@ -1278,7 +1307,7 @@ class GGHHH(object):
 
     def get_integrand_name(self, suffix="_processed"):
         match self.n_loops:
-            case 1 | 2:
+            case 1 | 2 | 3:
                 return f"{self.name}_{self.n_loops}L{suffix}"
             case _:
                 raise pygloopException(f"Number of loops {self.n_loops} not supported.")

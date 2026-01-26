@@ -4,7 +4,12 @@ from itertools import combinations, product
 from pprint import pprint
 from typing import List, Optional, Tuple
 
-import sympy as sp
+try:
+    import sympy as sp
+except ImportError:
+    print(
+        "Failed to import sympy for DY process (you won't be able to run it then). But honestly that's ok... almighty Symbolica should be used instead."
+    )
 import copy
 import pydot
 from pydot import Edge, Node  # noqa: F401
@@ -15,6 +20,7 @@ from symbolica import E, Expression, NumericalIntegrator, Sample
 
 def Es(expr: str) -> Expression:
     return E(expr.replace('"', ""), default_namespace="gammalooprs")
+
 
 class VacuumDotGraph(object):
     def __init__(self, dot_graph: pydot.Dot, num):
@@ -53,7 +59,6 @@ class VacuumDotGraph(object):
         return m.group(1), int(m.group(2))
 
     def boundary_edges(self, S):
-
         out = []
         for e in self.dot.get_edges():
             u = self._base_node(e.get_source())
@@ -79,34 +84,41 @@ class VacuumDotGraph(object):
                 v = self._node_key(e.get_destination())
 
                 if u in S and v not in S:
-                    S.add(v); T.append(e); changed = True
+                    S.add(v)
+                    T.append(e)
+                    changed = True
                     break
                 if v in S and u not in S:
-                    S.add(u); T.append(e); changed = True
+                    S.add(u)
+                    T.append(e)
+                    changed = True
                     break
 
         return T
 
     def get_cycle_basis(self):
-        T=set(self.get_spanning_tree())
-        L=set(self.dot.get_edges())-set(T)
+        T = set(self.get_spanning_tree())
+        L = set(self.dot.get_edges()) - set(T)
 
-        cycles=[]
+        cycles = []
 
         for e in L:
-            cycle=T.union({e})
-            check=True
+            cycle = T.union({e})
+            check = True
             while check:
-                counter=0
+                counter = 0
                 for e in cycle:
-                    if len(set(self.boundary_edges({self._node_key(e.get_destination())})).intersection(cycle))==1 or len(set(self.boundary_edges({self._node_key(e.get_source())})).intersection(cycle))==1:
-                        cycle=cycle - {e}
+                    if (
+                        len(set(self.boundary_edges({self._node_key(e.get_destination())})).intersection(cycle)) == 1
+                        or len(set(self.boundary_edges({self._node_key(e.get_source())})).intersection(cycle)) == 1
+                    ):
+                        cycle = cycle - {e}
                         break
                     else:
-                        counter+=1
+                        counter += 1
 
-                if counter==len(cycle):
-                    check=False
+                if counter == len(cycle):
+                    check = False
             cycles.append(cycle)
 
         return cycles
@@ -266,23 +278,22 @@ class VacuumDotGraph(object):
         return solutions
 
     def get_cutkosky_cuts_IF(self, initial_massive, final_massive):
-        cuts=self.get_cutkosky_cuts()
+        cuts = self.get_cutkosky_cuts()
 
-        initial_cuts=[]
-        final_cuts=[]
+        initial_cuts = []
+        final_cuts = []
 
         for c in cuts:
-
             massive_in_cut = []
 
             for e in c:
                 particle = self._strip_quotes(str(e.get_attributes().get("particle", "")))
-                if particle not in ["d","d~","g"]:
+                if particle not in ["d", "d~", "g"]:
                     massive_in_cut.append(particle)
 
-            if massive_in_cut==initial_massive:
+            if massive_in_cut == initial_massive:
                 initial_cuts.append(c)
-            if massive_in_cut==final_massive:
+            if massive_in_cut == final_massive:
                 final_cuts.append(c)
 
         return initial_cuts, final_cuts
@@ -337,9 +348,8 @@ class VacuumDotGraph(object):
             return result, component_nodes
         return result
 
-
     def set_cut_labels(self, initial_cut, final_cut, connected_components):
-        graph=copy.deepcopy(self.dot)
+        graph = copy.deepcopy(self.dot)
 
         for e in graph.get_edges():
             attrs = dict(e.get_attributes() or {})
@@ -360,7 +370,6 @@ class VacuumDotGraph(object):
         return graph
 
     def route_cut_graph(self, graph, initial_cut, final_cut, partition=None, p1=1, p2=1, root=None):
-
         ### Assume partition is a list containing two sets of indexes mapping to elements of initial_cut
         if partition is None:
             return graph
@@ -453,9 +462,8 @@ class VacuumDotGraph(object):
 
         return graph
 
-    def check_routing(self,graph, partition):
-
-        edges=graph.get_edges()
+    def check_routing(self, graph, partition):
+        edges = graph.get_edges()
         nodes = []
         for e in edges:
             nodes.append(self._node_key(e.get_source()))
@@ -463,32 +471,32 @@ class VacuumDotGraph(object):
         nodes = sorted(set(nodes))
 
         for v in nodes:
-            bdry=self.boundary_edges({v})
-            sum_mom_k=0
-            sum_mom_p1=0
-            sum_mom_p2=0
+            bdry = self.boundary_edges({v})
+            sum_mom_k = 0
+            sum_mom_p1 = 0
+            sum_mom_p2 = 0
             for e in bdry:
                 for ep in edges:
                     if ep.get_attributes()["id"] == e.get_attributes()["id"]:
-                        sigma=1 if self._node_key(ep.get_source())==v else -1
-                        sum_mom_k+=sp.Rational(ep.get_attributes()["routing_k0"])*sigma
-                        sum_mom_p1+=sp.Rational(ep.get_attributes()["routing_p1"])*sigma
-                        sum_mom_p2+=sp.Rational(ep.get_attributes()["routing_p2"])*sigma
-            if sum_mom_k!=0 or sum_mom_p1!=0 or sum_mom_p2!=0:
+                        sigma = 1 if self._node_key(ep.get_source()) == v else -1
+                        sum_mom_k += sp.Rational(ep.get_attributes()["routing_k0"]) * sigma
+                        sum_mom_p1 += sp.Rational(ep.get_attributes()["routing_p1"]) * sigma
+                        sum_mom_p2 += sp.Rational(ep.get_attributes()["routing_p2"]) * sigma
+            if sum_mom_k != 0 or sum_mom_p1 != 0 or sum_mom_p2 != 0:
                 print(f"Error at node {v}: sum_mom_k={sum_mom_k}, sum_mom_p1={sum_mom_p1}, sum_mom_p2={sum_mom_p2}")
                 return False
 
-        for i in range(0,1):
-            sum_k=0
-            sum_p1=0
-            sum_p2=0
+        for i in range(0, 1):
+            sum_k = 0
+            sum_p1 = 0
+            sum_p2 = 0
             for e in partition[i]:
                 for ep in edges:
                     if ep.get_attributes()["id"] == e.get_attributes()["id"]:
-                        sum_k+=sp.Rational(ep.get_attributes()["routing_k0"])*sp.Rational(ep.get_attributes()["is_cut"])
-                        sum_p1+=sp.Rational(ep.get_attributes()["routing_p1"])*sp.Rational(ep.get_attributes()["is_cut"])
-                        sum_p2+=sp.Rational(ep.get_attributes()["routing_p2"])*sp.Rational(ep.get_attributes()["is_cut"])
-            if sum_k!=0 or sum_p1!=(1 if i==0 else 0) or sum_p2!=(1 if i==1 else 0):
+                        sum_k += sp.Rational(ep.get_attributes()["routing_k0"]) * sp.Rational(ep.get_attributes()["is_cut"])
+                        sum_p1 += sp.Rational(ep.get_attributes()["routing_p1"]) * sp.Rational(ep.get_attributes()["is_cut"])
+                        sum_p2 += sp.Rational(ep.get_attributes()["routing_p2"]) * sp.Rational(ep.get_attributes()["is_cut"])
+            if sum_k != 0 or sum_p1 != (1 if i == 0 else 0) or sum_p2 != (1 if i == 1 else 0):
                 print(f"Error at partition {i}: sum_k={sum_k}, sum_p1={sum_p1}, sum_p2={sum_p2}")
                 return False
 
@@ -496,7 +504,7 @@ class VacuumDotGraph(object):
 
     def cut_graphs_with_routing(self, initial_massive, final_massive):
         initial_cuts, final_cuts = self.get_cutkosky_cuts_IF(initial_massive, final_massive)
-        routed_cut_graphs=[]
+        routed_cut_graphs = []
 
         def all_pairs(V):
             V = list(V)
@@ -512,7 +520,7 @@ class VacuumDotGraph(object):
 
         for initial_cut in initial_cuts:
             for final_cut in final_cuts:
-                connected_components = self.cut_splits_into_two_components(initial_cut,final_cut,True)
+                connected_components = self.cut_splits_into_two_components(initial_cut, final_cut, True)
                 if connected_components[0]:
                     graph = self.set_cut_labels(initial_cut, final_cut, connected_components)
                     all_pair_list = all_pairs(initial_cut)
@@ -526,14 +534,7 @@ class VacuumDotGraph(object):
         return routed_cut_graphs
 
 
-
-
-
-
-
-
 class DYDotGraph(DotGraph):
-
     def __init__(self, dot_graph: pydot.Dot):
         self.dot = dot_graph
 
@@ -556,7 +557,6 @@ class DYDotGraph(DotGraph):
             num *= Es(g_attrs["overall_factor_evaluated"])
 
         return num
-
 
     @staticmethod
     def _strip_quotes(s: str) -> str:
@@ -705,7 +705,7 @@ class DYDotGraph(DotGraph):
                     vacuum_graph.add_edge(self.remove_edge_attr(self.edge_fusion(e, ep), "lmb_rep"))
                     paired_up.append(ep)
 
-        return VacuumDotGraph(vacuum_graph,self.get_numerator(include_overall_factor=True))
+        return VacuumDotGraph(vacuum_graph, self.get_numerator(include_overall_factor=True))
 
     def _base_node(self, endpoint: str) -> str:
         ep = DYDotGraph._strip_quotes(endpoint)

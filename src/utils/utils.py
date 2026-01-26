@@ -30,6 +30,7 @@ SRC_DIR = os.path.join(PYGLOOP_FOLDER, "src")
 
 OUTPUTS_FOLDER = os.path.join(PYGLOOP_FOLDER, "outputs")
 DOTS_FOLDER = os.path.join(OUTPUTS_FOLDER, "dot_files")
+RESOURCES_FOLDER = os.path.join(PYGLOOP_FOLDER, "resources")
 INTEGRATION_WORKSPACE_FOLDER = os.path.join(OUTPUTS_FOLDER, "integration_workspaces")
 EVALUATORS_FOLDER = os.path.join(OUTPUTS_FOLDER, "evaluators")
 GAMMALOOP_STATES_FOLDER = os.path.join(OUTPUTS_FOLDER, "gammaloop_states")
