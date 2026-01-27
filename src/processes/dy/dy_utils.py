@@ -129,7 +129,7 @@ class VacuumDotGraph(object):
         return cycles
 
     def get_simple_cycles(self):
-        edges = list(self.dot.get_edges())
+        edges = list(copy.deepcopy(self.dot.get_edges()))
         if not edges:
             return []
 
@@ -178,7 +178,7 @@ class VacuumDotGraph(object):
 
         return cycles
 
-    def compute_winding(self, cycle) -> int:
+    def compute_winding(self, cycle, return_cycles=False):
         edges = list(cycle)
         if not edges:
             return 0
@@ -206,6 +206,7 @@ class VacuumDotGraph(object):
         visited = set()
         current = start
         prev_edge = None
+        ordered = []
 
         while True:
             if prev_edge is None:
@@ -227,7 +228,9 @@ class VacuumDotGraph(object):
             src = self._node_key(edge.get_source())
             dst = self._node_key(edge.get_destination())
             direction = 1 if (src == current and dst == next_node) else -1
+            edge.set("dir_in_cycle",direction)
             winding += self._edge_is_cut_value(edge) * direction
+            ordered.append((edge, direction))
 
             prev_edge = edge
             current = next_node
@@ -239,7 +242,19 @@ class VacuumDotGraph(object):
         if len(visited) != len(edges):
             raise ValueError("Cycle is not well-formed")
 
-        return winding
+        # Orient the cycle so a reference is_cut==1 edge has dir_in_cycle == 1.
+        flip=False
+        for (e, d) in ordered:
+            if self._edge_is_cut_value(e) == 1 and d==1:
+                flip=True
+        if flip:
+            for (e, d) in ordered:
+                e.set("dir_in_cycle",-d)
+
+        if return_cycles:
+            return winding, copy.deepcopy(cycle)
+        else:
+            return winding
 
     def get_nonzero_winding_cycles(self):
         cycles = self.get_simple_cycles()
@@ -355,22 +370,73 @@ class VacuumDotGraph(object):
 
     def set_cut_labels(self, initial_cut, final_cut, connected_components):
         graph = copy.deepcopy(self.dot)
+#
+#        for e in graph.get_edges():
+#            attrs = dict(e.get_attributes() or {})
+#            if e in initial_cut and e not in final_cut:
+#                if self._node_key(e.get_source()) in connected_components[1][0]:
+#                    attrs["is_cut"] = "-1"
+#                else:
+#                    attrs["is_cut"] = "1"
+#            elif e in final_cut and e not in initial_cut:
+#                if self._node_key(e.get_source()) in connected_components[1][0]:
+#                    attrs["is_cut"] = "1"
+#                else:
+#                    attrs["is_cut"] = "-1"
+#            elif e in initial_cut and e in final_cut:
+#                attrs["is_cut"] = "0" ##FIX
+#            else:
+#                attrs["is_cut"] = "0"
+#            e.set("is_cut", attrs.get("is_cut", "0"))
+#
+#        return graph
+        print("----before-----")
+        for e in graph.get_edges():
+            print(e)
+
+        initial_cut_ids = [e.get_attributes()["id"] for e in initial_cut]
+        final_cut_ids = [e.get_attributes()["id"] for e in final_cut]
+#
+#
+
+        cycles=self.get_simple_cycles()
+#        print("cycles")
+        new_cycles = []
+        for cycle in cycles:
+            winding, new_cycle = self.compute_winding(cycle, return_cycles=True)
+            new_cycles.append(new_cycle)
+#            for e in cycle:
+#                print(e)
+#            print("-----")
+
+
 
         for e in graph.get_edges():
-            attrs = dict(e.get_attributes() or {})
-            if e in initial_cut:
-                if self._node_key(e.get_source()) in connected_components[1][0]:
-                    attrs["is_cut"] = "-1"
-                else:
-                    attrs["is_cut"] = "1"
-            elif e in final_cut:
-                if self._node_key(e.get_source()) in connected_components[1][0]:
-                    attrs["is_cut"] = "1"
-                else:
-                    attrs["is_cut"] = "-1"
-            else:
-                attrs["is_cut"] = "0"
-            e.set("is_cut", attrs.get("is_cut", "0"))
+            if e.get_attributes()["id"] not in initial_cut_ids and e.get_attributes()["id"] not in final_cut_ids:
+                e.get_attributes()["is_cut"] = "0"
+                continue
+
+            # choose which cut this edge belongs to
+            target_ids = initial_cut_ids if e.get_attributes()["id"] in initial_cut_ids else final_cut_ids
+            e_id = e.get_attributes()["id"]
+
+            # find a cycle crossing that cut once and containing this edge
+            found = False
+            for cycle in new_cycles:
+                count = sum(1 for ep in cycle if ep.get_attributes()["id"] in target_ids)
+                if count == 1:
+                    for ep in cycle:
+                        if ep.get_attributes()["id"] == e_id:
+
+                            e.get_attributes()["is_cut"] = str(int(ep.get_attributes()["dir_in_cycle"]))
+
+                            found = True
+                            break
+                if found:
+                    break
+
+            if not found:
+                raise RuntimeError("Expected a cycle crossing cut once that contains edge")
 
 
 
@@ -530,10 +596,28 @@ class VacuumDotGraph(object):
                 connected_components = self.cut_splits_into_two_components(initial_cut, final_cut, True)
                 if connected_components[0]:
                     graph = self.set_cut_labels(initial_cut, final_cut, connected_components)
+
                     all_pair_list = all_pairs(initial_cut)
                     for V1, V2 in all_pair_list:
+
+
+
                         idV1 = [e.get_attributes()["id"] for e in V1]
                         idV2 = [e.get_attributes()["id"] for e in V2]
+
+                        if idV1 == ["0"] and idV2 == ["6", "7"]:
+
+                            print("------labelled graphs------")
+                            for e in graph.get_edges():
+                                print(e)
+                            print("------initial_cut---------")
+                            for e in initial_cut:
+                                print(e)
+                            print("------final_cut---------")
+                            for e in final_cut:
+                                print(e)
+                            print("------")
+
                         new_graph = copy.deepcopy(graph)
                         new_graph.set_name(f"{self.dot.get_name()}_partition_{idV1}_{idV2}")
                         new_graph.set("num",str(self.num))
@@ -550,15 +634,26 @@ class VacuumDotGraph(object):
         cut_graphs_with_routing = self.cut_graphs_with_routing(initial_massive, final_massive)
         cut_graphs_with_routing_LV = []
 
+        #print("---------in LV--------")
         for graph in cut_graphs_with_routing:
             count_p1=False
             count_p2=False
+
+
+            #print(f"------graph: {graph[3].get_name()}------")
+            #print([e.get_attributes()["id"] for e in graph[0]])
             for e in graph[3].get_edges():
-                if sp.Rational(e.get_attributes()["routing_p1"])!=0 and sp.Rational(e.get_attributes()["routing_k0"])==0 and sp.Rational(e.get_attributes()["routing_p2"])==0:
+            #    print(e)
+
+                if sp.Rational(e.get_attributes()["routing_p1"])!=0 and sp.Rational(e.get_attributes()["routing_k0"])==0 and sp.Rational(e.get_attributes()["routing_p2"])==0 and self._strip_quotes(e.get_attributes().get("particle", "")) != "a":
+                    #print("------")
+                    #print(e.get_attributes()["particle"])
+                    #print(self._strip_quotes(e.get_attributes().get("particle", "")) != "a")
                     count_p1=True
-                elif sp.Rational(e.get_attributes()["routing_p2"])!=0 and sp.Rational(e.get_attributes()["routing_k0"])==0 and sp.Rational(e.get_attributes()["routing_p1"])==0:
+                elif sp.Rational(e.get_attributes()["routing_p2"])!=0 and sp.Rational(e.get_attributes()["routing_k0"])==0 and sp.Rational(e.get_attributes()["routing_p1"])==0 and self._strip_quotes(e.get_attributes().get("particle", "")) != "a":
                     count_p2=True
             if count_p1 and count_p2:
+                #print("PASSED")
                 cut_graphs_with_routing_LV.append(graph)
 
         return cut_graphs_with_routing_LV
@@ -714,6 +809,10 @@ class DYDotGraph(DotGraph):
         paired_up = []
         new_edges = []
 
+        print("-----Original graph-----")
+        for e in self.dot.get_edges():
+            print(e)
+
         vacuum_graph = pydot.Dot(graph_type="digraph")
         vacuum_graph.set_name(self.dot.get_name())
 
@@ -740,6 +839,12 @@ class DYDotGraph(DotGraph):
                 if self.get_part(e) == self.get_part(ep) and ep not in paired_up:
                     vacuum_graph.add_edge(self.remove_edge_attr(self.edge_fusion(e, ep), "lmb_rep"))
                     paired_up.append(ep)
+
+        print("-----Vacuum graph-----")
+        for e in vacuum_graph.get_edges():
+            print(e)
+
+        print("--------")
 
         return VacuumDotGraph(vacuum_graph, self.get_numerator(include_overall_factor=True))
 
