@@ -294,134 +294,167 @@ class DY(object):
             "spenso::gamma(spenso::bis(4,gammalooprs::hedge(0)),spenso::bis(4,gammalooprs::hedge(2)),spenso::mink(4,mu))*gammalooprs::Q(0,spenso::mink(4,mu))*spenso::gamma(spenso::bis(4,gammalooprs::hedge(3)),spenso::bis(4,gammalooprs::hedge(1)),spenso::mink(4,nu))*gammalooprs::Q(1,spenso::mink(4,nu))"
         )
 
+
     def process_1L_generated_graphs(self, graphs: DYDotGraphs) -> DYDotGraphs:
         processed_graphs = DYDotGraphs()
-        for g_input in graphs:
-            g = copy.deepcopy(g_input)
-            attrs = g.get_attributes()
-            print("NUMERATOR = ", str(g.get_numerator().to_canonical_string()))
-            # print("NUMERATOR = ", str(simplify_color(self.get_color_projector()*g.get_numerator())))
-            print("NUMERATOR = ", str(simplify_gamma(self.get_spin_projector() * g.get_numerator()).to_canonical_string()))
-            print(
-                "NUMERATOR = ",
-                str(
-                    simplify_metrics(
-                        simplify_gamma(simplify_color(self.get_color_projector() * self.get_spin_projector() * g.get_numerator()))
-                    ).to_canonical_string()
-                ),
-            )
-            expr = simplify_metrics(simplify_gamma(simplify_color(self.get_color_projector() * self.get_spin_projector() * g.get_numerator())))
-            print("NUMERATOR = ", str(expr.replace(E("gammalooprs::Q(x_,y___)*gammalooprs::Q(z_,y___)"), E("dot(x_,z_)"), repeat=True)))
 
-            # from pprint import pprint
+        filtered_graphs = DYDotGraphs()
+        filtered_graphs.extend(copy.deepcopy(graphs.filter_particle_definition(["a"])))
+
+        final_graphs=[]
+
+        for graph in filtered_graphs:
+            g = copy.deepcopy(graph)
             vacuum_g = g.get_vacuum_graph()
-            # pprint([str(e)
-            print("####incoming edges####")
-            for e in g.get_incoming_edges():
-                pprint(str(e))
-            print("####outgoing edges####")
-            for e in g.get_outgoing_edges():
-                pprint(str(e))
+            routed_graphs = vacuum_g.cut_graphs_with_routing_leading_virtuality([], ["a"])
+            final_graphs = final_graphs + [r[3] for r in routed_graphs]
 
-            g.enumerate_cutkosky_cuts(g.get_incoming_edges(), g.get_outgoing_edges())
+        if final_graphs:
+            print(final_graphs[-1].to_string())
+        processed_graphs.extend(copy.deepcopy(final_graphs))
 
-            print("----------  VACUUM GRAPH ----------")
-
-            for e in vacuum_g.dot.get_edges():
-                pprint(str(e))
-
-            # my_g=my_graph(g)
-            # my_g.translate()
-
-            print("----------  SPANNING TREE ----------")
-            T = vacuum_g.get_spanning_tree()
-            print(len(T))
-            for e in T:
-                pprint(str(e))
-
-            print("----------  CYCLE BASIS ----------")
-            B = vacuum_g.get_cycle_basis()
-            print(len(B))
-            for c in B:
-                print("----cycle----")
-                print(vacuum_g.compute_winding(c))
-                for e in c:
-                    pprint(str(e))
-
-            print("---------- SIMPLE CYCLES ----------")
-            B = vacuum_g.get_simple_cycles()
-            print(len(B))
-            for c in B:
-                print("----cycle----")
-                print(vacuum_g.compute_winding(c))
-                for e in c:
-                    pprint(str(e))
-
-            print("----------  CUTKOSKY CUTS ----------")
-            for c in vacuum_g.get_cutkosky_cuts():
-                print("----cutkosky cut----")
-                for e in c:
-                    pprint(str(e))
-
-            print("----------  I/F CUTKOSKY CUTS ----------")
-            initial_cuts, final_cuts = vacuum_g.get_cutkosky_cuts_IF([], ["a"])
-            print("----INITIAL----")
-            for c in initial_cuts:
-                print("----cutkosky cut----")
-                for e in c:
-                    pprint(str(e))
-            print("----FINAL----")
-            for c in final_cuts:
-                print("----cutkosky cut----")
-                for e in c:
-                    pprint(str(e))
-
-            for c in initial_cuts:
-                for cp in final_cuts:
-                    print("-----connectivity check-----")
-                    cut_info = vacuum_g.cut_splits_into_two_components(c, cp, True)
-                    print(cut_info)
-                    new_graph_cut = vacuum_g.set_cut_labels(c, cp, cut_info)
-                    print("---cut1---")
-                    for e in c:
-                        pprint(str(e))
-                    print("---cut2---")
-                    for e in cp:
-                        pprint(str(e))
-
-                    print("----cut labels----")
-                    for e in new_graph_cut.get_edges():
-                        pprint(str(e))
-
-            routed_graphs = vacuum_g.cut_graphs_with_routing([], ["a"])
-
-            #            for graph_info in routed_graphs:
-            #                print("-----ROUTED GRAPH-----")
-            #                print("***initial_cut***")
-            #                for e in graph_info[0]:
-            #                    pprint(str(e))
-            #                print("***final_cut***")
-            #                for e in graph_info[1]:
-            #                    pprint(str(e))
-            #                print("***partition1***")
-            #                for e in graph_info[2][0]:
-            #                    pprint(str(e))
-            #                print("***partition2***")
-            #                for e in graph_info[2][1]:
-            #                    pprint(str(e))
-            # print("***edges***")
-            # for e in graph_info[3].get_edges():
-            #    pprint(str(e))
-
-            # my_g.translate()
-
-            attrs["num"] = f'"{expr_to_string(g.get_numerator())}"'
-            attrs["projector"] = f'"{expr_to_string(g.get_projector() * self.get_color_projector())}"'
-
-            g.set_local_numerators_to_one()
-            processed_graphs.append(g)
+            #print("----A GRAPH----")
+            #for e in g.dot.get_edges():
+            #    print(e)
+        #print(f"Total number of graphs: {len(processed_graphs)}")
 
         return processed_graphs
+
+
+
+        #for g_input in graphs:
+
+
+#    def process_1L_generated_graphs(self, graphs: DYDotGraphs) -> DYDotGraphs:
+#        processed_graphs = DYDotGraphs()
+#        for g_input in graphs:
+#            g = copy.deepcopy(g_input)
+#            attrs = g.get_attributes()
+#            print("NUMERATOR = ", str(g.get_numerator().to_canonical_string()))
+#            # print("NUMERATOR = ", str(simplify_color(self.get_color_projector()*g.get_numerator())))
+#            print("NUMERATOR = ", str(simplify_gamma(self.get_spin_projector() * g.get_numerator()).to_canonical_string()))
+#            print(
+#                "NUMERATOR = ",
+#                str(
+#                    simplify_metrics(
+#                        simplify_gamma(simplify_color(self.get_color_projector() * self.get_spin_projector() * g.get_numerator()))
+#                    ).to_canonical_string()
+#                ),
+#            )
+#            expr = simplify_metrics(simplify_gamma(simplify_color(self.get_color_projector() * self.get_spin_projector() * g.get_numerator())))
+#            print("NUMERATOR = ", str(expr.replace(E("gammalooprs::Q(x_,y___)*gammalooprs::Q(z_,y___)"), E("dot(x_,z_)"), repeat=True)))
+#
+#            # from pprint import pprint
+#            vacuum_g = g.get_vacuum_graph()
+#            # pprint([str(e)
+#            print("####incoming edges####")
+#            for e in g.get_incoming_edges():
+#                pprint(str(e))
+#            print("####outgoing edges####")
+#            for e in g.get_outgoing_edges():
+#                pprint(str(e))
+#
+#            g.enumerate_cutkosky_cuts(g.get_incoming_edges(), g.get_outgoing_edges())
+#
+#            print("----------  VACUUM GRAPH ----------")
+#
+#            for e in vacuum_g.dot.get_edges():
+#                pprint(str(e))
+#
+#            # my_g=my_graph(g)
+#            # my_g.translate()
+#
+#            print("----------  SPANNING TREE ----------")
+#            T = vacuum_g.get_spanning_tree()
+#            print(len(T))
+#            for e in T:
+#                pprint(str(e))
+#
+#            print("----------  CYCLE BASIS ----------")
+#            B = vacuum_g.get_cycle_basis()
+#            print(len(B))
+#            for c in B:
+#                print("----cycle----")
+#                print(vacuum_g.compute_winding(c))
+#                for e in c:
+#                    pprint(str(e))
+#
+#            print("---------- SIMPLE CYCLES ----------")
+#            B = vacuum_g.get_simple_cycles()
+#            print(len(B))
+#            for c in B:
+#                print("----cycle----")
+#                print(vacuum_g.compute_winding(c))
+#                for e in c:
+#                    pprint(str(e))
+#
+#            print("----------  CUTKOSKY CUTS ----------")
+#            for c in vacuum_g.get_cutkosky_cuts():
+#                print("----cutkosky cut----")
+#                for e in c:
+#                    pprint(str(e))
+#
+#            print("----------  I/F CUTKOSKY CUTS ----------")
+#            initial_cuts, final_cuts = vacuum_g.get_cutkosky_cuts_IF([], ["a"])
+#            print("----INITIAL----")
+#            for c in initial_cuts:
+#                print("----cutkosky cut----")
+#                for e in c:
+#                    pprint(str(e))
+#            print("----FINAL----")
+#            for c in final_cuts:
+#                print("----cutkosky cut----")
+#                for e in c:
+#                    pprint(str(e))
+#
+#            for c in initial_cuts:
+#                for cp in final_cuts:
+#                    print("-----connectivity check-----")
+#                    cut_info = vacuum_g.cut_splits_into_two_components(c, cp, True)
+#                    print(cut_info)
+#                    new_graph_cut = vacuum_g.set_cut_labels(c, cp, cut_info)
+#                    print("---cut1---")
+#                    for e in c:
+#                        pprint(str(e))
+#                    print("---cut2---")
+#                    for e in cp:
+#                        pprint(str(e))
+#
+#                    print("----cut labels----")
+#                    for e in new_graph_cut.get_edges():
+#                        pprint(str(e))
+#
+#            routed_graphs = vacuum_g.cut_graphs_with_routing_leading_virtuality([], ["a"])
+#
+#            print("-----NUMBER OF ROUTED GRAPHS-----")
+#            print(len(routed_graphs))
+#
+#            for graph_info in routed_graphs:
+#                print("-----ROUTED GRAPH-----")
+##                print("***initial_cut***")
+##                for e in graph_info[0]:
+##                    pprint(str(e))
+##                print("***final_cut***")
+##                for e in graph_info[1]:
+##                    pprint(str(e))
+##                    print("***partition1***")
+##                    for e in graph_info[2][0]:
+##                        pprint(str(e))
+##                        print("***partition2***")
+##                        for e in graph_info[2][1]:
+##                            pprint(str(e))
+#                print("***edges***")
+#                for e in graph_info[3].get_edges():
+#                    pprint(str(e))
+#                    #my_g.translate()
+#
+#            attrs["num"] = f'"{expr_to_string(g.get_numerator())}"'
+#            attrs["projector"] = f'"{expr_to_string(g.get_projector() * self.get_color_projector())}"'
+#
+#            g.set_local_numerators_to_one()
+#            processed_graphs.append(g)
+#
+#        return processed_graphs
 
     def process_2L_generated_graphs(self, graphs: DYDotGraphs) -> DYDotGraphs:
         processed_graphs = DYDotGraphs()
@@ -447,8 +480,11 @@ class DY(object):
         match self.n_loops:
             case 1:
                 logger.info("Generating one-loop graphs ...")
+                #self.gl_worker.run(
+                #    f"generate amp d d~ > d d~ | d d~ g a QED==2 [{{1}}] --only-diagrams --numerator-grouping only_detect_zeroes --select-graphs GL02 -p {base_name} -i {graphs_process_name}"
+                #)
                 self.gl_worker.run(
-                    f"generate amp d d~ > d d~ | d d~ g a QED==2 [{{1}}] --only-diagrams --numerator-grouping only_detect_zeroes --select-graphs GL02 -p {base_name} -i {graphs_process_name}"
+                    f"generate amp d d~ > d d~ | d d~ g a QED==2 [{{1}}] --only-diagrams --numerator-grouping only_detect_zeroes -p {base_name} -i {graphs_process_name}"
                 )
                 self.gl_worker.run("save state -o")
                 DY_1L_dot_files = self.gl_worker.get_dot_files(process_id=None, integrand_name=graphs_process_name)
@@ -459,6 +495,7 @@ class DY(object):
                 self.gl_worker.run("save dot")
                 self.save_state()
                 DY_1L_dot_files_processed = self.process_1L_generated_graphs(DYDotGraphs(dot_str=DY_1L_dot_files))
+                print(len(DY_1L_dot_files_processed))
                 DY_1L_dot_files_processed.save_to_file(pjoin(DOTS_FOLDER, self.name, f"{integrand_name}.dot"))
             case 2:
                 logger.info("Generating two-loop graphs ...")

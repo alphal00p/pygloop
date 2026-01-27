@@ -3,6 +3,7 @@ from collections import deque
 from itertools import combinations, product
 from pprint import pprint
 from typing import List, Optional, Tuple
+import os
 
 try:
     import sympy as sp
@@ -21,6 +22,10 @@ from symbolica import E, Expression, NumericalIntegrator, Sample
 def Es(expr: str) -> Expression:
     return E(expr.replace('"', ""), default_namespace="gammalooprs")
 
+def write_text_with_dirs(path: str, content: str, mode: str = "w", encoding: str = "utf-8") -> None:
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, mode, encoding=encoding) as handle:
+        handle.write(content)
 
 class VacuumDotGraph(object):
     def __init__(self, dot_graph: pydot.Dot, num):
@@ -367,6 +372,8 @@ class VacuumDotGraph(object):
                 attrs["is_cut"] = "0"
             e.set("is_cut", attrs.get("is_cut", "0"))
 
+
+
         return graph
 
     def route_cut_graph(self, graph, initial_cut, final_cut, partition=None, p1=1, p2=1, root=None):
@@ -525,13 +532,41 @@ class VacuumDotGraph(object):
                     graph = self.set_cut_labels(initial_cut, final_cut, connected_components)
                     all_pair_list = all_pairs(initial_cut)
                     for V1, V2 in all_pair_list:
-                        graph = self.route_cut_graph(graph, initial_cut, final_cut, [V1, V2])
+                        idV1 = [e.get_attributes()["id"] for e in V1]
+                        idV2 = [e.get_attributes()["id"] for e in V2]
+                        new_graph = copy.deepcopy(graph)
+                        new_graph.set_name(f"{self.dot.get_name()}_partition_{idV1}_{idV2}")
+                        new_graph.set("num",str(self.num))
+                        graph = self.route_cut_graph(new_graph, initial_cut, final_cut, [V1, V2])
                         routed_cut_graphs.append([initial_cut, final_cut, [V1, V2], graph])
                         if not self.check_routing(graph, [V1, V2]):
                             print("ERROR: Routing is wrongly assigned")
-                            return
+                            raise Exception
 
         return routed_cut_graphs
+
+
+    def cut_graphs_with_routing_leading_virtuality(self, initial_massive, final_massive):
+        cut_graphs_with_routing = self.cut_graphs_with_routing(initial_massive, final_massive)
+        cut_graphs_with_routing_LV = []
+
+        for graph in cut_graphs_with_routing:
+            count_p1=False
+            count_p2=False
+            for e in graph[3].get_edges():
+                if sp.Rational(e.get_attributes()["routing_p1"])!=0 and sp.Rational(e.get_attributes()["routing_k0"])==0 and sp.Rational(e.get_attributes()["routing_p2"])==0:
+                    count_p1=True
+                elif sp.Rational(e.get_attributes()["routing_p2"])!=0 and sp.Rational(e.get_attributes()["routing_k0"])==0 and sp.Rational(e.get_attributes()["routing_p1"])==0:
+                    count_p2=True
+            if count_p1 and count_p2:
+                cut_graphs_with_routing_LV.append(graph)
+
+        return cut_graphs_with_routing_LV
+
+    def to_string(self) -> str:
+        return self.dot.to_string()
+
+
 
 
 class DYDotGraph(DotGraph):
@@ -680,6 +715,7 @@ class DYDotGraph(DotGraph):
         new_edges = []
 
         vacuum_graph = pydot.Dot(graph_type="digraph")
+        vacuum_graph.set_name(self.dot.get_name())
 
         for e in self.dot.get_edges():
             if self.is_incoming_half_edge(e):
@@ -818,6 +854,9 @@ class DYDotGraph(DotGraph):
 
         return good_sets
 
+    def to_string(self) -> str:
+        return self.dot.to_string()
+
 
 class DYDotGraphs(DotGraphs):
     def __init__(self, dot_str: str | None = None, dot_path: str | None = None):
@@ -843,20 +882,44 @@ class DYDotGraphs(DotGraphs):
                 return g
         raise KeyError(f"Graph with name {graph_name} not found.")
 
-    def filter_particle_definition(self, particles):
-        newgraphs = []
+    @staticmethod
+    def _strip_quotes(s: str) -> str:
+        s = s.strip()
+        if len(s) >= 2 and s[0] == '"' and s[-1] == '"':
+            return s[1:-1]
+        return s
+
+    def filter_particle_definition(self, final_particles):
+        new_graphs = []
 
         for graph in self:
             incoming_edges = graph.get_incoming_edges()
             outgoing_edges = graph.get_outgoing_edges()
             cutkosky_cuts = graph.enumerate_cutkosky_cuts(incoming_edges, outgoing_edges)
 
-            for c in cutkosky_cuts:
-                stack = particles.copy()
-                for e in c:
-                    if e.get_attributes().get("particle", "") in stack:
-                        stack.remove(e.get_attributes().get("particle", ""))
-                if len(stack) == 0:
-                    newgraphs.append(graph)
+            # Add a new line here to filter out graphs with no cutkosky cuts
+            #
+            #print("new graph----")
 
-        self = newgraphs
+            for S in cutkosky_cuts:
+                #print("cutkosky cut")
+                c= graph.boundary_edges(S)
+                massive_in_cut=[]
+                for e in c:
+                    particle = self._strip_quotes(str(e.get_attributes().get("particle", "")))
+                    if particle not in ["d", "d~", "g"]:
+                        massive_in_cut.append(particle)
+
+
+                #print(massive_in_cut)
+
+
+
+                if massive_in_cut == final_particles:
+                    #print("True")
+                    new_graphs.append(graph)
+
+        return new_graphs
+
+    def save_to_file(self, file_path: str):
+        write_text_with_dirs(file_path, "\n\n".join([g.to_string() for g in self]))
