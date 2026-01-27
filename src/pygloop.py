@@ -116,6 +116,13 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="Strategy to generate the full spenso integrand when explicitly summing over orientation in the evaluator for performances. Default = %(default)s",
     )
+    parser_generate.add_argument("--n-iterations-hornerscheme", "-nhorner", type=int, default=100,
+        help="Number of iterations for the Horner scheme optimization. Default = %(default)s",
+    )  # fmt: off
+    parser_generate.add_argument("--n-iterations-cpe", "-ncpe", type=int, default=None,
+        help="Number of iterations for the CPE optimization. Default = until exhaustion",
+    )  # fmt: off
+
     # create the parser for the "inspect" command
     parser_inspect = subparsers.add_parser("inspect", help="Inspect evaluation of a sample point of the integration space.")
     parser_inspect.add_argument("--point", "-p", type=float, nargs="*",
@@ -154,12 +161,6 @@ def main(argv: list[str] | None = None) -> int:
     )  # fmt: off
     parser_integrate.add_argument("--restart", "-r", action="store_true", default=False,
         help="Restart the integration from previous results. Default = %(default)s",
-    )  # fmt: off
-    parser_integrate.add_argument("--n-iterations-hornerscheme", "-nhorner", type=int, default=100,
-        help="Number of iterations for the Horner scheme optimization. Default = %(default)s",
-    )  # fmt: off
-    parser_integrate.add_argument("--n-iterations-cpe", "-ncpe", type=int, default=None,
-        help="Number of iterations for the CPE optimization. Default = until exhaustion",
     )  # fmt: off
 
     # Create the parser for the "plot" command
@@ -273,6 +274,8 @@ def main(argv: list[str] | None = None) -> int:
                 logger.info("Generating spenso code ...")
                 process.generate_spenso_code(
                     full_spenso_integrand_strategy=args.full_spenso_integrand_strategy,
+                    n_hornerscheme_iterations=args.n_iterations_hornerscheme,
+                    n_cpe_iterations=args.n_iterations_cpe,
                 )
                 logger.info("Spenso code generation completed.")
 

@@ -69,6 +69,7 @@ class GGHHH(object):
     name_for_resources = "GGHHH"
 
     ENABLE_ASM_COMPILATION = True
+    VERBOSE_FULL_EVALUATOR = False
 
     SB = {
         "etaSelector": S("pygloop::ηs"),
@@ -672,6 +673,7 @@ class GGHHH(object):
                         verbose=False,
                         external_functions=None,
                         conditionals=None,
+                        cpe_iterations=n_cpe_iterations,
                     )
                     total_evaluator_time += time.time() - evaluator_start
                     evaluator_calls += 1
@@ -754,9 +756,10 @@ class GGHHH(object):
                 params=input_params,
                 iterations=n_hornerscheme_iterations,
                 n_cores=8,
-                verbose=False,
                 external_functions=None,
                 conditionals=conditionals,
+                verbose=GGHHH.VERBOSE_FULL_EVALUATOR,
+                cpe_iterations=n_cpe_iterations,
             )
             total_evaluator_time += time.time() - evaluator_start
 
