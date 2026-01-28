@@ -564,7 +564,7 @@ class DotGraphs(list):
         return [g.dot.get_name() for g in self]
 
     def select_graphs_by_names(self, graph_names: list[str]):
-        self[:] = (g for g in self if g.get_name() in graph_names)
+        self[:] = (g for g in self if g.dot.get_name() in graph_names)
 
     def __str__(self) -> str:
         return "\n\n".join([g.to_string() for g in self])

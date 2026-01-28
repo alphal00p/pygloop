@@ -324,29 +324,45 @@ class ScalarGravity(object):
                 self.gl_worker.run(f"import graphs {input_dot_graphs} -p {base_name} -i {graphs_process_name}")
                 self.gl_worker.run("save state -o")
                 dot_files_1L = self.gl_worker.get_dot_files(process_id=None, integrand_name=graphs_process_name)
-                if self.diagrams is not None:
-                    dot_files_1L.select_graphs_by_names(self.diagrams)
                 write_text_with_dirs(
                     pjoin(DOTS_FOLDER, self.name, f"{graphs_process_name}.dot"),
                     dot_files_1L,
                 )
                 self.gl_worker.run("save dot")
-                dot_files_1L_processed = classical_limit_processor.process_graphs(DotGraphs(dot_str=dot_files_1L))
+                dot_files_1L = DotGraphs(dot_str=dot_files_1L)
+                if self.diagrams is not None:
+                    n_diag_start = len(dot_files_1L)
+                    dot_files_1L.select_graphs_by_names(self.diagrams)
+                    logger.info(
+                        "Selected %d diagrams out of %d available. Graph names selected: %s",
+                        len(dot_files_1L),
+                        n_diag_start,
+                        ",".join(dot_files_1L.get_graph_names()),
+                    )
+                dot_files_1L_processed = classical_limit_processor.process_graphs(dot_files_1L)
                 dot_files_1L_processed.save_to_file(pjoin(DOTS_FOLDER, self.name, f"{integrand_name}.dot"))
             case 2:
                 logger.info("Importing one-loop graphs ...")
-                input_dot_graphs = pjoin(RESOURCES_FOLDER, self.name_for_resources, "1L_graphs.dot")
+                input_dot_graphs = pjoin(RESOURCES_FOLDER, self.name_for_resources, "2L_graphs.dot")
                 self.gl_worker.run(f"import graphs {input_dot_graphs} -p {base_name} -i {graphs_process_name}")
                 self.gl_worker.run("save state -o")
                 dot_files_2L = self.gl_worker.get_dot_files(process_id=None, integrand_name=graphs_process_name)
-                if self.diagrams is not None:
-                    dot_files_2L.select_graphs_by_names(self.diagrams)
                 write_text_with_dirs(
                     pjoin(DOTS_FOLDER, self.name, f"{graphs_process_name}.dot"),
                     dot_files_2L,
                 )
                 self.gl_worker.run("save dot")
-                dot_files_2L_processed = classical_limit_processor.process_graphs(DotGraphs(dot_str=dot_files_2L))
+                dot_files_2L = DotGraphs(dot_str=dot_files_2L)
+                if self.diagrams is not None:
+                    n_diag_start = len(dot_files_2L)
+                    dot_files_2L.select_graphs_by_names(self.diagrams)
+                    logger.info(
+                        "Selected %d diagrams out of %d available. Graph names selected: %s",
+                        len(dot_files_2L),
+                        n_diag_start,
+                        ",".join(dot_files_2L.get_graph_names()),
+                    )
+                dot_files_2L_processed = classical_limit_processor.process_graphs(dot_files_2L)
                 dot_files_2L_processed.save_to_file(pjoin(DOTS_FOLDER, self.name, f"{integrand_name}.dot"))
             case _:
                 raise pygloopException(f"Number of loops {self.n_loops} not supported.")

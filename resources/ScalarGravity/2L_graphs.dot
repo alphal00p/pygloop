@@ -3,6 +3,9 @@ digraph h_diagram {
   overall_factor = "1";
   overall_factor_evaluated = "1";
 
+  edge [dod = "-100"];
+  node [dod = "-100"];
+
   ext0   [style=invis];
   ext1   [style=invis];
   ext2   [style=invis];
@@ -19,5 +22,5 @@ digraph h_diagram {
   1	-> 5	 [id=7 particle="graviton"];
   5	-> 3	 [id=8 particle="graviton"];
   4	-> 5	 [id=9 particle="graviton"];
-  2	-> 3	 [id=10 lmb_id=1 particle="scalar_2"];  
+  2	-> 3	 [id=10 lmb_id=1 particle="scalar_2"];
 }

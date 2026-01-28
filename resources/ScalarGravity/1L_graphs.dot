@@ -3,6 +3,9 @@ digraph v_diagram {
   overall_factor = "1";
   overall_factor_evaluated = "1";
 
+  edge [dod = "-100"];
+  node [dod = "-100"];
+
   ext0   [style=invis];
   ext1   [style=invis];
   ext2   [style=invis];
@@ -22,6 +25,9 @@ digraph y_diagram {
   num = "1";
   overall_factor = "1";
   overall_factor_evaluated = "1";
+
+  edge [dod = "-100"];
+  node [dod = "-100"];
 
   ext0   [style=invis];
   ext1   [style=invis];
