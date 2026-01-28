@@ -16,3 +16,6 @@ __pycache__/
 *.pyo
 *.pyd
 .venv/
+
+TMP/*
+.DS_Store

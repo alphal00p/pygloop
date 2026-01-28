@@ -13,6 +13,7 @@ from pprint import pformat
 
 from processes.dy.dy import DY
 from processes.gghhh.gghhh import GGHHH
+from processes.scalar_gravity.scalar_gravity import ScalarGravity
 from processes.template_process import TemplateProcess
 from utils.utils import (
     SRC_DIR,
@@ -37,8 +38,11 @@ def main(argv: list[str] | None = None) -> int:
 
     parser = FloatArgParser(prog="pygloop")
 
-    parser.add_argument("--process", "-p", type=str, choices=["gghhh", "template_process", "dy"], default="gghhh",
+    parser.add_argument("--process", "-p", type=str, choices=["gghhh", "template_process", "dy", "scalar_gravity"], default="gghhh",
         help="Process to consider. Default = %(default)s",
+    )  # fmt: off
+    parser.add_argument("--diagrams", "-d", type=str, nargs="*", default=None,
+        help="Diagrams to consider. Default = %(default)s",
     )  # fmt: off
 
     parser.add_argument("--overwrite-process-basename", "-o", type=str, default=None,
@@ -64,26 +68,26 @@ def main(argv: list[str] | None = None) -> int:
         help='specify gammaloop settings to override toml. Format list of space-separated instructions. -s "set global kv global.n_cores.feyngen=12" "set global kv global.generation.evaluator.iterative_orientation_optimization=false"',
     )  # fmt: off
 
-    parser.add_argument("--m_top", type=float, default=173.0,
-        help="Mass of the internal top quark. Default = %(default)s GeV",
+    parser.add_argument("--m_top", type=float, default=None,
+        help="Mass of the internal top quark. Default for gghhh = 173 GeV",
     )  # fmt: off
-    _ = parser.add_argument("--m_higgs", type=float, default=125.0,
-        help="Higgs mass. Default = %(default)s GeV",
+    _ = parser.add_argument("--m_higgs", type=float, default=None,
+        help="Higgs mass. Default for gghhh = 125 GeV",
     )  # fmt: off
-    parser.add_argument("--pg1", "-pg1", type=float, nargs=4, default=[500.0, 0.0, 0.0, 500.0],
-        help="Four-momentum of the first gluon. Default = %(default)s GeV",
+    parser.add_argument("--pg1", "-pg1", type=float, nargs=4, default=None,
+        help="Four-momentum of the first gluon. Default for gghhh = [500.0, 0.0, 0.0, 500.0] GeV",
     )  # fmt: off
-    parser.add_argument("--pg2", "-pg2", type=float, nargs=4, default=[500.0, 0.0, 0.0, -500.0],
-        help="Four-momentum of the second gluon. Default = %(default)s GeV",
+    parser.add_argument("--pg2", "-pg2", type=float, nargs=4, default=None,
+        help="Four-momentum of the second gluon. Default for gghhh = [500.0, 0.0, 0.0, -500.0] GeV",
     )  # fmt: off
-    parser.add_argument("--ph1", "-ph1", type=float, nargs=4, default=[0.4385555662246945e03, 0.1553322001835378e03, 0.3480160396513587e03, -0.1773773615718412e03],
-        help="Four-momentum of the first Higgs. Default = %(default)s GeV",
+    parser.add_argument("--ph1", "-ph1", type=float, nargs=4, default=None,
+        help="Four-momentum of the first Higgs. Default for gghhh = [0.4385555662246945e03, 0.1553322001835378e03, 0.3480160396513587e03, -0.1773773615718412e03] GeV",
     )  # fmt: off
-    parser.add_argument("--ph2", "-ph2", type=float, nargs=4, default=[0.3563696374921922e03, -0.1680238900851100e02, -0.3187291102436005e03, 0.9748719163688098e02],
-        help="Four-momentum of the second Higgs. Default = %(default)s GeV",
+    parser.add_argument("--ph2", "-ph2", type=float, nargs=4, default=None,
+        help="Four-momentum of the second Higgs. Default for gghhh = [0.3563696374921922e03, -0.1680238900851100e02, -0.3187291102436005e03, 0.9748719163688098e02] GeV",
     )  # fmt: off
-    parser.add_argument("--ph3", "-ph3", type=float, nargs=4, default=[0.2050747962831133e03, -0.1385298111750267e03, -0.2928692940775817e02, 0.7989016993496030e02],
-        help="Four-momentum of the third Higgs. Default = %(default)s GeV",
+    parser.add_argument("--ph3", "-ph3", type=float, nargs=4, default=None,
+        help="Four-momentum of the third Higgs. Default for gghhh = [0.2050747962831133e03, -0.1385298111750267e03, -0.2928692940775817e02, 0.7989016993496030e02] GeV",
     )  # fmt: off
     parser.add_argument("--helicities", type=int, nargs=5, default=[+1, +1, +0, +0, +0],
         help="Helicities of the particles in the process. Default = %(default)s",
@@ -208,13 +212,48 @@ def main(argv: list[str] | None = None) -> int:
         case "critical":
             logger.setLevel(logging.CRITICAL)
 
-    ps_point = [
-        LorentzVector(args.pg1[0], args.pg1[1], args.pg1[2], args.pg1[3]),
-        LorentzVector(args.pg2[0], args.pg2[1], args.pg2[2], args.pg2[3]),
-        LorentzVector(args.ph1[0], args.ph1[1], args.ph1[2], args.ph1[3]),
-        LorentzVector(args.ph2[0], args.ph2[1], args.ph2[2], args.ph2[3]),
-        LorentzVector(args.ph3[0], args.ph3[1], args.ph3[2], args.ph3[3]),
-    ]
+    ps_point_is_default = args.pg1 is None or args.pg2 is None or args.ph1 is None or args.ph2 is None or args.ph3 is None
+    match args.process:
+        case "scalar_gravity":
+            if args.m_top is None:
+                args.m_top = 1.0
+            if args.m_higgs is None:
+                args.m_higgs = 1.0
+            if ps_point_is_default:
+                ps_point = [
+                    LorentzVector(2.0, 1.0, 1.0, 1.0),
+                    LorentzVector(2.0, -1.0, -1.0, -1.0),
+                    LorentzVector(2.0, 1.0, -1.0, 1.0),
+                    LorentzVector(2.0, -1.0, 1.0, -1.0),
+                ]
+            else:
+                ps_point = [
+                    LorentzVector(args.pg1[0], args.pg1[1], args.pg1[2], args.pg1[3]),
+                    LorentzVector(args.pg2[0], args.pg2[1], args.pg2[2], args.pg2[3]),
+                    LorentzVector(args.ph1[0], args.ph1[1], args.ph1[2], args.ph1[3]),
+                    LorentzVector(args.ph2[0], args.ph2[1], args.ph2[2], args.ph2[3]),
+                ]
+        case _:
+            if args.m_top is None:
+                args.m_top = 173.0
+            if args.m_higgs is None:
+                args.m_higgs = 125.0
+            if ps_point_is_default:
+                ps_point = [
+                    LorentzVector(500.0, 0.0, 0.0, 500.0),
+                    LorentzVector(500.0, 0.0, 0.0, -500.0),
+                    LorentzVector(438.5555662246945, 155.3322001835378, 348.0160396513587, -177.3773615718412),
+                    LorentzVector(356.3696374921922, -16.80238900851100, -318.7291102436005, 97.48719163688098),
+                    LorentzVector(205.0747962831133, -138.5298111750267, -29.28692940775817, 79.89016993496030),
+                ]
+            else:
+                ps_point = [
+                    LorentzVector(args.pg1[0], args.pg1[1], args.pg1[2], args.pg1[3]),
+                    LorentzVector(args.pg2[0], args.pg2[1], args.pg2[2], args.pg2[3]),
+                    LorentzVector(args.ph1[0], args.ph1[1], args.ph1[2], args.ph1[3]),
+                    LorentzVector(args.ph2[0], args.ph2[1], args.ph2[2], args.ph2[3]),
+                    LorentzVector(args.ph3[0], args.ph3[1], args.ph3[2], args.ph3[3]),
+                ]
 
     match args.process:
         case "gghhh":
@@ -240,6 +279,18 @@ def main(argv: list[str] | None = None) -> int:
                 ps_point,
                 args.helicities,
                 args.n_loops,
+                toml_config_path=args.gammaloop_configuration,
+                runtime_toml_config_path=args.runtime_configuration,
+                clean=args.clean,
+                gammaloop_settings=args.gammaloop_settings,
+            )
+        case "scalar_gravity":
+            process = ScalarGravity(
+                args.m_top,
+                args.m_higgs,
+                ps_point,
+                args.n_loops,
+                args.diagrams,
                 toml_config_path=args.gammaloop_configuration,
                 runtime_toml_config_path=args.runtime_configuration,
                 clean=args.clean,

@@ -27,6 +27,7 @@ from symbolica.community.idenso import simplify_gamma, simplify_metrics, simplif
 from symbolica.community.spenso import TensorLibrary, TensorNetwork
 from ufo_model_loader.commands import Model
 
+from processes.scalar_gravity.classical_limit_tools import ClassicalLimitProcessor
 from utils.cff import CFFStructure, CFFTerm
 from utils.naive_integrator import naive_integrator as run_naive_integrator
 from utils.plotting import plot_integrand
@@ -47,7 +48,7 @@ from utils.utils import (
     IntegrationResult,
     ParamBuilder,
     PygloopEvaluator,
-    expr_to_string,
+    expr_to_string,  # noqa: F401
     logger,
     pygloopException,
     set_gammaloop_level,
@@ -64,9 +65,9 @@ TOLERANCE: float = 1e-10
 RESCALING: float = 10.0
 
 
-class GGHHH(object):
-    name = "GGHHH"
-    name_for_resources = "GGHHH"
+class ScalarGravity(object):
+    name = "ScalarGravity"
+    name_for_resources = "ScalarGravity"
 
     ENABLE_ASM_COMPILATION = True
     VERBOSE_FULL_EVALUATOR = False
@@ -91,11 +92,11 @@ class GGHHH(object):
 
     def __init__(
         self,
-        m_top: float,
-        m_higgs: float,
-        ps_point: list[LorentzVector],
-        helicities: list[int] | None = None,
+        m_bh1: float = 1.0,
+        m_bh2: float = 1.0,
+        ps_point: list[LorentzVector] | None = None,
         n_loops: int = 1,
+        diagrams: list[str] | None = None,
         toml_config_path: str | None = None,
         runtime_toml_config_path: str | None = None,
         clean=True,
@@ -107,13 +108,19 @@ class GGHHH(object):
         if logger_level is not None:
             logger.setLevel(logger_level)
 
-        self.m_top = m_top
-        self.m_higgs = m_higgs
+        self.m_bh1 = m_bh1
+        self.m_bh2 = m_bh2
+        if ps_point is None:
+            ps_point = [
+                LorentzVector(0.0, 0.0, 0.0, 0.0),
+                LorentzVector(0.0, 0.0, 0.0, 0.0),
+                LorentzVector(0.0, 0.0, 0.0, 0.0),
+                LorentzVector(0.0, 0.0, 0.0, 0.0),
+            ]
         self.ps_point = ps_point
-        if helicities is None:
-            helicities = [1, 1, 0, 0, 0]
-        self.helicities = helicities
+        self.helicities = [0, 0, 0, 0]
         self.n_loops = n_loops
+        self.diagrams = diagrams
 
         self.valide_ps_point()
 
@@ -204,7 +211,7 @@ class GGHHH(object):
             at_least_one_evaluator_found = False
             integrand_param_builders = []
             parameters_param_builders = []
-            for evaluator_name in GGHHH.SPENSO_EVALUATOR_NAMES:
+            for evaluator_name in ScalarGravity.SPENSO_EVALUATOR_NAMES:
                 if os.path.exists(pjoin(integrand_evaluator_directory, f"{evaluator_name}.so")):
                     at_least_one_evaluator_found = True
                     evaluators[evaluator_name] = PygloopEvaluator.load(pjoin(EVALUATORS_FOLDER, self.name, integrand_name), evaluator_name)
@@ -222,15 +229,14 @@ class GGHHH(object):
 
         logger.setLevel(start_logger_level)
 
-    def __deepcopy__(self, _memo) -> GGHHH:
-        copied_self = GGHHH(
-            self.m_top,
-            self.m_higgs,
-            copy.deepcopy(self.ps_point, _memo),
-            copy.deepcopy(self.helicities, _memo),
-            self.n_loops,
-            self.toml_config_path,
-            self.runtime_toml_config_path,
+    def __deepcopy__(self, _memo) -> ScalarGravity:
+        copied_self = ScalarGravity(
+            self.m_bh1,
+            self.m_bh2,
+            ps_point=copy.deepcopy(self.ps_point, _memo),
+            n_loops=self.n_loops,
+            toml_config_path=self.toml_config_path,
+            runtime_toml_config_path=self.runtime_toml_config_path,
             clean=False,
             logger_level=logging.CRITICAL,
         )
@@ -243,7 +249,7 @@ class GGHHH(object):
             raise pygloopException(f"Could not get model from GammaLoop worker. Error: {e}") from e
 
     def builder_inputs(self) -> tuple:
-        return (self.m_top, self.m_higgs, self.ps_point, self.helicities, self.n_loops, self.toml_config_path, self.runtime_toml_config_path)
+        return (self.m_bh1, self.m_bh2, self.ps_point, self.n_loops, self.toml_config_path, self.runtime_toml_config_path)
 
     def set_log_level(self, level) -> None:
         if level <= logging.DEBUG:
@@ -285,12 +291,9 @@ class GGHHH(object):
         self.gl_worker.run(kinematics_set_command)
 
     def set_model(self) -> None:
-        self.gl_worker.run("import model sm-default.json")
-        self.gl_worker.run("set model MT={{re:{:.16f},im:0.0}}".format(self.m_top))
-        self.gl_worker.run("set model MH={{re:{:.16f},im:0.0}}".format(self.m_higgs))
-        self.gl_worker.run("set model WT={re:0.0,im:0.0}")
-        self.gl_worker.run("set model WH={re:0.0,im:0.0}")
-        self.gl_worker.run("set model ymt={{re:{:.16f},im:0.0}}".format(self.m_top))
+        self.gl_worker.run("import model scalar_gravity-default.json")
+        self.gl_worker.run("set model mass_scalar_1={{re:{:.16f},im:0.0}}".format(self.m_bh1))
+        self.gl_worker.run("set model mass_scalar_2={{re:{:.16f},im:0.0}}".format(self.m_bh2))
 
     def setup_gl_worker(self) -> None:
         self.set_model()
@@ -303,46 +306,7 @@ class GGHHH(object):
         self.gl_worker.run("save state -o")
 
     def get_color_projector(self) -> Expression:
-        return E("(1/8)*spenso::g(spenso::coad(8,gammalooprs::hedge(0)),spenso::coad(8,gammalooprs::hedge(1)))")
-
-    def process_1L_generated_graphs(self, graphs: DotGraphs) -> DotGraphs:
-        processed_graphs = DotGraphs()
-        for g_input in graphs:
-            g: DotGraph = copy.deepcopy(g_input)
-            attrs = g.get_attributes()
-            attrs["num"] = f'"{expr_to_string(g.get_numerator())}"'
-            attrs["projector"] = f'"{expr_to_string(g.get_projector() * self.get_color_projector())}"'
-            # VHHACK: for testing purposes only
-            # attrs["num"] = '"1"'
-            # attrs["projector"] = '"1"'
-            g.set_local_numerators_to_one()
-            processed_graphs.append(g)
-
-        return processed_graphs
-
-    def process_3L_generated_graphs(self, graphs: DotGraphs) -> DotGraphs:
-        processed_graphs = DotGraphs()
-        for g_input in graphs:
-            g = copy.deepcopy(g_input)
-            attrs = g.get_attributes()
-            attrs["num"] = f'"{expr_to_string(g.get_numerator())}"'
-            attrs["projector"] = f'"{expr_to_string(g.get_projector() * self.get_color_projector())}"'
-            g.set_local_numerators_to_one()
-            processed_graphs.append(g)
-
-        return processed_graphs
-
-    def process_2L_generated_graphs(self, graphs: DotGraphs) -> DotGraphs:
-        processed_graphs = DotGraphs()
-        for g_input in graphs:
-            g = copy.deepcopy(g_input)
-            attrs = g.get_attributes()
-            attrs["num"] = f'"{expr_to_string(g.get_numerator())}"'
-            attrs["projector"] = f'"{expr_to_string(g.get_projector() * self.get_color_projector())}"'
-            g.set_local_numerators_to_one()
-            processed_graphs.append(g)
-
-        return processed_graphs
+        return E("1")
 
     def generate_graphs(self) -> None:
         graphs_process_name = self.get_integrand_name(suffix="_generated_graphs")
@@ -352,48 +316,38 @@ class GGHHH(object):
         if graphs_process_name in amplitudes:
             logger.info(f"Graphs for amplitude {graphs_process_name} already generated and recycled.")
             return
+        classical_limit_processor = ClassicalLimitProcessor(self)
         match self.n_loops:
             case 1:
-                logger.info("Generating one-loop graphs ...")
-                self.gl_worker.run(
-                    f"generate amp g g > h h h / u d c s b QED==3 [{{1}}] --only-diagrams --numerator-grouping only_detect_zeroes --select-graphs GL15 --loop-momentum-bases GL15=8 -p {base_name} -i {graphs_process_name}"
-                )
+                logger.info("Importing one-loop graphs ...")
+                input_dot_graphs = pjoin(RESOURCES_FOLDER, self.name_for_resources, "1L_graphs.dot")
+                self.gl_worker.run(f"import graphs {input_dot_graphs} -p {base_name} -i {graphs_process_name}")
                 self.gl_worker.run("save state -o")
-                GGHHH_1L_dot_files = self.gl_worker.get_dot_files(process_id=None, integrand_name=graphs_process_name)
+                dot_files_1L = self.gl_worker.get_dot_files(process_id=None, integrand_name=graphs_process_name)
+                if self.diagrams is not None:
+                    dot_files_1L.select_graphs_by_names(self.diagrams)
                 write_text_with_dirs(
                     pjoin(DOTS_FOLDER, self.name, f"{graphs_process_name}.dot"),
-                    GGHHH_1L_dot_files,
+                    dot_files_1L,
                 )
                 self.gl_worker.run("save dot")
-                GGHHH_1L_dot_files_processed = self.process_1L_generated_graphs(DotGraphs(dot_str=GGHHH_1L_dot_files))
-                GGHHH_1L_dot_files_processed.save_to_file(pjoin(DOTS_FOLDER, self.name, f"{integrand_name}.dot"))
+                dot_files_1L_processed = classical_limit_processor.process_graphs(DotGraphs(dot_str=dot_files_1L))
+                dot_files_1L_processed.save_to_file(pjoin(DOTS_FOLDER, self.name, f"{integrand_name}.dot"))
             case 2:
-                logger.info("Generating two-loop graphs ...")
-                self.gl_worker.run(
-                    f"generate amp g g > h h h | g h t t~ QED==3 [{{2}}] --only-diagrams --numerator-grouping only_detect_zeroes --veto-vertex-interactions V_6 V_9 V_36 V_37 --number-of-fermion-loops 1 1 --select-graphs GL303 -p {base_name} -i {graphs_process_name}"
-                )
+                logger.info("Importing one-loop graphs ...")
+                input_dot_graphs = pjoin(RESOURCES_FOLDER, self.name_for_resources, "1L_graphs.dot")
+                self.gl_worker.run(f"import graphs {input_dot_graphs} -p {base_name} -i {graphs_process_name}")
                 self.gl_worker.run("save state -o")
-                GGHHH_2L_dot_files = self.gl_worker.get_dot_files(process_id=None, integrand_name=graphs_process_name)
+                dot_files_2L = self.gl_worker.get_dot_files(process_id=None, integrand_name=graphs_process_name)
+                if self.diagrams is not None:
+                    dot_files_2L.select_graphs_by_names(self.diagrams)
                 write_text_with_dirs(
                     pjoin(DOTS_FOLDER, self.name, f"{graphs_process_name}.dot"),
-                    GGHHH_2L_dot_files,
+                    dot_files_2L,
                 )
                 self.gl_worker.run("save dot")
-                GGHHH_2L_dot_files_processed = self.process_2L_generated_graphs(DotGraphs(dot_str=GGHHH_2L_dot_files))
-                GGHHH_2L_dot_files_processed.save_to_file(pjoin(DOTS_FOLDER, self.name, f"{integrand_name}.dot"))
-            case 3:
-                logger.info("Importing three-loop graphs ...")
-                three_loop_input_dot_graphs = pjoin(RESOURCES_FOLDER, self.name_for_resources, "3L_graphs.dot")
-                self.gl_worker.run(f"import graphs {three_loop_input_dot_graphs} -p {base_name} -i {graphs_process_name}")
-                self.gl_worker.run("save state -o")
-                GGHHH_3L_dot_files = self.gl_worker.get_dot_files(process_id=None, integrand_name=graphs_process_name)
-                write_text_with_dirs(
-                    pjoin(DOTS_FOLDER, self.name, f"{graphs_process_name}.dot"),
-                    GGHHH_3L_dot_files,
-                )
-                self.gl_worker.run("save dot")
-                GGHHH_3L_dot_files_processed = self.process_3L_generated_graphs(DotGraphs(dot_str=GGHHH_3L_dot_files))
-                GGHHH_3L_dot_files_processed.save_to_file(pjoin(DOTS_FOLDER, self.name, f"{integrand_name}.dot"))
+                dot_files_2L_processed = classical_limit_processor.process_graphs(DotGraphs(dot_str=dot_files_2L))
+                dot_files_2L_processed.save_to_file(pjoin(DOTS_FOLDER, self.name, f"{integrand_name}.dot"))
             case _:
                 raise pygloopException(f"Number of loops {self.n_loops} not supported.")
 
@@ -757,7 +711,7 @@ class GGHHH(object):
                 n_cores=8,
                 external_functions=None,
                 conditionals=conditionals,
-                verbose=GGHHH.VERBOSE_FULL_EVALUATOR,
+                verbose=ScalarGravity.VERBOSE_FULL_EVALUATOR,
                 cpe_iterations=n_cpe_iterations,
             )
             total_evaluator_time += time.time() - evaluator_start
@@ -894,7 +848,7 @@ class GGHHH(object):
                 f"Full spenso integrand strategy '{full_spenso_integrand_strategy}' not recognized. Input should be one of: None, 'merging', 'summing' or 'function_map'."
             )
 
-        if GGHHH.ENABLE_ASM_COMPILATION:
+        if ScalarGravity.ENABLE_ASM_COMPILATION:
             spenso_evaluator_compilation_options = {
                 "inline_asm": "default",
                 "optimization_level": 3,
@@ -918,11 +872,9 @@ class GGHHH(object):
         graph_name = None
         match self.n_loops:
             case 1:
-                graph_name = "GL15"
+                graph_name = "v_diagram" if self.diagrams is None else self.diagrams[0]
             case 2:
-                graph_name = "GL303"
-            case 3:
-                graph_name = "pentaboxbox"
+                graph_name = "h_diagram" if self.diagrams is None else self.diagrams[0]
             case _:
                 raise pygloopException(f"Number of loops {self.n_loops} not supported.")
 
@@ -1136,16 +1088,19 @@ class GGHHH(object):
             raise pygloopException("Only physical ps points are supported currently.")
         sqrt_s = math.sqrt(s)
         p_sum = LorentzVector(0.0, 0.0, 0.0, 0.0)
-        for p in self.ps_point[:2]:
-            m_g = math.sqrt(abs(p.squared()))
+        for i_p, p in enumerate(self.ps_point[:2]):
+            m_bh = math.sqrt(abs(p.squared()))
             p_sum += p
-            if abs(m_g) / sqrt_s > TOLERANCE:
-                raise pygloopException("Incoming gluons must be massless.")
-        for p in self.ps_point[2:]:
-            m_h = math.sqrt(abs(p.squared()))
+            target_m = self.m_bh1 if i_p == 0 else self.m_bh2
+            print(m_bh, target_m, sqrt_s)
+            if abs(m_bh - target_m) / sqrt_s > TOLERANCE:
+                raise pygloopException(f"Incoming black hole #{i_p + 1} must be onshell.")
+        for i_p, p in enumerate(self.ps_point[2:]):
+            m_bh = math.sqrt(abs(p.squared()))
             p_sum -= p
-            if abs(m_h - self.m_higgs) / sqrt_s > TOLERANCE:
-                raise pygloopException("Outgoing Higgs bosons must be on-shell.")
+            target_m = self.m_bh1 if i_p == 0 else self.m_bh2
+            if abs(m_bh - target_m) / sqrt_s > TOLERANCE:
+                raise pygloopException(f"Outgoing black hole #{i_p + 1} must be onshell.")
 
         for p_i in p_sum.to_list():
             if abs(p_i) / sqrt_s > TOLERANCE:
@@ -1250,30 +1205,7 @@ class GGHHH(object):
                     wgt = wgt.imag
                 final_wgt = wgt * total_jac
             else:
-                if self.n_loops != 1:
-                    raise pygloopException("Multi-channeling only implemented for one-loop processes.")
-                final_wgt = 0.0
-                multi_channeling_power = 3
-                q_offsets = [
-                    Vector(0.0, 0.0, 0.0),
-                    self.ps_point[1].spatial(),
-                    (self.ps_point[1] - self.ps_point[2]).spatial(),
-                    (self.ps_point[1] - self.ps_point[2] - self.ps_point[3]).spatial(),  # fmt: off
-                    (self.ps_point[1] - self.ps_point[2] - self.ps_point[3] - self.ps_point[4]).spatial(),  # fmt: off
-                ]
-                for i_channel in range(5):
-                    if multi_channeling is True or multi_channeling == i_channel:
-                        k, jac = self.parameterize(xs, parameterization, q_offsets[i_channel] * -1)
-                        inv_oses = [
-                            1.0 / math.sqrt((k + q_offsets[i_prop]).squared() + self.m_top**2)
-                            for i_prop in range(5)  # fmt: off
-                        ]
-                        wgt = self.integrand([k], integrand_implementation)
-                        if phase == "real":
-                            wgt = wgt.real
-                        else:
-                            wgt = wgt.imag
-                        final_wgt += jac * inv_oses[i_channel] ** multi_channeling_power * wgt / sum(t**multi_channeling_power for t in inv_oses)
+                raise pygloopException("Multi-channeling not implemented for the scalar gravity processes.")
 
             if math.isnan(final_wgt):
                 logger.debug(
