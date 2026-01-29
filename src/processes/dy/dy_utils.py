@@ -259,24 +259,28 @@ class VacuumDotGraph(object):
             directed_cycles.append(self._get_directed_cycle(cycle))
         return directed_cycles
 
-    def compute_directed_winding(self, directed_cycle):
+    def compute_directed_winding_from_cut(self, directed_cycle, cut):
         edges = list(directed_cycle)
         if not edges:
             return 0
 
+        cut_by_id = {ce.get_attributes().get("id"): ce for ce in cut}
         winding = 0
         for e in edges:
             attrs = e.get_attributes() or {}
             if "dir_in_cycle" not in attrs:
                 raise ValueError("Directed cycle edge missing dir_in_cycle")
             direction = int(self._strip_quotes(str(attrs.get("dir_in_cycle"))))
-            winding += self._edge_is_cut_value(e) * direction
+            eid = attrs.get("id")
+            cut_edge = cut_by_id.get(eid)
+            winding += self._edge_is_cut_value(cut_edge) * direction if cut_edge else 0
         return winding
 
 
     def get_nonzero_winding_cycles(self):
         cycles = self.get_directed_cycles()
-        return [cycle for cycle in cycles if self.compute_directed_winding(cycle) != 0]
+        cut=[e for e in self.dot.get_edges() if e.get_attributes().get("is_cut",0)!=0]
+        return [cycle for cycle in cycles if self.compute_directed_winding_from_cut(cycle,cut) != 0]
 
     def get_cutkosky_cut_1(self):
         cycles = self.get_nonzero_winding_cycles()
@@ -319,75 +323,19 @@ class VacuumDotGraph(object):
         backtrack(0, set())
         return solutions
 
-
-
-
-    def cycle_flow(self, oriented_cycle, cut, cut_signs):
-        # oriented_cycle: list of edges (unordered)
-        # cut_signs: dict {edge_id: sign} (or {edge_id: (edge_id, sign)})
-        def _edge_sign(edge_id):
-            val = cut_signs[edge_id]
-            return val[1] if isinstance(val, (list, tuple)) else val
-
-        # Count multiplicity of edges in the cut by edge id
-        cut_counts = {}
-        for ce in cut:
-            cid = ce.get_attributes()["id"]
-            cut_counts[cid] = cut_counts.get(cid, 0) + 1
-
-        # Build oriented edges as (src, dst, edge)
-        oriented_edges = []
-        for e in oriented_cycle:
-            direction = int(e.get_attributes()["dir_in_cycle"])
-            if direction == 1:
-                src, dst = e.get_source(), e.get_destination()
-            else:
-                src, dst = e.get_destination(), e.get_source()
-            oriented_edges.append((src, dst, e))
-
-        # Walk the cycle following orientation
-        tot = 0
-        n = 0
-        used = set()
-        sum_abs=0
-        current = oriented_edges[0][0] if oriented_edges else None
-        for _ in range(len(oriented_edges)):
-            next_idx = None
-            for i, (src, dst, e) in enumerate(oriented_edges):
-                if i in used:
-                    continue
-                if src == current:
-                    next_idx = i
-                    break
-            if next_idx is None:
-                break
-            used.add(next_idx)
-            _, dst, e = oriented_edges[next_idx]
-            current = dst
-
-            eid = e.get_attributes()["id"]
-            print("eid: ", eid)
-            if eid in cut_counts:
-
-                direction = int(e.get_attributes()["dir_in_cycle"])
-                print("----")
-                print("id:", eid)
-                print("dir:", direction)
-                print("counts: ", cut_counts[eid])
-                print("cut sign: ",_edge_sign(eid))
-                print("alternation: ", ((-1) ** n))
-                #tot += direction * cut_counts[eid] * _edge_sign(eid) #* ((-1) ** n)
-                tot += direction * cut_counts[eid] * _edge_sign(eid) * ((-1) ** n)
-                sum_abs += abs(direction * cut_counts[eid] * _edge_sign(eid))
-
-                n += 1
-
-        print(cut_counts)
-        print(len(oriented_edges))
-        print(tot)
-        print(len(cut))
-        return abs(tot) == len(cut)
-
+    def cycle_flow(self, oriented_cycle, signed_cut, graph):
+        original_cut=[e for e in graph.get_edges() if e.get_attributes().get("is_cut","0")!="0"]
+        original_winding=self.compute_directed_winding_from_cut(oriented_cycle,original_cut)
+        new_winding=self.compute_directed_winding_from_cut(oriented_cycle,signed_cut)
+#        print("original cut")
+#        for e in original_cut:
+#            print(e)
+#        print("signed cut")
+#        for e in signed_cut:
+#                print(e)
+#        print("original_winding: ", original_winding)
+#        print("new_winding: ", new_winding)
+        return new_winding==original_winding
 
 
 
@@ -427,29 +375,6 @@ class VacuumDotGraph(object):
             candidate_target=compute_targets(cut,cycles)
             if candidate_target==targets:
                 out.append(cut)
-
-
-
-        for cut in out:
-            print("--------cut")
-            for e in cut:
-                print(e)
-            for elem in [list(p) for p in product([1, -1], repeat=len(cut))]:
-                cut_signs = {e.get_attributes()["id"]: sign for e, sign in zip(cut, elem)}
-                count=0
-                for cycle in cycles:
-                    print("--------cycles")
-                    for e in cycle:
-                        print(e)
-
-                    if self.cycle_flow(cycle, cut, cut_signs):
-                        print("---------elem")
-                        print(elem)
-                        count+=1
-                if count==len(cycles):
-                    print(elem)
-
-
 
 
         return out
@@ -530,6 +455,71 @@ class VacuumDotGraph(object):
             return result, component_nodes
         return result
 
+    def set_cut_labels_2(self, initial_cut, final_cut, graph, cycles):
+        new_graph = copy.deepcopy(graph)
+        initial_cut_ids=[e.get_attributes()["id"] for e in initial_cut]
+        final_cut_ids=[e.get_attributes()["id"] for e in final_cut]
+        initial_res=[]
+        final_res=[]
+
+        #print("cut1")
+        #for e in initial_cut:
+        #    print(e)
+        #print("cut2")
+        #for e in final_cut:
+            #    print(e)
+
+        for initial_signs in product([1, -1], repeat=len(initial_cut)):
+            check=True
+            new_cut=copy.deepcopy(initial_cut)
+            for i in range(0,len(initial_cut)):
+                new_cut[i].get_attributes()["is_cut"]=initial_signs[i]
+            for cycle in cycles:
+                if not (self.cycle_flow(cycle, new_cut, graph)):
+                    check=False
+
+            if check:
+                initial_res=new_cut
+
+
+
+        for final_signs in product([1, -1], repeat=len(final_cut)):
+            check=True
+            new_cut=copy.deepcopy(final_cut)
+            for i in range(0,len(final_cut)):
+                new_cut[i].get_attributes()["is_cut"]=final_signs[i]
+            for cycle in cycles:
+                if not (self.cycle_flow(cycle, new_cut, graph)):
+                    check=False
+
+            if check:
+                final_res=new_cut
+
+        #print("final cut1")
+        #for e in initial_res:
+        #    print(e)
+        #print("final cut2")
+        #for e in final_res:
+            #    print(e)
+
+        id_to_cut = {}
+        for ep in initial_res:
+            id_to_cut[ep.get_attributes().get("id")] = ep.get_attributes().get("is_cut")
+        for ep in final_res:
+            id_to_cut[ep.get_attributes().get("id")] = ep.get_attributes().get("is_cut")
+
+        for e in new_graph.get_edges():
+            eid = e.get_attributes().get("id")
+            e.get_attributes()["is_cut"] = id_to_cut.get(eid, 0)
+
+
+
+        return new_graph
+
+
+
+
+
     def set_cut_labels(self, initial_cut, final_cut, connected_components):
         graph = copy.deepcopy(self.dot)
 
@@ -564,28 +554,6 @@ class VacuumDotGraph(object):
 
             if not found:
                 raise RuntimeError("Expected a cycle crossing cut once that contains edge")
-
-
-        for cycle in new_cycles:
-            print("cycle")
-            for e in cycle:
-                print(e)
-
-
-        print("_-----------_")
-
-        print("cut1......")
-        for e in initial_cut:
-            print(e)
-
-        print("cut2......")
-        for e in final_cut:
-            print(e)
-
-        print("graph......")
-        for e in graph.get_edges():
-            print(e)
-
 
         return graph
 
@@ -741,11 +709,12 @@ class VacuumDotGraph(object):
 
         print("LABELLED GRAPHS")
 
+        cycles=self.get_directed_cycles()
         for initial_cut in initial_cuts:
             for final_cut in final_cuts:
                 connected_components = self.cut_splits_into_two_components(initial_cut, final_cut, True)
                 if connected_components[0]:
-                    graph = self.set_cut_labels(initial_cut, final_cut, connected_components)
+                    graph = self.set_cut_labels_2(initial_cut, final_cut, copy.deepcopy(self.dot), cycles)#self.set_cut_labels(initial_cut, final_cut, connected_components)(initial_cut, final_cut, copy.deepcopy(self.dot), cycles)
 
                     print("GRAPH-----")
                     for edge in graph.get_edges():

@@ -84,7 +84,7 @@ from symbolica import E, Expression, NumericalIntegrator, Sample
 from symbolica.community.idenso import simplify_color, simplify_gamma, simplify_metrics
 from symbolica.community.spenso import *  # noqa: F403 # type: ignore
 
-from processes.dy.dy_utils import DYDotGraphs
+from processes.dy.dy_utils import DYDotGraphs, VacuumDotGraph
 from utils.utils import (
     CONFIGS_FOLDER,  # noqa: F401
     DOTS_FOLDER,  # noqa: F401
@@ -306,126 +306,214 @@ class DY(object):
         for graph in filtered_graphs:
             g = copy.deepcopy(graph)
             vacuum_g = g.get_vacuum_graph()
-            vacuum_g.get_cutkosky_cuts()
-            #routed_graphs = vacuum_g.cut_graphs_with_routing_leading_virtuality([], ["a"])
+            cuts=vacuum_g.get_cutkosky_cuts()
+            routed_graphs = vacuum_g.cut_graphs_with_routing_leading_virtuality([], ["a"])
             #final_graphs = final_graphs + [r[3] for r in routed_graphs]
             #gss=vacuum_g.cut_graphs_with_routing_leading_virtuality([], ["a"])
+            print(f"routed gs:  {len(routed_graphs)}")
 
-            import pydot
-
-            print("TESTTTTTTTTTTTTTTTTTTTTTTTT")
-
-            e1 = pydot.Edge("A", "B")
-            e1.set("id", "e1")
-            e1.set("dir_in_cycle", "1")
-
-            e2 = pydot.Edge("B", "C")
-            e2.set("id", "e2")
-            e2.set("dir_in_cycle", "1")
-
-            e3 = pydot.Edge("C", "A")
-            e3.set("id", "e3")
-            e3.set("dir_in_cycle", "1")
-
-            oriented_cycle = [e1, e2, e3]
-
-            # Cut is a list of edges (can be a subset, may include duplicates)
-            cut = [e1, e3]
-
-            # cut_signs is a dict: edge_id -> sign (or edge_id -> (edge_id, sign))
-            cut_signs = {
-                "e1": 1,
-                "e3": -1,
-            }
-
-            # Call the method (replace `obj` with your instance)
-            print(vacuum_g.cycle_flow(oriented_cycle, cut, cut_signs))
-
-
-            # Build a simple cycle A -> B -> C -> A
-            e1 = pydot.Edge("1", "0")
-            e1.set("id", "e1")
-            e1.set("dir_in_cycle", "1")
-
-            e2 = pydot.Edge("1", "3")
-            e2.set("id", "e2")
-            e2.set("dir_in_cycle", "0")
-
-            e3 = pydot.Edge("3", "2")
-            e3.set("id", "e3")
-            e3.set("dir_in_cycle", "1")
-
-            e4 = pydot.Edge("2", "0")
-            e4.set("id", "e4")
-            e4.set("dir_in_cycle", "0")
-
-            e5 = pydot.Edge("1", "2")
-            e5.set("id", "e5")
-            e5.set("dir_in_cycle", "-1")
-
-            e6 = pydot.Edge("0", "3")
-            e6.set("id", "e6")
-            e6.set("dir_in_cycle", "1")
-
-            oriented_cycle = [e1, e3, e6, e5]
-
-            # Cut is a list of edges (can be a subset, may include duplicates)
-            cut = [e5, e5, e1, e3]
-
-            # cut_signs is a dict: edge_id -> sign (or edge_id -> (edge_id, sign))
-            cut_signs = {
-                "e1": 1,
-                "e3": 1,
-                "e5": 1,
-            }
-
-            print(vacuum_g.cycle_flow(oriented_cycle, cut, cut_signs))
+#            import pydot
+#
+#
+#            e1 = pydot.Edge("A", "B")
+#            e1.set("id", "e1")
+#            e1.set("is_cut", "1")
+#
+#            e2 = pydot.Edge("C", "B")
+#            e2.set("id", "e2")
+#            e2.set("is_cut", "1")
+#
+#            e3 = pydot.Edge("C", "A")
+#            e3.set("id", "e3")
+#
+#            e4 = pydot.Edge("C", "D")
+#            e4.set("id", "e4")
+#
+#            e5 = pydot.Edge("D", "A")
+#            e5.set("id", "e5")
+#
+#            e6 = pydot.Edge("D", "B")
+#            e6.set("id", "e6")
+#
+#            my_DT = pydot.Dot(graph_type="digraph")  # or pydot.Graph() for undirected
+#            my_DT.add_edge(e1)
+#            my_DT.add_edge(e2)
+#            my_DT.add_edge(e3)
+#            my_DT.add_edge(e4)
+#            my_DT.add_edge(e5)
+#            my_DT.add_edge(e6)
+#
+#            print(my_DT)
+#
+#            my_DT_pydot = VacuumDotGraph(my_DT,"1")
+#            my_cuts=my_DT_pydot.get_cutkosky_cuts()
+#            print(len(my_cuts))
+#
+#
+#            cycles=my_DT_pydot.get_directed_cycles()
+#
+#            print("CUTS")
+#            for c in my_cuts:
+#                print("cut")
+#                for e in c:
+#                    print(e)
+#
+#
+#            print("CYCLES")
+#            for cycle in cycles:
+#                print("cycle")
+#                for e in cycle:
+#                    print(e)
+#
+#            for c in my_cuts:
+#                for cp in my_cuts:
+#                    if cp!=c:
+#                        print("labelled graph")
+#                        new_graph=my_DT_pydot.set_cut_labels_2(c, cp, my_DT_pydot.dot, cycles)
+#
+#                        print(new_graph)
 
 
-            # Build a simple cycle A -> B -> C -> A
-            e1 = pydot.Edge("1", "0")
-            e1.set("id", "e1")
-            e1.set("dir_in_cycle", "1")
-
-            e2 = pydot.Edge("1", "3")
-            e2.set("id", "e2")
-            e2.set("dir_in_cycle", "0")
-
-            e3 = pydot.Edge("3", "2")
-            e3.set("id", "e3")
-            e3.set("dir_in_cycle", "1")
-
-            e4 = pydot.Edge("0", "2")
-            e4.set("id", "e4")
-            e4.set("dir_in_cycle", "1")
-
-            e5 = pydot.Edge("1", "2")
-            e5.set("id", "e5")
-            e5.set("dir_in_cycle", "-1")
-
-            e6 = pydot.Edge("0", "3")
-            e6.set("id", "e6")
-            e6.set("dir_in_cycle", "1")
-
-            oriented_cycle = [e1, e5, e4]
-
-            # Cut is a list of edges (can be a subset, may include duplicates)
-            cut = [e1, e5, e4]
-
-            # cut_signs is a dict: edge_id -> sign (or edge_id -> (edge_id, sign))
-            cut_signs = {
-                "e1": 1,
-                "e4": -1,
-                "e5": 1,
-            }
-
-            # Call the method (replace `obj` with your instance)
-            print(vacuum_g.cycle_flow(oriented_cycle, cut, cut_signs))
 
 
+
+#            print("TESTTTTTTTTTTTTTTTTTTTTTTTT")
+#
+#            e1 = pydot.Edge("A", "B")
+#            e1.set("id", "e1")
+#            e1.set("dir_in_cycle", "1")
+#            e1.set("is_cut", "-1")
+#
+#            e2 = pydot.Edge("B", "C")
+#            e2.set("id", "e2")
+#            e2.set("dir_in_cycle", "1")
+#            e2.set("is_cut", "1")
+#
+#            e3 = pydot.Edge("C", "A")
+#            e3.set("id", "e3")
+#            e3.set("dir_in_cycle", "1")
+#
+#
+#            cycle_graph = pydot.Dot(graph_type="digraph")  # or pydot.Graph() for undirected
+#            cycle_graph.add_edge(e1)
+#            cycle_graph.add_edge(e2)
+#            cycle_graph.add_edge(e3)
+#
+#            oriented_cycle = [e1, e2, e3]
+#
+#            # Cut is a list of edges (can be a subset, may include duplicates)
+#            #
+#            ecut1 = pydot.Edge("A", "B")
+#            ecut1.set("id", "e1")
+#            ecut1.set("is_cut", "-1")
+#
+#            ecut2 = pydot.Edge("B", "C")
+#            ecut2.set("id", "e2")
+#            ecut2.set("is_cut", "1")
+#
+#            ecut3 = pydot.Edge("C", "A")
+#            ecut3.set("id", "e3")
+#            ecut3.set("is_cut", "-1")
+#
+#            cut1 = [ecut2, ecut3]
+#            cut2 = [ecut1, ecut2]
+#
+#            # cut_signs is a dict: edge_id -> sign (or edge_id -> (edge_id, sign))
+#
+#
+#            # Call the method (replace `obj` with your instance)
+#            print(vacuum_g.cycle_flow(oriented_cycle, cut1,cycle_graph))
+#            print(vacuum_g.cycle_flow(oriented_cycle, cut2,cycle_graph))
+#            print(vacuum_g.set_cut_labels_2(cut1, cut2, cycle_graph, [oriented_cycle]))
+#            #print(vacuum_g.compute_directed_winding_from_cut(oriented_cycle, cut))
+
+#
+#
+#            e1 = pydot.Edge("1", "0")
+#            e1.set("id", "e1")
+#            e1.set("dir_in_cycle", "1")
+#
+#            e2 = pydot.Edge("1", "3")
+#            e2.set("id", "e2")
+#            e2.set("dir_in_cycle", "0")
+#
+#            e3 = pydot.Edge("3", "2")
+#            e3.set("id", "e3")
+#            e3.set("dir_in_cycle", "1")
+#
+#            e4 = pydot.Edge("2", "0")
+#            e4.set("id", "e4")
+#            e4.set("dir_in_cycle", "0")
+#
+#            e5 = pydot.Edge("1", "2")
+#            e5.set("id", "e5")
+#            e5.set("dir_in_cycle", "-1")
+#
+#            e6 = pydot.Edge("0", "3")
+#            e6.set("id", "e6")
+#            e6.set("dir_in_cycle", "1")
+#
+#            oriented_cycle = [e1, e3, e6, e5]
+#
+#            # Cut is a list of edges (can be a subset, may include duplicates)
+#            cut = [e5, e5, e1, e3]
+#
+#            # cut_signs is a dict: edge_id -> sign (or edge_id -> (edge_id, sign))
+#            cut_signs = {
+#                "e1": 1,
+#                "e3": 1,
+#                "e5": 1,
+#            }
+#
+#            print(vacuum_g.compute_directed_winding(oriented_cycle))
+#            #print(vacuum_g.cycle_flow(oriented_cycle, cut, cut_signs))
+#
+#
+#            # Build a simple cycle A -> B -> C -> A
+#            e1 = pydot.Edge("1", "0")
+#            e1.set("id", "e1")
+#            e1.set("dir_in_cycle", "1")
+#
+#            e2 = pydot.Edge("1", "3")
+#            e2.set("id", "e2")
+#            e2.set("dir_in_cycle", "0")
+#
+#            e3 = pydot.Edge("3", "2")
+#            e3.set("id", "e3")
+#            e3.set("dir_in_cycle", "1")
+#
+#            e4 = pydot.Edge("0", "2")
+#            e4.set("id", "e4")
+#            e4.set("dir_in_cycle", "1")
+#
+#            e5 = pydot.Edge("1", "2")
+#            e5.set("id", "e5")
+#            e5.set("dir_in_cycle", "-1")
+#
+#            e6 = pydot.Edge("0", "3")
+#            e6.set("id", "e6")
+#            e6.set("dir_in_cycle", "1")
+#
+#            oriented_cycle = [e1, e5, e4]
+#
+#            # Cut is a list of edges (can be a subset, may include duplicates)
+#            cut = [e1, e5, e4]
+#
+#            # cut_signs is a dict: edge_id -> sign (or edge_id -> (edge_id, sign))
+#            cut_signs = {
+#                "e1": 1,
+#                "e4": -1,
+#                "e5": 1,
+#            }
+#
+#            # Call the method (replace `obj` with your instance)
+#            print(vacuum_g.compute_directed_winding(oriented_cycle))
+#            #print(vacuum_g.cycle_flow(oriented_cycle, cut, cut_signs))
+#
+#
 
             #print(f"tot cuts:  {len(cuts)}")
-            print(f"routed gs:  {len(routed_graphs)}")
+            #print(f"routed gs:  {len(routed_graphs)}")
 
 
 
@@ -462,7 +550,7 @@ class DY(object):
                 #    f"generate amp d d~ > d d~ | d d~ g a QED==2 [{{1}}] --only-diagrams --numerator-grouping only_detect_zeroes --select-graphs GL07 -p {base_name} -i {graphs_process_name}"
                 #)
                 self.gl_worker.run(
-                    f"generate amp d d~ > d d~ | d d~ g a QED==2 [{{1}}] --only-diagrams --numerator-grouping only_detect_zeroes --select-graphs GL19 -p {base_name} -i {graphs_process_name}"
+                    f"generate amp d d~ > d d~ | d d~ g a QED==2 [{{1}}] --only-diagrams --numerator-grouping only_detect_zeroes --select-graphs GL07 -p {base_name} -i {graphs_process_name}"
                 )
                 self.gl_worker.run("save state -o")
                 DY_1L_dot_files = self.gl_worker.get_dot_files(process_id=None, integrand_name=graphs_process_name)
