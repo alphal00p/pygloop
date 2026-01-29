@@ -264,7 +264,16 @@ class VacuumDotGraph(object):
         if not edges:
             return 0
 
-        cut_by_id = {ce.get_attributes().get("id"): ce for ce in cut}
+        cut_counts = {}
+        cut_is_cut = {}
+        for ce in cut:
+            cid = ce.get_attributes().get("id")
+            cut_counts[cid] = cut_counts.get(cid, 0) + 1
+            if cid in cut_is_cut:
+                if cut_is_cut[cid] != self._edge_is_cut_value(ce):
+                    raise ValueError(f"Inconsistent is_cut for edge id {cid}")
+            else:
+                cut_is_cut[cid] = self._edge_is_cut_value(ce)
         winding = 0
         for e in edges:
             attrs = e.get_attributes() or {}
@@ -272,8 +281,8 @@ class VacuumDotGraph(object):
                 raise ValueError("Directed cycle edge missing dir_in_cycle")
             direction = int(self._strip_quotes(str(attrs.get("dir_in_cycle"))))
             eid = attrs.get("id")
-            cut_edge = cut_by_id.get(eid)
-            winding += self._edge_is_cut_value(cut_edge) * direction if cut_edge else 0
+            if eid in cut_counts:
+                winding += cut_counts[eid] * cut_is_cut[eid] * direction
         return winding
 
 
@@ -395,7 +404,7 @@ class VacuumDotGraph(object):
 
             for e in c:
                 particle = self._strip_quotes(str(e.get_attributes().get("particle", "")))
-                if particle not in ["d", "d~", "g"]:
+                if particle not in ["d", "d~", "g", ""]:
                     massive_in_cut.append(particle)
 
             if massive_in_cut == initial_massive:
@@ -505,13 +514,16 @@ class VacuumDotGraph(object):
         id_to_cut = {}
         for ep in initial_res:
             id_to_cut[ep.get_attributes().get("id")] = ep.get_attributes().get("is_cut")
+
         for ep in final_res:
+            if id_to_cut.get(ep.get_attributes().get("id"), 1000)!=1000 and id_to_cut[ep.get_attributes().get("id")]!=ep.get_attributes().get("is_cut"):
+                print("doooozy: non timeable pair of cuts")
+                return False
             id_to_cut[ep.get_attributes().get("id")] = ep.get_attributes().get("is_cut")
 
         for e in new_graph.get_edges():
             eid = e.get_attributes().get("id")
             e.get_attributes()["is_cut"] = id_to_cut.get(eid, 0)
-
 
 
         return new_graph
@@ -598,13 +610,24 @@ class VacuumDotGraph(object):
             rows.append(row)
             rhs.append(0)
 
+#        def _add_partition_row(part):
+#            row = [0] * len(edges)
+#            for i, e in enumerate(edges):
+#                if e in part:
+#                    row[i] = float(e.get_attributes().get("is_cut", 0))
+#                else:
+#                    row[i] = 0
+#            rows.append(row)
+#            rhs.append(0)
+
         def _add_partition_row(part):
             row = [0] * len(edges)
+            counts = {}
+            for pe in part:
+                counts[pe] = counts.get(pe, 0) + 1
             for i, e in enumerate(edges):
-                if e in part:
-                    row[i] = float(e.get_attributes().get("is_cut", 0))
-                else:
-                    row[i] = 0
+                if e in counts:
+                    row[i] = counts[e] * float(e.get_attributes().get("is_cut", 0))
             rows.append(row)
             rhs.append(0)
 
@@ -697,6 +720,7 @@ class VacuumDotGraph(object):
         initial_cuts, final_cuts = self.get_cutkosky_cuts_IF(initial_massive, final_massive)
         routed_cut_graphs = []
 
+
         def all_pairs(V):
             V = list(V)
             for labels in product("ABC", repeat=len(V)):
@@ -704,32 +728,44 @@ class VacuumDotGraph(object):
                     continue
                 V1 = [v for v, lab in zip(V, labels) if lab in ("A", "C")]
                 V2 = [v for v, lab in zip(V, labels) if lab in ("B", "C")]
+                if len(set(V1)-set(V2))==0 or len(set(V2)-set(V1))==0:
+                    continue
                 yield V1, V2
-
-
-        print("LABELLED GRAPHS")
 
         cycles=self.get_directed_cycles()
         for initial_cut in initial_cuts:
             for final_cut in final_cuts:
                 connected_components = self.cut_splits_into_two_components(initial_cut, final_cut, True)
-                if connected_components[0]:
-                    graph = self.set_cut_labels_2(initial_cut, final_cut, copy.deepcopy(self.dot), cycles)#self.set_cut_labels(initial_cut, final_cut, connected_components)(initial_cut, final_cut, copy.deepcopy(self.dot), cycles)
-
-                    print("GRAPH-----")
-                    for edge in graph.get_edges():
-                        print(edge)
+                if connected_components[0] and self.set_cut_labels_2(initial_cut, final_cut, copy.deepcopy(self.dot), cycles)!=False:
+                    graph = self.set_cut_labels_2(initial_cut, final_cut, copy.deepcopy(self.dot), cycles) #self.set_cut_labels(initial_cut, final_cut, connected_components)(initial_cut, final_cut, copy.deepcopy(self.dot), cycles)
 
                     all_pair_list = all_pairs(initial_cut)
                     for V1, V2 in all_pair_list:
 
+#                        print("GRAPH-----")
+#                        for edge in graph.get_edges():
+#                            print(edge)
+#                        print("initial cut")
+#                        for e in initial_cut:
+#                            print(e)
+#                        print("final cut")
+#                        for e in final_cut:
+#                            print(e)
+
                         idV1 = [e.get_attributes()["id"] for e in V1]
                         idV2 = [e.get_attributes()["id"] for e in V2]
+
+#                        print("partition")
+#                        print(idV1)
+#                        print(idV2)
 
                         new_graph = copy.deepcopy(graph)
                         new_graph.set_name(f"{self.dot.get_name()}_partition_{idV1}_{idV2}")
                         new_graph.set("num",str(self.num))
                         graph = self.route_cut_graph(new_graph, initial_cut, final_cut, [V1, V2])
+
+#                        print("routed graph")
+#                        print(graph)
                         routed_cut_graphs.append([initial_cut, final_cut, [V1, V2], graph])
                         if not self.check_routing(graph, [V1, V2]):
                             print("ERROR: Routing is wrongly assigned")

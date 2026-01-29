@@ -310,7 +310,102 @@ class DY(object):
             routed_graphs = vacuum_g.cut_graphs_with_routing_leading_virtuality([], ["a"])
             #final_graphs = final_graphs + [r[3] for r in routed_graphs]
             #gss=vacuum_g.cut_graphs_with_routing_leading_virtuality([], ["a"])
-            print(f"routed gs:  {len(routed_graphs)}")
+            #print(f"routed gs:  {len(routed_graphs)}")
+            #
+            import pydot
+            #print(len(routed_graphs))
+
+
+            e1 = pydot.Edge("A", "C")
+            e1.set("id", "e1")
+            e1.set("is_cut", "-1")
+
+            e2 = pydot.Edge("B", "D")
+            e2.set("id", "e2")
+            e2.set("is_cut", "-1")
+
+            e3 = pydot.Edge("A", "B")
+            e3.set("id", "e3")
+
+            e4 = pydot.Edge("A", "D")
+            e4.set("id", "e4")
+            e4.set("particle", "a")
+
+            e5 = pydot.Edge("C", "B")
+            e5.set("id", "e5")
+
+            e6 = pydot.Edge("C", "D")
+            e6.set("id", "e6")
+
+            my_DT = pydot.Dot(graph_type="digraph")  # or pydot.Graph() for undirected
+            my_DT.add_edge(e1)
+            my_DT.add_edge(e2)
+            my_DT.add_edge(e3)
+            my_DT.add_edge(e4)
+            my_DT.add_edge(e5)
+            my_DT.add_edge(e6)
+
+            print(my_DT)
+
+            my_DT_pydot = VacuumDotGraph(my_DT,"1")
+            my_cuts=my_DT_pydot.get_cutkosky_cuts()
+            print(len(my_cuts))
+
+
+            cycles=my_DT_pydot.get_directed_cycles()
+
+            print("CUTS")
+            for c in my_cuts:
+                print("cut")
+                for e in c:
+                    print(e)
+
+
+            print("CYCLES")
+            for cycle in cycles:
+                print("cycle")
+                for e in cycle:
+                    print(e)
+
+            my_cuts_i=[]
+            my_cuts_f=[]
+
+            for c in my_cuts:
+                for e in c:
+                    if e.get_attributes().get("particle",0)=="a":
+                        my_cuts_f.append(c)
+
+            my_cuts_i=[c for c in my_cuts if c not in my_cuts_f]
+
+            for c in my_cuts_i:
+                for cp in my_cuts_f:
+                    if cp!=c:
+                        print("labelled graph")
+                        if my_DT_pydot.cut_splits_into_two_components(c,cp,False) and my_DT_pydot.set_cut_labels_2(c, cp, my_DT_pydot.dot, cycles)!=False:
+
+                            new_graph=my_DT_pydot.set_cut_labels_2(c, cp, my_DT_pydot.dot, cycles)
+                            print("initial cut")
+                            for e in c:
+                                print(e)
+                            print("final cut")
+                            for e in cp:
+                                print(e)
+                            print(new_graph)
+
+            routed_graphs = my_DT_pydot.cut_graphs_with_routing_leading_virtuality([], ["a"])
+            print(len(routed_graphs))
+            for graphy in routed_graphs:
+                print("routed graph")
+                print("cut1")
+                for e in graphy[0]:
+                    print(e)
+                print("cut2")
+                for e in graphy[1]:
+                    print(e)
+                print("graph")
+                print(graphy[3])
+
+
 
 #            import pydot
 #
@@ -550,7 +645,7 @@ class DY(object):
                 #    f"generate amp d d~ > d d~ | d d~ g a QED==2 [{{1}}] --only-diagrams --numerator-grouping only_detect_zeroes --select-graphs GL07 -p {base_name} -i {graphs_process_name}"
                 #)
                 self.gl_worker.run(
-                    f"generate amp d d~ > d d~ | d d~ g a QED==2 [{{1}}] --only-diagrams --numerator-grouping only_detect_zeroes --select-graphs GL07 -p {base_name} -i {graphs_process_name}"
+                    f"generate amp d d~ > d d~ | d d~ g a QED==2 [{{1}}] --only-diagrams --numerator-grouping only_detect_zeroes --select-graphs GL02 -p {base_name} -i {graphs_process_name}"
                 )
                 self.gl_worker.run("save state -o")
                 DY_1L_dot_files = self.gl_worker.get_dot_files(process_id=None, integrand_name=graphs_process_name)
