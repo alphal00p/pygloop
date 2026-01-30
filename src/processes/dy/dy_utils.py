@@ -716,6 +716,11 @@ class VacuumDotGraph(object):
 
         return True
 
+    def phase_space_check(self, initial_cut, final_cut):
+        if len(set(initial_cut)-set(final_cut))==1:
+            return False
+        return True
+
     def cut_graphs_with_routing(self, initial_massive, final_massive):
         initial_cuts, final_cuts = self.get_cutkosky_cuts_IF(initial_massive, final_massive)
         routed_cut_graphs = []
@@ -732,11 +737,34 @@ class VacuumDotGraph(object):
                     continue
                 yield V1, V2
 
+        def all_pairs(V):
+            V = list(V)
+            seen = set()
+            def _key(v):
+                if hasattr(v, "get_attributes"):
+                    return v.get_attributes().get("id", str(v))
+                return v
+            for labels in product("ABC", repeat=len(V)):
+                if "A" not in labels or "B" not in labels:
+                    continue
+                V1 = [v for v, lab in zip(V, labels) if lab in ("A", "C")]
+                V2 = [v for v, lab in zip(V, labels) if lab in ("B", "C")]
+                if len(set(V1) - set(V2)) == 0 or len(set(V2) - set(V1)) == 0:
+                    continue
+                k1 = tuple(sorted((_key(v) for v in V1)))
+                k2 = tuple(sorted((_key(v) for v in V2)))
+                sig = (k1, k2)
+                if sig in seen:
+                    continue
+                seen.add(sig)
+
+                yield V1, V2
+
         cycles=self.get_directed_cycles()
         for initial_cut in initial_cuts:
             for final_cut in final_cuts:
                 connected_components = self.cut_splits_into_two_components(initial_cut, final_cut, True)
-                if connected_components[0] and self.set_cut_labels_2(initial_cut, final_cut, copy.deepcopy(self.dot), cycles)!=False:
+                if self.phase_space_check(initial_cut,final_cut) and connected_components[0] and self.set_cut_labels_2(initial_cut, final_cut, copy.deepcopy(self.dot), cycles)!=False:
                     graph = self.set_cut_labels_2(initial_cut, final_cut, copy.deepcopy(self.dot), cycles) #self.set_cut_labels(initial_cut, final_cut, connected_components)(initial_cut, final_cut, copy.deepcopy(self.dot), cycles)
 
                     all_pair_list = all_pairs(initial_cut)
