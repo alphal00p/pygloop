@@ -2,26 +2,32 @@ import copy
 import re
 from collections import deque
 from itertools import product
-from typing import List, Optional, Set, Tuple
+from typing import Any, Generator, List, Optional, Set, Tuple
 
 import pydot
-
-
 
 # == Parsing ===================================================================
 # Helpers for turning DOT endpoints like '"a:3"' into canonical node/port forms.
 # ==============================================================================
 
+
 # Remove surrounding double quotes if present.
-def _strip_quotes(s: str) -> str:
-    s = s.strip()
+def _strip_quotes(s: pydot.EdgeEndpoint) -> str:
+
+    if isinstance(s, str):
+        s = s.strip()
+    else:
+        raise TypeError(f"Expected str, got {type(s)}")
+
     if len(s) >= 2 and s[0] == '"' and s[-1] == '"':
         return s[1:-1]
     return s
 
+
 # True if the vertex name matches "ext" followed by digits (ignoring quotes).
-def _is_ext(name: str) -> bool:
+def _is_ext(name: pydot.EdgeEndpoint) -> bool:
     return bool(re.fullmatch(r"ext\d+", _strip_quotes(name)))
+
 
 # pydot vertices are in the form "v:port", where port is an int; returns (v,port)
 def _parse_port_endpoint(endpoint: str) -> Optional[Tuple[str, int]]:
@@ -31,18 +37,21 @@ def _parse_port_endpoint(endpoint: str) -> Optional[Tuple[str, int]]:
         return None
     return m.group(1), int(m.group(2))
 
+
 # pydot vertices are in the form "v:port", where port is an int; return v
-def _base_node(endpoint: str) -> str:
+def _base_node(endpoint: pydot.EdgeEndpoint) -> str:
     ep = _strip_quotes(endpoint)
     parsed = _parse_port_endpoint(ep)
     return parsed[0] if parsed else ep
 
+
 # pydot vertices are in the form "v:port"; return v (optionally collapse ports)
-def _node_key(endpoint: str, collapse_ports: bool = True) -> str:
+def _node_key(endpoint: pydot.EdgeEndpoint, collapse_ports: bool = True) -> str:
     ep = _strip_quotes(endpoint)
     if collapse_ports and ":" in ep:
         return ep.split(":", 1)[0]
     return ep
+
 
 # pydot vertices are in the form "v:port"; return port
 def _parse_port(endpoint: str) -> Optional[int]:
@@ -52,10 +61,10 @@ def _parse_port(endpoint: str) -> Optional[int]:
     return None if not m else int(m.group(1))
 
 
-
 # == Edge attribute access ==================================
 # Helpers for extracting/removing attributes from pydot edges
 # ===========================================================
+
 
 # Return e.get_attributes()["is_cut"] as an int (defaults to 0), stripping quotes if needed.
 def _edge_is_cut_value(e: pydot.Edge) -> int:
@@ -63,11 +72,13 @@ def _edge_is_cut_value(e: pydot.Edge) -> int:
     val = attrs.get("is_cut", "0")
     return int(_strip_quotes(str(val)))
 
+
 # Return e.get_attributes()["particle"] as an int (defaults to 0), stripping quotes if needed.
 def _edge_particle(e: pydot.Edge) -> str:
     attrs = e.get_attributes() or {}
     p = attrs.get("particle", "")
     return _strip_quotes(str(p))
+
 
 # Return e.get_attributes()["id"] as an int
 def edge_id_int(e: pydot.Edge) -> int:
@@ -77,14 +88,16 @@ def edge_id_int(e: pydot.Edge) -> int:
     except Exception:
         return 10**18
 
+
 # Removes an edge attribute
-def remove_edge_attr(e: pydot.Edge, key: str) -> None:
+def remove_edge_attr(e: pydot.Edge, key: str) -> pydot.Edge:
     if e is None:
         raise ValueError("remove_edge_attr got None edge")
 
     attrs = e.get_attributes() or {}
     attrs.pop(key, None)  # in-place usually works in pydot
     return e
+
 
 # Sorts a list of edges by the integer value of the port
 def sort_half_edges_by_port(
@@ -101,6 +114,7 @@ def sort_half_edges_by_port(
 
     return sorted(edges, key=key, reverse=reverse)
 
+
 def _all_node_names(graph):
     seen = set()
     out = []
@@ -113,20 +127,21 @@ def _all_node_names(graph):
     return out
 
 
-
 # == Graph topology helpers =======================================
 # Helpers for extracting boundaries of cuts or the adjacency matrix
 # =================================================================
 
+
 # Given an edge and a node contained in the edge, returns the other node
-def other_node(edge: pydot.Edge, node: str) -> Optional[str]:
+def other_node(edge: pydot.Edge, node: str) -> str:
     u = _node_key(edge.get_source())
     v = _node_key(edge.get_destination())
     if u == node:
         return v
     if v == node:
         return u
-    return None
+    raise ValueError("edge does not touch node")
+
 
 # Given a graph and a cut (set of vertices of the graph), returns the boundary of the cut
 def boundary_edges(graph: pydot.Dot, S: set[str]) -> List[pydot.Edge]:
@@ -145,6 +160,7 @@ def boundary_edges(graph: pydot.Dot, S: set[str]) -> List[pydot.Edge]:
             out.append(e)
     return out
 
+
 # Returns the adjacency matrix of the graph
 def get_vertex_to_edges_map(graph: pydot.Dot) -> dict[str, List[pydot.Edge]]:
     adj = {}
@@ -155,6 +171,7 @@ def get_vertex_to_edges_map(graph: pydot.Dot) -> dict[str, List[pydot.Edge]]:
         adj.setdefault(u, []).append(e)
         adj.setdefault(v, []).append(e)
     return adj
+
 
 # Returns the spanning tree of the graph; the algorithm is stupid but I like it
 # because it uses the boundary function
@@ -187,6 +204,7 @@ def get_spanning_tree(graph: pydot.Dot) -> List[pydot.Edge]:
 
     return T
 
+
 # Returns the cycle basis of the graph
 def get_cycle_basis(graph: pydot.Dot) -> List[Set[pydot.Edge]]:
     T = set(get_spanning_tree(graph))
@@ -201,8 +219,18 @@ def get_cycle_basis(graph: pydot.Dot) -> List[Set[pydot.Edge]]:
             counter = 0
             for e in cycle:
                 if (
-                    len(set(boundary_edges(graph, {_node_key(e.get_destination())})).intersection(cycle)) == 1
-                    or len(set(boundary_edges(graph, {_node_key(e.get_source())})).intersection(cycle)) == 1
+                    len(
+                        set(
+                            boundary_edges(graph, {_node_key(e.get_destination())})
+                        ).intersection(cycle)
+                    )
+                    == 1
+                    or len(
+                        set(
+                            boundary_edges(graph, {_node_key(e.get_source())})
+                        ).intersection(cycle)
+                    )
+                    == 1
                 ):
                     cycle = cycle - {e}
                     break
@@ -214,6 +242,7 @@ def get_cycle_basis(graph: pydot.Dot) -> List[Set[pydot.Edge]]:
         cycles.append(cycle)
 
     return cycles
+
 
 # Returns all possible simple cycles of the graph
 def get_simple_cycles(graph: pydot.Dot) -> List[Set[pydot.Edge]]:
@@ -232,9 +261,8 @@ def get_simple_cycles(graph: pydot.Dot) -> List[Set[pydot.Edge]]:
         v = _node_key(edge.get_destination())
         if u == node:
             return v
-        if v == node:
+        else:
             return u
-        return None
 
     def dfs(start, current, parent_edge, path_nodes, path_edges):
         for edge in adj[current]:
@@ -261,13 +289,14 @@ def get_simple_cycles(graph: pydot.Dot) -> List[Set[pydot.Edge]]:
 
     return cycles
 
+
 # Given a simple cycle, output the corresponding directed cycle
-def _get_directed_cycle(graph: pydot.Dot, cycle: List[pydot.Edge]) -> List[pydot.Edge]:
+def _get_directed_cycle(graph: pydot.Dot, cycle: Set[pydot.Edge]) -> Set[pydot.Edge]:
     edges = list(cycle)
     if not edges:
         return copy.deepcopy(cycle)
 
-    adj = {}
+    adj: dict[str, list[pydot.Edge]] = {}
     for e in edges:
         u = _node_key(e.get_source())
         v = _node_key(e.get_destination())
@@ -317,26 +346,24 @@ def _get_directed_cycle(graph: pydot.Dot, cycle: List[pydot.Edge]) -> List[pydot
 
     # Orient the cycle so a reference is_cut==1 edge has dir_in_cycle == 1.
     flip = False
-    for (e, d) in ordered:
+    for e, d in ordered:
         if _edge_is_cut_value(e) == 1 and d == 1:
             flip = True
     if flip:
-        for (e, d) in ordered:
+        for e, d in ordered:
             e.set("dir_in_cycle", -d)
 
     return copy.deepcopy(cycle)
 
+
 # Returns all directed cycles of a graph
-def get_directed_cycles(graph: pydot.Dot, cycles=None) -> List[Set[pydot.Edge]]:
-    if cycles is None:
-        cycles = get_simple_cycles(graph)
+def get_directed_cycles(graph: pydot.Dot) -> List[Set[pydot.Edge]]:
+    cycles = get_simple_cycles(graph)
     directed_cycles = []
     for cycle in cycles:
-        #print("*****************cycle")
-        #for e in cycle:
-        #    print(e)
         directed_cycles.append(_get_directed_cycle(graph, cycle))
     return directed_cycles
+
 
 # Checks if the subgraph induced by a cut node_subset_input of the graph is connected
 def is_connected(graph, node_subset_input) -> bool:
@@ -376,20 +403,22 @@ def is_connected(graph, node_subset_input) -> bool:
     return len(visited) == len(subset)
 
 
-
 # == Set helpers =============
 # Helpers for set manipulation
 # ============================
 
+
 # Given a list V, returns all lists V1, V2 such that V1+V2=V, V1/V2 and V2/V1 are non-empty
-# Some more rules apply.
-def all_pairs(V: List[str]) -> List[List[str]]:
+# Some more rules apply relating to edge copies, since e.g. V=[e1,e1,e2,e3] is a valid set.
+def all_pairs(V: List[pydot.Edge]) -> Generator[Any, Any, Any]:
     V = list(V)
     seen = set()
-    def _key(v):
+
+    def _key(v: pydot.Edge) -> str:
         if hasattr(v, "get_attributes"):
-            return v.get_attributes().get("id", str(v))
-        return v
+            return str(v.get_attributes().get("id", v))
+        return str(v)
+
     for labels in product("ABC", repeat=len(V)):
         if "A" not in labels or "B" not in labels:
             continue
