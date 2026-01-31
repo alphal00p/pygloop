@@ -11,6 +11,7 @@ requires-python = ">=3.12"
 dependencies = [
   "matplotlib",
   "numpy",
+  "prettytable",
   "progressbar2",
   "symbolica",
   "vegas",
@@ -19,13 +20,19 @@ dependencies = [
 
 [tool.basedpyright]
 # Placeholder: set your preferred type checking mode.
-typeCheckingMode = "standard"
+typeCheckingMode = "basic"
 # Placeholder: tune unused import reporting.
 #reportUnusedImport = "none"
 ignore = ["src/processes/dy/*.py"]
+include = ["src", "tests"]
+extraPaths = ["src"]
+reportMissingImports = "warning"
 
 [tool.ruff]
-src = ["src"]
+# Include both library code and tests in linting scope.
+src = ["src", "tests"]
 
 [tool.ruff.lint]
-per-file-ignores = { "src/processes/dy/*.py" = ["ALL"]}
+
+[tool.ruff.lint.per-file-ignores]
+"src/processes/dy/*.py" = ["ALL"]

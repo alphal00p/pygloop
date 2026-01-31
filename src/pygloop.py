@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import logging
 import multiprocessing
 import random
@@ -11,10 +12,26 @@ import sys
 import time
 from pprint import pformat
 
-from processes.dy.dy import DY
-from processes.gghhh.gghhh import GGHHH
-from processes.scalar_gravity.scalar_gravity import ScalarGravity
-from processes.template_process import TemplateProcess
+try:
+    from processes.dy.dy import DY
+except ImportError:
+    print("Warning: DY process not available.", file=sys.stderr)
+
+try:
+    from processes.gghhh.gghhh import GGHHH
+except ImportError:
+    print("Warning: GGHHH process not available.", file=sys.stderr)
+
+try:
+    from processes.scalar_gravity.scalar_gravity import ScalarGravity
+except ImportError:
+    print("Warning: ScalarGravity process not available.", file=sys.stderr)
+
+try:
+    from processes.template_process import TemplateProcess
+except ImportError:
+    print("Warning: TemplateProcess not available.", file=sys.stderr)
+
 from utils.utils import (
     SRC_DIR,
     Colour,
@@ -29,7 +46,7 @@ if SRC_DIR not in sys.path:
     sys.path.insert(0, SRC_DIR)
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: list[str] | None = None) -> dict[str, object] | int:
     # create the top-level parser
     class FloatArgParser(argparse.ArgumentParser):
         def __init__(self, *args, **kwargs):
@@ -41,6 +58,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--process", "-p", type=str, choices=["gghhh", "template_process", "dy", "scalar_gravity"], default="gghhh",
         help="Process to consider. Default = %(default)s",
     )  # fmt: off
+    parser.add_argument("--general_settings", "-gs", type=str, nargs="*", default=None,
+        help="General settings to set as class variables to the process. Default = %(default)s",
+    )  # fmt: off
+
     parser.add_argument("--diagrams", "-d", type=str, nargs="*", default=None,
         help="Diagrams to consider. Default = %(default)s",
     )  # fmt: off
@@ -257,9 +278,41 @@ def main(argv: list[str] | None = None) -> int:
 
     match args.process:
         case "gghhh":
-            if args.overwrite_process_basename is not None:
-                GGHHH.name = args.overwrite_process_basename
-            process = GGHHH(
+            process_class = GGHHH  # type: ignore
+        case "template_process":
+            process_class = TemplateProcess  # type: ignore
+        case "scalar_gravity":
+            process_class = ScalarGravity  # type: ignore
+        case "dy":
+            process_class = DY  # type: ignore
+        case _:
+            raise pygloopException(f"Process {args.process} not implemented.")
+
+    result: dict[str, object] = {"command": args.command, "process": args.process, "exit_code": 0}
+
+    if args.overwrite_process_basename is not None:
+        process_class.name = args.overwrite_process_basename  # type: ignore
+
+    if args.general_settings is not None:
+        target_class = process_class
+        applied_settings: dict[str, object] = {}
+        for setting in args.general_settings:
+            try:
+                key, value = setting.split("=", 1)
+            except ValueError as e:
+                raise pygloopException(f"Could not parse general setting '{setting}'. Expected format: key=value") from e
+            try:
+                parsed_value = ast.literal_eval(value)
+            except Exception:
+                parsed_value = value
+            setattr(target_class, key, parsed_value)
+            applied_settings[key] = parsed_value
+        logger.info(f"Applied general settings to process {process_class.name}: {applied_settings}")
+        result["general_settings"] = applied_settings
+
+    match args.process:
+        case "gghhh":
+            process = process_class(  # type: ignore
                 args.m_top,
                 args.m_higgs,
                 ps_point,
@@ -271,9 +324,7 @@ def main(argv: list[str] | None = None) -> int:
                 gammaloop_settings=args.gammaloop_settings,
             )
         case "template_process":
-            if args.overwrite_process_basename is not None:
-                TemplateProcess.name = args.overwrite_process_basename
-            process = TemplateProcess(
+            process = process_class(  # type: ignore
                 args.m_top,
                 args.m_higgs,
                 ps_point,
@@ -285,7 +336,7 @@ def main(argv: list[str] | None = None) -> int:
                 gammaloop_settings=args.gammaloop_settings,
             )
         case "scalar_gravity":
-            process = ScalarGravity(
+            process = process_class(  # type: ignore
                 args.m_top,
                 args.m_higgs,
                 ps_point,
@@ -297,9 +348,7 @@ def main(argv: list[str] | None = None) -> int:
                 gammaloop_settings=args.gammaloop_settings,
             )
         case "dy":
-            if args.overwrite_process_basename is not None:
-                DY.name = args.overwrite_process_basename
-            process = DY(
+            process = process_class(
                 args.m_top,
                 args.m_higgs,
                 ps_point,
@@ -313,6 +362,7 @@ def main(argv: list[str] | None = None) -> int:
         case _:
             raise pygloopException(f"Process {args.process} not implemented.")
 
+    t_start = time.time()
     match args.command:
         case "generate":
             logger.info("Generating graphs ...")
@@ -329,6 +379,7 @@ def main(argv: list[str] | None = None) -> int:
                     n_cpe_iterations=args.n_iterations_cpe,
                 )
                 logger.info("Spenso code generation completed.")
+            result["status"] = "generated"
 
         case "inspect":
             process.set_log_level(logging.WARNING)
@@ -365,6 +416,7 @@ def main(argv: list[str] | None = None) -> int:
                     report += f" (excl. jacobian = {jacobian:+.16e})"
                 logger.info(report)
             process.set_log_level(logging.INFO)
+            result["inspect_result"] = res
 
         case "integrate":
             if args.seed is not None:
@@ -399,9 +451,12 @@ def main(argv: list[str] | None = None) -> int:
                 f"{new_line}| {new_line}{res.str_report(direct_target)}"  # type: ignore
             )  # type: ignore
             logger.info("-" * 80)
+            result["integration_result"] = res
+            result["integration_time_s"] = integration_time
 
         case "plot":
             process.plot(**vars(args))
+            result["status"] = "plotted"
 
         case "bench":
             process.set_log_level(logging.CRITICAL)
@@ -424,12 +479,21 @@ def main(argv: list[str] | None = None) -> int:
             logger.info(f"{Colour.BLUE}calls / run      : {Colour.END}{st['number']}")
             logger.info(f"{Colour.BLUE}median (µs)      : {Colour.END}{Colour.GREEN}{st['median_s'] * 1e6:.1f}{Colour.END}")
             logger.info(f"{Colour.BLUE}min    (µs)      : {Colour.END}{Colour.GREEN}{st['min_s'] * 1e6:.1f}{Colour.END}")
-
+            result["bench_result"] = res
+            result["bench_stats"] = st
+            result["disk_size"] = disk_size
         case _:
             raise pygloopException(f"Command {args.command} not implemented.")
 
-    return 0
+    cmd_runtime = time.time() - t_start
+    result["cmd_runtime"] = cmd_runtime
+    logger.info(f"Command '{args.command}' completed in {Colour.GREEN}{cmd_runtime:.2f}s{Colour.END}.")
+
+    return result
 
 
 if __name__ == "__main__":
-    SystemExit(main())
+    _main_result = main()
+    if isinstance(_main_result, dict):
+        SystemExit(_main_result.get("exit_code", 0))
+    SystemExit(_main_result)

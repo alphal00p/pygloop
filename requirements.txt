@@ -1,5 +1,6 @@
 matplotlib
 numpy
+prettytable
 progressbar2
 symbolica
 vegas

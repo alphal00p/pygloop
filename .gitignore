@@ -19,3 +19,5 @@ __pycache__/
 
 TMP/*
 .DS_Store
+
+profiling_results/*

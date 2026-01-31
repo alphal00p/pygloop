@@ -20,6 +20,7 @@ max_prob_ratio = 100.0
 [stability]
 check_on_norm = true
 rotation_axis = []
+loop_momenta_norm_escalation_factor = 1.0e99
 
 #[[stability.rotation_axis]]
 #type = "z"

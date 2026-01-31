@@ -68,8 +68,16 @@ class GGHHH(object):
     name = "GGHHH"
     name_for_resources = "GGHHH"
 
-    ENABLE_ASM_COMPILATION = True
+    DEFAULT_COMPILATION_OPTIONS = {
+        "inline_asm": "default",  # "none"
+        "optimization_level": 3,
+        "native": True,
+    }
     VERBOSE_FULL_EVALUATOR = False
+    COMPLEXIFY_EVALUATOR = False
+    FREEZE_INPUT_PHASES = True
+
+    DEBUG_FULL_EVALUATOR_PATH = None  # "/Users/vjhirsch/Documents/Work/pygloop/TMP/cff_evaluator_inputs.py"
 
     SB = {
         "etaSelector": S("pygloop::ηs"),
@@ -506,7 +514,7 @@ class GGHHH(object):
         # Add the polarization vectors
         for e_i in [0, 1]:
             param_builder.add_parameter_list((self.SB["vector_pol"], E(str(e_i))), 4)
-
+            param_builder.force_parameters_to_complex([(self.SB["vector_pol"], E(str(e_i)))])
         # Add the E-surfaces selectors
         param_builder.add_parameter_list((self.SB["etaSigma"], self.SB["o_id"], self.SB["f_id"]), len(cff_structure.e_surfaces))
         # Add the energy signs
@@ -520,6 +528,8 @@ class GGHHH(object):
             param_builder.add_parameter((param,))
             param_builder.set_parameter((param,), value)
 
+        if GGHHH.FREEZE_INPUT_PHASES:
+            param_builder.freeze_all_current_parameters_phase()
         # fmt: off
         evaluator = integrand.evaluator(
             constants = self.get_constants_for_evaluator(),
@@ -532,7 +542,12 @@ class GGHHH(object):
             conditionals = [self.SB["etaSelector"],]
         )
 
-        return PygloopEvaluator(evaluator, param_builder, "parametric_integrand_evaluator", additional_data={'cff_structure': copy.deepcopy(cff_structure)})
+        pygloop_evaluator = PygloopEvaluator(evaluator, param_builder, "parametric_integrand_evaluator", additional_data={'cff_structure': copy.deepcopy(cff_structure)})
+        if GGHHH.FREEZE_INPUT_PHASES and not GGHHH.COMPLEXIFY_EVALUATOR:
+            pygloop_evaluator.freeze_input_phases()
+        if GGHHH.COMPLEXIFY_EVALUATOR:
+            pygloop_evaluator.complexify()
+        return pygloop_evaluator
 
     def build_full_integrand_evaluator(
         self,
@@ -674,6 +689,12 @@ class GGHHH(object):
                         conditionals=None,
                         cpe_iterations=n_cpe_iterations,
                     )
+                    if GGHHH.FREEZE_INPUT_PHASES and not GGHHH.COMPLEXIFY_EVALUATOR:
+                        concretized_evaluator.set_subcomponents(integrand_param_builder.get_components_phase())
+                    if GGHHH.COMPLEXIFY_EVALUATOR:
+                        concretized_evaluator.complexify(
+                            real_components=integrand_param_builder.get_real_components(),
+                        )
                     total_evaluator_time += time.time() - evaluator_start
                     evaluator_calls += 1
                     if full_evaluator is None:
@@ -728,10 +749,9 @@ class GGHHH(object):
                 functions = {}
                 conditionals = None
 
-            DEBUG_FULL_EVALUATOR_PATH = None  # "/Users/vjhirsch/Documents/Work/pygloop/TMP/cff_evaluator_inputs.py"
-            if DEBUG_FULL_EVALUATOR_PATH is not None:
-                logger.critical("Debugging full evaluator generation inputs written to %s", DEBUG_FULL_EVALUATOR_PATH)
-                with open(DEBUG_FULL_EVALUATOR_PATH, "w") as debug_file:
+            if GGHHH.DEBUG_FULL_EVALUATOR_PATH is not None:
+                logger.critical("Debugging full evaluator generation inputs written to %s", GGHHH.DEBUG_FULL_EVALUATOR_PATH)
+                with open(GGHHH.DEBUG_FULL_EVALUATOR_PATH, "w") as debug_file:
                     debug_file.write("# Auto-generated file for debugging full evaluator generation\n")
                     debug_file.write(f"expression=E('{full_expression.to_canonical_string()}')\n")
                     debug_file.write(
@@ -747,6 +767,7 @@ class GGHHH(object):
                         debug_file.write(f"conditionals=[{', '.join(f'E("{cond.to_canonical_string()}")' for cond in conditionals)}]\n")
                     else:
                         debug_file.write("conditionals=None\n")
+                    debug_file.write(f"real_components={integrand_param_builder.get_real_components()}\n")
 
             evaluator_start = time.time()
             full_evaluator = full_expression.evaluator(
@@ -760,14 +781,20 @@ class GGHHH(object):
                 verbose=GGHHH.VERBOSE_FULL_EVALUATOR,
                 cpe_iterations=n_cpe_iterations,
             )
+            if GGHHH.FREEZE_INPUT_PHASES and not GGHHH.COMPLEXIFY_EVALUATOR:
+                full_evaluator.set_subcomponents(integrand_param_builder.get_components_phase())
+            if GGHHH.COMPLEXIFY_EVALUATOR:
+                full_evaluator.complexify(
+                    real_components=integrand_param_builder.get_real_components(),
+                )
             total_evaluator_time += time.time() - evaluator_start
 
         assert full_evaluator is not None
 
-        if strategy == "summing":
-            output_length = 1
-        else:
+        if strategy == "merging":
             output_length = n_terms
+        else:
+            output_length = 1
 
         total_time = time.time() - total_start
         evaluator_pct = (total_evaluator_time / total_time * 100.0) if total_time > 0 else 0.0
@@ -797,6 +824,7 @@ class GGHHH(object):
             "full_integrand_evaluator",
             output_length=output_length,
             additional_data={"aggregation_strategy": strategy},
+            complexified=GGHHH.COMPLEXIFY_EVALUATOR,
         )
 
     def build_parameter_evaluators(
@@ -860,6 +888,9 @@ class GGHHH(object):
             param_builder.add_parameter((param,))
             param_builder.set_parameter((param,), value)
 
+        if GGHHH.FREEZE_INPUT_PHASES:
+            param_builder.freeze_all_current_parameters_phase()
+
         # We can now build the evaluator
         evaluator = Expression.evaluator_multiple(
             computable_parameters,
@@ -871,8 +902,12 @@ class GGHHH(object):
             verbose=False,
             external_functions=None,  # type: ignore
         )
-
-        return PygloopEvaluator(evaluator, param_builder, "input_parameters_evaluator", output_length=len(computable_parameters))
+        pygloop_evaluator = PygloopEvaluator(evaluator, param_builder, "input_parameters_evaluator", output_length=len(computable_parameters))
+        if GGHHH.FREEZE_INPUT_PHASES and not GGHHH.COMPLEXIFY_EVALUATOR:
+            pygloop_evaluator.freeze_input_phases()
+        if GGHHH.COMPLEXIFY_EVALUATOR:
+            pygloop_evaluator.complexify()
+        return pygloop_evaluator
 
     def generate_spenso_code(
         self,
@@ -894,18 +929,7 @@ class GGHHH(object):
                 f"Full spenso integrand strategy '{full_spenso_integrand_strategy}' not recognized. Input should be one of: None, 'merging', 'summing' or 'function_map'."
             )
 
-        if GGHHH.ENABLE_ASM_COMPILATION:
-            spenso_evaluator_compilation_options = {
-                "inline_asm": "default",
-                "optimization_level": 3,
-                "native": True,
-            }
-        else:
-            spenso_evaluator_compilation_options = {
-                "inline_asm": "none",
-                "optimization_level": 3,
-                "native": True,
-            }
+        spenso_evaluator_compilation_options = GGHHH.DEFAULT_COMPILATION_OPTIONS.copy()
         spenso_evaluator_compilation_options.update(evaluators_compilation_options or {})
 
         amplitudes, _cross_sections = self.gl_worker.list_outputs()
@@ -943,7 +967,7 @@ class GGHHH(object):
         # The SM UFO stupidly writes ProjP + ProjM instead of the identity for the yukawa interaction, simply this away...
         numerator = numerator.replace(E("spenso::projm(x_,y_)+spenso::projp(x_,y_)"), E("spenso::g(x_,y_)"), repeat=True)
 
-        hep_lib = TensorLibrary.hep_lib()
+        hep_lib = TensorLibrary.hep_lib()  # type: ignore
         tn = TensorNetwork(cook_indices(numerator), hep_lib)
 
         tn.execute(hep_lib)
@@ -1050,6 +1074,24 @@ class GGHHH(object):
         logger.info(
             f"Spenso code generation for process {Colour.BLUE}{self.name} ({self.n_loops} loops){Colour.END} took {Colour.GREEN}{(time.time() - t_spenso_generation_start):.2f} seconds{Colour.END}."
         )
+
+        if GGHHH.DEBUG_FULL_EVALUATOR_PATH is not None:
+            all_evaluators = self.spenso_evaluators[integrand_name]
+            logger.critical("Debugging full evaluator call inputs written to %s", GGHHH.DEBUG_FULL_EVALUATOR_PATH)
+            with open(GGHHH.DEBUG_FULL_EVALUATOR_PATH, "a") as debug_file:
+                self.initialize_param_builders(
+                    [ all_evaluators["parametric_integrand_evaluator"].param_builder ] + ([ all_evaluators["full_integrand_evaluator"].param_builder, ] if all_evaluators["full_integrand_evaluator"] is not None else [ ]), # type: ignore
+                    all_evaluators["input_parameters_evaluator"].param_builder # type: ignore
+                )  # fmt: off
+                self.set_from_sample(
+                    all_evaluators["full_integrand_evaluator"], # type: ignore
+                    all_evaluators["input_parameters_evaluator"], # type: ignore
+                    ks = [ Vector(100.0, 200.0, 300.0), ],
+                )  # fmt: off
+                debug_file.write(
+                    f"call_inputs=[{','.join('%.15e' % input for input in all_evaluators['full_integrand_evaluator'].param_builder.get_values(all_evaluators['full_integrand_evaluator'].complexified))}]\n"  # type: ignore
+                )
+
         # ####################
         # TEST INTEGRAND START
         # ####################
@@ -1088,6 +1130,7 @@ class GGHHH(object):
         #     all_evaluators["input_parameters_evaluator"], # type: ignore
         #     ks = [ Vector(100.0, 200.0, 300.0), ],
         # )  # fmt: off
+
         # full_result = all_evaluators["full_integrand_evaluator"].evaluate(eager=True)  # type: ignore
         # if all_evaluators["full_integrand_evaluator"].additional_data["aggregation_strategy"] == "merging":  # type: ignore
         #     full_result = full_result.sum()
@@ -1124,10 +1167,9 @@ class GGHHH(object):
         logger.info(
             f"GammaLoop code generation for process {Colour.BLUE}{self.name} ({self.n_loops} loops){Colour.END} took {Colour.GREEN}{(time.time() - t_gammaloop_generation_start):.2f} seconds{Colour.END}."
         )
-        with open(os.path.isfile(pjoin(PYGLOOP_FOLDER, "outputs", "gammaloop_states", self.name, f"{integrand_name}_is_generated")), "w") as f:
-            f.write("generated")
-
         self.save_state()
+        with open(pjoin(PYGLOOP_FOLDER, "outputs", "gammaloop_states", self.name, f"{integrand_name}_is_generated.txt"), "w") as f:
+            f.write("generated")
 
     def valide_ps_point(self) -> None:
         # Only perform sanity checks if in the physical region

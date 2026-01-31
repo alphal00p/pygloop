@@ -16,6 +16,7 @@ from numpy.typing import NDArray
 from pydot import Edge, Node  # noqa: F401
 from symbolica import (
     CompiledComplexEvaluator,
+    CompiledRealEvaluator,
     E,
     Evaluator,
     Expression,
@@ -143,7 +144,10 @@ class ParamBuilder(list):
         super().__init__(*args, **kwargs)
         self.positions: dict[tuple[Expression, ...], tuple[int, int]] = {}
         self.order: list[tuple[Expression, ...]] = []
-        self.np = numpy.zeros(0, complex)
+        self.np: NDArray[numpy.complex128] = numpy.zeros(0, dtype=numpy.complex128)
+        self.real_valued_inputs: list[int] = []
+        self.purely_imaginary_valued_inputs: list[int] = []
+        self.forced_complex_valued_inputs: list[int] = []
         if cache is None:
             self.cache = {}
         else:
@@ -157,16 +161,95 @@ class ParamBuilder(list):
         self.order.append(head)
         self.np = numpy.resize(self.np, len(self.np) + length)
 
+    def freeze_all_current_parameters_phase(self, parameters: list[tuple[Expression, ...]] | None = None):
+        if parameters is None:
+            parameters = list(self.positions.keys())
+        for param in parameters:
+            if param not in self.positions:
+                raise pygloopException(f"Could not find parameter {param} in param builder.")
+            min, max = self.positions[param]
+            for i in range(min, max):
+                if self.np[i].imag == 0.0:
+                    if i not in self.real_valued_inputs and i not in self.forced_complex_valued_inputs:
+                        self.real_valued_inputs.append(i)
+                elif self.np[i].real == 0.0:
+                    if i not in self.purely_imaginary_valued_inputs and i not in self.forced_complex_valued_inputs:
+                        self.purely_imaginary_valued_inputs.append(i)
+
+    def force_parameters_to_real(self, parameters: list[tuple[Expression, ...]]):
+        for param in parameters:
+            if param not in self.positions:
+                raise pygloopException(f"Could not find parameter {param} in param builder.")
+            min, max = self.positions[param]
+            for i in range(min, max):
+                if self.np[i].imag != 0.0:
+                    raise pygloopException(f"Cannot set parameter {param} to real-valued input; it has non-zero imaginary part {self.np[i].imag}.")
+                self.real_valued_inputs.append(i)
+
+    def force_parameters_to_imaginary(self, parameters: list[tuple[Expression, ...]]):
+        for param in parameters:
+            if param not in self.positions:
+                raise pygloopException(f"Could not find parameter {param} in param builder.")
+            min, max = self.positions[param]
+            for i in range(min, max):
+                if self.np[i].real != 0.0:
+                    raise pygloopException(
+                        f"Cannot set parameter {param} to imaginary-valued input; it has non-zero imaginary part {self.np[i].real}."
+                    )
+                self.purely_imaginary_valued_inputs.append(i)
+
+    def force_parameters_to_complex(self, parameters: list[tuple[Expression, ...]]):
+        for param in parameters:
+            if param not in self.positions:
+                raise pygloopException(f"Could not find parameter {param} in param builder.")
+            min, max = self.positions[param]
+            for i in range(min, max):
+                if i in self.real_valued_inputs:
+                    self.real_valued_inputs.remove(i)
+                if i in self.purely_imaginary_valued_inputs:
+                    self.purely_imaginary_valued_inputs.remove(i)
+                if i not in self.forced_complex_valued_inputs:
+                    self.forced_complex_valued_inputs.append(i)
+
     def add_parameter(self, param: tuple[Expression, ...]):
         return self.add_parameter_list(param, 1)
 
-    def set_parameter_values(self, head: tuple[Expression, ...], values: list[complex] | NDArray[Any]):
+    def get_real_components(self) -> list[int]:
+        return self.real_valued_inputs
+
+    def get_components_phase(self) -> list[int | None]:
+        # print("TOTAL PARAM =", len(self.np))
+        # print("TOTAL PURE REAL =", len(self.real_valued_inputs))
+        # print("TOTAL PURE IMAG =", len(self.purely_imaginary_valued_inputs))
+        # print("TOTAL FULL COMPLEX =", len(self.np) - len(self.real_valued_inputs) - len(self.purely_imaginary_valued_inputs))
+        # return [0 for _ in range(len(self.np))]
+
+        phase_components: list[int | None] = []
+        for i in range(len(self.np)):
+            if i in self.real_valued_inputs:
+                phase_components.append(0)
+            elif i in self.purely_imaginary_valued_inputs:
+                phase_components.append(1)
+            else:
+                phase_components.append(None)
+        return phase_components
+
+    def set_parameter_values(self, head: tuple[Expression, ...], values: list[complex] | NDArray[Any], check_phase_flag_consistency=True):
         if head not in self.positions:
             raise pygloopException(f"Could not find parameter {head} in param builder.")
 
         min, max = self.positions[head]
         if (max - min) != len(values):
             raise pygloopException(f"Length of parameters {head} declared as {max - min}, but {len(values)} values are provided.")
+        if check_phase_flag_consistency:
+            for i, v in enumerate(values):
+                idx = min + i
+                if idx in self.real_valued_inputs and v.imag != 0.0:
+                    raise pygloopException(f"Cannot set parameter {head} at index {idx} to complex value {v}; it is marked as real-valued input.")
+                if idx in self.purely_imaginary_valued_inputs and v.real != 0.0:
+                    raise pygloopException(
+                        f"Cannot set parameter {head} at index {idx} to non-imaginary value {v}; it is marked as purely-imaginary input."
+                    )
         self.np[min:max] = values
 
     def set_parameter_values_within_range(self, min: int, max: int, values: list[complex] | NDArray[Any]):
@@ -174,8 +257,22 @@ class ParamBuilder(list):
             raise pygloopException(f"Range declared of ({min},{max}) of different length that the number of values ({len(values)}) provided.")
         self.np[min:max] = values
 
-    def set_parameter(self, param: tuple[Expression, ...], value: complex):
-        return self.set_parameter_values(param, [value,])  # fmt: off
+    def set_parameter(self, param: tuple[Expression, ...], value: complex, check_phase_flag_consistency=True):
+        return self.set_parameter_values(param, [value,], check_phase_flag_consistency)  # fmt: off
+
+    def check_phase_flag_consistency(self):
+        real_idx = numpy.asarray(self.real_valued_inputs, dtype=int)
+        imag_parts = self.np[real_idx].imag
+        bad = numpy.nonzero(imag_parts != 0.0)[0]
+        if bad.size:
+            idx = int(real_idx[bad[0]])
+            raise pygloopException(f"Parameter at index {idx} is marked as real-valued input, but has non-zero imaginary part {self.np[idx].imag}.")
+        imag_idx = numpy.asarray(self.purely_imaginary_valued_inputs, dtype=int)
+        real_parts = self.np[imag_idx].real
+        bad = numpy.nonzero(real_parts != 0.0)[0]
+        if bad.size:
+            idx = int(imag_idx[bad[0]])
+            raise pygloopException(f"Parameter at index {idx} is marked as purely-imaginary input, but has non-zero real part {self.np[idx].real}.")
 
     def get_parameters(self):
         params = []
@@ -191,8 +288,23 @@ class ParamBuilder(list):
 
         return params
 
-    def get_values(self) -> NDArray[numpy.complex128]:
+    def get_complex_values(self) -> NDArray[numpy.complex128]:
         return self.np
+
+    def get_values(self, complexified_evaluator=False) -> NDArray[numpy.complex128] | NDArray[numpy.double]:
+        if not complexified_evaluator:
+            return self.np
+        else:
+            real_parts, imag_parts = self.np.real, self.np.imag
+            zero_imag = numpy.float64(0.0)
+            if self.real_valued_inputs:
+                numpy.put(imag_parts, self.real_valued_inputs, zero_imag)
+
+            values = numpy.zeros(2 * len(self.np), dtype=numpy.double)
+            values[0::2] = real_parts
+            values[1::2] = imag_parts
+
+            return values
 
 
 class PygloopEvaluator(object):
@@ -212,6 +324,9 @@ class PygloopEvaluator(object):
         stored_name = data.get("name")
         parameters_data = data.get("parameters")
         values_data = data.get("values")
+        real_valued_inputs = data.get("real_valued_inputs", [])
+        purely_imaginary_valued_inputs = data.get("purely_imaginary_valued_inputs", [])
+        forced_complex_valued_inputs = data.get("forced_complex_valued_inputs", [])
         output_length = data.get("output_length")
         if parameters_data is None or values_data is None:
             raise pygloopException(f"Malformed parameter builder file '{param_builder_path}'.")
@@ -242,9 +357,15 @@ class PygloopEvaluator(object):
 
         param_builder.np = numpy.array(values, dtype=numpy.complex128)
 
+        param_builder.real_valued_inputs = real_valued_inputs
+        param_builder.purely_imaginary_valued_inputs = purely_imaginary_valued_inputs
+        param_builder.forced_complex_valued_inputs = forced_complex_valued_inputs
+
         max_index = max((rng[1] for rng in param_builder.positions.values()), default=0)
         if max_index != len(param_builder.np):
             raise pygloopException(f"Parameter value array length ({len(param_builder.np)}) does not match declared ranges (max index {max_index}).")
+
+        param_builder.check_phase_flag_consistency()
 
         additional_data_path = os.path.join(dir, f"{name}_additional_data.pkl")
         additional_data: dict[str, Any] = {}
@@ -260,9 +381,16 @@ class PygloopEvaluator(object):
                 raise pygloopException(f"Error loading additional data from '{additional_data_path}': {e}") from e
 
         loaded_evaluator = PygloopEvaluator(None, param_builder, stored_name, int(output_length), additional_data=additional_data)
+        loaded_evaluator.complexified = data.get("complexified", False)
+        n_inputs = len(loaded_evaluator.param_builder.np) * (2 if loaded_evaluator.complexified else 1)
+        n_outputs = loaded_evaluator.output_length * (2 if loaded_evaluator.complexified else 1)
+        evaluator_class = CompiledRealEvaluator if loaded_evaluator.complexified else CompiledComplexEvaluator
         try:
-            loaded_evaluator.compiled_evaluator = CompiledComplexEvaluator.load(
-                lib_path, stored_name, len(loaded_evaluator.param_builder.np), loaded_evaluator.output_length
+            loaded_evaluator.compiled_evaluator = evaluator_class.load(
+                lib_path,
+                stored_name,
+                n_inputs,
+                n_outputs,
             )
         except Exception as e:
             raise pygloopException(f"Error loading compiled evaluator from '{lib_path}': {e}") from e
@@ -290,10 +418,14 @@ class PygloopEvaluator(object):
         values = [[float(complex(v).real), float(complex(v).imag)] for v in self.param_builder.np.tolist()]
 
         data = {
+            "complexified": self.complexified,
             "name": self.name,
             "output_length": self.output_length,
             "parameters": parameters,
             "values": values,
+            "real_valued_inputs": self.param_builder.real_valued_inputs,
+            "purely_imaginary_valued_inputs": self.param_builder.purely_imaginary_valued_inputs,
+            "forced_complex_valued_inputs": self.param_builder.forced_complex_valued_inputs,
         }
 
         with open(param_builder_path, "w", encoding="utf-8") as handle:
@@ -311,20 +443,64 @@ class PygloopEvaluator(object):
         name: str,
         output_length: int = 1,
         additional_data: dict[str, Any] | None = None,
+        complexified: bool = False,
     ):
         self.eager_evaluator: Evaluator | None = evaluator
-        self.compiled_evaluator: CompiledComplexEvaluator | None = None
+        self.compiled_evaluator: CompiledRealEvaluator | CompiledComplexEvaluator | None = None
         self.param_builder = param_builder
         self.name = name
         self.additional_data = additional_data or {}
         self.output_length = output_length
+        self.complexified = complexified
+
+    @staticmethod
+    def _pairwise_to_complex(res: NDArray[Any], expected_output_len: int) -> NDArray[numpy.complex128]:
+        """
+        Convert an array shaped (batch, 2*n) or (2*n,) containing real/imag pairs
+        into complex numbers shaped (batch, n) / (n,). If `res` is already complex,
+        it is returned as-is (with dtype coerced to complex128).
+        """
+        res_arr = numpy.asarray(res)
+
+        # Already complex -> just ensure dtype
+        if numpy.iscomplexobj(res_arr):
+            return res_arr.astype(numpy.complex128, copy=False)
+
+        # Add batch dim when a single flat vector is returned
+        if res_arr.ndim == 1:
+            res_arr = res_arr.reshape(1, -1)
+
+        if res_arr.shape[-1] % 2 != 0:
+            raise pygloopException(f"Expected even number of entries (real/imag pairs), got {res_arr.shape[-1]}.")
+
+        if expected_output_len > 0 and res_arr.shape[-1] != expected_output_len * 2:
+            raise pygloopException(f"Output length mismatch: expected {expected_output_len * 2} real/imag entries, got {res_arr.shape[-1]}.")
+
+        paired = res_arr.reshape(res_arr.shape[0], -1, 2)
+        complex_res = paired[..., 0] + 1j * paired[..., 1]
+        return complex_res
+
+    def freeze_input_phases(self):
+        if self.eager_evaluator is None:
+            raise pygloopException(f"Eager evaluator for '{self.name}' not available to set input phases for.")
+        self.eager_evaluator.set_subcomponents(self.param_builder.get_components_phase())
+
+    def complexify(self):
+        if self.eager_evaluator is None:
+            raise pygloopException(f"Eager evaluator for '{self.name}' not available to complexify.")
+
+        self.eager_evaluator.complexify(
+            real_components=self.param_builder.get_real_components(),
+        )
+
+        self.complexified = True
 
     def get_eager_evaluator(self) -> Evaluator:
         if self.eager_evaluator is None:
             raise pygloopException(f"Eager evaluator for '{self.name}' not available.")
         return self.eager_evaluator
 
-    def get_compiled_evaluator(self) -> CompiledComplexEvaluator:
+    def get_compiled_evaluator(self) -> CompiledComplexEvaluator | CompiledRealEvaluator:
         if self.compiled_evaluator is None:
             raise pygloopException(f"Compiled evaluator for '{self.name}' not available.")
         return self.compiled_evaluator
@@ -340,20 +516,38 @@ class PygloopEvaluator(object):
             self.name,
             os.path.join(out_dir, f"{self.name}.cpp"),
             os.path.join(out_dir, f"{self.name}.so"),
-            "complex",
+            "real" if self.complexified else "complex",
             **pygloop_default_options,
         )
 
-    def evaluate(self, eager: bool | None = None) -> NDArray[numpy.complex128]:
+    def evaluate(self, eager: bool | None = None, check_phase_flag_consistency=False) -> NDArray[numpy.complex128]:
+        inputs = self.param_builder.get_values(self.complexified)[None, :]
+
+        if check_phase_flag_consistency:
+            self.param_builder.check_phase_flag_consistency()
         if eager is True:
-            return self.get_eager_evaluator().evaluate_complex(self.param_builder.get_values()[None, :])[0]
+            if self.complexified:
+                res = self.get_eager_evaluator().evaluate(inputs)
+            else:
+                res = self.get_eager_evaluator().evaluate_complex(inputs)
+            res = self._pairwise_to_complex(res, self.output_length)
+            return res[0]
         elif eager is False:
-            return self.get_compiled_evaluator().evaluate(self.param_builder.get_values()[None, :])[0]
+            res = self.get_compiled_evaluator().evaluate(inputs)
+            res = self._pairwise_to_complex(res, self.output_length)
+            return res[0]
         else:
             if self.compiled_evaluator is not None:
-                return self.compiled_evaluator.evaluate(self.param_builder.get_values()[None, :])[0]
+                res = self.compiled_evaluator.evaluate(inputs)
+                res = self._pairwise_to_complex(res, self.output_length)
+                return res[0]
             elif self.eager_evaluator is not None:
-                return self.eager_evaluator.evaluate_complex(self.param_builder.get_values()[None, :])[0]
+                if self.complexified:
+                    res = self.eager_evaluator.evaluate(inputs)
+                else:
+                    res = self.eager_evaluator.evaluate_complex(inputs)
+                res = self._pairwise_to_complex(res, self.output_length)
+                return res[0]
             else:
                 raise pygloopException(f"No evaluator available for '{self.name}'.")
 
