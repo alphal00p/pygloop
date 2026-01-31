@@ -129,6 +129,16 @@ def print_profiling_summary(profiling_result: dict) -> None:
     print(table)
 
 
+RUN_SCENARIOS_IMPLEMENTED = [
+    "gammaloop_non_optimized",
+    "gammaloop_optimized",
+    "spenso_function_map_non_optimized",
+    "spenso_function_map_optimized",
+    "spenso_merging_optimized",
+    "spenso_summing_optimized",
+    "spenso_parametric_optimized",
+]
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Profile pygloop generation and bench runs.")
     # fmt: off
@@ -145,12 +155,7 @@ if __name__ == "__main__":
     parser.add_argument("--target_time", "-t", type=float, default=1.0,
         help="Target time for the timing profile per repeat. Default = %(default)s",
     )  # fmt: off
-    parser.add_argument("--setups", "-s", type=str, nargs="*", choices=[
-        'gammaloop_non_optimized',
-        'gammaloop_optimized',
-        'spenso_function_map_non_optimized',
-        'spenso_function_map_optimized',
-    ], default=None, help="Setups to profile. If not set, all setups are profiled.")
+    parser.add_argument("--setups", "-s", type=str, nargs="*", choices=RUN_SCENARIOS_IMPLEMENTED, default=None, help="Setups to profile. If not set, all setups are profiled.")
 
     # fmt: on
     args = parser.parse_args()
@@ -167,12 +172,7 @@ if __name__ == "__main__":
         else:
             print(f"Rerunning profiling and overwriting existing results at {args.results_dump_path}.")
 
-    profiling_result = {
-        "gammaloop_non_optimized": {},
-        "gammaloop_optimized": {},
-        "spenso_function_map_non_optimized": {},
-        "spenso_function_map_optimized": {},
-    }
+    profiling_result = {k: {} for k in RUN_SCENARIOS_IMPLEMENTED}
     if args.setups is not None:
         profiling_result = {key: profiling_result[key] for key in args.setups}
 
@@ -314,6 +314,107 @@ if __name__ == "__main__":
                         ("--process", "gghhh"),
                         ("--n_loops", str(args.n_loops)),
                         ("-ii", "spenso_summed"),
+                    ],
+                    "bench",
+                    [("--target_time", f"{args.target_time:.1f}")],
+                    debug=args.debug,
+                )
+
+            case "spenso_merging_optimized":
+                if not args.no_generation:
+                    profiling_result[run_description]["generation"] = run(
+                        [
+                            ("--verbosity", args.verbosity),
+                            ("--overwrite-process-basename", f"PROFILE_GGHHH_{args.n_loops}L_{run_description}"),
+                            ("--general_settings", ("COMPLEXIFY_EVALUATOR=False", "FREEZE_INPUT_PHASES=True")),
+                            ("--m_top", "1000.0"),
+                            ("--process", "gghhh"),
+                            ("--n_loops", str(args.n_loops)),
+                            ("--clean", None),
+                        ],
+                        "generate",
+                        [
+                            ("-t", "spenso"),
+                            ("-g", "merging"),
+                        ],
+                        debug=args.debug,
+                    )
+                profiling_result[run_description]["bench"] = run(
+                    [
+                        ("--verbosity", args.verbosity),
+                        ("--overwrite-process-basename", f"PROFILE_GGHHH_{args.n_loops}L_{run_description}"),
+                        ("--general_settings", ("COMPLEXIFY_EVALUATOR=False", "FREEZE_INPUT_PHASES=True")),
+                        ("--m_top", "1000.0"),
+                        ("--process", "gghhh"),
+                        ("--n_loops", str(args.n_loops)),
+                        ("-ii", "spenso_summed"),
+                    ],
+                    "bench",
+                    [("--target_time", f"{args.target_time:.1f}")],
+                    debug=args.debug,
+                )
+
+            case "spenso_summing_optimized":
+                if not args.no_generation:
+                    profiling_result[run_description]["generation"] = run(
+                        [
+                            ("--verbosity", args.verbosity),
+                            ("--overwrite-process-basename", f"PROFILE_GGHHH_{args.n_loops}L_{run_description}"),
+                            ("--general_settings", ("COMPLEXIFY_EVALUATOR=False", "FREEZE_INPUT_PHASES=True")),
+                            ("--m_top", "1000.0"),
+                            ("--process", "gghhh"),
+                            ("--n_loops", str(args.n_loops)),
+                            ("--clean", None),
+                        ],
+                        "generate",
+                        [
+                            ("-t", "spenso"),
+                            ("-g", "summing"),
+                        ],
+                        debug=args.debug,
+                    )
+                profiling_result[run_description]["bench"] = run(
+                    [
+                        ("--verbosity", args.verbosity),
+                        ("--overwrite-process-basename", f"PROFILE_GGHHH_{args.n_loops}L_{run_description}"),
+                        ("--general_settings", ("COMPLEXIFY_EVALUATOR=False", "FREEZE_INPUT_PHASES=True")),
+                        ("--m_top", "1000.0"),
+                        ("--process", "gghhh"),
+                        ("--n_loops", str(args.n_loops)),
+                        ("-ii", "spenso_summed"),
+                    ],
+                    "bench",
+                    [("--target_time", f"{args.target_time:.1f}")],
+                    debug=args.debug,
+                )
+
+            case "spenso_parametric_optimized":
+                if not args.no_generation:
+                    profiling_result[run_description]["generation"] = run(
+                        [
+                            ("--verbosity", args.verbosity),
+                            ("--overwrite-process-basename", f"PROFILE_GGHHH_{args.n_loops}L_{run_description}"),
+                            ("--general_settings", ("COMPLEXIFY_EVALUATOR=False", "FREEZE_INPUT_PHASES=True")),
+                            ("--m_top", "1000.0"),
+                            ("--process", "gghhh"),
+                            ("--n_loops", str(args.n_loops)),
+                            ("--clean", None),
+                        ],
+                        "generate",
+                        [
+                            ("-t", "spenso"),
+                        ],
+                        debug=args.debug,
+                    )
+                profiling_result[run_description]["bench"] = run(
+                    [
+                        ("--verbosity", args.verbosity),
+                        ("--overwrite-process-basename", f"PROFILE_GGHHH_{args.n_loops}L_{run_description}"),
+                        ("--general_settings", ("COMPLEXIFY_EVALUATOR=False", "FREEZE_INPUT_PHASES=True")),
+                        ("--m_top", "1000.0"),
+                        ("--process", "gghhh"),
+                        ("--n_loops", str(args.n_loops)),
+                        ("-ii", "spenso_parametric"),
                     ],
                     "bench",
                     [("--target_time", f"{args.target_time:.1f}")],
