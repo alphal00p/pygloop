@@ -93,11 +93,26 @@ def print_profiling_summary(profiling_result: dict) -> None:
 
     baseline_values: tuple[float | None, float | None, float | None] | None = None
     for idx, (run_description, results) in enumerate(profiling_result.items()):
-        generation_time_in_s = results["generation"]["cmd_runtime"]
-        bench_stats = _extract_bench_stats(results)
-        bench_time_ms = bench_stats["median_s"] * 1e3
-        disk_size = _extract_disk_size(results)
-        disk_size_in_MB = None if disk_size is None else disk_size / 1_000_000.0
+        generation_time_in_s: float | None
+        bench_time_ms: float | None
+        disk_size_in_MB: float | None
+
+        if "generation" in results:
+            generation_time_in_s = results["generation"]["cmd_runtime"]
+        else:
+            generation_time_in_s = None
+
+        try:
+            bench_stats = _extract_bench_stats(results)
+            bench_time_ms = bench_stats["median_s"] * 1e3
+        except Exception:
+            bench_time_ms = None
+
+        try:
+            disk_size = _extract_disk_size(results)
+            disk_size_in_MB = None if disk_size is None else disk_size / 1_000_000.0
+        except Exception:
+            disk_size_in_MB = None
 
         if baseline_values is None:
             baseline_values = (generation_time_in_s, bench_time_ms, disk_size_in_MB)
@@ -119,26 +134,38 @@ if __name__ == "__main__":
     # fmt: off
     parser.add_argument("--n-loops", "-l", type=int, default=1, help="Number of loops to profile.")
     parser.add_argument(
-        "--results-dump-path", "-r", type=str, default="./profiling_results.txt", help="Path to dump or recycle profiling results from."
+        "--results-dump-path", "-r", type=str, default="./profiling_results/profiling_results.txt", help="Path to dump or recycle profiling results from."
     )
     parser.add_argument("--verbosity", "-v", type=str, choices=["debug", "info", "critical"], default="info",
         help="Set verbosity level",
     )
+    parser.add_argument("--rerun", "-rr", default=False, action="store_true", help="Rerun the profiling even if results file exists.")
     parser.add_argument("--debug", "-d", default=False, action="store_true", help="Enable debug mode")
+    parser.add_argument("--no-generation", "-ng", default=False, action="store_true", help="Skip process generation.")
+    parser.add_argument("--target_time", "-t", type=float, default=1.0,
+        help="Target time for the timing profile per repeat. Default = %(default)s",
+    )  # fmt: off
     parser.add_argument("--setups", "-s", type=str, nargs="*", choices=[
         'gammaloop_non_optimized',
         'gammaloop_optimized',
         'spenso_function_map_non_optimized',
         'spenso_function_map_optimized',
     ], default=None, help="Setups to profile. If not set, all setups are profiled.")
+
     # fmt: on
     args = parser.parse_args()
 
+    if not os.path.isdir(os.path.dirname(args.results_dump_path)):
+        os.makedirs(os.path.dirname(args.results_dump_path))
+
     if os.path.isfile(args.results_dump_path):
-        with open(args.results_dump_path, "r") as f:
-            profiling_result = eval(f.read())
-        print_profiling_summary(profiling_result)
-        sys.exit(0)
+        if not args.rerun:
+            with open(args.results_dump_path, "r") as f:
+                profiling_result = eval(f.read())
+            print_profiling_summary(profiling_result)
+            sys.exit(0)
+        else:
+            print(f"Rerunning profiling and overwriting existing results at {args.results_dump_path}.")
 
     profiling_result = {
         "gammaloop_non_optimized": {},
@@ -152,28 +179,29 @@ if __name__ == "__main__":
     for run_description in profiling_result.keys():
         match run_description:
             case "gammaloop_non_optimized":
-                profiling_result[run_description]["generation"] = run(
-                    [
-                        ("--verbosity", args.verbosity),
-                        ("--overwrite-process-basename", f"PROFILE_GGHHH_{args.n_loops}L_{run_description}"),
-                        (
-                            "--gammaloop-settings",
+                if not args.no_generation:
+                    profiling_result[run_description]["generation"] = run(
+                        [
+                            ("--verbosity", args.verbosity),
+                            ("--overwrite-process-basename", f"PROFILE_GGHHH_{args.n_loops}L_{run_description}"),
                             (
-                                "set global kv global.generation.evaluator.iterative_orientation_optimization=false",
-                                "set global kv global.generation.threshold_subtraction.enable_thresholds=false",
+                                "--gammaloop-settings",
+                                (
+                                    "set global kv global.generation.evaluator.iterative_orientation_optimization=false",
+                                    "set global kv global.generation.threshold_subtraction.enable_thresholds=false",
+                                ),
                             ),
-                        ),
-                        ("--m_top", "1000.0"),
-                        ("--process", "gghhh"),
-                        ("--n_loops", str(args.n_loops)),
-                        ("--clean", None),
-                    ],
-                    "generate",
-                    [
-                        ("-t", "gammaloop"),
-                    ],
-                    debug=args.debug,
-                )
+                            ("--m_top", "1000.0"),
+                            ("--process", "gghhh"),
+                            ("--n_loops", str(args.n_loops)),
+                            ("--clean", None),
+                        ],
+                        "generate",
+                        [
+                            ("-t", "gammaloop"),
+                        ],
+                        debug=args.debug,
+                    )
                 profiling_result[run_description]["bench"] = run(
                     [
                         ("--verbosity", args.verbosity),
@@ -184,32 +212,33 @@ if __name__ == "__main__":
                         ("-ii", "gammaloop"),
                     ],
                     "bench",
-                    [],
+                    [("--target_time", f"{args.target_time:.1f}")],
                     debug=args.debug,
                 )
             case "gammaloop_optimized":
-                profiling_result[run_description]["generation"] = run(
-                    [
-                        ("--verbosity", args.verbosity),
-                        ("--overwrite-process-basename", f"PROFILE_GGHHH_{args.n_loops}L_{run_description}"),
-                        (
-                            "--gammaloop-settings",
+                if not args.no_generation:
+                    profiling_result[run_description]["generation"] = run(
+                        [
+                            ("--verbosity", args.verbosity),
+                            ("--overwrite-process-basename", f"PROFILE_GGHHH_{args.n_loops}L_{run_description}"),
                             (
-                                "set global kv global.generation.evaluator.iterative_orientation_optimization=true",
-                                "set global kv global.generation.threshold_subtraction.enable_thresholds=false",
+                                "--gammaloop-settings",
+                                (
+                                    "set global kv global.generation.evaluator.iterative_orientation_optimization=true",
+                                    "set global kv global.generation.threshold_subtraction.enable_thresholds=false",
+                                ),
                             ),
-                        ),
-                        ("--m_top", "1000.0"),
-                        ("--process", "gghhh"),
-                        ("--n_loops", str(args.n_loops)),
-                        ("--clean", None),
-                    ],
-                    "generate",
-                    [
-                        ("-t", "gammaloop"),
-                    ],
-                    debug=args.debug,
-                )
+                            ("--m_top", "1000.0"),
+                            ("--process", "gghhh"),
+                            ("--n_loops", str(args.n_loops)),
+                            ("--clean", None),
+                        ],
+                        "generate",
+                        [
+                            ("-t", "gammaloop"),
+                        ],
+                        debug=args.debug,
+                    )
                 profiling_result[run_description]["bench"] = run(
                     [
                         ("--verbosity", args.verbosity),
@@ -220,28 +249,29 @@ if __name__ == "__main__":
                         ("-ii", "gammaloop"),
                     ],
                     "bench",
-                    [],
+                    [("--target_time", f"{args.target_time:.1f}")],
                     debug=args.debug,
                 )
 
             case "spenso_function_map_non_optimized":
-                profiling_result[run_description]["generation"] = run(
-                    [
-                        ("--verbosity", args.verbosity),
-                        ("--overwrite-process-basename", f"PROFILE_GGHHH_{args.n_loops}L_{run_description}"),
-                        ("--general_settings", ("COMPLEXIFY_EVALUATOR=False", "FREEZE_INPUT_PHASES=False")),
-                        ("--m_top", "1000.0"),
-                        ("--process", "gghhh"),
-                        ("--n_loops", str(args.n_loops)),
-                        ("--clean", None),
-                    ],
-                    "generate",
-                    [
-                        ("-t", "spenso"),
-                        ("-g", "function_map"),
-                    ],
-                    debug=args.debug,
-                )
+                if not args.no_generation:
+                    profiling_result[run_description]["generation"] = run(
+                        [
+                            ("--verbosity", args.verbosity),
+                            ("--overwrite-process-basename", f"PROFILE_GGHHH_{args.n_loops}L_{run_description}"),
+                            ("--general_settings", ("COMPLEXIFY_EVALUATOR=False", "FREEZE_INPUT_PHASES=False")),
+                            ("--m_top", "1000.0"),
+                            ("--process", "gghhh"),
+                            ("--n_loops", str(args.n_loops)),
+                            ("--clean", None),
+                        ],
+                        "generate",
+                        [
+                            ("-t", "spenso"),
+                            ("-g", "function_map"),
+                        ],
+                        debug=args.debug,
+                    )
                 profiling_result[run_description]["bench"] = run(
                     [
                         ("--verbosity", args.verbosity),
@@ -253,27 +283,28 @@ if __name__ == "__main__":
                         ("-ii", "spenso_summed"),
                     ],
                     "bench",
-                    [],
+                    [("--target_time", f"{args.target_time:.1f}")],
                     debug=args.debug,
                 )
             case "spenso_function_map_optimized":
-                profiling_result[run_description]["generation"] = run(
-                    [
-                        ("--verbosity", args.verbosity),
-                        ("--overwrite-process-basename", f"PROFILE_GGHHH_{args.n_loops}L_{run_description}"),
-                        ("--general_settings", ("COMPLEXIFY_EVALUATOR=False", "FREEZE_INPUT_PHASES=True")),
-                        ("--m_top", "1000.0"),
-                        ("--process", "gghhh"),
-                        ("--n_loops", str(args.n_loops)),
-                        ("--clean", None),
-                    ],
-                    "generate",
-                    [
-                        ("-t", "spenso"),
-                        ("-g", "function_map"),
-                    ],
-                    debug=args.debug,
-                )
+                if not args.no_generation:
+                    profiling_result[run_description]["generation"] = run(
+                        [
+                            ("--verbosity", args.verbosity),
+                            ("--overwrite-process-basename", f"PROFILE_GGHHH_{args.n_loops}L_{run_description}"),
+                            ("--general_settings", ("COMPLEXIFY_EVALUATOR=False", "FREEZE_INPUT_PHASES=True")),
+                            ("--m_top", "1000.0"),
+                            ("--process", "gghhh"),
+                            ("--n_loops", str(args.n_loops)),
+                            ("--clean", None),
+                        ],
+                        "generate",
+                        [
+                            ("-t", "spenso"),
+                            ("-g", "function_map"),
+                        ],
+                        debug=args.debug,
+                    )
                 profiling_result[run_description]["bench"] = run(
                     [
                         ("--verbosity", args.verbosity),
@@ -285,7 +316,7 @@ if __name__ == "__main__":
                         ("-ii", "spenso_summed"),
                     ],
                     "bench",
-                    [],
+                    [("--target_time", f"{args.target_time:.1f}")],
                     debug=args.debug,
                 )
 

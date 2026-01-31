@@ -212,14 +212,14 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
         help="Number of cores to use for plotting. Default = %(default)s",
     )  # fmt: off
 
-    parser_plot = subparsers.add_parser("bench", help="bench the integrand.")
-    parser_plot.add_argument("--n_evals", "-n", type=int, default=None,
+    parser_bench = subparsers.add_parser("bench", help="bench the integrand.")
+    parser_bench.add_argument("--n_evals", "-n", type=int, default=None,
         help="Number of points to benchmark. Default = %(default)s",
     )  # fmt: off
-    parser_plot.add_argument("--target_time", "-t", type=float, default=1.0,
+    parser_bench.add_argument("--target_time", "-t", type=float, default=1.0,
         help="Target time for the timing profile per repeat. Default = %(default)s",
     )  # fmt: off
-    parser_plot.add_argument("--repeat", "-r", type=int, default=5,
+    parser_bench.add_argument("--repeat", "-r", type=int, default=5,
         help="Number of repeats for the timing profile. Default = %(default)s",
     )  # fmt: off
     args = parser.parse_args(argv)
