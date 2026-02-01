@@ -362,6 +362,9 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
         case _:
             raise pygloopException(f"Process {args.process} not implemented.")
 
+    integrand_implementation = {
+        "integrand_type": args.integrand_implementation,
+    }
     t_start = time.time()
     match args.command:
         case "generate":
@@ -387,7 +390,7 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
                 res = process.integrand_xspace(
                     args.point,
                     args.parameterisation,
-                    args.integrand_implementation,
+                    integrand_implementation,
                     args.multi_channeling,
                 )
                 logger.info(
@@ -408,7 +411,7 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
                 else:
                     for p in point:
                         k_to_inspect.append(Vector(*p))
-                res = process.integrand(k_to_inspect, args.integrand_implementation)
+                res = process.integrand(k_to_inspect, integrand_implementation)
                 report = f"Integrand evaluated at loop momentum ks = [{Colour.BLUE}{
                     ','.join('[' + ', '.join(f'{ki:+.16e}' for ki in k.to_list()) + ']' for k in k_to_inspect)
                 }{Colour.END}] : {Colour.GREEN}{res:+.16e}{Colour.END}"
@@ -436,7 +439,7 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
                 else:
                     direct_target = args.target.imag
 
-                if args.integrand_implementation != "gammaloop":
+                if integrand_implementation["integrand_type"] != "gammaloop":
                     args.target = direct_target
 
             t_start = time.time()
@@ -461,7 +464,7 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
         case "bench":
             process.set_log_level(logging.CRITICAL)
             try:
-                disk_size = process.get_size_on_disk(args.integrand_implementation)  # type: ignore
+                disk_size = process.get_size_on_disk(integrand_implementation)  # type: ignore
             except Exception:
                 disk_size = None
 
@@ -472,7 +475,7 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
 
             def f():
                 k_to_inspect = [Vector(*[random.random() for _ in range(3)]) for _ in range(args.n_loops)]
-                process.integrand(k_to_inspect, args.integrand_implementation)
+                process.integrand(k_to_inspect, integrand_implementation)
 
             res, st = time_function(f, repeats=args.repeat, target_time=args.target_time, number=args.n_evals, warmup_evals=2)
             # logger.info("Last eval result:", res)

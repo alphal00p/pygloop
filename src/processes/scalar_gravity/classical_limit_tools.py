@@ -21,6 +21,31 @@ class ClassicalLimitProcessor(object):
     def get_color_projector(self) -> Expression:
         return E("1")
 
+    def classical_limit_in_numerator(self, graph: DotGraph) -> None:
+        match graph.dot.get_name():
+            case "v_diagram":
+                return  # No change for tree-level graph
+            case _:
+                raise NotImplementedError(f"Classical limit not implemented for graph {graph.dot.get_name()}")
+
+    def delocalize_numerators(self, g: DotGraph) -> None:
+        attrs = g.get_attributes()
+        attrs["num"] = f'"{expr_to_string(g.get_numerator())}"'
+        g.set_local_numerators_to_one()
+
+    def adjust_projectors(self, g: DotGraph) -> None:
+        attrs = g.get_attributes()
+        attrs["projector"] = f'"{expr_to_string(g.get_projector() * self.get_color_projector())}"'
+        return
+
+    def set_group_id(self, g: DotGraph, group_id: int, is_master: bool = False) -> None:
+        attrs = g.get_attributes()
+        attrs["group_id"] = f'"{group_id}"'
+        if is_master:
+            attrs["group_master"] = '"true"'
+        else:
+            attrs["group_master"] = '"false"'
+
     def process_graphs(self, graphs: DotGraphs) -> DotGraphs:
         processed_graphs = DotGraphs()
 
@@ -28,22 +53,16 @@ class ClassicalLimitProcessor(object):
             g: DotGraph = copy.deepcopy(g_input)
 
             # Add the main graph
-            attrs = g.get_attributes()
-            attrs["group_master"] = '"true"'
-            attrs["group_id"] = f'"{group_id}"'
-            attrs["num"] = f'"{expr_to_string(g.get_numerator())}"'
-            attrs["projector"] = f'"{expr_to_string(g.get_projector() * self.get_color_projector())}"'
-            g.set_local_numerators_to_one()
+            self.set_group_id(g, group_id, is_master=True)
+            self.classical_limit_in_numerator(g)
+            self.adjust_projectors(g)
+            self.delocalize_numerators(g)
             processed_graphs.append(g)
 
             # As an example, add a fake UV equal to the original graph
-            fake_uv: DotGraph = copy.deepcopy(g_input)
+            fake_uv: DotGraph = copy.deepcopy(g)
             fake_uv.dot.set_name(f"{g.dot.get_name()}_UV_1")
-            attrs = fake_uv.get_attributes()
-            attrs["group_id"] = f'"{group_id}"'
-            attrs["num"] = f'"{expr_to_string(g.get_numerator())}"'
-            attrs["projector"] = f'"{expr_to_string(g.get_projector() * self.get_color_projector())}"'
-            g.set_local_numerators_to_one()
+            self.set_group_id(fake_uv, group_id, is_master=False)
             processed_graphs.append(fake_uv)
 
         return processed_graphs

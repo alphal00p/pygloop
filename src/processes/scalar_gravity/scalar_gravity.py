@@ -1000,7 +1000,11 @@ class ScalarGravity(object):
         if full_evaluator is not None:
             full_evaluator.compile(evaluator_directory, **spenso_evaluator_compilation_options)
             full_evaluator.save(evaluator_directory)
-        size_on_disk = self.get_size_on_disk("spenso_parametric" if full_spenso_integrand_strategy is None else "spenso_summed")
+        size_on_disk = self.get_size_on_disk(
+            {"integrand_type": "spenso_parametric", "evaluator_compilation": "symbolica"}
+            if full_spenso_integrand_strategy is None
+            else {"integrand_type": "spenso_summed", "evaluator_compilation": "symbolica"}
+        )
         if size_on_disk is None:
             size_on_disk_str = f"{Colour.RED}N/A MB{Colour.END}"
         else:
@@ -1198,7 +1202,7 @@ class ScalarGravity(object):
         self,
         xs: list[float],
         parameterization: str,
-        integrand_implementation: str,
+        integrand_implementation: dict[str, Any],
         phase: str,
         multi_channeling: bool | int = True,
     ) -> float:
@@ -1236,9 +1240,9 @@ class ScalarGravity(object):
 
         return final_wgt
 
-    def integrand(self, loop_momenta: list[Vector], integrand_implementation: str) -> complex:
+    def integrand(self, loop_momenta: list[Vector], integrand_implementation: dict[str, Any]) -> complex:
         try:
-            match integrand_implementation:
+            match integrand_implementation["integrand_type"]:
                 case "spenso_parametric":
                     return self.spenso_integrand(loop_momenta, parametric=True)
                 case "spenso_summed":
@@ -1246,7 +1250,7 @@ class ScalarGravity(object):
                 case "gammaloop":
                     return self.gammaloop_integrand(loop_momenta)
                 case _:
-                    raise pygloopException(f"Integrand implementation {integrand_implementation} not implemented.")
+                    raise pygloopException(f"Integrand implementation {integrand_implementation['integrand_type']} not implemented.")
         except ZeroDivisionError:
             logger.debug(
                 f"Integrand divided by zero for ks = [{Colour.BLUE}{
@@ -1326,7 +1330,7 @@ class ScalarGravity(object):
         self,
         integrator: str,
         parameterisation: str,
-        integrand_implementation: str,
+        integrand_implementation: dict[str, Any],
         target: float | complex | None = None,
         toml_config_path: str | None = None,
         **opts,
@@ -1429,10 +1433,10 @@ class ScalarGravity(object):
             integration_result = IntegrationResult(central, error, n_samples=res["neval"], elapsed_time=t_elapsed)
         return integration_result
 
-    def get_size_on_disk(self, integrand_implementation: str) -> int | None:
+    def get_size_on_disk(self, integrand_implementation: dict[str, Any]) -> int | None:
         """Returns the size on disk in bytes of the integrand implementation data."""
         integrand_name = self.get_integrand_name()
-        match integrand_implementation:
+        match integrand_implementation["integrand_type"]:
             case "spenso_parametric":
                 evaluator_directory = pjoin(EVALUATORS_FOLDER, self.name, integrand_name)
                 size = 0
@@ -1477,13 +1481,13 @@ class ScalarGravity(object):
                 # return total_size
                 return 0
             case _:
-                raise pygloopException(f"Integrand implementation {integrand_implementation} not implemented.")
+                raise pygloopException(f"Integrand implementation {integrand_implementation['integrand_type']} not implemented.")
 
     @set_gammaloop_level(logging.ERROR, logging.INFO)
     def naive_integrator(
         self,
         parameterisation: str,
-        integrand_implementation: str,
+        integrand_implementation: dict[str, Any],
         target,
         **opts,
     ) -> IntegrationResult:
@@ -1493,7 +1497,7 @@ class ScalarGravity(object):
     def vegas_integrator(
         self,
         parameterisation: str,
-        integrand_implementation: str,
+        integrand_implementation: dict[str, Any],
         _target,
         **opts,
     ) -> IntegrationResult:
@@ -1503,7 +1507,7 @@ class ScalarGravity(object):
     def symbolica_integrator(
         self,
         parameterisation: str,
-        integrand_implementation: str,
+        integrand_implementation: dict[str, Any],
         target,
         **opts,
     ) -> IntegrationResult:

@@ -84,20 +84,20 @@ class TemplateProcess(object):
         self,
         xs: list[float],
         parameterization: str,
-        integrand_implementation: str,
+        integrand_implementation: dict[str, Any],
         phase: str | bool | None = None,
         multi_channeling: bool | int = True,
     ) -> float:  # type: ignore
         self._placeholder("integrand_xspace")
 
-    def integrand(self, loop_momenta: list[Vector], integrand_implementation: str) -> complex:  # type: ignore
+    def integrand(self, loop_momenta: list[Vector], integrand_implementation: dict[str, Any]) -> complex:  # type: ignore
         self._placeholder("integrand")
 
     def integrate(
         self,
         integrator: str,
         parameterisation: str,
-        integrand_implementation: str,
+        integrand_implementation: dict[str, Any],
         target: float | complex | None = None,
         toml_config_path: str | None = None,
         **opts: Any,

@@ -87,7 +87,7 @@ def symbolica_integrand_function(
 def symbolica_integrator(
     process_instance,
     parameterisation: str,
-    integrand_implementation: str,
+    integrand_implementation: dict[str, Any],
     target,
     **opts,
 ) -> IntegrationResult:

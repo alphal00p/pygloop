@@ -29,7 +29,7 @@ def naive_worker(process_cls, builder_inputs: tuple[Any], n_points: int, call_ar
 def naive_integrator(
     process_instance,
     parameterisation: str,
-    integrand_implementation: str,
+    integrand_implementation: dict[str, Any],
     target,
     **opts,
 ) -> IntegrationResult:

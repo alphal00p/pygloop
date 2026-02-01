@@ -296,7 +296,6 @@ class DY(object):
             "spenso::gamma(spenso::bis(4,gammalooprs::hedge(0)),spenso::bis(4,gammalooprs::hedge(2)),spenso::mink(4,mu))*gammalooprs::Q(0,spenso::mink(4,mu))*spenso::gamma(spenso::bis(4,gammalooprs::hedge(3)),spenso::bis(4,gammalooprs::hedge(1)),spenso::mink(4,nu))*gammalooprs::Q(1,spenso::mink(4,nu))"
         )
 
-
     def process_1L_generated_graphs(self, graphs: DYDotGraphs) -> DYDotGraphs:
         processed_graphs = DYDotGraphs()
 
@@ -306,14 +305,13 @@ class DY(object):
         for graph in filtered_graphs:
             g = copy.deepcopy(graph)
             vacuum_g = g.get_vacuum_graph()
-            cuts=vacuum_g.get_cutkosky_cuts()
+            cuts = vacuum_g.get_cutkosky_cuts()
             routed_graphs = vacuum_g.cut_graphs_with_routing_leading_virtuality([], ["a"])
             for gg in routed_graphs:
                 processed_graphs.append(gg[3])
-            #print("n cuts:", len(cuts))
-            #print("n routed:", len(processed_graphs))
+            # print("n cuts:", len(cuts))
+            # print("n routed:", len(processed_graphs))
         return processed_graphs
-
 
     def process_2L_generated_graphs(self, graphs: DYDotGraphs) -> DYDotGraphs:
         processed_graphs = DYDotGraphs()
@@ -339,12 +337,12 @@ class DY(object):
         match self.n_loops:
             case 1:
                 logger.info("Generating one-loop graphs ...")
-                #self.gl_worker.run(
+                # self.gl_worker.run(
                 #    f"generate amp d d~ > d d~ | d d~ g a QED==2 [{{1}}] --only-diagrams --numerator-grouping only_detect_zeroes --select-graphs GL07 -p {base_name} -i {graphs_process_name}"
-                #)
-                #self.gl_worker.run(
+                # )
+                # self.gl_worker.run(
                 #    f"generate amp d d~ > d d~ | d d~ g a QED==2 [{{1}}] --only-diagrams --numerator-grouping only_detect_zeroes --symmetrize-left-right-states true -p {base_name} -i {graphs_process_name}"
-                #)
+                # )
                 self.gl_worker.run(
                     f"generate amp d d~ > d d~ | d d~ g a QED==2 [{{1}}] --only-diagrams --numerator-grouping only_detect_zeroes -p {base_name} -i {graphs_process_name}"
                 )
@@ -521,7 +519,7 @@ class DY(object):
         self,
         xs: list[float],
         parameterization: str,
-        integrand_implementation: str,
+        integrand_implementation: dict[str, Any],
         phase: str,
         multi_channeling: bool | int = True,
     ) -> float:
@@ -573,15 +571,15 @@ class DY(object):
 
         return final_wgt
 
-    def integrand(self, loop_momenta: list[Vector], integrand_implementation: str) -> complex:
+    def integrand(self, loop_momenta: list[Vector], integrand_implementation: dict[str, Any]) -> complex:
         try:
-            match integrand_implementation:
+            match integrand_implementation["integrand_type"]:
                 case "spenso":
                     return self.spenso_integrand(loop_momenta)
                 case "gammaloop":
                     return self.gammaloop_integrand(loop_momenta)
                 case _:
-                    raise pygloopException(f"Integrand implementation {integrand_implementation} not implemented.")
+                    raise pygloopException(f"Integrand implementation {integrand_implementation['integrand_type']} not implemented.")
         except ZeroDivisionError:
             logger.debug(
                 f"Integrand divided by zero for ks = [{Colour.BLUE}{
@@ -627,7 +625,7 @@ class DY(object):
         self,
         integrator: str,
         parameterisation: str,
-        integrand_implementation: str,
+        integrand_implementation: dict[str, Any],
         target: float | complex | None = None,
         toml_config_path: str | None = None,
         **opts,
@@ -753,7 +751,7 @@ class DY(object):
     def naive_integrator(
         self,
         parameterisation: str,
-        integrand_implementation: str,
+        integrand_implementation: dict[str, Any],
         target,
         **opts,
     ) -> IntegrationResult:
@@ -851,7 +849,7 @@ class DY(object):
     def vegas_integrator(
         self,
         parameterisation: str,
-        integrand_implementation: str,
+        integrand_implementation: dict[str, Any],
         _target,
         **opts,
     ) -> IntegrationResult:
@@ -963,7 +961,7 @@ class DY(object):
     def symbolica_integrator(
         self,
         parameterisation: str,
-        integrand_implementation: str,
+        integrand_implementation: dict[str, Any],
         target,
         **opts,
     ) -> IntegrationResult:

@@ -64,7 +64,7 @@ def vegas_functor(process, res: IntegrationResult, n_cores: int, call_args: list
 def vegas_integrator(
     process_instance,
     parameterisation: str,
-    integrand_implementation: str,
+    integrand_implementation: dict[str, Any],
     _target,
     **opts,
 ) -> IntegrationResult:
