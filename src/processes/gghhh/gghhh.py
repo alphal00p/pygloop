@@ -1557,10 +1557,18 @@ class GGHHH(object):
                 evaluator_directory = pjoin(EVALUATORS_FOLDER, self.name, integrand_name)
                 size = 0
                 if integrand_implementation.get("evaluator_compilation", "symbolica") == "symjit":
-                    files_list = ["input_parameters_evaluator.so", "parametric_integrand_evaluator.sjb"]
+                    files_list = [
+                        "input_parameters_evaluator.so",
+                        "parametric_integrand_evaluator.sjb",
+                        "parametric_integrand_evaluator_additional_data.pkl",
+                    ]
                 else:
-                    files_list = ["input_parameters_evaluator.so", "parametric_integrand_evaluator.so"]
-                for file_name in ["input_parameters_evaluator.so", "parametric_integrand_evaluator.so"]:
+                    files_list = [
+                        "input_parameters_evaluator.so",
+                        "parametric_integrand_evaluator.so",
+                        "parametric_integrand_evaluator_additional_data.pkl",
+                    ]
+                for file_name in files_list:
                     file_path = pjoin(evaluator_directory, file_name)
                     if os.path.exists(file_path):
                         size += os.path.getsize(file_path)
