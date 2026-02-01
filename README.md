@@ -21,7 +21,30 @@ git clone -b hedge_numerator git@github.com:alphal00p/gammaloop.git gammaloop
 cd gammaloop
 maturin build -m gammaloop-api/Cargo.toml --features=ufo_support,python_api --profile=release # take note of wheel file created: <gammaloop-wheel-file-path>
 python3 -m pip install <gammaloop-wheel-file-path>
-cd ..
+```
+
+PS: Currently tested with:
+* `gammaLoop` `hedge_numerator` branch, with revhash `87ecd90f4f8891c9686167994d3d7af04e9e885c`
+* `symbolica_community` revhash `b5e57474329e94ca7544ad72315342e1f4e71a9c`
+* `symbolica` dependency in `symbolica_community` from the `dev` branch and patched to revhash `4b472ae587bc0e354d7bfd12006230274bdf63fe`
+* `spenso` dependencies of `symbolica_community` patched to revhash `f44a54e238c8b1fcd89b5145da465eb749a3f5fe`
+
+## Examples
+To run the examples:
+
+```bash
 cd pygloop
 bash examples/gghhh.sh
+```
+
+## Tests
+
+```bash
+python3 -m pytest -m 'not_slow'
+```
+
+## Profiling
+
+```bash
+./examples/profile.py --n-loops 1 -r ./profiling_results/profiling_results.txt -t 10.0
 ```

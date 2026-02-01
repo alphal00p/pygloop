@@ -73,9 +73,11 @@ class GGHHH(object):
         "optimization_level": 3,
         "native": True,
     }
-    VERBOSE_FULL_EVALUATOR = False
+    VERBOSE_FULL_EVALUATOR = True
     COMPLEXIFY_EVALUATOR = False
     FREEZE_INPUT_PHASES = True
+    ENABLE_CFF_TERM = True
+    ENABLE_NUMERATOR_TERM = True
 
     DEBUG_FULL_EVALUATOR_PATH = None  # "/Users/vjhirsch/Documents/Work/pygloop/TMP/cff_evaluator_inputs.py"
 
@@ -768,6 +770,7 @@ class GGHHH(object):
                     else:
                         debug_file.write("conditionals=None\n")
                     debug_file.write(f"real_components={integrand_param_builder.get_real_components()}\n")
+                    debug_file.write(f"components_phase={integrand_param_builder.get_components_phase()}\n")
 
             evaluator_start = time.time()
             full_evaluator = full_expression.evaluator(
@@ -967,7 +970,7 @@ class GGHHH(object):
         # The SM UFO stupidly writes ProjP + ProjM instead of the identity for the yukawa interaction, simply this away...
         numerator = numerator.replace(E("spenso::projm(x_,y_)+spenso::projp(x_,y_)"), E("spenso::g(x_,y_)"), repeat=True)
 
-        hep_lib = TensorLibrary.hep_lib()  # type: ignore
+        hep_lib = TensorLibrary.hep_lib_atom()  # type: ignore
         tn = TensorNetwork(cook_indices(numerator), hep_lib)
 
         tn.execute(hep_lib)
@@ -1012,8 +1015,10 @@ class GGHHH(object):
         # overall normalization
         cff_term *= -(((-2 * Expression.PI) ** 3) ** self.n_loops)
 
-        # cff_term = E("1")
-        # numerator_expr = E("1")
+        if not GGHHH.ENABLE_CFF_TERM:
+            cff_term = E("1")
+        if not GGHHH.ENABLE_NUMERATOR_TERM:
+            numerator_expr = E("1")
 
         # print(numerator_expr.to_canonical_string())
         integrand_expression = numerator_expr / cff_term
@@ -1089,7 +1094,7 @@ class GGHHH(object):
                     ks = [ Vector(100.0, 200.0, 300.0), ],
                 )  # fmt: off
                 debug_file.write(
-                    f"call_inputs=[{','.join('%.15e' % input for input in all_evaluators['full_integrand_evaluator'].param_builder.get_values(all_evaluators['full_integrand_evaluator'].complexified))}]\n"  # type: ignore
+                    f"call_inputs=[{','.join('%.15e' % input for input in all_evaluators['full_integrand_evaluator'].param_builder.get_values(True))}]\n"  # type: ignore
                 )
 
         # ####################
