@@ -123,6 +123,9 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
     parser.add_argument("--integrand-implementation", "-ii", type=str, default="gammaloop", choices=["gammaloop", "spenso_parametric", "spenso_summed"],
         help="Integrand implementation to employ. Default = %(default)s",
     )  # fmt: off
+    parser.add_argument("--integrand-evaluator-compiler", "-iec", type=str, default="symbolica_only", choices=["symbolica_only", "symjit"],
+        help="Compiler to use for the spenso integrand evaluator. Default = %(default)s",
+    )  # fmt: off
     parser.add_argument("--multi_channeling", "-mc", action="store_true", default=False, help="Consider a multi-channeled integrand.")
 
     # Add subcommands and their options
@@ -364,6 +367,7 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
 
     integrand_implementation = {
         "integrand_type": args.integrand_implementation,
+        "evaluator_compiler": args.integrand_evaluator_compiler,
     }
     t_start = time.time()
     match args.command:
@@ -377,6 +381,7 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
             if "spenso" in args.generation_type or "all" in args.generation_type:
                 logger.info("Generating spenso code ...")
                 process.generate_spenso_code(
+                    integrand_evaluator_compiler=args.integrand_evaluator_compiler,
                     full_spenso_integrand_strategy=args.full_spenso_integrand_strategy,
                     n_hornerscheme_iterations=args.n_iterations_hornerscheme,
                     n_cpe_iterations=args.n_iterations_cpe,

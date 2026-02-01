@@ -73,7 +73,7 @@ class GGHHH(object):
         "optimization_level": 3,
         "native": True,
     }
-    VERBOSE_FULL_EVALUATOR = True
+    VERBOSE_FULL_EVALUATOR = False
     COMPLEXIFY_EVALUATOR = False
     FREEZE_INPUT_PHASES = True
     ENABLE_CFF_TERM = True
@@ -915,6 +915,7 @@ class GGHHH(object):
     def generate_spenso_code(
         self,
         *args,
+        integrand_evaluator_compiler: str = "symbolica",
         full_spenso_integrand_strategy: str | None = None,
         evaluators_compilation_options: dict[str, Any] | None = None,
         n_hornerscheme_iterations: int = 100,
@@ -927,6 +928,10 @@ class GGHHH(object):
             logger.info(f"Reusing existing Spenso evaluators for integrand {Colour.GREEN}{integrand_name}{Colour.END}.")  # fmt: off
             return
 
+        if integrand_evaluator_compiler not in ["symbolica_only", "symjit"]:
+            raise pygloopException(
+                f"Integrand evaluator compiler '{integrand_evaluator_compiler}' not recognized. Input should be one of: 'symbolica' or 'symjit'."
+            )
         if full_spenso_integrand_strategy not in [None, "merging", "summing", "function_map"]:
             raise pygloopException(
                 f"Full spenso integrand strategy '{full_spenso_integrand_strategy}' not recognized. Input should be one of: None, 'merging', 'summing' or 'function_map'."
@@ -1054,12 +1059,18 @@ class GGHHH(object):
 
         logger.info(f"Compiling evaluators in {Colour.GREEN}{evaluator_directory}{Colour.END}...")
         t_compile_start = time.time()
-        parametric_evaluator.compile(evaluator_directory, **spenso_evaluator_compilation_options)
+        parametric_evaluator.compile(
+            evaluator_directory, integrand_evaluator_compiler=integrand_evaluator_compiler, **spenso_evaluator_compilation_options
+        )
         parametric_evaluator.save(evaluator_directory)
-        params_evaluator.compile(evaluator_directory, **spenso_evaluator_compilation_options)
+        params_evaluator.compile(
+            evaluator_directory, integrand_evaluator_compiler=integrand_evaluator_compiler, **spenso_evaluator_compilation_options
+        )
         params_evaluator.save(evaluator_directory)
         if full_evaluator is not None:
-            full_evaluator.compile(evaluator_directory, **spenso_evaluator_compilation_options)
+            full_evaluator.compile(
+                evaluator_directory, integrand_evaluator_compiler=integrand_evaluator_compiler, **spenso_evaluator_compilation_options
+            )
             full_evaluator.save(evaluator_directory)
         size_on_disk = self.get_size_on_disk(
             {"integrand_type": "spenso_parametric", "evaluator_compilation": "symbolica"}
@@ -1343,9 +1354,9 @@ class GGHHH(object):
         try:
             match integrand_implementation["integrand_type"]:
                 case "spenso_parametric":
-                    return self.spenso_integrand(loop_momenta, parametric=True)
+                    return self.spenso_integrand(loop_momenta, integrand_implementation, parametric=True)
                 case "spenso_summed":
-                    return self.spenso_integrand(loop_momenta, parametric=False)
+                    return self.spenso_integrand(loop_momenta, integrand_implementation, parametric=False)
                 case "gammaloop":
                     return self.gammaloop_integrand(loop_momenta)
                 case _:
@@ -1388,7 +1399,9 @@ class GGHHH(object):
         )
         return res
 
-    def spenso_integrand(self, loop_momenta: list[Vector], parametric=False, prefer_eager_mode=False) -> complex:
+    def spenso_integrand(
+        self, loop_momenta: list[Vector], integrand_implementation: dict[str, Any], parametric=False, prefer_eager_mode=False
+    ) -> complex:
         try:
             integrand_name = self.cache["integrand_name"]
         except KeyError:
@@ -1404,7 +1417,9 @@ class GGHHH(object):
             if full_evaluator is None:
                 raise pygloopException("Full spenso integrand evaluator not built.")
             self.set_from_sample(full_evaluator, parameters_evaluator, ks=loop_momenta)  # fmt: off
-            full_evaluator_result = full_evaluator.evaluate(eager=prefer_eager_mode)
+            full_evaluator_result = full_evaluator.evaluate(
+                eager=prefer_eager_mode, prefer_symjit=(integrand_implementation["evaluator_compiler"] == "symjit")
+            )
             if full_evaluator.additional_data["aggregation_strategy"] == "merging":
                 full_evaluator_result = full_evaluator_result.sum()
             else:
@@ -1421,7 +1436,9 @@ class GGHHH(object):
             for cff_term in cff_structure.expressions:
                 for f_i in range(len(cff_term.families)):
                     self.set_from_sample(parametric_evaluator, cff_term=cff_term, family_id=f_i)
-                    final_result += parametric_evaluator.evaluate(eager=prefer_eager_mode).sum()
+                    final_result += parametric_evaluator.evaluate(
+                        eager=prefer_eager_mode, prefer_symjit=(integrand_implementation["evaluator_compiler"] == "symjit")
+                    )[0]
 
             return final_result
 
@@ -1539,6 +1556,10 @@ class GGHHH(object):
             case "spenso_parametric":
                 evaluator_directory = pjoin(EVALUATORS_FOLDER, self.name, integrand_name)
                 size = 0
+                if integrand_implementation.get("evaluator_compilation", "symbolica") == "symjit":
+                    files_list = ["input_parameters_evaluator.so", "parametric_integrand_evaluator.sjb"]
+                else:
+                    files_list = ["input_parameters_evaluator.so", "parametric_integrand_evaluator.so"]
                 for file_name in ["input_parameters_evaluator.so", "parametric_integrand_evaluator.so"]:
                     file_path = pjoin(evaluator_directory, file_name)
                     if os.path.exists(file_path):
@@ -1550,7 +1571,11 @@ class GGHHH(object):
             case "spenso_summed":
                 evaluator_directory = pjoin(EVALUATORS_FOLDER, self.name, integrand_name)
                 size = 0
-                for file_name in ["input_parameters_evaluator.so", "full_integrand_evaluator.so"]:
+                if integrand_implementation.get("evaluator_compilation", "symbolica") == "symjit":
+                    files_list = ["input_parameters_evaluator.so", "full_integrand_evaluator.sjb"]
+                else:
+                    files_list = ["input_parameters_evaluator.so", "full_integrand_evaluator.so"]
+                for file_name in files_list:
                     file_path = pjoin(evaluator_directory, file_name)
                     if os.path.exists(file_path):
                         size += os.path.getsize(file_path)

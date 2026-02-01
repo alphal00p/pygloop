@@ -40,6 +40,13 @@ CONFIGS_FOLDER = os.path.join(PYGLOOP_FOLDER, "configs")
 np_cmplx_one = numpy.complex128(1.0, 0.0)
 np_cmplx_zero = numpy.complex128(0.0, 0.0)
 
+try:
+    import symjit  # noqa: F401
+
+    SYMJIT_AVAILABLE = True
+except ImportError:
+    SYMJIT_AVAILABLE = False
+
 
 def setup_logging():
     logging.basicConfig(
@@ -312,6 +319,7 @@ class PygloopEvaluator(object):
     def load(dir: str, name: str) -> "PygloopEvaluator":
         param_builder_path = os.path.join(dir, f"{name}_param_builder.json")
         lib_path = os.path.join(dir, f"{name}.so")
+        symjit_path = os.path.join(dir, f"{name}.sjb")
 
         if not os.path.isfile(param_builder_path):
             raise pygloopException(f"Could not find parameter builder file '{param_builder_path}'.")
@@ -394,7 +402,19 @@ class PygloopEvaluator(object):
             )
         except Exception as e:
             raise pygloopException(f"Error loading compiled evaluator from '{lib_path}': {e}") from e
-
+        if os.path.exists(symjit_path):
+            if not SYMJIT_AVAILABLE:
+                raise pygloopException(f"symjit is not available but symjit evaluator file '{symjit_path}' exists.")
+            try:
+                symjit_evaluator = symjit.load_func(symjit_path)
+                # // 2 because symjit counts real/imag pairs for complex inputs
+                if symjit_evaluator.count_params // 2 != n_inputs:
+                    raise pygloopException(f"Symjit evaluator input count mismatch: expected {n_inputs}, got {symjit_evaluator.count_params}.")
+                if type(symjit_evaluator) is not symjit.SymbolicaFunc:
+                    raise pygloopException("Loaded symjit evaluator is not of type SymbolicaFunc.")
+                loaded_evaluator.symjit_evaluator = symjit_evaluator
+            except Exception as e:
+                raise pygloopException(f"Error loading symjit evaluator from '{symjit_path}': {e}") from e
         loaded_evaluator.eager_evaluator = None
         return loaded_evaluator
 
@@ -447,6 +467,7 @@ class PygloopEvaluator(object):
     ):
         self.eager_evaluator: Evaluator | None = evaluator
         self.compiled_evaluator: CompiledRealEvaluator | CompiledComplexEvaluator | None = None
+        self.symjit_evaluator: symjit.SymbolicaFunc | None = None
         self.param_builder = param_builder
         self.name = name
         self.additional_data = additional_data or {}
@@ -505,14 +526,32 @@ class PygloopEvaluator(object):
             raise pygloopException(f"Compiled evaluator for '{self.name}' not available.")
         return self.compiled_evaluator
 
-    def compile(self, out_dir: str, **opts):
+    def compile(self, out_dir: str, integrand_evaluator_compiler: str = "symbolica", **opts):
+        if integrand_evaluator_compiler not in ["symbolica_only", "symjit"]:
+            raise pygloopException(f"Unsupported integrand evaluator compiler '{integrand_evaluator_compiler}' for '{self.name}'.")
+
+        eager_evaluator = self.get_eager_evaluator()
+        if integrand_evaluator_compiler == "symjit":
+            # For now only support symjit compilation for single-output expressions
+            # Also we do not support complexified evaluators with symjit yet (or ever to be frank...)
+            if self.output_length == 1 and not self.complexified:
+                if not SYMJIT_AVAILABLE:
+                    raise pygloopException(
+                        f"Aymjit is not available to compile evaluator for '{self.name}'. Please install symjit or use 'symbolica_only' compiler."
+                    )
+                self.symjit_evaluator = symjit.compile_evaluator(eager_evaluator, dtype="complex128", use_threads=False, use_simd=True)
+                logger.info(f"Compiling symjit evaluator for '{self.name}' to '{out_dir}'.")
+                self.symjit_evaluator.save(os.path.join(out_dir, f"{self.name}.sjb"))
+
         pygloop_default_options = {
             "inline_asm": "default",
             "optimization_level": 3,
             "native": True,
         }
         pygloop_default_options.update(opts)
-        self.compiled_evaluator = self.get_eager_evaluator().compile(
+
+        logger.info(f"Compiling symbolica evaluator for '{self.name}' to '{out_dir}'.")
+        self.compiled_evaluator = eager_evaluator.compile(
             self.name,
             os.path.join(out_dir, f"{self.name}.cpp"),
             os.path.join(out_dir, f"{self.name}.so"),
@@ -520,11 +559,12 @@ class PygloopEvaluator(object):
             **pygloop_default_options,
         )
 
-    def evaluate(self, eager: bool | None = None, check_phase_flag_consistency=False) -> NDArray[numpy.complex128]:
+    def evaluate(self, eager: bool | None = None, prefer_symjit=False, check_phase_flag_consistency=False) -> NDArray[numpy.complex128]:
         inputs = self.param_builder.get_values(self.complexified)[None, :]
 
         if check_phase_flag_consistency:
             self.param_builder.check_phase_flag_consistency()
+
         if eager is True:
             if self.complexified:
                 res = self.get_eager_evaluator().evaluate(inputs)
@@ -533,12 +573,18 @@ class PygloopEvaluator(object):
             res = self._pairwise_to_complex(res, self.output_length)
             return res[0]
         elif eager is False:
-            res = self.get_compiled_evaluator().evaluate(inputs)
+            if prefer_symjit and self.symjit_evaluator is not None:
+                res = self.symjit_evaluator.evaluate_complex(inputs)
+            else:
+                res = self.get_compiled_evaluator().evaluate(inputs)
             res = self._pairwise_to_complex(res, self.output_length)
             return res[0]
         else:
-            if self.compiled_evaluator is not None:
-                res = self.compiled_evaluator.evaluate(inputs)
+            if self.compiled_evaluator is not None or (prefer_symjit and self.symjit_evaluator is not None):
+                if prefer_symjit and self.symjit_evaluator is not None:
+                    res = self.symjit_evaluator.evaluate_complex(inputs)
+                else:
+                    res = self.compiled_evaluator.evaluate(inputs)  # type: ignore
                 res = self._pairwise_to_complex(res, self.output_length)
                 return res[0]
             elif self.eager_evaluator is not None:

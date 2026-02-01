@@ -130,10 +130,12 @@ def print_profiling_summary(profiling_result: dict) -> None:
 
 
 RUN_SCENARIOS_IMPLEMENTED = [
-    "gammaloop_non_optimized",
     "gammaloop_optimized",
+    "gammaloop_non_optimized",
     "spenso_function_map_non_optimized",
     "spenso_function_map_optimized",
+    "spenso_function_map_symjit_non_optimized",
+    "spenso_function_map_symjit_optimized",
     "spenso_merging_optimized",
     "spenso_summing_optimized",
     "spenso_parametric_optimized",
@@ -421,8 +423,80 @@ if __name__ == "__main__":
                     debug=args.debug,
                 )
 
+            case "spenso_function_map_symjit_non_optimized":
+                if not args.no_generation:
+                    profiling_result[run_description]["generation"] = run(
+                        [
+                            ("--verbosity", args.verbosity),
+                            ("--integrand-evaluator-compiler", "symjit"),
+                            ("--overwrite-process-basename", f"PROFILE_GGHHH_{args.n_loops}L_{run_description}"),
+                            ("--general_settings", ("COMPLEXIFY_EVALUATOR=False", "FREEZE_INPUT_PHASES=False")),
+                            ("--m_top", "1000.0"),
+                            ("--process", "gghhh"),
+                            ("--n_loops", str(args.n_loops)),
+                            ("--clean", None),
+                        ],
+                        "generate",
+                        [
+                            ("-t", "spenso"),
+                            ("-g", "function_map"),
+                        ],
+                        debug=args.debug,
+                    )
+                profiling_result[run_description]["bench"] = run(
+                    [
+                        ("--verbosity", args.verbosity),
+                        ("--integrand-evaluator-compiler", "symjit"),
+                        ("--overwrite-process-basename", f"PROFILE_GGHHH_{args.n_loops}L_{run_description}"),
+                        ("--general_settings", ("COMPLEXIFY_EVALUATOR=False", "FREEZE_INPUT_PHASES=False")),
+                        ("--m_top", "1000.0"),
+                        ("--process", "gghhh"),
+                        ("--n_loops", str(args.n_loops)),
+                        ("-ii", "spenso_summed"),
+                    ],
+                    "bench",
+                    [("--target_time", f"{args.target_time:.1f}")],
+                    debug=args.debug,
+                )
+            case "spenso_function_map_symjit_optimized":
+                if not args.no_generation:
+                    profiling_result[run_description]["generation"] = run(
+                        [
+                            ("--verbosity", args.verbosity),
+                            ("--integrand-evaluator-compiler", "symjit"),
+                            ("--overwrite-process-basename", f"PROFILE_GGHHH_{args.n_loops}L_{run_description}"),
+                            ("--general_settings", ("COMPLEXIFY_EVALUATOR=False", "FREEZE_INPUT_PHASES=True")),
+                            ("--m_top", "1000.0"),
+                            ("--process", "gghhh"),
+                            ("--n_loops", str(args.n_loops)),
+                            ("--clean", None),
+                        ],
+                        "generate",
+                        [
+                            ("-t", "spenso"),
+                            ("-g", "function_map"),
+                        ],
+                        debug=args.debug,
+                    )
+                profiling_result[run_description]["bench"] = run(
+                    [
+                        ("--verbosity", args.verbosity),
+                        ("--integrand-evaluator-compiler", "symjit"),
+                        ("--overwrite-process-basename", f"PROFILE_GGHHH_{args.n_loops}L_{run_description}"),
+                        ("--general_settings", ("COMPLEXIFY_EVALUATOR=False", "FREEZE_INPUT_PHASES=True")),
+                        ("--m_top", "1000.0"),
+                        ("--process", "gghhh"),
+                        ("--n_loops", str(args.n_loops)),
+                        ("-ii", "spenso_summed"),
+                    ],
+                    "bench",
+                    [("--target_time", f"{args.target_time:.1f}")],
+                    debug=args.debug,
+                )
+
             case _:
                 raise ValueError(f"Unknown run description: {run_description}")
+
     with open(args.results_dump_path, "w") as f:
         f.write(repr(profiling_result))
 

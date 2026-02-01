@@ -16,6 +16,7 @@ dependencies = [
   "symbolica",
   "vegas",
   "ufo-model-loader",
+  "symjit"
 ]
 
 [tool.basedpyright]
