@@ -78,12 +78,10 @@ from typing import Any, Callable
 
 import progressbar
 import vegas  # type: ignore
-from gammaloop import (  # iso\rt: skip # type: ignore # noqa: F401
-    GammaLoopAPI,
-    LogLevel,
-    evaluate_graph_overall_factor,
-    git_version,
-)
+
+# fmt: off
+from gammaloop import ( GammaLoopAPI, LogLevel, evaluate_graph_overall_factor, git_version )  # isort: skip # type: ignore # noqa: F401
+# fmt: on
 from matplotlib.typing import CapStyleType, ColorType  # noqa: F401
 from symbolica import E, Expression, NumericalIntegrator, Sample
 from symbolica.community.idenso import (  # noqa: F401

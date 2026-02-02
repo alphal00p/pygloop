@@ -13,13 +13,15 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))  # noqa: E402
 
-from prettytable import PrettyTable  # isort: skip # noqa: E402
+from pygloop.utils.phase_space_generation import (  # noqa: F401 E402 # isort: skip # type: ignore
+    generate_two_to_two_at_fixed_t_negative_s,  # noqa: F401
+    generate_two_to_two_at_fixed_t_positive_s,  # noqa: F401
+    verify_ps_point,  # noqa: F401
+)  # noqa: F401 # noqa: E402
+
+
+from prettytable import PrettyTable  # isort: skip # noqa: F401 E402# type: ignore
 from pygloop import main  # isort: skip # noqa: E402
-from pygloop.utils.phase_space_generation import (
-    generate_two_to_two_at_fixed_t_negative_s,
-    generate_two_to_two_at_fixed_t_positive_s,
-    verify_ps_point,
-)
 
 
 def run(
@@ -121,7 +123,12 @@ if __name__ == "__main__":
             ],
             debug=args.debug,
         )  # fmt: off
-    classical_limit_results["integral"] = run(
+
+    # TODO
+    # format of entries (q^2, result_dict)
+    integration_results: list[tuple[float, dict]] = []
+    q2 = 0.1
+    res = run(
         [
             ("--process", "scalar_gravity"),
             ("--verbosity", args.verbosity),
@@ -132,10 +139,13 @@ if __name__ == "__main__":
             ("-ii", "gammaloop"),
         ],
         "integrate",
-        []
-        + ([("--restart", None)] if args.restart_integration else []),
+        [] + ([("--restart", None)] if args.restart_integration else []),
         debug=args.debug,
-    )  # fmt: off
+    )
+    integration_results.append(
+        (q2, res),  # fm: off
+    )
+    classical_limit_results["integration_results"] = integration_results
 
     with open(args.results_dump_path, "w") as f:
         f.write(repr(classical_limit_results))

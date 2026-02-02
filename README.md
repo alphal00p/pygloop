@@ -24,10 +24,10 @@ python3 -m pip install <gammaloop-wheel-file-path>
 ```
 
 PS: Currently tested with:
-* `gammaLoop` `hedge_numerator` branch, with revhash `87ecd90f4f8891c9686167994d3d7af04e9e885c`
+* `gammaLoop` `hedge_numerator` branch, with revhash `5c2ef4a0f803d0e70c6f8f87450e53ee427a2b9c`
 * `symbolica_community` revhash `b5e57474329e94ca7544ad72315342e1f4e71a9c`
 * `symbolica` dependency in `symbolica_community` from the `dev` branch and patched to revhash `4b472ae587bc0e354d7bfd12006230274bdf63fe`
-* `spenso` dependencies of `symbolica_community` patched to revhash `f44a54e238c8b1fcd89b5145da465eb749a3f5fe`
+* `spenso` dependencies of `symbolica_community` patched to revhash `ad0e8c24398ac14cce6b2b6b29dbc938e1833d8c`
 
 ## Examples
 To run the examples:

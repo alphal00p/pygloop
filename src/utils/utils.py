@@ -501,18 +501,24 @@ class PygloopEvaluator(object):
         complex_res = paired[..., 0] + 1j * paired[..., 1]
         return complex_res
 
-    def freeze_input_phases(self):
+    def freeze_input_phases(self, verbose: bool = False):
         if self.eager_evaluator is None:
             raise pygloopException(f"Eager evaluator for '{self.name}' not available to set input phases for.")
-        self.eager_evaluator.set_subcomponents(self.param_builder.get_components_phase())
+        self.eager_evaluator.set_real_params(
+            self.param_builder.get_real_components(),
+            sqrt_real=True,
+            log_real=True,
+            powf_real=True,
+            verbose=verbose,
+        )
 
     def complexify(self):
         if self.eager_evaluator is None:
             raise pygloopException(f"Eager evaluator for '{self.name}' not available to complexify.")
-
-        self.eager_evaluator.complexify(
-            real_components=self.param_builder.get_real_components(),
-        )
+        raise pygloopException("Complexification of evaluators is not supported anymore.")
+        # self.eager_evaluator.complexify(
+        #     real_components=self.param_builder.get_real_components(),
+        # )
 
         self.complexified = True
 

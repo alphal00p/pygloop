@@ -73,7 +73,8 @@ class GGHHH(object):
         "optimization_level": 3,
         "native": True,
     }
-    VERBOSE_FULL_EVALUATOR = False 
+    VERBOSE_FULL_EVALUATOR = True
+    VERBOSE_REAL_PARAM_OPTIMIZER = True
     COMPLEXIFY_EVALUATOR = False
     FREEZE_INPUT_PHASES = True
     ENABLE_CFF_TERM = True
@@ -546,7 +547,7 @@ class GGHHH(object):
 
         pygloop_evaluator = PygloopEvaluator(evaluator, param_builder, "parametric_integrand_evaluator", additional_data={'cff_structure': copy.deepcopy(cff_structure)})
         if GGHHH.FREEZE_INPUT_PHASES and not GGHHH.COMPLEXIFY_EVALUATOR:
-            pygloop_evaluator.freeze_input_phases()
+            pygloop_evaluator.freeze_input_phases(verbose=GGHHH.VERBOSE_REAL_PARAM_OPTIMIZER)
         if GGHHH.COMPLEXIFY_EVALUATOR:
             pygloop_evaluator.complexify()
         return pygloop_evaluator
@@ -692,11 +693,18 @@ class GGHHH(object):
                         cpe_iterations=n_cpe_iterations,
                     )
                     if GGHHH.FREEZE_INPUT_PHASES and not GGHHH.COMPLEXIFY_EVALUATOR:
-                        concretized_evaluator.set_subcomponents(integrand_param_builder.get_components_phase())
-                    if GGHHH.COMPLEXIFY_EVALUATOR:
-                        concretized_evaluator.complexify(
-                            real_components=integrand_param_builder.get_real_components(),
+                        concretized_evaluator.set_real_params(
+                            integrand_param_builder.get_real_components(),
+                            sqrt_real=True,
+                            log_real=True,
+                            powf_real=True,
+                            verbose=GGHHH.VERBOSE_REAL_PARAM_OPTIMIZER,
                         )
+                    if GGHHH.COMPLEXIFY_EVALUATOR:
+                        raise pygloopException("Complexification of evaluators deprecated.")
+                        # concretized_evaluator.complexify(
+                        #     real_components=integrand_param_builder.get_real_components(),
+                        # )
                     total_evaluator_time += time.time() - evaluator_start
                     evaluator_calls += 1
                     if full_evaluator is None:
@@ -785,11 +793,18 @@ class GGHHH(object):
                 cpe_iterations=n_cpe_iterations,
             )
             if GGHHH.FREEZE_INPUT_PHASES and not GGHHH.COMPLEXIFY_EVALUATOR:
-                full_evaluator.set_subcomponents(integrand_param_builder.get_components_phase())
-            if GGHHH.COMPLEXIFY_EVALUATOR:
-                full_evaluator.complexify(
-                    real_components=integrand_param_builder.get_real_components(),
+                full_evaluator.set_real_params(
+                    integrand_param_builder.get_real_components(),
+                    sqrt_real=True,
+                    log_real=True,
+                    powf_real=True,
+                    verbose=GGHHH.VERBOSE_REAL_PARAM_OPTIMIZER,
                 )
+            if GGHHH.COMPLEXIFY_EVALUATOR:
+                raise pygloopException("Complexification of evaluators deprecated.")
+                # full_evaluator.complexify(
+                #     real_components=integrand_param_builder.get_real_components(),
+                # )
             total_evaluator_time += time.time() - evaluator_start
 
         assert full_evaluator is not None
@@ -907,7 +922,7 @@ class GGHHH(object):
         )
         pygloop_evaluator = PygloopEvaluator(evaluator, param_builder, "input_parameters_evaluator", output_length=len(computable_parameters))
         if GGHHH.FREEZE_INPUT_PHASES and not GGHHH.COMPLEXIFY_EVALUATOR:
-            pygloop_evaluator.freeze_input_phases()
+            pygloop_evaluator.freeze_input_phases(verbose=GGHHH.VERBOSE_REAL_PARAM_OPTIMIZER)
         if GGHHH.COMPLEXIFY_EVALUATOR:
             pygloop_evaluator.complexify()
         return pygloop_evaluator

@@ -23,7 +23,7 @@ class ClassicalLimitProcessor(object):
 
     def classical_limit_in_numerator(self, graph: DotGraph) -> None:
         v_diagram_replacements = [
-            Replacement(E("gammalooprs::Q(4,spenso::mink(4,pygloop::x_))"), E("0")),
+            Replacement(E("gammalooprs::Q(4,spenso::mink(4,pygloop::x_))"), E("gammalooprs::Q(0,spenso::mink(4,pygloop::x_))")),
         ]
         match graph.dot.get_name():
             case "v_diagram":
