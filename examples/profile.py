@@ -158,6 +158,7 @@ if __name__ == "__main__":
         help="Target time for the timing profile per repeat. Default = %(default)s",
     )  # fmt: off
     parser.add_argument("--setups", "-s", type=str, nargs="*", choices=RUN_SCENARIOS_IMPLEMENTED, default=None, help="Setups to profile. If not set, all setups are profiled.")
+    parser.add_argument("--veto-setups", "-vs", type=str, nargs="*", choices=RUN_SCENARIOS_IMPLEMENTED, default=None, help="Setups to skip profiling for.")
 
     # fmt: on
     args = parser.parse_args()
@@ -177,6 +178,10 @@ if __name__ == "__main__":
     profiling_result = {k: {} for k in RUN_SCENARIOS_IMPLEMENTED}
     if args.setups is not None:
         profiling_result = {key: profiling_result[key] for key in args.setups}
+    if args.veto_setups is not None:
+        for veto_setup in args.veto_setups:
+            if veto_setup in profiling_result:
+                del profiling_result[veto_setup]
 
     for run_description in profiling_result.keys():
         match run_description:
