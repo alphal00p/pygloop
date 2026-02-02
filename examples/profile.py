@@ -151,6 +151,9 @@ if __name__ == "__main__":
     parser.add_argument("--verbosity", "-v", type=str, choices=["debug", "info", "critical"], default="info",
         help="Set verbosity level",
     )
+    parser.add_argument("--process", "-p", type=str, choices=["gghhh", "template_process", "dy", "scalar_gravity"], default="gghhh",
+        help="Process to consider. Default = %(default)s",
+    )  # fmt: off
     parser.add_argument("--rerun", "-rr", default=False, action="store_true", help="Rerun the profiling even if results file exists.")
     parser.add_argument("--debug", "-d", default=False, action="store_true", help="Enable debug mode")
     parser.add_argument("--no-generation", "-ng", default=False, action="store_true", help="Skip process generation.")
@@ -159,7 +162,12 @@ if __name__ == "__main__":
     )  # fmt: off
     parser.add_argument("--setups", "-s", type=str, nargs="*", choices=RUN_SCENARIOS_IMPLEMENTED, default=None, help="Setups to profile. If not set, all setups are profiled.")
     parser.add_argument("--veto-setups", "-vs", type=str, nargs="*", choices=RUN_SCENARIOS_IMPLEMENTED, default=None, help="Setups to skip profiling for.")
-
+    parser.add_argument("--n-iterations-hornerscheme", "-nhorner", type=int, default=None,
+        help="Number of iterations for the Horner scheme optimization. Default = %(default)s",
+    )  # fmt: off
+    parser.add_argument("--n-iterations-cpe", "-ncpe", type=int, default=None,
+        help="Number of iterations for the CPE optimization. Default = until exhaustion",
+    )  # fmt: off
     # fmt: on
     args = parser.parse_args()
 
@@ -199,14 +207,16 @@ if __name__ == "__main__":
                                 ),
                             ),
                             ("--m_top", "1000.0"),
-                            ("--process", "gghhh"),
+                            ("--process", args.process),
                             ("--n_loops", str(args.n_loops)),
                             ("--clean", None),
                         ],
                         "generate",
                         [
                             ("-t", "gammaloop"),
-                        ],
+                        ]
+                        +([('--n-iterations-cpe', f"{args.n_iterations_cpe}")] if args.n_iterations_cpe is not None else [])
+                        +([('--n-iterations-hornerscheme',f"{args.n_iterations_hornerscheme}")] if args.n_iterations_hornerscheme is not None else []),
                         debug=args.debug,
                     )
                 profiling_result[run_description]["bench"] = run(
@@ -214,7 +224,7 @@ if __name__ == "__main__":
                         ("--verbosity", args.verbosity),
                         ("--overwrite-process-basename", f"PROFILE_GGHHH_{args.n_loops}L_{run_description}"),
                         ("--m_top", "1000.0"),
-                        ("--process", "gghhh"),
+                        ("--process", args.process),
                         ("--n_loops", str(args.n_loops)),
                         ("-ii", "gammaloop"),
                     ],
@@ -236,14 +246,16 @@ if __name__ == "__main__":
                                 ),
                             ),
                             ("--m_top", "1000.0"),
-                            ("--process", "gghhh"),
+                            ("--process", args.process),
                             ("--n_loops", str(args.n_loops)),
                             ("--clean", None),
                         ],
                         "generate",
                         [
                             ("-t", "gammaloop"),
-                        ],
+                        ]
+                        +([('--n-iterations-cpe', f"{args.n_iterations_cpe}")] if args.n_iterations_cpe is not None else [])
+                        +([('--n-iterations-hornerscheme',f"{args.n_iterations_hornerscheme}")] if args.n_iterations_hornerscheme is not None else []),
                         debug=args.debug,
                     )
                 profiling_result[run_description]["bench"] = run(
@@ -251,7 +263,7 @@ if __name__ == "__main__":
                         ("--verbosity", args.verbosity),
                         ("--overwrite-process-basename", f"PROFILE_GGHHH_{args.n_loops}L_{run_description}"),
                         ("--m_top", "1000.0"),
-                        ("--process", "gghhh"),
+                        ("--process", args.process),
                         ("--n_loops", str(args.n_loops)),
                         ("-ii", "gammaloop"),
                     ],
@@ -268,7 +280,7 @@ if __name__ == "__main__":
                             ("--overwrite-process-basename", f"PROFILE_GGHHH_{args.n_loops}L_{run_description}"),
                             ("--general_settings", ("COMPLEXIFY_EVALUATOR=False", "FREEZE_INPUT_PHASES=False")),
                             ("--m_top", "1000.0"),
-                            ("--process", "gghhh"),
+                            ("--process", args.process),
                             ("--n_loops", str(args.n_loops)),
                             ("--clean", None),
                         ],
@@ -276,7 +288,9 @@ if __name__ == "__main__":
                         [
                             ("-t", "spenso"),
                             ("-g", "function_map"),
-                        ],
+                        ]
+                        +([('--n-iterations-cpe', f"{args.n_iterations_cpe}")] if args.n_iterations_cpe is not None else [])
+                        +([('--n-iterations-hornerscheme',f"{args.n_iterations_hornerscheme}")] if args.n_iterations_hornerscheme is not None else []),
                         debug=args.debug,
                     )
                 profiling_result[run_description]["bench"] = run(
@@ -285,7 +299,7 @@ if __name__ == "__main__":
                         ("--overwrite-process-basename", f"PROFILE_GGHHH_{args.n_loops}L_{run_description}"),
                         ("--general_settings", ("COMPLEXIFY_EVALUATOR=False", "FREEZE_INPUT_PHASES=False")),
                         ("--m_top", "1000.0"),
-                        ("--process", "gghhh"),
+                        ("--process", args.process),
                         ("--n_loops", str(args.n_loops)),
                         ("-ii", "spenso_summed"),
                     ],
@@ -301,7 +315,7 @@ if __name__ == "__main__":
                             ("--overwrite-process-basename", f"PROFILE_GGHHH_{args.n_loops}L_{run_description}"),
                             ("--general_settings", ("COMPLEXIFY_EVALUATOR=False", "FREEZE_INPUT_PHASES=True")),
                             ("--m_top", "1000.0"),
-                            ("--process", "gghhh"),
+                            ("--process", args.process),
                             ("--n_loops", str(args.n_loops)),
                             ("--clean", None),
                         ],
@@ -309,7 +323,9 @@ if __name__ == "__main__":
                         [
                             ("-t", "spenso"),
                             ("-g", "function_map"),
-                        ],
+                        ]
+                        +([('--n-iterations-cpe', f"{args.n_iterations_cpe}")] if args.n_iterations_cpe is not None else [])
+                        +([('--n-iterations-hornerscheme',f"{args.n_iterations_hornerscheme}")] if args.n_iterations_hornerscheme is not None else []),
                         debug=args.debug,
                     )
                 profiling_result[run_description]["bench"] = run(
@@ -318,7 +334,7 @@ if __name__ == "__main__":
                         ("--overwrite-process-basename", f"PROFILE_GGHHH_{args.n_loops}L_{run_description}"),
                         ("--general_settings", ("COMPLEXIFY_EVALUATOR=False", "FREEZE_INPUT_PHASES=True")),
                         ("--m_top", "1000.0"),
-                        ("--process", "gghhh"),
+                        ("--process", args.process),
                         ("--n_loops", str(args.n_loops)),
                         ("-ii", "spenso_summed"),
                     ],
@@ -335,7 +351,7 @@ if __name__ == "__main__":
                             ("--overwrite-process-basename", f"PROFILE_GGHHH_{args.n_loops}L_{run_description}"),
                             ("--general_settings", ("COMPLEXIFY_EVALUATOR=False", "FREEZE_INPUT_PHASES=True")),
                             ("--m_top", "1000.0"),
-                            ("--process", "gghhh"),
+                            ("--process", args.process),
                             ("--n_loops", str(args.n_loops)),
                             ("--clean", None),
                         ],
@@ -343,7 +359,9 @@ if __name__ == "__main__":
                         [
                             ("-t", "spenso"),
                             ("-g", "merging"),
-                        ],
+                        ]
+                        +([('--n-iterations-cpe', f"{args.n_iterations_cpe}")] if args.n_iterations_cpe is not None else [])
+                        +([('--n-iterations-hornerscheme',f"{args.n_iterations_hornerscheme}")] if args.n_iterations_hornerscheme is not None else []),
                         debug=args.debug,
                     )
                 profiling_result[run_description]["bench"] = run(
@@ -352,7 +370,7 @@ if __name__ == "__main__":
                         ("--overwrite-process-basename", f"PROFILE_GGHHH_{args.n_loops}L_{run_description}"),
                         ("--general_settings", ("COMPLEXIFY_EVALUATOR=False", "FREEZE_INPUT_PHASES=True")),
                         ("--m_top", "1000.0"),
-                        ("--process", "gghhh"),
+                        ("--process", args.process),
                         ("--n_loops", str(args.n_loops)),
                         ("-ii", "spenso_summed"),
                     ],
@@ -369,7 +387,7 @@ if __name__ == "__main__":
                             ("--overwrite-process-basename", f"PROFILE_GGHHH_{args.n_loops}L_{run_description}"),
                             ("--general_settings", ("COMPLEXIFY_EVALUATOR=False", "FREEZE_INPUT_PHASES=True")),
                             ("--m_top", "1000.0"),
-                            ("--process", "gghhh"),
+                            ("--process", args.process),
                             ("--n_loops", str(args.n_loops)),
                             ("--clean", None),
                         ],
@@ -377,7 +395,9 @@ if __name__ == "__main__":
                         [
                             ("-t", "spenso"),
                             ("-g", "summing"),
-                        ],
+                        ]
+                        +([('--n-iterations-cpe', f"{args.n_iterations_cpe}")] if args.n_iterations_cpe is not None else [])
+                        +([('--n-iterations-hornerscheme',f"{args.n_iterations_hornerscheme}")] if args.n_iterations_hornerscheme is not None else []),
                         debug=args.debug,
                     )
                 profiling_result[run_description]["bench"] = run(
@@ -386,7 +406,7 @@ if __name__ == "__main__":
                         ("--overwrite-process-basename", f"PROFILE_GGHHH_{args.n_loops}L_{run_description}"),
                         ("--general_settings", ("COMPLEXIFY_EVALUATOR=False", "FREEZE_INPUT_PHASES=True")),
                         ("--m_top", "1000.0"),
-                        ("--process", "gghhh"),
+                        ("--process", args.process),
                         ("--n_loops", str(args.n_loops)),
                         ("-ii", "spenso_summed"),
                     ],
@@ -403,14 +423,16 @@ if __name__ == "__main__":
                             ("--overwrite-process-basename", f"PROFILE_GGHHH_{args.n_loops}L_{run_description}"),
                             ("--general_settings", ("COMPLEXIFY_EVALUATOR=False", "FREEZE_INPUT_PHASES=True")),
                             ("--m_top", "1000.0"),
-                            ("--process", "gghhh"),
+                            ("--process", args.process),
                             ("--n_loops", str(args.n_loops)),
                             ("--clean", None),
                         ],
                         "generate",
                         [
                             ("-t", "spenso"),
-                        ],
+                        ]
+                        +([('--n-iterations-cpe', f"{args.n_iterations_cpe}")] if args.n_iterations_cpe is not None else [])
+                        +([('--n-iterations-hornerscheme',f"{args.n_iterations_hornerscheme}")] if args.n_iterations_hornerscheme is not None else []),
                         debug=args.debug,
                     )
                 profiling_result[run_description]["bench"] = run(
@@ -419,7 +441,7 @@ if __name__ == "__main__":
                         ("--overwrite-process-basename", f"PROFILE_GGHHH_{args.n_loops}L_{run_description}"),
                         ("--general_settings", ("COMPLEXIFY_EVALUATOR=False", "FREEZE_INPUT_PHASES=True")),
                         ("--m_top", "1000.0"),
-                        ("--process", "gghhh"),
+                        ("--process", args.process),
                         ("--n_loops", str(args.n_loops)),
                         ("-ii", "spenso_parametric"),
                     ],
@@ -437,7 +459,7 @@ if __name__ == "__main__":
                             ("--overwrite-process-basename", f"PROFILE_GGHHH_{args.n_loops}L_{run_description}"),
                             ("--general_settings", ("COMPLEXIFY_EVALUATOR=False", "FREEZE_INPUT_PHASES=False")),
                             ("--m_top", "1000.0"),
-                            ("--process", "gghhh"),
+                            ("--process", args.process),
                             ("--n_loops", str(args.n_loops)),
                             ("--clean", None),
                         ],
@@ -445,7 +467,9 @@ if __name__ == "__main__":
                         [
                             ("-t", "spenso"),
                             ("-g", "function_map"),
-                        ],
+                        ]
+                        +([('--n-iterations-cpe', f"{args.n_iterations_cpe}")] if args.n_iterations_cpe is not None else [])
+                        +([('--n-iterations-hornerscheme',f"{args.n_iterations_hornerscheme}")] if args.n_iterations_hornerscheme is not None else []),
                         debug=args.debug,
                     )
                 profiling_result[run_description]["bench"] = run(
@@ -455,7 +479,7 @@ if __name__ == "__main__":
                         ("--overwrite-process-basename", f"PROFILE_GGHHH_{args.n_loops}L_{run_description}"),
                         ("--general_settings", ("COMPLEXIFY_EVALUATOR=False", "FREEZE_INPUT_PHASES=False")),
                         ("--m_top", "1000.0"),
-                        ("--process", "gghhh"),
+                        ("--process", args.process),
                         ("--n_loops", str(args.n_loops)),
                         ("-ii", "spenso_summed"),
                     ],
@@ -472,7 +496,7 @@ if __name__ == "__main__":
                             ("--overwrite-process-basename", f"PROFILE_GGHHH_{args.n_loops}L_{run_description}"),
                             ("--general_settings", ("COMPLEXIFY_EVALUATOR=False", "FREEZE_INPUT_PHASES=True")),
                             ("--m_top", "1000.0"),
-                            ("--process", "gghhh"),
+                            ("--process", args.process),
                             ("--n_loops", str(args.n_loops)),
                             ("--clean", None),
                         ],
@@ -480,7 +504,9 @@ if __name__ == "__main__":
                         [
                             ("-t", "spenso"),
                             ("-g", "function_map"),
-                        ],
+                        ]
+                        +([('--n-iterations-cpe', f"{args.n_iterations_cpe}")] if args.n_iterations_cpe is not None else [])
+                        +([('--n-iterations-hornerscheme',f"{args.n_iterations_hornerscheme}"),] if args.n_iterations_hornerscheme is not None else []),
                         debug=args.debug,
                     )
                 profiling_result[run_description]["bench"] = run(
@@ -490,7 +516,7 @@ if __name__ == "__main__":
                         ("--overwrite-process-basename", f"PROFILE_GGHHH_{args.n_loops}L_{run_description}"),
                         ("--general_settings", ("COMPLEXIFY_EVALUATOR=False", "FREEZE_INPUT_PHASES=True")),
                         ("--m_top", "1000.0"),
-                        ("--process", "gghhh"),
+                        ("--process", args.process),
                         ("--n_loops", str(args.n_loops)),
                         ("-ii", "spenso_summed"),
                     ],
