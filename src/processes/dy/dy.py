@@ -72,21 +72,28 @@ import os
 import random
 import shutil
 import time
+from itertools import product  # noqa: F401
 from pprint import pformat, pprint  # noqa: F401
 from typing import Any, Callable
 
-from itertools import product
-
 import progressbar
 import vegas  # type: ignore
-
-from gammaloop import GammaLoopAPI, LogLevel, evaluate_graph_overall_factor, git_version  # isort: skip # type: ignore # noqa: F401
+from gammaloop import (  # iso\rt: skip # type: ignore # noqa: F401
+    GammaLoopAPI,
+    LogLevel,
+    evaluate_graph_overall_factor,
+    git_version,
+)
 from matplotlib.typing import CapStyleType, ColorType  # noqa: F401
 from symbolica import E, Expression, NumericalIntegrator, Sample
-from symbolica.community.idenso import simplify_color, simplify_gamma, simplify_metrics
+from symbolica.community.idenso import (  # noqa: F401
+    simplify_color,
+    simplify_gamma,
+    simplify_metrics,
+)
 from symbolica.community.spenso import *  # noqa: F403 # type: ignore
 
-from processes.dy.dy_classes import DYDotGraphs, VacuumDotGraph
+from processes.dy.dy_classes import DYDotGraphs, VacuumDotGraph  # noqa: F401
 from utils.utils import (
     CONFIGS_FOLDER,  # noqa: F401
     DOTS_FOLDER,  # noqa: F401
@@ -305,7 +312,7 @@ class DY(object):
         for graph in filtered_graphs:
             g = copy.deepcopy(graph)
             vacuum_g = g.get_vacuum_graph()
-            cuts = vacuum_g.get_cutkosky_cuts()
+            _cuts = vacuum_g.get_cutkosky_cuts()
             routed_graphs = vacuum_g.cut_graphs_with_routing_leading_virtuality([], ["a"])
             for gg in routed_graphs:
                 processed_graphs.append(gg[3])

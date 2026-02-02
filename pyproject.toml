@@ -24,7 +24,7 @@ dependencies = [
 typeCheckingMode = "basic"
 # Placeholder: tune unused import reporting.
 #reportUnusedImport = "none"
-ignore = ["src/processes/dy/*.py"]
+#ignore = ["src/processes/dy/*.py"]
 include = ["src", "tests"]
 extraPaths = ["src"]
 reportMissingImports = "warning"
@@ -36,4 +36,4 @@ src = ["src", "tests"]
 [tool.ruff.lint]
 
 [tool.ruff.lint.per-file-ignores]
-"src/processes/dy/*.py" = ["ALL"]
+#"src/processes/dy/*.py" = ["ALL"]
