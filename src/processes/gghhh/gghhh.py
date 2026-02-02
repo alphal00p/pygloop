@@ -73,7 +73,7 @@ class GGHHH(object):
         "optimization_level": 3,
         "native": True,
     }
-    VERBOSE_FULL_EVALUATOR = False
+    VERBOSE_FULL_EVALUATOR = False 
     COMPLEXIFY_EVALUATOR = False
     FREEZE_INPUT_PHASES = True
     ENABLE_CFF_TERM = True
@@ -1486,6 +1486,7 @@ class GGHHH(object):
         if opts.get("integrand_implementation", "gammaloop") != "gammaloop":
             raise pygloopException("GammaLoop integrator only supports 'gammaloop' integrand implementation.")
 
+        run_workspace_name = opts.get("run_workspace_name", None)
         integrand_name = self.get_integrand_name()
         amplitudes, _cross_sections = self.gl_worker.list_outputs()
         if integrand_name not in amplitudes:
@@ -1504,7 +1505,10 @@ class GGHHH(object):
             f"set process -p {amplitudes[integrand_name]} -i {integrand_name} kv {' '.join('integrator.%s=%s' % (k, str(v)) for k, v in integration_options.items())}"
         )
 
-        workspace_dir = pjoin(INTEGRATION_WORKSPACE_FOLDER, self.name, integrand_name)
+        if run_workspace_name is None:
+            workspace_dir = pjoin(INTEGRATION_WORKSPACE_FOLDER, self.name, integrand_name)
+        else:
+            workspace_dir = pjoin(INTEGRATION_WORKSPACE_FOLDER, self.name, run_workspace_name)
         if not os.path.exists(workspace_dir):
             os.makedirs(workspace_dir, exist_ok=True)
         results_path = pjoin(workspace_dir, "result.txt")

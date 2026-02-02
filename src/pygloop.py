@@ -190,6 +190,9 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
     parser_integrate.add_argument("--restart", "-r", action="store_true", default=False,
         help="Restart the integration from previous results. Default = %(default)s",
     )  # fmt: off
+    parser_integrate.add_argument("--run-workspace-name", "-rn", type='str', default=None,
+        help="Name of the workspace to use for this run. Default = %(default)s",
+    )  # fmt: off
 
     # Create the parser for the "plot" command
     parser_plot = subparsers.add_parser("plot", help="Plot the integrand.")
