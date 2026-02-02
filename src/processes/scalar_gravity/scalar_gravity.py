@@ -847,6 +847,7 @@ class ScalarGravity(object):
     def generate_spenso_code(
         self,
         *args,
+        integrand_evaluator_compiler: str = "symbolica_only",
         full_spenso_integrand_strategy: str | None = None,
         evaluators_compilation_options: dict[str, Any] | None = None,
         n_hornerscheme_iterations: int = 100,
@@ -858,6 +859,11 @@ class ScalarGravity(object):
         if self.spenso_evaluators[integrand_name] is not None:
             logger.info(f"Reusing existing Spenso evaluators for integrand {Colour.GREEN}{integrand_name}{Colour.END}.")  # fmt: off
             return
+
+        if integrand_evaluator_compiler not in ["symbolica_only", "symjit"]:
+            raise pygloopException(
+                f"Integrand evaluator compiler '{integrand_evaluator_compiler}' not recognized. Input should be one of: 'symbolica' or 'symjit'."
+            )
 
         if full_spenso_integrand_strategy not in [None, "merging", "summing", "function_map"]:
             raise pygloopException(
@@ -993,12 +999,18 @@ class ScalarGravity(object):
 
         logger.info(f"Compiling evaluators in {Colour.GREEN}{evaluator_directory}{Colour.END}...")
         t_compile_start = time.time()
-        parametric_evaluator.compile(evaluator_directory, **spenso_evaluator_compilation_options)
+        parametric_evaluator.compile(
+            evaluator_directory, integrand_evaluator_compiler=integrand_evaluator_compiler, **spenso_evaluator_compilation_options
+        )
         parametric_evaluator.save(evaluator_directory)
-        params_evaluator.compile(evaluator_directory, **spenso_evaluator_compilation_options)
+        params_evaluator.compile(
+            evaluator_directory, integrand_evaluator_compiler=integrand_evaluator_compiler, **spenso_evaluator_compilation_options
+        )
         params_evaluator.save(evaluator_directory)
         if full_evaluator is not None:
-            full_evaluator.compile(evaluator_directory, **spenso_evaluator_compilation_options)
+            full_evaluator.compile(
+                evaluator_directory, integrand_evaluator_compiler=integrand_evaluator_compiler, **spenso_evaluator_compilation_options
+            )
             full_evaluator.save(evaluator_directory)
         size_on_disk = self.get_size_on_disk(
             {"integrand_type": "spenso_parametric", "evaluator_compilation": "symbolica"}

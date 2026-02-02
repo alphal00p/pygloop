@@ -915,7 +915,7 @@ class GGHHH(object):
     def generate_spenso_code(
         self,
         *args,
-        integrand_evaluator_compiler: str = "symbolica",
+        integrand_evaluator_compiler: str = "symbolica_only",
         full_spenso_integrand_strategy: str | None = None,
         evaluators_compilation_options: dict[str, Any] | None = None,
         n_hornerscheme_iterations: int = 100,

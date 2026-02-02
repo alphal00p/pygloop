@@ -526,7 +526,7 @@ class PygloopEvaluator(object):
             raise pygloopException(f"Compiled evaluator for '{self.name}' not available.")
         return self.compiled_evaluator
 
-    def compile(self, out_dir: str, integrand_evaluator_compiler: str = "symbolica", **opts):
+    def compile(self, out_dir: str, integrand_evaluator_compiler: str = "symbolica_only", **opts):
         if integrand_evaluator_compiler not in ["symbolica_only", "symjit"]:
             raise pygloopException(f"Unsupported integrand evaluator compiler '{integrand_evaluator_compiler}' for '{self.name}'.")
 
