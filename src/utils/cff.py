@@ -209,11 +209,8 @@ class CFFStructure(object):
                 )
             )
 
-        print(self.cff_dict["orientations"])
-        print("now inside loop")
         for o_id, o_info in enumerate(self.cff_dict["orientations"]):
             nodes = o_info["expression"]["nodes"]
-            print(o_info)
             o_expression, o_expression_inv = CFFStructure.expression_from_node(0, nodes)
 
             o_families = []
