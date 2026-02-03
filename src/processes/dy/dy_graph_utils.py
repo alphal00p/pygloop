@@ -54,7 +54,7 @@ def _node_key(endpoint: pydot.EdgeEndpoint, collapse_ports: bool = True) -> str:
 
 
 # pydot vertices are in the form "v:port"; return port
-def _parse_port(endpoint: str) -> Optional[int]:
+def _parse_port(endpoint: pydot.EdgeEndpoint) -> Optional[int]:
     """Return b from 'a:b' (possibly quoted), else None."""
     ep = _strip_quotes(endpoint)
     m = re.fullmatch(r"[^:]+:(\d+)", ep)
@@ -291,7 +291,7 @@ def get_simple_cycles(graph: pydot.Dot) -> List[Set[pydot.Edge]]:
 
 
 # Given a simple cycle, output the corresponding directed cycle
-def _get_directed_cycle(graph: pydot.Dot, cycle: Set[pydot.Edge]) -> Set[pydot.Edge]:
+def _get_directed_cycle(cycle: Set[pydot.Edge]) -> Set[pydot.Edge]:
     edges = list(cycle)
     if not edges:
         return copy.deepcopy(cycle)
@@ -361,7 +361,7 @@ def get_directed_cycles(graph: pydot.Dot) -> List[Set[pydot.Edge]]:
     cycles = get_simple_cycles(graph)
     directed_cycles = []
     for cycle in cycles:
-        directed_cycles.append(_get_directed_cycle(graph, cycle))
+        directed_cycles.append(_get_directed_cycle(cycle))
     return directed_cycles
 
 
@@ -401,6 +401,59 @@ def is_connected(graph, node_subset_input) -> bool:
             return True
 
     return len(visited) == len(subset)
+
+
+##################TODO: CHECKKKKK
+
+
+def get_LR_components(
+    graph: pydot.Dot, initial_cut: List[pydot.Edge], final_cut: List[pydot.Edge]
+) -> List[Set[str]]:
+    removed = set(initial_cut) | set(final_cut)
+
+    nodes = []
+
+    for e in graph.get_edges():
+        nodes.append(_node_key(e.get_source()))
+        nodes.append(_node_key(e.get_destination()))
+
+    nodes = sorted(set(nodes))
+    if not nodes:
+        raise ValueError("graph has no nodes")
+
+    adj = {n: set() for n in nodes}
+    for e in graph.get_edges():
+        if e in removed:
+            continue
+        u = _node_key(e.get_source())
+        v = _node_key(e.get_destination())
+        if u == v:
+            continue
+        adj.setdefault(u, set()).add(v)
+        adj.setdefault(v, set()).add(u)
+
+    seen = set()
+    component_nodes = []
+    for n in nodes:
+        if n in seen:
+            continue
+        stack = [n]
+        seen.add(n)
+        comp = {n}
+        while stack:
+            cur = stack.pop()
+            for nxt in adj.get(cur, ()):
+                if nxt not in seen:
+                    seen.add(nxt)
+                    stack.append(nxt)
+                    comp.add(nxt)
+        component_nodes.append(comp)
+    if len(component_nodes) != 2:
+        raise ValueError(
+            f"expected exactly 2 connected components, got {len(component_nodes)}"
+        )
+
+    return component_nodes
 
 
 # == Set helpers =============

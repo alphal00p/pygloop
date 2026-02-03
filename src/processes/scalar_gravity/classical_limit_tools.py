@@ -4,7 +4,12 @@ import copy
 from typing import TYPE_CHECKING
 
 from symbolica import E, Evaluator, Expression, Replacement, S  # isort: skip # noqa: F401
-from symbolica.community.idenso import simplify_gamma, simplify_metrics, simplify_color, cook_indices  # isort: skip # noqa: F401
+from symbolica.community.idenso import (
+    cook_indices,
+    simplify_color,
+    simplify_gamma,
+    simplify_metrics,
+)  # isort: skip # noqa: F401
 from symbolica.community.spenso import TensorLibrary, TensorNetwork  # noqa: F401
 from ufo_model_loader.commands import Model  # noqa: F401
 
@@ -29,13 +34,19 @@ class ClassicalLimitProcessor(object):
             case "v_diagram":
                 for edge in graph.dot.get_edges():
                     edge_attrs = edge.get_attributes()
-                    edge_attrs["num"] = f'"{expr_to_string(Es(edge_attrs["num"]).replace_multiple(v_diagram_replacements))}"'
+                    edge_attrs["num"] = (
+                        f'"{expr_to_string(Es(edge_attrs["num"]).replace_multiple(v_diagram_replacements))}"'
+                    )
                 for node in graph.dot.get_nodes():
                     node_attrs = node.get_attributes()
                     if "num" in node_attrs:
-                        node_attrs["num"] = f'"{expr_to_string(Es(node_attrs["num"]).replace_multiple(v_diagram_replacements))}"'
+                        node_attrs["num"] = (
+                            f'"{expr_to_string(Es(node_attrs["num"]).replace_multiple(v_diagram_replacements))}"'
+                        )
             case _:
-                raise NotImplementedError(f"Classical limit not implemented for graph {graph.dot.get_name()}")
+                raise NotImplementedError(
+                    f"Classical limit not implemented for graph {graph.dot.get_name()}"
+                )
 
     def delocalize_numerators(self, g: DotGraph) -> None:
         attrs = g.get_attributes()
@@ -44,7 +55,9 @@ class ClassicalLimitProcessor(object):
 
     def adjust_projectors(self, g: DotGraph) -> None:
         attrs = g.get_attributes()
-        attrs["projector"] = f'"{expr_to_string(g.get_projector() * self.get_color_projector())}"'
+        attrs["projector"] = (
+            f'"{expr_to_string(g.get_projector() * self.get_color_projector())}"'
+        )
         return
 
     def set_group_id(self, g: DotGraph, group_id: int, is_master: bool = False) -> None:
@@ -73,7 +86,9 @@ class ClassicalLimitProcessor(object):
                 # TODO
                 pass
             case _:
-                raise NotImplementedError(f"Higher power energy fix not implemented for graph {g.dot.get_name()}")
+                raise NotImplementedError(
+                    f"Higher power energy fix not implemented for graph {g.dot.get_name()}"
+                )
 
     def process_graphs(self, graphs: DotGraphs) -> DotGraphs:
         processed_graphs = DotGraphs()
@@ -93,3 +108,6 @@ class ClassicalLimitProcessor(object):
             processed_graphs.extend(self.generate_UV_CTs(g, group_id))
 
         return processed_graphs
+
+    def remove_raised_power(self, graph: DotGraph):
+        return graph

@@ -22,10 +22,12 @@ from processes.dy.dy_graph_utils import (
     _edge_particle,
     _is_ext,
     _node_key,
+    _parse_port,
     _parse_port_endpoint,
     _strip_quotes,
     all_pairs,
     boundary_edges,
+    edge_id_int,
     get_directed_cycles,
     is_connected,
     remove_edge_attr,
@@ -47,9 +49,9 @@ def write_text_with_dirs(
 
 
 class VacuumDotGraph(object):
-    def __init__(self, dot_graph: pydot.Dot, num):
+    def __init__(self, dot_graph: pydot.Dot):  # , num):
         self.dot = dot_graph
-        self.num = num
+        # self.num = num
 
     # Given a cut (as a set of boundary edges) and a simple directed cycle, computes how
     # many times the cycle crosses the cut
@@ -142,17 +144,20 @@ class VacuumDotGraph(object):
     def get_cutkosky_cuts(self) -> List[List[pydot.Edge]]:
         cycles = get_directed_cycles(self.dot)
 
+        # The filtering logic by target could be certainly substituted by a filtering logic by winding
+        # (filter by target < filter by winding). This should be thus merged with the part that finds
+        # cut signs in set_cut_labels (since it uses winding to determine the signs). However, I am too lazy.
         def compute_targets(cut, cycles):
             cycle_targets = []
             for cycle in cycles:
                 N = 0
-                for e in cycle:  ###CHANGE TO e in cut
+                for e in cycle:
                     attrs = e.get_attributes() or {}
                     if "dir_in_cycle" not in attrs:
                         raise ValueError("Directed cycle edge missing dir_in_cycle")
                     for ep in cut:
                         if e.get_attributes()["id"] == ep.get_attributes()["id"]:
-                            N += 1  # direction
+                            N += 1
                 cycle_targets.append(N % 2)
             return cycle_targets
 
@@ -327,12 +332,9 @@ class VacuumDotGraph(object):
     def route_cut_graph(
         self,
         graph: pydot.Dot,
-        initial_cut: List[pydot.Edge],
-        final_cut: List[pydot.Edge],
         partition: List[List[str]],
     ):
-        if partition is None:
-            return graph
+
         if len(partition) != 2:
             raise ValueError(
                 "partition must contain exactly two subsets of initial_cut indexes"
@@ -539,10 +541,8 @@ class VacuumDotGraph(object):
                         new_graph.set_name(
                             f"{self.dot.get_name()}_partition_{idV1}_{idV2}"
                         )
-                        new_graph.set("num", str(self.num))
-                        graph = self.route_cut_graph(
-                            new_graph, initial_cut, final_cut, [V1, V2]
-                        )
+                        # new_graph.set("num", str(self.num))
+                        graph = self.route_cut_graph(new_graph, [V1, V2])
 
                         routed_cut_graphs.append([
                             initial_cut,
@@ -664,11 +664,28 @@ class DYDotGraph(DotGraph):
         attrs = dict(e1.get_attributes() or {})
         attrs["is_cut"] = "1"
 
+        attrs_e1 = e1.get_attributes()
+
+        print(e1)
+
         ee = remove_edge_attr(pydot.Edge(u, v, **attrs), "lmb_rep")
 
-        e_new = remove_edge_attr(ee, "num")
-
-        return e_new
+        if _edge_particle(ee) == "d":
+            ee.set(
+                "num",
+                f"Q({edge_id_int(ee)},mu)*spenso::gamma(spenso::bis(4,hedge({_parse_port(ee.get_destination())})),spenso::bis(4,hedge({_parse_port(ee.get_source())})),spenso::mink(4,mu))",
+            )
+        if _edge_particle(ee) == "d~":
+            ee.set(
+                "num",
+                f"Q({edge_id_int(ee)},mu)*spenso::gamma(spenso::bis(4,hedge({_parse_port(ee.get_source())})),spenso::bis(4,hedge({_parse_port(ee.get_destination())})),spenso::mink(4,mu))",
+            )
+        if _edge_particle(ee) == "g":
+            ee.set(
+                "num",
+                f"-spenso::g(spenso::mink(4,hedge({_parse_port(ee.get_source())})),spenso::mink(4,hedge({_parse_port(ee.get_destination())})))",
+            )
+        return ee
 
     # Glues the end of the FS diagram (really an amplitude diagram) into a vacuum diagram
     def get_vacuum_graph(self):
@@ -680,6 +697,13 @@ class DYDotGraph(DotGraph):
         name = self.dot.get_name() or ""  # or some default
         vacuum_graph.set_name(name)
 
+        # Preserve all non-ext nodes from the original graph.
+        for node in self.dot.get_nodes():
+            node_name = _strip_quotes(node.get_name())
+            if _is_ext(node_name):
+                continue
+            vacuum_graph.add_node(node)
+
         for e in self.dot.get_edges():
             if self.is_incoming_half_edge(e):
                 incoming_edges.append(e)
@@ -689,7 +713,7 @@ class DYDotGraph(DotGraph):
                 ep = self.copy_edge(e)
                 ep.set("is_cut", "0")
                 remove_edge_attr(ep, "lmb_rep")
-                remove_edge_attr(ep, "num")
+                # remove_edge_attr(ep, "num")
                 vacuum_graph.add_edge(ep)
 
         if len(incoming_edges) != len(outgoing_edges):
@@ -706,8 +730,14 @@ class DYDotGraph(DotGraph):
                     )
                     paired_up.append(ep)
 
+        # NEW STUFF: RELABEL SO THAT IDs ARE CONSECUTIVE
+        for e, i in zip(
+            vacuum_graph.get_edges(), range(0, len(vacuum_graph.get_edges()))
+        ):
+            e.get_attributes()["id"] = i
+
         return VacuumDotGraph(
-            vacuum_graph, self.get_numerator(include_overall_factor=True)
+            vacuum_graph  # , self.get_numerator(include_overall_factor=True)
         )
 
     def contains_ext(self, node_subset, left_externals, right_externals):

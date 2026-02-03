@@ -1,66 +1,3 @@
-# Targets for the pentagon one-loop integral with cyclic ordering of the external legs
-# IMPORTANT: the results below comes from the raw amplitude AMP(1,5) of MADLOOP *divided by -2* to account for Tr(t^a t^b) = 1/2 delta^{ab}.
-# Hel 1 is : --000
-# Hel 2 is : -+000
-# Hel 3 is : +-000
-# Hel 4 is : ++000
-#
-# This amplitude graph never has any pole.
-
-# 0.5000000000000000D+03   0.0000000000000000D+00   0.0000000000000000D+00   0.5000000000000000D+03
-# 0.5000000000000000D+03   0.0000000000000000D+00   0.0000000000000000D+00  -0.5000000000000000D+03
-# 0.4385555662246945D+03   0.1553322001835378D+03   0.3480160396513587D+03  -0.1773773615718412D+03
-# 0.3563696374921922D+03  -0.1680238900851100D+02  -0.3187291102436005D+03   0.9748719163688098D+02
-# 0.2050747962831133D+03  -0.1385298111750267D+03  -0.2928692940775817D+02   0.7989016993496030D+02
-
-# # Physical top mass (MT=ymt=173.0)
-#  >>> IHEL =            1
-#  AMPL(1,5)=  (-3.14551938508347352E-006,4.46854051027942967E-006)
-#  >>> IHEL =            2
-#  AMPL(1,5)=   (9.55408514080194571E-009,2.78298167757932416E-006)
-#  >>> IHEL =            3
-#  AMPL(1,5)= (-3.19380629855654766E-006,-9.01168425551671615E-006)
-#  >>> IHEL =            4
-#  AMPL(1,5)=  (1.89203604685291554E-006,-5.46603099163412881E-006)
-
-# # Unphysical top mass (MT=ymt=1000.0)
-#  >>> IHEL =            1
-#  AMPL(1,5)=   (6.56089133881205492E-004,4.17078968906596113E-006)
-#  >>> IHEL =            2
-#  AMPL(1,5)= (-2.89630814594050972E-006,-8.87804989993630875E-006)
-#  >>> IHEL =            3
-#  AMPL(1,5)=  (-2.89630814768248677E-006,8.87804990034476668E-006)
-#  >>> IHEL =            4
-#  AMPL(1,5)=  (6.56089133881216768E-004,-4.17078968913725420E-006)
-
-# 0.5000000000000000D+03   0.0000000000000000D+00   0.0000000000000000D+00   0.5000000000000000D+03
-# 0.5000000000000000D+03   0.0000000000000000D+00   0.0000000000000000D+00  -0.5000000000000000D+03
-# 0.4622059639026168D+03   0.1678033838387855D+03   0.2872919263250002D+03  -0.2954906538418281D+03
-# 0.1553689858956567D+03  -0.6346487586464051D+02  -0.3905281750811410D+02   0.5442066477367285D+02
-# 0.3824250502017265D+03  -0.1043385079741450D+03  -0.2482391088168861D+03   0.2410699890681553D+03
-
-# # Physical top mass (MT=ymt=173.0)
-
-#  >>> IHEL =            1
-#  AMPL(1,5)=   (1.79229062116069573E-005,5.23819986497045118E-007)
-#  >>> IHEL =            2
-#  AMPL(1,5)=   (1.35530147927836316E-005,2.77672899246084792E-006)
-#  >>> IHEL =            3
-#  AMPL(1,5)=  (5.03924664020387931E-007,-1.45537484583090386E-005)
-#  >>> IHEL =            4
-#  AMPL(1,5)=   (1.80944073681505885E-005,3.67594748147673556E-006)
-
-# # Unphysical top mass (MT=ymt=1000.0)
-
-#  >>> IHEL =            1
-#  AMPL(1,5)=  (6.09909283686016468E-004,-1.09117176750885081E-006)
-#  >>> IHEL =            2
-#  AMPL(1,5)= (-7.88985817775678482E-006,-1.08700048931499477E-005)
-#  >>> IHEL =            3
-#  AMPL(1,5)=  (-7.88985817821675929E-006,1.08700048932430332E-005)
-#  >>> IHEL =            4
-#  AMPL(1,5)=   (6.09909283686009963E-004,1.09117176736822661E-006)
-
 from __future__ import annotations
 
 import copy
@@ -92,6 +29,7 @@ from symbolica.community.idenso import (  # noqa: F401
 from symbolica.community.spenso import *  # noqa: F403 # type: ignore
 
 from processes.dy.dy_classes import DYDotGraphs, VacuumDotGraph  # noqa: F401
+from processes.dy.dy_integrand import IntegrandConstructor, routed_cut_graph
 from utils.utils import (
     CONFIGS_FOLDER,  # noqa: F401
     DOTS_FOLDER,  # noqa: F401
@@ -156,10 +94,14 @@ class DY(object):
         self.clean = clean
         if os.path.exists(gl_states_folder):
             if clean:
-                logger.info(f"Removing existing GammaLoop state in {Colour.GREEN}{gl_states_folder}{Colour.END}")  # nopep8
+                logger.info(
+                    f"Removing existing GammaLoop state in {Colour.GREEN}{gl_states_folder}{Colour.END}"
+                )  # nopep8
                 shutil.rmtree(gl_states_folder)
             else:
-                logger.info(f"Reusing existing GammaLoop state in {Colour.GREEN}{gl_states_folder}{Colour.END}")  # nopep8
+                logger.info(
+                    f"Reusing existing GammaLoop state in {Colour.GREEN}{gl_states_folder}{Colour.END}"
+                )  # nopep8
 
         logger_level = logger.getEffectiveLevel()
         if logger_level <= logging.DEBUG:
@@ -187,7 +129,9 @@ class DY(object):
             toml_config_path = pjoin(CONFIGS_FOLDER, self.name, "generate.toml")
 
         self.toml_config_path = toml_config_path
-        logger.info(f"Setting gammaloop starting configuration from toml file {Colour.BLUE}{toml_config_path}{Colour.END}.")
+        logger.info(
+            f"Setting gammaloop starting configuration from toml file {Colour.BLUE}{toml_config_path}{Colour.END}."
+        )
         self.gl_worker.run(f"set global file {toml_config_path}")  # nopep8
         self.setup_gl_worker()
 
@@ -195,9 +139,13 @@ class DY(object):
         if len(amplitudes) == 0 and len(cross_sections) == 0:
             logger.info("No output yet in the GammaLoop state loaded.")
         if len(amplitudes) > 0:
-            logger.info(f"Available amplitudes: {Colour.GREEN}{pformat(amplitudes)}{Colour.END}")
+            logger.info(
+                f"Available amplitudes: {Colour.GREEN}{pformat(amplitudes)}{Colour.END}"
+            )
         if len(cross_sections) > 0:
-            logger.info(f"Available cross sections: {Colour.GREEN}{pformat(cross_sections)}{Colour.END}")
+            logger.info(
+                f"Available cross sections: {Colour.GREEN}{pformat(cross_sections)}{Colour.END}"
+            )
 
         if runtime_toml_config_path is None:
             runtime_toml_config_path = pjoin(CONFIGS_FOLDER, self.name, "runtime.toml")
@@ -209,7 +157,9 @@ class DY(object):
             if "_generated_graphs" in output_name:
                 continue
             self.gl_worker.run(f"set process -p {output_id} -i {output_name} file {self.runtime_toml_config_path}")  # fmt: off
-            self.set_sample_point(self.ps_point, self.helicities, str(output_id), output_name)
+            self.set_sample_point(
+                self.ps_point, self.helicities, str(output_id), output_name
+            )
 
         self.save_state()
         # Cache some quantities for performance
@@ -232,7 +182,15 @@ class DY(object):
         return copied_self
 
     def builder_inputs(self) -> tuple:
-        return (self.m_top, self.m_higgs, self.ps_point, self.helicities, self.n_loops, self.toml_config_path, self.runtime_toml_config_path)
+        return (
+            self.m_top,
+            self.m_higgs,
+            self.ps_point,
+            self.helicities,
+            self.n_loops,
+            self.toml_config_path,
+            self.runtime_toml_config_path,
+        )
 
     def set_log_level(self, level) -> None:
         if level <= logging.DEBUG:
@@ -245,8 +203,12 @@ class DY(object):
             lvl = "error"
         else:
             lvl = "off"
-        self.gl_worker.run(f"set global kv global.logfile_directive='gammalooprs={lvl},{lvl}'")
-        self.gl_worker.run(f"set global kv global.display_directive='gammalooprs={lvl},{lvl}'")
+        self.gl_worker.run(
+            f"set global kv global.logfile_directive='gammalooprs={lvl},{lvl}'"
+        )
+        self.gl_worker.run(
+            f"set global kv global.display_directive='gammalooprs={lvl},{lvl}'"
+        )
 
     def set_sample_point(
         self,
@@ -307,13 +269,20 @@ class DY(object):
         filtered_graphs = DYDotGraphs()
         filtered_graphs.extend(copy.deepcopy(graphs.filter_particle_definition(["a"])))
 
+        processor = IntegrandConstructor([], "tests")
+
         for graph in filtered_graphs:
             g = copy.deepcopy(graph)
             vacuum_g = g.get_vacuum_graph()
+            print(vacuum_g.to_string())
             _cuts = vacuum_g.get_cutkosky_cuts()
-            routed_graphs = vacuum_g.cut_graphs_with_routing_leading_virtuality([], ["a"])
+            routed_graphs = vacuum_g.cut_graphs_with_routing_leading_virtuality(
+                [], ["a"]
+            )
             for gg in routed_graphs:
                 processed_graphs.append(gg[3])
+            cut_graph = routed_cut_graph(gg[3], gg[0], gg[1], gg[2])
+            processor.get_integrand(cut_graph)
             # print("n cuts:", len(cuts))
             # print("n routed:", len(processed_graphs))
         return processed_graphs
@@ -324,7 +293,9 @@ class DY(object):
             g = copy.deepcopy(g_input)
             attrs = g.get_attributes()
             attrs["num"] = f'"{expr_to_string(g.get_numerator())}"'
-            attrs["projector"] = f'"{expr_to_string(g.get_projector() * self.get_color_projector())}"'
+            attrs["projector"] = (
+                f'"{expr_to_string(g.get_projector() * self.get_color_projector())}"'
+            )
 
             g.set_local_numerators_to_one()
             processed_graphs.append(g)
@@ -337,7 +308,9 @@ class DY(object):
         amplitudes, _cross_sections = self.gl_worker.list_outputs()
         base_name = self.get_integrand_name(suffix="")
         if graphs_process_name in amplitudes:
-            logger.info(f"Graphs for amplitude {graphs_process_name} already generated and recycled.")
+            logger.info(
+                f"Graphs for amplitude {graphs_process_name} already generated and recycled."
+            )
             return
         match self.n_loops:
             case 1:
@@ -349,47 +322,67 @@ class DY(object):
                 #    f"generate amp d d~ > d d~ | d d~ g a QED==2 [{{1}}] --only-diagrams --numerator-grouping only_detect_zeroes --symmetrize-left-right-states true -p {base_name} -i {graphs_process_name}"
                 # )
                 self.gl_worker.run(
-                    f"generate amp d d~ > d d~ | d d~ g a QED==2 [{{1}}] --only-diagrams --numerator-grouping only_detect_zeroes -p {base_name} -i {graphs_process_name}"
+                    f"generate amp d g > d g | d d~ g a QED==2 [{{1}}] --only-diagrams --numerator-grouping only_detect_zeroes --select-graphs GL11 -p {base_name} -i {graphs_process_name}"
                 )
                 self.gl_worker.run("save state -o")
-                DY_1L_dot_files = self.gl_worker.get_dot_files(process_id=None, integrand_name=graphs_process_name)
+                DY_1L_dot_files = self.gl_worker.get_dot_files(
+                    process_id=None, integrand_name=graphs_process_name
+                )
                 write_text_with_dirs(
                     pjoin(DOTS_FOLDER, self.name, f"{graphs_process_name}.dot"),
                     DY_1L_dot_files,
                 )
                 self.gl_worker.run("save dot")
                 self.save_state()
-                DY_1L_dot_files_processed = self.process_1L_generated_graphs(DYDotGraphs(dot_str=DY_1L_dot_files))
+                DY_1L_dot_files_processed = self.process_1L_generated_graphs(
+                    DYDotGraphs(dot_str=DY_1L_dot_files)
+                )
                 print(len(DY_1L_dot_files_processed))
-                DY_1L_dot_files_processed.save_to_file(pjoin(DOTS_FOLDER, self.name, f"{integrand_name}.dot"))
+                DY_1L_dot_files_processed.save_to_file(
+                    pjoin(DOTS_FOLDER, self.name, f"{integrand_name}.dot")
+                )
             case 2:
                 logger.info("Generating two-loop graphs ...")
                 self.gl_worker.run(
                     f"generate amp g g > h h h | g h t t~ QED==3 [{{2}}] --only-diagrams --numerator-grouping only_detect_zeroes --veto-vertex-interactions V_6 V_9 V_36 V_37 --number-of-fermion-loops 1 1 --select-graphs GL303 -p {base_name} -i {graphs_process_name}"
                 )
                 self.gl_worker.run("save state -o")
-                DY_2L_dot_files = self.gl_worker.get_dot_files(process_id=None, integrand_name=graphs_process_name)
+                DY_2L_dot_files = self.gl_worker.get_dot_files(
+                    process_id=None, integrand_name=graphs_process_name
+                )
                 write_text_with_dirs(
                     pjoin(DOTS_FOLDER, self.name, f"{graphs_process_name}.dot"),
                     DY_2L_dot_files,
                 )
                 self.gl_worker.run("save dot")
                 self.save_state()
-                DY_2L_dot_files_processed = self.process_2L_generated_graphs(DYDotGraphs(dot_str=DY_2L_dot_files))
-                DY_2L_dot_files_processed.save_to_file(pjoin(DOTS_FOLDER, self.name, f"{integrand_name}.dot"))
+                DY_2L_dot_files_processed = self.process_2L_generated_graphs(
+                    DYDotGraphs(dot_str=DY_2L_dot_files)
+                )
+                DY_2L_dot_files_processed.save_to_file(
+                    pjoin(DOTS_FOLDER, self.name, f"{integrand_name}.dot")
+                )
             case _:
                 raise pygloopException(f"Number of loops {self.n_loops} not supported.")
 
     def generate_spenso_code(self, *args, **opts) -> None:
-        evaluator_path = pjoin(EVALUATORS_FOLDER, self.name, f"{self.get_integrand_name()}.so")
+        evaluator_path = pjoin(
+            EVALUATORS_FOLDER, self.name, f"{self.get_integrand_name()}.so"
+        )
         if os.path.isfile(evaluator_path):
             if self.clean:
-                logger.info(f"Removing existing spenso evaluator {evaluator_path} and re-generating it.")
+                logger.info(
+                    f"Removing existing spenso evaluator {evaluator_path} and re-generating it."
+                )
                 os.remove(evaluator_path)
             else:
-                logger.info(f"Spenso evaluator {evaluator_path} already generated and recycled.")
+                logger.info(
+                    f"Spenso evaluator {evaluator_path} already generated and recycled."
+                )
                 return
-        logger.critical(f"Spenso code generation for {self.get_integrand_name()}.so not yet implemented.")
+        logger.critical(
+            f"Spenso code generation for {self.get_integrand_name()}.so not yet implemented."
+        )
         # raise NotImplementedError("Implement spenso code generation.")
 
     def generate_gammaloop_code(self) -> None:
@@ -399,17 +392,23 @@ class DY(object):
         integrand_name = self.get_integrand_name()
         process_graphs_name = self.get_integrand_name(suffix="_generated_graphs")
         if process_graphs_name not in amplitudes:
-            raise pygloopException(f"Amplitude with named integrand {process_graphs_name} not found in GammaLoop state. Generate graphs first.")
+            raise pygloopException(
+                f"Amplitude with named integrand {process_graphs_name} not found in GammaLoop state. Generate graphs first."
+            )
         if integrand_name in amplitudes:
             logger.info(f"Amplitude {integrand_name} already generated and recycled.")
             return
         if not os.path.isfile(pjoin(DOTS_FOLDER, "DY", f"{integrand_name}.dot")):
-            raise pygloopException(f"Processed dot file not found at {pjoin(DOTS_FOLDER, 'DY', f'{integrand_name}.dot')}. Generate graphs first.")
+            raise pygloopException(
+                f"Processed dot file not found at {pjoin(DOTS_FOLDER, 'DY', f'{integrand_name}.dot')}. Generate graphs first."
+            )
 
         self.gl_worker.run(
             f"import graphs {pjoin(DOTS_FOLDER, 'DY', f'{integrand_name}.dot')} -p {amplitudes[process_graphs_name]} -i {integrand_name}"
         )
-        self.gl_worker.run(f"generate existing -p {amplitudes[process_graphs_name]} -i {integrand_name}")
+        self.gl_worker.run(
+            f"generate existing -p {amplitudes[process_graphs_name]} -i {integrand_name}"
+        )
         # match self.n_loops:
         #     case 1:
         #         self.gl_worker.run(
@@ -446,24 +445,37 @@ class DY(object):
 
         for p_i in p_sum.to_list():
             if abs(p_i) / sqrt_s > TOLERANCE:
-                raise pygloopException("Provided ps point does not respect momentum conservation.")
+                raise pygloopException(
+                    "Provided ps point does not respect momentum conservation."
+                )
 
-    def parameterize(self, xs: list[float], parameterisation: str, origin: Vector | None = None) -> tuple[Vector, float]:
+    def parameterize(
+        self, xs: list[float], parameterisation: str, origin: Vector | None = None
+    ) -> tuple[Vector, float]:
         match parameterisation:
             case "cartesian":
                 return self.cartesian_parameterize(xs, origin)
             case "spherical":
                 return self.spherical_parameterize(xs, origin)
             case _:
-                raise pygloopException(f"Parameterisation {parameterisation} not implemented.")
+                raise pygloopException(
+                    f"Parameterisation {parameterisation} not implemented."
+                )
 
-    def cartesian_parameterize(self, xs: list[float], origin: Vector | None = None) -> tuple[Vector, float]:
+    def cartesian_parameterize(
+        self, xs: list[float], origin: Vector | None = None
+    ) -> tuple[Vector, float]:
         return self.cartesian_parameterize_v2(xs, origin)
 
-    def cartesian_parameterize_v1(self, xs: list[float], origin: Vector | None = None) -> tuple[Vector, float]:
+    def cartesian_parameterize_v1(
+        self, xs: list[float], origin: Vector | None = None
+    ) -> tuple[Vector, float]:
         x, y, z = xs
         scale = self.e_cm * RESCALING
-        v = Vector((1 / (1 - x) - 1 / x), (1 / (1 - y) - 1 / y), (1 / (1 - z) - 1 / z)) * scale
+        v = (
+            Vector((1 / (1 - x) - 1 / x), (1 / (1 - y) - 1 / y), (1 / (1 - z) - 1 / z))
+            * scale
+        )
         if origin is not None:
             v = v + origin
         jac = scale * (1 / (1 - x) ** 2 + 1 / x**2)
@@ -471,7 +483,9 @@ class DY(object):
         jac *= scale * (1 / (1 - z) ** 2 + 1 / z**2)
         return (v, jac)
 
-    def cartesian_parameterize_v2(self, xs: list[float], origin: Vector | None = None) -> tuple[Vector, float]:
+    def cartesian_parameterize_v2(
+        self, xs: list[float], origin: Vector | None = None
+    ) -> tuple[Vector, float]:
         x, y, z = xs
         scale = self.e_cm * RESCALING
         v = (
@@ -489,7 +503,9 @@ class DY(object):
         jac *= scale * math.pi / math.cos((z - 0.5) * math.pi) ** 2
         return (v, jac)
 
-    def cartesian_parameterize_v3(self, xs: list[float], origin: Vector | None = None) -> tuple[Vector, float]:
+    def cartesian_parameterize_v3(
+        self, xs: list[float], origin: Vector | None = None
+    ) -> tuple[Vector, float]:
         x, y, z = xs
         scale = self.e_cm * RESCALING
         v = (
@@ -507,14 +523,18 @@ class DY(object):
         jac *= scale * (1 / z + 1 / (1 - z))
         return (v, jac)
 
-    def spherical_parameterize(self, xs: list[float], origin: Vector | None = None) -> tuple[Vector, float]:
+    def spherical_parameterize(
+        self, xs: list[float], origin: Vector | None = None
+    ) -> tuple[Vector, float]:
         rx, costhetax, phix = xs
         scale = self.e_cm * RESCALING
         r = rx / (1 - rx) * scale
         costheta = (0.5 - costhetax) * 2
         sintheta = math.sqrt(1 - costheta**2)
         phi = phix * 2 * math.pi
-        v = Vector(r * sintheta * math.cos(phi), r * sintheta * math.sin(phi), r * costheta)
+        v = Vector(
+            r * sintheta * math.cos(phi), r * sintheta * math.sin(phi), r * costheta
+        )
         if origin is not None:
             v = v + origin
         jac = 2 * (2 * math.pi) * (r**2 * scale / (1 - rx) ** 2)
@@ -539,21 +559,35 @@ class DY(object):
                 final_wgt = wgt * jac
             else:
                 if self.n_loops != 1:
-                    raise pygloopException("Multi-channeling only implemented for one-loop processes.")
+                    raise pygloopException(
+                        "Multi-channeling only implemented for one-loop processes."
+                    )
                 final_wgt = 0.0
                 multi_channeling_power = 3
                 q_offsets = [
                     Vector(0.0, 0.0, 0.0),
                     self.ps_point[1].spatial(),
                     (self.ps_point[1] - self.ps_point[2]).spatial(),
-                    (self.ps_point[1] - self.ps_point[2] - self.ps_point[3]).spatial(),  # nopep8
-                    (self.ps_point[1] - self.ps_point[2] - self.ps_point[3] - self.ps_point[4]).spatial(),  # nopep8
+                    (
+                        self.ps_point[1] - self.ps_point[2] - self.ps_point[3]
+                    ).spatial(),  # nopep8
+                    (
+                        self.ps_point[1]
+                        - self.ps_point[2]
+                        - self.ps_point[3]
+                        - self.ps_point[4]
+                    ).spatial(),  # nopep8
                 ]
                 for i_channel in range(5):
                     if multi_channeling is True or multi_channeling == i_channel:
-                        k, jac = self.parameterize(xs, parameterization, q_offsets[i_channel] * -1)
+                        k, jac = self.parameterize(
+                            xs, parameterization, q_offsets[i_channel] * -1
+                        )
                         inv_oses = [
-                            1.0 / math.sqrt((k + q_offsets[i_prop]).squared() + self.m_top**2)
+                            1.0
+                            / math.sqrt(
+                                (k + q_offsets[i_prop]).squared() + self.m_top**2
+                            )
                             for i_prop in range(5)  # nopep8
                         ]
                         wgt = self.integrand([k], integrand_implementation)
@@ -561,7 +595,12 @@ class DY(object):
                             wgt = wgt.real
                         else:
                             wgt = wgt.imag
-                        final_wgt += jac * inv_oses[i_channel] ** multi_channeling_power * wgt / sum(t**multi_channeling_power for t in inv_oses)
+                        final_wgt += (
+                            jac
+                            * inv_oses[i_channel] ** multi_channeling_power
+                            * wgt
+                            / sum(t**multi_channeling_power for t in inv_oses)
+                        )
 
             if math.isnan(final_wgt):
                 logger.debug(
@@ -576,7 +615,9 @@ class DY(object):
 
         return final_wgt
 
-    def integrand(self, loop_momenta: list[Vector], integrand_implementation: dict[str, Any]) -> complex:
+    def integrand(
+        self, loop_momenta: list[Vector], integrand_implementation: dict[str, Any]
+    ) -> complex:
         try:
             match integrand_implementation["integrand_type"]:
                 case "spenso":
@@ -584,11 +625,16 @@ class DY(object):
                 case "gammaloop":
                     return self.gammaloop_integrand(loop_momenta)
                 case _:
-                    raise pygloopException(f"Integrand implementation {integrand_implementation['integrand_type']} not implemented.")
+                    raise pygloopException(
+                        f"Integrand implementation {integrand_implementation['integrand_type']} not implemented."
+                    )
         except ZeroDivisionError:
             logger.debug(
                 f"Integrand divided by zero for ks = [{Colour.BLUE}{
-                    ','.join('[' + ', '.join(f'{ki:+.16e}' for ki in k.to_list()) + ']' for k in loop_momenta)
+                    ','.join(
+                        '[' + ', '.join(f'{ki:+.16e}' for ki in k.to_list()) + ']'
+                        for k in loop_momenta
+                    )
                 }{Colour.END}]. Setting it to zero"
             )
             return 0.0
@@ -669,7 +715,9 @@ class DY(object):
         **opts,
     ) -> IntegrationResult:
         if opts.get("integrand_implementation", "gammaloop") != "gammaloop":
-            raise pygloopException("GammaLoop integrator only supports 'gammaloop' integrand implementation.")
+            raise pygloopException(
+                "GammaLoop integrator only supports 'gammaloop' integrand implementation."
+            )
 
         integrand_name = self.get_integrand_name()
         amplitudes, _cross_sections = self.gl_worker.list_outputs()
@@ -681,7 +729,8 @@ class DY(object):
         integration_options = {
             "n_start": opts.get("points_per_iteration", 100_000),
             "n_increase": 0,
-            "n_max": opts.get("points_per_iteration", 100_000) * opts.get("n_iterations", 10),
+            "n_max": opts.get("points_per_iteration", 100_000)
+            * opts.get("n_iterations", 10),
             "integrated_phase": opts.get("phase", "real"),
             "seed": opts.get("seed", 1337),
         }
@@ -704,7 +753,11 @@ class DY(object):
         ]
         if target is not None:
             if isinstance(target, complex):
-                integrate_command.append(["--target", f"{target.real:.16e}", f"{target.imag:.16e}"])
+                integrate_command.append([
+                    "--target",
+                    f"{target.real:.16e}",
+                    f"{target.imag:.16e}",
+                ])
             elif isinstance(target, float):
                 integrate_command.append(["--target", f"{target:.16e}", "0.0"])
         if "n_cores" in opts:
@@ -712,8 +765,12 @@ class DY(object):
         if opts.get("restart", False):
             integrate_command.append(["--restart"])
 
-        integrate_command_str = " ".join(" ".join(itg_o for itg_o in itg_opt) for itg_opt in integrate_command)
-        logger.info(f"Running GammaLoop integration with command:\n{Colour.GREEN}{integrate_command_str}{Colour.END}")
+        integrate_command_str = " ".join(
+            " ".join(itg_o for itg_o in itg_opt) for itg_opt in integrate_command
+        )
+        logger.info(
+            f"Running GammaLoop integration with command:\n{Colour.GREEN}{integrate_command_str}{Colour.END}"
+        )
         t_start = time.time()
         self.gl_worker.run(integrate_command_str)  # nopep8
         t_elapsed = time.time() - t_start
@@ -725,18 +782,26 @@ class DY(object):
 
         integration_result = IntegrationResult(0.0, 0.0)
         if res is None:
-            logger.error(f"GammaLoop integration finished but no result file found at '{results_path}'.")
+            logger.error(
+                f"GammaLoop integration finished but no result file found at '{results_path}'."
+            )
         else:
             if opts.get("phase", "real") == "real":
                 central, error = res["result"]["re"], res["error"]["re"]
             else:
                 central, error = res["result"]["im"], res["error"]["im"]
-            integration_result = IntegrationResult(central, error, n_samples=res["neval"], elapsed_time=t_elapsed)
+            integration_result = IntegrationResult(
+                central, error, n_samples=res["neval"], elapsed_time=t_elapsed
+            )
         return integration_result
 
     @staticmethod
-    def naive_worker(builder_inputs: tuple[Any], n_points: int, call_args: list[Any]) -> IntegrationResult:
-        process_instance = DY(*builder_inputs, clean=False, logger_level=logging.CRITICAL)  # type: ignore
+    def naive_worker(
+        builder_inputs: tuple[Any], n_points: int, call_args: list[Any]
+    ) -> IntegrationResult:
+        process_instance = DY(
+            *builder_inputs, clean=False, logger_level=logging.CRITICAL
+        )  # type: ignore
         this_result = IntegrationResult(0.0, 0.0)
         t_start = time.time()
         for _ in range(n_points):
@@ -762,25 +827,30 @@ class DY(object):
     ) -> IntegrationResult:
         integration_result = IntegrationResult(0.0, 0.0)
 
-        function_call_args = [parameterisation, integrand_implementation, opts["phase"], opts["multi_channeling"]]
+        function_call_args = [
+            parameterisation,
+            integrand_implementation,
+            opts["phase"],
+            opts["multi_channeling"],
+        ]
         for i_iter in range(opts["n_iterations"]):
             logger.info(
-                f"Naive integration: starting iteration {Colour.GREEN}{i_iter + 1}/{opts['n_iterations']}{Colour.END} using {Colour.BLUE}{
-                    opts['points_per_iteration']
-                }{Colour.END} points ..."
+                f"Naive integration: starting iteration {Colour.GREEN}{i_iter + 1}/{
+                    opts['n_iterations']
+                }{Colour.END} using {Colour.BLUE}{opts['points_per_iteration']}{
+                    Colour.END
+                } points ..."
             )
             if opts["n_cores"] > 1:
                 n_points_per_core = opts["points_per_iteration"] // opts["n_cores"]
                 all_args = [
                     (self.builder_inputs(), n_points_per_core, function_call_args),
                 ] * (opts["n_cores"] - 1)
-                all_args.append(
-                    (
-                        self.builder_inputs(),
-                        opts["points_per_iteration"] - sum(a[1] for a in all_args),
-                        function_call_args,
-                    )
-                )
+                all_args.append((
+                    self.builder_inputs(),
+                    opts["points_per_iteration"] - sum(a[1] for a in all_args),
+                    function_call_args,
+                ))
                 with multiprocessing.Pool(processes=opts["n_cores"]) as pool:
                     all_results = pool.starmap(DY.naive_worker, all_args)
 
@@ -798,7 +868,9 @@ class DY(object):
             # Normalize a copy for temporary printout
             processed_result = copy.deepcopy(integration_result)
             processed_result.normalize()
-            logger.info(f"... result after this iteration:\n{processed_result.str_report(target)}")
+            logger.info(
+                f"... result after this iteration:\n{processed_result.str_report(target)}"
+            )
 
         # Normalize results
         integration_result.normalize()
@@ -807,12 +879,17 @@ class DY(object):
 
     @staticmethod
     def vegas_worker(
-        process_builder_inputs: tuple[Any], id: int, all_xs: list[list[float]], call_args: list[Any]
+        process_builder_inputs: tuple[Any],
+        id: int,
+        all_xs: list[list[float]],
+        call_args: list[Any],
     ) -> tuple[int, list[float], IntegrationResult]:
         res = IntegrationResult(0.0, 0.0)
         t_start = time.time()
         all_weights = []
-        process = DY(*process_builder_inputs, clean=False, logger_level=logging.CRITICAL)  # type: ignore
+        process = DY(
+            *process_builder_inputs, clean=False, logger_level=logging.CRITICAL
+        )  # type: ignore
         for xs in all_xs:
             weight = process.integrand_xspace(xs, *call_args)
             all_weights.append(weight)
@@ -827,14 +904,18 @@ class DY(object):
         return (id, all_weights, res)
 
     @staticmethod
-    def vegas_functor(process: DY, res: IntegrationResult, n_cores: int, call_args: list[Any]) -> Callable[[list[list[float]]], list[float]]:
+    def vegas_functor(
+        process: DY, res: IntegrationResult, n_cores: int, call_args: list[Any]
+    ) -> Callable[[list[list[float]]], list[float]]:
         @vegas.batchintegrand
         def f(all_xs):
             all_weights = []
             if n_cores > 1:
                 all_args = [
                     (process.builder_inputs(), i_chunk, all_xs_split, call_args)
-                    for i_chunk, all_xs_split in enumerate(chunks(all_xs, len(all_xs) // n_cores + 1))
+                    for i_chunk, all_xs_split in enumerate(
+                        chunks(all_xs, len(all_xs) // n_cores + 1)
+                    )
                 ]
                 with multiprocessing.Pool(processes=n_cores) as pool:
                     all_results = pool.starmap(DY.vegas_worker, all_args)
@@ -843,7 +924,9 @@ class DY(object):
                     res.combine_with(this_result)
                 return all_weights
             else:
-                _id, wgts, this_result = DY.vegas_worker(process.builder_inputs(), 0, all_xs, call_args)
+                _id, wgts, this_result = DY.vegas_worker(
+                    process.builder_inputs(), 0, all_xs, call_args
+                )
                 all_weights.extend(wgts)
                 res.combine_with(this_result)
             return all_weights
@@ -903,7 +986,9 @@ class DY(object):
         res = IntegrationResult(0.0, 0.0)
         t_start = time.time()
         all_weights = []
-        process = DY(*process_builder_inputs, clean=False, logger_level=logging.CRITICAL)  # type: ignore
+        process = DY(
+            *process_builder_inputs, clean=False, logger_level=logging.CRITICAL
+        )  # type: ignore
         for xs in all_xs:
             if not multi_channeling:
                 weight = process.integrand_xspace(xs.c, *( call_args + [False, ]))  # fmt: off
@@ -942,7 +1027,9 @@ class DY(object):
                     [SymbolicaSample(s) for s in all_xs_split],
                     call_args,
                 )
-                for i_chunk, all_xs_split in enumerate(chunks(samples, len(samples) // n_cores + 1))
+                for i_chunk, all_xs_split in enumerate(
+                    chunks(samples, len(samples) // n_cores + 1)
+                )
             ]
             with multiprocessing.Pool(processes=n_cores) as pool:
                 all_results = pool.starmap(DY.symbolica_worker, all_args)
@@ -973,15 +1060,13 @@ class DY(object):
         integration_result = IntegrationResult(0.0, 0.0)
 
         if opts["multi_channeling"]:
-            integrator = NumericalIntegrator.discrete(
-                [
-                    NumericalIntegrator.continuous(3),
-                    NumericalIntegrator.continuous(3),
-                    NumericalIntegrator.continuous(3),
-                    NumericalIntegrator.continuous(3),
-                    NumericalIntegrator.continuous(3),
-                ]
-            )
+            integrator = NumericalIntegrator.discrete([
+                NumericalIntegrator.continuous(3),
+                NumericalIntegrator.continuous(3),
+                NumericalIntegrator.continuous(3),
+                NumericalIntegrator.continuous(3),
+                NumericalIntegrator.continuous(3),
+            ])
         else:
             integrator = NumericalIntegrator.continuous(3)
 
@@ -1003,10 +1088,14 @@ class DY(object):
             integrator.add_training_samples(samples, res)
 
             # Learning rate is 1.5
-            avg, err, _chi_sq = integrator.update(continuous_learning_rate=1.5, discrete_learning_rate=1.5)  # type: ignore
+            avg, err, _chi_sq = integrator.update(
+                continuous_learning_rate=1.5, discrete_learning_rate=1.5
+            )  # type: ignore
             integration_result.central_value = avg
             integration_result.error = err
-            logger.info(f"... result after this iteration:\n{integration_result.str_report(target)}")
+            logger.info(
+                f"... result after this iteration:\n{integration_result.str_report(target)}"
+            )
 
         return integration_result
 
@@ -1042,7 +1131,9 @@ class DY(object):
         xs[fixed_x] = opts["fixed_x"]
         nb_cores = max(1, int(opts.get("nb_cores", 1)))
         total = n_bins * n_bins
-        logger.info(f"Evaluating function on grid for plotting over {nb_cores} cores...")
+        logger.info(
+            f"Evaluating function on grid for plotting over {nb_cores} cores..."
+        )
 
         def sequential_plotting():
             for idx in progressbar.progressbar(range(total), max_value=total):
@@ -1058,7 +1149,9 @@ class DY(object):
                         opts["multi_channeling"],
                     )
                 else:
-                    wgt = self.integrand([Vector(xs[0], xs[1], xs[2])], opts["integrand_implementation"])  # type: ignore
+                    wgt = self.integrand(
+                        [Vector(xs[0], xs[1], xs[2])], opts["integrand_implementation"]
+                    )  # type: ignore
                     match opts.get("phase", None):
                         case "real":
                             Z[i, j] = wgt.real  # type: ignore
@@ -1078,21 +1171,33 @@ class DY(object):
                 "x_space": opts["x_space"],
                 "parameterisation": opts["parameterisation"],
                 "integrand_implementation": opts["integrand_implementation"],
-                "phase": opts.get("phase", "real") if opts["x_space"] else opts.get("phase", None),
+                "phase": opts.get("phase", "real")
+                if opts["x_space"]
+                else opts.get("phase", None),
                 "multi_channeling": opts["multi_channeling"],
             }
             try:
                 ctx = multiprocessing.get_context("fork")
                 chunk_size = max(1, total // (nb_cores * 4))
-                tasks = ((i, j, float(X[i, j]), float(Y[i, j])) for i in range(n_bins) for j in range(n_bins))
-                with ctx.Pool(processes=nb_cores, initializer=_plot_worker_init, initargs=(self, config)) as pool:
+                tasks = (
+                    (i, j, float(X[i, j]), float(Y[i, j]))
+                    for i in range(n_bins)
+                    for j in range(n_bins)
+                )
+                with ctx.Pool(
+                    processes=nb_cores,
+                    initializer=_plot_worker_init,
+                    initargs=(self, config),
+                ) as pool:
                     for i, j, val in progressbar.progressbar(  # type: ignore
                         pool.imap_unordered(_plot_worker, tasks, chunksize=chunk_size),
                         max_value=total,
                     ):
                         Z[i, j] = val
             except ValueError:
-                logger.warning("Multiprocessing start method does not support forking; running sequentially.")
+                logger.warning(
+                    "Multiprocessing start method does not support forking; running sequentially."
+                )
                 sequential_plotting()
         logger.info("Done")
 
@@ -1165,7 +1270,9 @@ def _plot_worker(task: tuple[int, int, float, float]) -> tuple[int, int, float]:
             config["multi_channeling"],
         )
     else:
-        wgt = worker.integrand([Vector(xs[0], xs[1], xs[2])], config["integrand_implementation"])
+        wgt = worker.integrand(
+            [Vector(xs[0], xs[1], xs[2])], config["integrand_implementation"]
+        )
         match config["phase"]:
             case "real":
                 val = wgt.real
