@@ -114,21 +114,34 @@ class IntegrandConstructor(object):
 
         cff_structure = CFFStructure(cff_structure)
 
-        # cff_structure.build_cff_expression()
-
-        print(cff_structure)
-        print(cff_structure.expressions)
-
         return cff_structure
 
     def construct_00_cuts(self, info: integrand_info):
-        a = 1
+        energies=E("1")
+        edge_ids=[e.get("id") for e in info.graph.graph.get_edges()]
+        numerator=info.num.replace(E("sp(x_,y_)"),E("sigma(x_)*sigma(y_)*E(x_)*E(y_)-sp3D(q(x_),q(y_))"))
+        if info.has_s_bridge_L:
+            edge_ids.remove(info.s_bridge_sub_L["id_s"])
+            energies*=1/(E(f"E({info.s_bridge_sub_L["id_p1"]})")+E(f"E({info.s_bridge_sub_L["id_p2"]})"))**2
+            numerator=numerator.replace(E(f"E({info.s_bridge_sub_L["id_s"]})"),E(f"E({info.s_bridge_sub_L["id_p1"]})")+E(f"E({info.s_bridge_sub_L["id_p2"]})"))
+            numerator=numerator.replace(E(f"sigma({info.s_bridge_sub_L["id_s"]})"),E("1"))
+        if info.has_s_bridge_R:
+            edge_ids.remove(info.s_bridge_sub_R["id_s"])
+            energies*=1/(E(f"E({info.s_bridge_sub_R["id_p1"]})")+E(f"E({info.s_bridge_sub_R["id_p2"]})"))**2
+            numerator=numerator.replace(E(f"E({info.s_bridge_sub_R["id_s"]})"),E(f"E({info.s_bridge_sub_R["id_p1"]})")+E(f"E({info.s_bridge_sub_R["id_p2"]})"))
+            numerator=numerator.replace(E(f"sigma({info.s_bridge_sub_R["id_s"]})"),E("1"))
+        for id in edge_ids:
+            energies*=1/E(f"E({id})")
 
-        # a = 1
-        # L = cut_graph.get_n_loops()
-        # comps = get_LR_components(
-        #    cut_graph.graph, cut_graph.initial_cut, cut_graph.final_cut
-        # )
+        esurfaces=E("1")
+        if info.cff_L is not None:
+            a=1
+
+        if info.cff_R is not None:
+            a=1
+
+        return energies*numerator*esurfaces
+
 
     def construct_01_cuts(self, info: integrand_info):
         print("here")
@@ -177,11 +190,7 @@ class IntegrandConstructor(object):
             cut_graph.graph, cut_graph.initial_cut, cut_graph.final_cut
         )
 
-        print("here")
-        #### TODO: DERIVE NUMERATOR HERE
         num = self.get_numerator(cut_graph.graph)
-
-        print(num)
 
         has_s_bridge_L, s_bridge_sub_L, new_comp_L = self.eliminate_s_channel_bridges(
             cut_graph.graph, comps[0]
@@ -189,8 +198,6 @@ class IntegrandConstructor(object):
         has_s_bridge_R, s_bridge_sub_R, new_comp_R = self.eliminate_s_channel_bridges(
             cut_graph.graph, comps[1]
         )
-
-        comps = [new_comp_L, new_comp_R]
 
         dangling = [[], []]
         for i in [0, 1]:
@@ -207,6 +214,13 @@ class IntegrandConstructor(object):
                 e_cut_attributes = e.get_attributes()
                 if e_cut_attributes.get("is_cut", None) is not None:
                     e_cut_attributes.pop("is_cut")
+
+
+
+        #cff_structure_L = self.get_CFF(cut_graph.graph, list(comps[0]), dangling[0])
+        #print(cff_structure_L)
+
+        comps = [new_comp_L, new_comp_R]
 
         if len(comps[0]) > 1:
             cff_structure_L = self.get_CFF(cut_graph.graph, list(comps[0]), dangling[0])
@@ -232,6 +246,7 @@ class IntegrandConstructor(object):
         )
 
         if len(partition[0]) == 1 and len(partition[1]) == 1:
+            print(self.construct_00_cuts(graph_integrand_info))
             return self.construct_00_cuts(graph_integrand_info)
         elif len(partition[0]) == 1 and len(partition[1]) > 1:
             return self.construct_01_cuts(graph_integrand_info)
