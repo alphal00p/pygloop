@@ -12,7 +12,7 @@ import pydot
 
 
 # Remove surrounding double quotes if present.
-def _strip_quotes(s: pydot.EdgeEndpoint) -> str:
+def _strip_quotes(s: str) -> str:
 
     if isinstance(s, str):
         s = s.strip()
@@ -25,7 +25,7 @@ def _strip_quotes(s: pydot.EdgeEndpoint) -> str:
 
 
 # True if the vertex name matches "ext" followed by digits (ignoring quotes).
-def _is_ext(name: pydot.EdgeEndpoint) -> bool:
+def _is_ext(name: str) -> bool:
     return bool(re.fullmatch(r"ext\d+", _strip_quotes(name)))
 
 
@@ -39,14 +39,14 @@ def _parse_port_endpoint(endpoint: str) -> Optional[Tuple[str, int]]:
 
 
 # pydot vertices are in the form "v:port", where port is an int; return v
-def _base_node(endpoint: pydot.EdgeEndpoint) -> str:
+def _base_node(endpoint: str) -> str:
     ep = _strip_quotes(endpoint)
     parsed = _parse_port_endpoint(ep)
     return parsed[0] if parsed else ep
 
 
 # pydot vertices are in the form "v:port"; return v (optionally collapse ports)
-def _node_key(endpoint: pydot.EdgeEndpoint, collapse_ports: bool = True) -> str:
+def _node_key(endpoint: str, collapse_ports: bool = True) -> str:
     ep = _strip_quotes(endpoint)
     if collapse_ports and ":" in ep:
         return ep.split(":", 1)[0]
@@ -54,7 +54,7 @@ def _node_key(endpoint: pydot.EdgeEndpoint, collapse_ports: bool = True) -> str:
 
 
 # pydot vertices are in the form "v:port"; return port
-def _parse_port(endpoint: pydot.EdgeEndpoint) -> Optional[int]:
+def _parse_port(endpoint: str) -> Optional[int]:
     """Return b from 'a:b' (possibly quoted), else None."""
     ep = _strip_quotes(endpoint)
     m = re.fullmatch(r"[^:]+:(\d+)", ep)

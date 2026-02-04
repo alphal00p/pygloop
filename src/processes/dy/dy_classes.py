@@ -4,7 +4,7 @@ from types import ModuleType
 from typing import Iterator, List, Optional, Set, Tuple
 
 try:
-    import sympy as sp
+    import sympy as sp  # pyright: ignore
 except ImportError:
     sp: Optional[ModuleType] = None
     print(
@@ -13,7 +13,7 @@ except ImportError:
 import copy
 
 import pydot
-from symbolica import E, Expression
+from symbolica import E, Expression # pyright: ignore
 
 from processes.dy.dy_graph_utils import (
     _all_node_names,
@@ -33,7 +33,7 @@ from processes.dy.dy_graph_utils import (
     remove_edge_attr,
     sort_half_edges_by_port,
 )
-from utils.utils import DotGraph, DotGraphs, pygloopException  # noqa: F401
+from utils.utils import DotGraph, DotGraphs, expr_to_string, pygloopException  # noqa: F401
 
 
 def Es(expr: str) -> Expression:
@@ -541,6 +541,7 @@ class VacuumDotGraph(object):
                         new_graph.set_name(
                             f"{self.dot.get_name()}_partition_{idV1}_{idV2}"
                         )
+                        new_graph.set("partition", f"{[idV1, idV2]}")
                         # new_graph.set("num", str(self.num))
                         graph = self.route_cut_graph(new_graph, [V1, V2])
 
@@ -641,7 +642,7 @@ class DYDotGraph(DotGraph):
         return pydot.Edge(e.get_source(), e.get_destination(), **attrs)
 
     # Return the endpoint (source or destination) that is NOT ext*.
-    def _non_ext_endpoint(self, e: pydot.Edge) -> pydot.EdgeEndpoint:
+    def _non_ext_endpoint(self, e: pydot.Edge) -> str:
         src = e.get_source()
         dst = e.get_destination()
 
@@ -673,17 +674,17 @@ class DYDotGraph(DotGraph):
         if _edge_particle(ee) == "d":
             ee.set(
                 "num",
-                f"Q({edge_id_int(ee)},mu)*spenso::gamma(spenso::bis(4,hedge({_parse_port(ee.get_destination())})),spenso::bis(4,hedge({_parse_port(ee.get_source())})),spenso::mink(4,mu))",
+                f"Q({edge_id_int(ee)},mink(4,mu))*spenso::gamma(spenso::bis(4,hedge({_parse_port(ee.get_source())})),spenso::bis(4,hedge({_parse_port(ee.get_destination())})),spenso::mink(4,mu))*spenso::g(spenso::dind(spenso::cof(3,hedge({_parse_port(ee.get_source())}))),spenso::cof(3,hedge({_parse_port(ee.get_destination())})))",
             )
         if _edge_particle(ee) == "d~":
             ee.set(
                 "num",
-                f"Q({edge_id_int(ee)},mu)*spenso::gamma(spenso::bis(4,hedge({_parse_port(ee.get_source())})),spenso::bis(4,hedge({_parse_port(ee.get_destination())})),spenso::mink(4,mu))",
+                f"Q({edge_id_int(ee)},mink(4,mu))*spenso::gamma(spenso::bis(4,hedge({_parse_port(ee.get_destination())})),spenso::bis(4,hedge({_parse_port(ee.get_source())})),spenso::mink(4,mu))*spenso::g(spenso::dind(spenso::cof(3,hedge({_parse_port(ee.get_destination())}))),spenso::cof(3,hedge({_parse_port(ee.get_source())})))",
             )
         if _edge_particle(ee) == "g":
             ee.set(
                 "num",
-                f"-spenso::g(spenso::mink(4,hedge({_parse_port(ee.get_source())})),spenso::mink(4,hedge({_parse_port(ee.get_destination())})))",
+                f"-spenso::g(spenso::mink(4,hedge({_parse_port(ee.get_source())})),spenso::mink(4,hedge({_parse_port(ee.get_destination())})))*spenso::g(spenso::coad(8,hedge({_parse_port(ee.get_destination())})),spenso::coad(8,hedge({_parse_port(ee.get_source())})))",
             )
         return ee
 
@@ -731,10 +732,26 @@ class DYDotGraph(DotGraph):
                     paired_up.append(ep)
 
         # NEW STUFF: RELABEL SO THAT IDs ARE CONSECUTIVE
+        substitutions=[]
         for e, i in zip(
             vacuum_graph.get_edges(), range(0, len(vacuum_graph.get_edges()))
         ):
+            print(e.get('id'))
+            print(i)
+            print("----")
+            pattern=E(f"Q({e.get('id')},y___)", default_namespace="gammalooprs")
+            substitution=E(f"Q({i},y___)", default_namespace="gammalooprs")
+            substitutions.append((i,pattern,substitution))
             e.get_attributes()["id"] = i
+
+        for e in vacuum_graph.get_edges():
+            for (id, pat, rep) in substitutions:
+                if e.get("id")==id:
+                    e.get_attributes()["num"]=expr_to_string(Es(e.get("num")).replace(pat, rep))
+
+        for v in vacuum_graph.get_nodes():
+            for (id, pat, rep) in substitutions:
+                v.get_attributes()["num"]=expr_to_string(Es(v.get("num")).replace(pat, rep))
 
         return VacuumDotGraph(
             vacuum_graph  # , self.get_numerator(include_overall_factor=True)
