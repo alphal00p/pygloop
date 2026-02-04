@@ -10,8 +10,12 @@ from gammaloop import (  # iso\rt: skip # type: ignore # noqa: F401
     evaluate_graph_overall_factor,
     git_version,
 )
-from symbolica import E, Expression # pyright: ignore
-from symbolica.community.idenso import simplify_color, simplify_gamma, simplify_metrics # pyright: ignore
+from symbolica import E, Expression  # pyright: ignore
+from symbolica.community.idenso import (  # pyright: ignore
+    simplify_color,
+    simplify_gamma,
+    simplify_metrics,
+)
 
 from processes.dy.dy_graph_utils import (
     _is_ext,
@@ -60,7 +64,7 @@ class integrand_info(object):
         has_s_bridge_L,
         has_s_bridge_R,
     ):
-        self.num=num
+        self.num = num
         self.graph = graph
         self.cff_L = cff_L
         self.cff_R = cff_R
@@ -93,8 +97,10 @@ class IntegrandConstructor(object):
             e_num = edge.get("num")
             if e_num:
                 num *= Es(e_num)
-        res=E(str(simplify_metrics(simplify_gamma(simplify_color(num))).expand()))
-        out=res.replace(E("Q(y_,mink(4,x_))")*E("Q(z_,mink(4,x_))"),E("sp(y_,z_)"), repeat=True)
+        res = E(str(simplify_metrics(simplify_gamma(simplify_color(num))).expand()))
+        out = res.replace(
+            E("Q(y_,mink(4,x_))") * E("Q(z_,mink(4,x_))"), E("sp(y_,z_)"), repeat=True
+        )
 
         return out
 
@@ -117,31 +123,95 @@ class IntegrandConstructor(object):
         return cff_structure
 
     def construct_00_cuts(self, info: integrand_info):
-        energies=E("1")
-        edge_ids=[e.get("id") for e in info.graph.graph.get_edges()]
-        numerator=info.num.replace(E("sp(x_,y_)"),E("sigma(x_)*sigma(y_)*E(x_)*E(y_)-sp3D(q(x_),q(y_))"))
+        energies = E("1")
+        edge_ids = [e.get("id") for e in info.graph.graph.get_edges()]
+        numerator = info.num.replace(
+            E("sp(x_,y_)"), E("sigma(x_)*sigma(y_)*E(x_)*E(y_)-sp3D(q(x_),q(y_))")
+        )
         if info.has_s_bridge_L:
             edge_ids.remove(info.s_bridge_sub_L["id_s"])
-            energies*=1/(E(f"E({info.s_bridge_sub_L["id_p1"]})")+E(f"E({info.s_bridge_sub_L["id_p2"]})"))**2
-            numerator=numerator.replace(E(f"E({info.s_bridge_sub_L["id_s"]})"),E(f"E({info.s_bridge_sub_L["id_p1"]})")+E(f"E({info.s_bridge_sub_L["id_p2"]})"))
-            numerator=numerator.replace(E(f"sigma({info.s_bridge_sub_L["id_s"]})"),E("1"))
+            energies *= (
+                1
+                / (
+                    E(f"E({info.s_bridge_sub_L['id_p1']})")
+                    + E(f"E({info.s_bridge_sub_L['id_p2']})")
+                )
+                ** 2
+            )
+            numerator = numerator.replace(
+                E(f"E({info.s_bridge_sub_L['id_s']})"),
+                E(f"E({info.s_bridge_sub_L['id_p1']})")
+                + E(f"E({info.s_bridge_sub_L['id_p2']})"),
+            )
+            numerator = numerator.replace(
+                E(f"sigma({info.s_bridge_sub_L['id_s']})"), E("1")
+            )
         if info.has_s_bridge_R:
             edge_ids.remove(info.s_bridge_sub_R["id_s"])
-            energies*=1/(E(f"E({info.s_bridge_sub_R["id_p1"]})")+E(f"E({info.s_bridge_sub_R["id_p2"]})"))**2
-            numerator=numerator.replace(E(f"E({info.s_bridge_sub_R["id_s"]})"),E(f"E({info.s_bridge_sub_R["id_p1"]})")+E(f"E({info.s_bridge_sub_R["id_p2"]})"))
-            numerator=numerator.replace(E(f"sigma({info.s_bridge_sub_R["id_s"]})"),E("1"))
+            energies *= (
+                1
+                / (
+                    E(f"E({info.s_bridge_sub_R['id_p1']})")
+                    + E(f"E({info.s_bridge_sub_R['id_p2']})")
+                )
+                ** 2
+            )
+            numerator = numerator.replace(
+                E(f"E({info.s_bridge_sub_R['id_s']})"),
+                E(f"E({info.s_bridge_sub_R['id_p1']})")
+                + E(f"E({info.s_bridge_sub_R['id_p2']})"),
+            )
+            numerator = numerator.replace(
+                E(f"sigma({info.s_bridge_sub_R['id_s']})"), E("1")
+            )
         for id in edge_ids:
-            energies*=1/E(f"E({id})")
+            energies *= 1 / E(f"E({id})")
 
-        esurfaces=E("1")
+        total1 = E("0")
         if info.cff_L is not None:
-            a=1
+            for cffterm in info.cff_L.expressions:
+                cff_term = numerator * cffterm.expression
+                for o, i in zip(
+                    cffterm.orientation, range(0, len(cffterm.orientation))
+                ):
+                    if o.is_reversed():
+                        cff_term = cff_term.replace(E(f"sigma({i})"), E("-1"))
+                    if o.is_default():
+                        cff_term = cff_term.replace(E(f"sigma({i})"), E("1"))
+                total1 += cff_term
 
+            for hetas in info.cff_L.h_surfaces:
+                total1 = total1.replace(E(f"pygloop::γ({hetas.id})"), hetas.expression)
+
+            for etas in info.cff_L.e_surfaces:
+                total1 = total1.replace(E(f"pygloop::η({etas.id})"), etas.expression)
+                # total1=total1.substitute()
+        else:
+            total1 += numerator
+
+        total2 = E("0")
         if info.cff_R is not None:
-            a=1
+            for cffterm in info.cff_R.expressions:
+                cff_term = total1 * cffterm.expression
+                for o, i in zip(
+                    cffterm.orientation, range(0, len(cffterm.orientation))
+                ):
+                    if o.is_reversed():
+                        cff_term = cff_term.replace(E(f"sigma({i})"), E("-1"))
+                    if o.is_default():
+                        cff_term = cff_term.replace(E(f"sigma({i})"), E("1"))
+                total2 += cff_term
 
-        return energies*numerator*esurfaces
+            for hetas in info.cff_R.h_surfaces:
+                total2 = total2.replace(E(f"pygloop::γ({hetas.id})"), hetas.expression)
 
+            for etas in info.cff_R.e_surfaces:
+                total2 = total2.replace(E(f"pygloop::η({etas.id})"), etas.expression)
+
+        else:
+            total2 = total1
+
+        return energies * total2
 
     def construct_01_cuts(self, info: integrand_info):
         print("here")
@@ -215,10 +285,8 @@ class IntegrandConstructor(object):
                 if e_cut_attributes.get("is_cut", None) is not None:
                     e_cut_attributes.pop("is_cut")
 
-
-
-        #cff_structure_L = self.get_CFF(cut_graph.graph, list(comps[0]), dangling[0])
-        #print(cff_structure_L)
+        # cff_structure_L = self.get_CFF(cut_graph.graph, list(comps[0]), dangling[0])
+        # print(cff_structure_L)
 
         comps = [new_comp_L, new_comp_R]
 
