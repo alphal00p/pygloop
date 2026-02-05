@@ -3,17 +3,20 @@ from __future__ import annotations
 import copy
 from typing import TYPE_CHECKING
 
-from symbolica import E, Evaluator, Expression, Replacement, S  # isort: skip # noqa: F401
-from symbolica.community.idenso import (
-    cook_indices,
-    simplify_color,
-    simplify_gamma,
-    simplify_metrics,
+from symbolica import E, Evaluator, Expression, Replacement, S  # isort: skip # noqa: F401 # type: ignore
+from symbolica.community.idenso import (  # type: ignore
+    cook_indices,  # noqa: F401
+    simplify_color,  # noqa: F401
+    simplify_gamma,  # noqa: F401
+    simplify_metrics,  # noqa: F401
 )  # isort: skip # noqa: F401
-from symbolica.community.spenso import TensorLibrary, TensorNetwork  # noqa: F401
-from ufo_model_loader.commands import Model  # noqa: F401
+from symbolica.community.spenso import (  # noqa: F401 # type: ignore
+    TensorLibrary,
+    TensorNetwork,
+)
+from ufo_model_loader.commands import Model  # noqa: F401 # type: ignore
 
-from utils.utils import DotGraph, DotGraphs, Es, expr_to_string
+from utils.utils import DotGraph, DotGraphs, expr_to_string
 
 if TYPE_CHECKING:
     from processes.scalar_gravity.scalar_gravity import ScalarGravity
@@ -27,26 +30,27 @@ class ClassicalLimitProcessor(object):
         return E("1")
 
     def classical_limit_in_numerator(self, graph: DotGraph) -> None:
-        v_diagram_replacements = [
-            Replacement(E("gammalooprs::Q(4,spenso::mink(4,pygloop::x_))"), E("gammalooprs::Q(0,spenso::mink(4,pygloop::x_))")),
-        ]
-        match graph.dot.get_name():
-            case "v_diagram":
-                for edge in graph.dot.get_edges():
-                    edge_attrs = edge.get_attributes()
-                    edge_attrs["num"] = (
-                        f'"{expr_to_string(Es(edge_attrs["num"]).replace_multiple(v_diagram_replacements))}"'
+        for v in graph.dot.get_nodes():
+            int_id = v.get_attributes().get("int_id", "").strip().strip('"')
+
+            if int_id.startswith("V_S1S1"):
+                num = v.get_attributes()["num"].strip().strip('"')
+                replaced_num = expr_to_string(
+                    E(num).replace(
+                        E("Q(x_,spenso::mink(4,y_))"),
+                        E("Q(0,spenso::mink(4,y_))"),
                     )
-                for node in graph.dot.get_nodes():
-                    node_attrs = node.get_attributes()
-                    if "num" in node_attrs:
-                        node_attrs["num"] = (
-                            f'"{expr_to_string(Es(node_attrs["num"]).replace_multiple(v_diagram_replacements))}"'
-                        )
-            case _:
-                raise NotImplementedError(
-                    f"Classical limit not implemented for graph {graph.dot.get_name()}"
                 )
+                v.get_attributes()["num"] = replaced_num
+            if int_id.startswith("V_S2S2"):
+                num = v.get_attributes()["num"].strip().strip('"')
+                replaced_num = expr_to_string(
+                    E(num).replace(
+                        E("Q(x_,spenso::mink(4,y_))"),
+                        E("Q(1,spenso::mink(4,y_))"),
+                    )
+                )
+                v.get_attributes()["num"] = replaced_num
 
     def delocalize_numerators(self, g: DotGraph) -> None:
         attrs = g.get_attributes()
@@ -100,7 +104,7 @@ class ClassicalLimitProcessor(object):
             self.set_group_id(g, group_id, is_master=True)
             self.classical_limit_in_numerator(g)
             self.adjust_projectors(g)
-            self.delocalize_numerators(g)
+            # self.delocalize_numerators(g)
             self.fix_higher_power_energies(g)
             processed_graphs.append(g)
 
