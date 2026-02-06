@@ -1,11 +1,7 @@
 from __future__ import annotations
 
 import copy
-from functools import reduce
-from logging import raiseExceptions
 from typing import TYPE_CHECKING
-
-from processes.dy.dy_graph_utils import boundary_edges
 
 from symbolica import E, Evaluator, Expression, Replacement, S  # isort: skip # noqa: F401 # type: ignore
 import itertools
@@ -23,7 +19,6 @@ from symbolica.community.spenso import (  # noqa: F401 # type: ignore
 from ufo_model_loader.commands import Model  # noqa: F401 # type: ignore
 
 from processes.dy.dy_graph_utils import (
-    _is_ext,
     _is_ext_edge,
     _node_key,
     boundary_edges,
@@ -91,6 +86,11 @@ class ClassicalLimitProcessor(object):
                 # TODO
                 return []
 
+    # Will take each N-graviton vertex, and express all momenta in its Feynman rule in terms of N-1 momenta.
+    # Will make sure that these N-1 momenta do not overlap across vertices.
+    # if we represented powers of momenta as dots on edges, the resulting expression for the numerator would
+    # have at most two dots per edge.
+
     def arrange_power_energies(self, g: DotGraph):
 
         graviton_edges = set([
@@ -100,7 +100,15 @@ class ClassicalLimitProcessor(object):
         ])
 
         selected_edges = []
-        # to express all momenta in a graviton vertex in terms of N-1 momenta, determine substitution rules
+
+        # To express all momenta in a graviton vertex in terms of N-1 momenta, determine substitution rules.
+        # Given a vertex Q(1)*Q(2)+Q(1)*Q(1)+Q(1)*Q(3), will express one of the momenta in terms of the other,
+        # e.g. Q(3)->Q(2)-Q(1) according to momentum conservation. After the substitution, the vertex will
+        # only depend on Q(1) and Q(2). It will also make sure that no other vertex, after respective substitution,
+        # contains Q(2) or Q(1)
+
+        # Determine substitution rules
+
         for v in g.dot.get_nodes():
             int_id = v.get_attributes().get("int_id", "").strip().strip('"')
             name_id = v.get_name()
@@ -116,17 +124,23 @@ class ClassicalLimitProcessor(object):
                     selected_edges.append((v, bdry[-1], bdry[:-1]))
                     graviton_edges = graviton_edges - set(bdry[:-1])
                 else:
+                    bdry_minus_graviton_edges = list(set(bdry) - graviton_edges)
                     selected_edges.append(
-                        v,
-                        list(set(bdry) - graviton_edges)[0],
-                        list(set(bdry).intersection(graviton_edges)),
+                        (
+                            v,
+                            bdry_minus_graviton_edges[0],
+                            list(set(bdry).intersection(graviton_edges)),
+                        ),
                     )
                     graviton_edges = graviton_edges - set(bdry)
 
-        # Now enact the replacement rules determined above; also split vertices by index presence
-        #
         num_split = []
+
+        # Enact the replacement rules determined above and group vertex numerator terms by edge ids.
+
         for v, e_pat, es_sub in selected_edges:
+            # Enact the replacement rules determined above.
+
             num = E(v.get_attributes().get("num").strip('"'))
             if not num:
                 continue
@@ -141,12 +155,16 @@ class ClassicalLimitProcessor(object):
             )
             num = num.replace(edge_id_pattern, edge_id_replace)
             index_set = set([id[S("x_")] for id in num.match(E("Q(x_,y___)"))])
+
+            # Group the terms in each vertex by edge_index: in other words, for a numerator Q(8)*Q(8)+Q(8)*Q(7)+Q(7)*Q(7),
+            # write it as [[(8,8),Q(8)*Q(8)],[(8,7),Q(8)*Q(7)],[(7,7),Q(7)*Q(7)]] (of course terms are many more dure to index)
+            # combinatorics
+
             subsets = list(
                 itertools.combinations_with_replacement(
                     sorted(index_set), len(index_set)
                 )
             )
-
             numerator_terms = [[sub, E("0")] for sub in subsets]
             for term in num.expand():
                 ids = term.match(E("Q(x_,y___)"))
@@ -161,6 +179,8 @@ class ClassicalLimitProcessor(object):
 
         return num_split
 
+    # Determines connected subsets of S in g containing S1 but not S2
+
     def subsets_containing_S1_not_S2(self, g, S, S1, S2):
         if S1 & S2:
             return []  # impossible
@@ -172,6 +192,15 @@ class ClassicalLimitProcessor(object):
                 if is_connected(g, subset):
                     out.append(subset)
         return out
+
+    # This function is called iteratively in the next function. It takes previous sets of cuts,
+    # possible_cuts=[[S1,S2,...],[S3,S5,...],[S1,S4,...]], and aims at adding to each of the sets
+    # of cuts another "compatible" cut if there exists one. "Compatibility" is defined as follows:
+    # a) the cut's boundary must contain an edge which is associated with two powers of momentum in the
+    # numerator, b) the cut's boundary must not contain any other edge that is associated with one or two
+    # powers in the numerator, c) if we plan to add the cut to [S1,S2,...], then its boundary must not
+    # contain any edge in the boundary of S1,S2,... (after follow up substitution rules, these edges
+    # will also have one power of momentum in the numerator.
 
     def iterate_remove_square(
         self, g, possible_cuts, reduced_graph_edges_deg2, reduced_graph_edges_deg1
@@ -237,6 +266,9 @@ class ClassicalLimitProcessor(object):
 
         return new_possible_cuts, reduced_graph_edges_deg2, reduced_graph_edges_deg1
 
+    # Uses the previous function to construct a series of replacements that allow to redistribute edge momenta
+    # that appear with power two to other edges, using momentum conservation.
+
     def get_squared_replacements(self, g: DotGraph, graph_weights):
 
         flattened_weights = [x for ws in graph_weights for x in ws]
@@ -280,15 +312,20 @@ class ClassicalLimitProcessor(object):
                 "Not possible to arrange squared energies... check your graph."
             )
 
+    # The result of self.arrange_power_energies(g) gives a set of summands of the numerator in the following form:
+    # [[[(6,6),(terms of vertex1 that are in the form Q(6)*Q(6))],[(2,5),(terms of vertex2 that are in the form Q(2)*Q(5))]],... ]
+    # It then uses get_squared replacements to replace extra powers of momentum in each factor so that each momentum appears once,
+    # so that the output becomes, assuming momentum conservation gives Q(6)=Q(3)+Q(4),
+    # [[[(6,6),(terms of vertex1 that are in the form Q(6)*(Q(3)+Q(4)))],[(2,5),(terms of vertex2 that are in the form Q(2)*Q(5))]],... ]
+
     def delocalize_numerators(self, g: DotGraph):
 
         num_split = self.arrange_power_energies(g)
 
-        print(num_split)
-
-        numerator_products = []
-
         new_prods = []
+
+        # prod is [[(6,6),(terms of vertex1 that are in the form Q(6)*Q(6))],[(2,5),(terms of vertex2 that are in the form Q(2)*Q(5))]]
+        # in the example above
 
         for prod in itertools.product(*num_split):
             replacements = self.get_squared_replacements(g, [p[0] for p in prod])
@@ -298,6 +335,8 @@ class ClassicalLimitProcessor(object):
             new_prod = []
 
             if len(replacements) > 0:
+                # Write down symbolica replacements based on the output of self.get_squared_replacements(g, [p[0] for p in prod])
+
                 for rep in replacements[0]:
                     e_pat = rep[0]
                     es_sub = [e for e in set(boundary_edges(g.dot, rep[1])) - {e_pat}]
@@ -310,6 +349,9 @@ class ClassicalLimitProcessor(object):
                             for e in es_sub
                         )
                     )
+
+                # Make the replacement making sure that if the expression is Q(8)*Q(8), only one instance of Q(8)
+                # gets substituted, i.e. Q(8)*Q(8)->(Q(2)-Q(3))*Q(8)
 
                 for pupu in prod:
                     newp = E("0")
@@ -338,10 +380,6 @@ class ClassicalLimitProcessor(object):
 
         return new_prods
 
-        # attrs = g.get_attributes()
-        # attrs["num"] = f'"{expr_to_string(g.get_numerator())}"'
-        # g.set_local_numerators_to_one()
-
     def process_graphs(self, graphs: DotGraphs) -> DotGraphs:
         processed_graphs = DotGraphs()
 
@@ -359,13 +397,13 @@ class ClassicalLimitProcessor(object):
             reso = self.delocalize_numerators(g)
 
             g.dot.set("num_matrices", reso)
-            # for r in reso:
-            #    print("PRODUCTTTT")
-            #    for p in r:
-            #        for mon in p[1].expand():
-            #            print("---------")
-            #            print(p[0])
-            #            print(mon)
+            #            for r in reso:
+            #                print("PRODUCTTTT")
+            #                for p in r:
+            #                    for mon in p[1].expand():
+            #                        print("---------")
+            #                        print(p[0])
+            #                        print(mon)
 
             processed_graphs.append(g)
 
