@@ -29,6 +29,11 @@ def _is_ext(name: str) -> bool:
     return bool(re.fullmatch(r"ext\d+", _strip_quotes(name)))
 
 
+# True if an edge has a vertex that matches "ext" followed by digits (ignoring quotes).
+def _is_ext_edge(e) -> bool:
+    return _is_ext(e.get_source()) or _is_ext(e.get_destination())
+
+
 # pydot vertices are in the form "v:port", where port is an int; returns (v,port)
 def _parse_port_endpoint(endpoint: str) -> Optional[Tuple[str, int]]:
     ep = _strip_quotes(endpoint)

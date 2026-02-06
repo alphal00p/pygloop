@@ -1,7 +1,5 @@
 import json
 import os
-from types import ModuleType
-from typing import Iterator, List, Optional, Set, Tuple
 
 import pydot
 from gammaloop import (  # iso\rt: skip # type: ignore # noqa: F401
@@ -18,8 +16,6 @@ from symbolica.community.idenso import (  # pyright: ignore
 )
 
 from processes.dy.dy_graph_utils import (
-    _is_ext,
-    _node_key,
     boundary_edges,
     get_LR_components,
     get_spanning_tree,
@@ -86,7 +82,7 @@ class IntegrandConstructor(object):
         # GAMMALOOP_STATE_FOLDER
         self.gl_worker.run("import model sm-default.json")
 
-    def get_numerator(self, graph):
+    def get_numerator(self, graph) -> Expression:
         num = E("1")
         for node in graph.get_nodes():
             if node.get_name() not in ["edge", "node"]:
@@ -104,7 +100,9 @@ class IntegrandConstructor(object):
 
         return out
 
-    def get_CFF(self, graph, subgraph_as_nodes, reversed_edge_flows_ids):
+    def get_CFF(
+        self, graph, subgraph_as_nodes, reversed_edge_flows_ids
+    ) -> CFFStructure:
 
         cff_structure = self.gl_worker.generate_cff_as_json_string(
             dot_string=graph.to_string(),
@@ -122,12 +120,16 @@ class IntegrandConstructor(object):
 
         return cff_structure
 
-    def construct_00_cuts(self, info: integrand_info):
+    def construct_00_cuts(self, info: integrand_info) -> Expression:
         energies = E("1")
         edge_ids = [e.get("id") for e in info.graph.graph.get_edges()]
         numerator = info.num.replace(
             E("sp(x_,y_)"), E("sigma(x_)*sigma(y_)*E(x_)*E(y_)-sp3D(q(x_),q(y_))")
         )
+
+        # print(numerator)
+        # print(info.s_bridge_sub_L)
+        # print("------")
         if info.has_s_bridge_L:
             edge_ids.remove(info.s_bridge_sub_L["id_s"])
             energies *= (
@@ -215,13 +217,13 @@ class IntegrandConstructor(object):
 
     def construct_01_cuts(self, info: integrand_info):
         print("here")
-        a = 1
+        return
 
     def construct_10_cuts(self, info: integrand_info):
-        a = 1
+        return
 
     def construct_11_cuts(self, info: integrand_info):
-        a = 1
+        return
 
     def eliminate_s_channel_bridges(self, graph: pydot.Dot, comp):
         new_comp = set()
@@ -245,7 +247,11 @@ class IntegrandConstructor(object):
                 ):
                     check += 1
                     s_bridge_sub["id_p2"] = e.get_attributes()["id"]
-                else:
+                elif (
+                    e.get_attributes()["routing_p2"] != "0"
+                    and e.get_attributes()["routing_k0"] == "0"
+                    and e.get_attributes()["routing_p1"] != "0"
+                ):
                     s_bridge_sub["id_s"] = e.get_attributes()["id"]
             if check != 2:
                 new_comp.add(v)
@@ -312,6 +318,8 @@ class IntegrandConstructor(object):
             has_s_bridge_L,
             has_s_bridge_R,
         )
+
+        print(cut_graph.graph)
 
         if len(partition[0]) == 1 and len(partition[1]) == 1:
             print(self.construct_00_cuts(graph_integrand_info))

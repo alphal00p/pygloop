@@ -13,15 +13,15 @@ from itertools import product  # noqa: F401
 from pprint import pformat, pprint  # noqa: F401
 from typing import Any, Callable
 
-import progressbar
+import progressbar  # pyright: ignore
 import vegas  # type: ignore
 
 # fmt: off
 from gammaloop import ( GammaLoopAPI, LogLevel, evaluate_graph_overall_factor, git_version )  # isort: skip # type: ignore # noqa: F401
 # fmt: on
-from matplotlib.typing import CapStyleType, ColorType  # noqa: F401
-from symbolica import E, Expression, NumericalIntegrator, Sample
-from symbolica.community.idenso import (  # noqa: F401
+from matplotlib.typing import CapStyleType, ColorType  # noqa: F401 # pyright: ignore
+from symbolica import E, Expression, NumericalIntegrator, Sample  # pyright: ignore
+from symbolica.community.idenso import (  # noqa: F401 # pyright: ignore
     simplify_color,
     simplify_gamma,
     simplify_metrics,
@@ -322,7 +322,7 @@ class DY(object):
                 #    f"generate amp d d~ > d d~ | d d~ g a QED==2 [{{1}}] --only-diagrams --numerator-grouping only_detect_zeroes --symmetrize-left-right-states true -p {base_name} -i {graphs_process_name}"
                 # )
                 self.gl_worker.run(
-                    f"generate amp d g > d g | d d~ g a QED==2 [{{1}}] --only-diagrams --numerator-grouping only_detect_zeroes --select-graphs GL11 -p {base_name} -i {graphs_process_name}"
+                    f"generate amp d g > d g | d d~ g a QED==2 [{{1}}] --only-diagrams --numerator-grouping only_detect_zeroes --select-graphs GL10 -p {base_name} -i {graphs_process_name}"  #
                 )
                 self.gl_worker.run("save state -o")
                 DY_1L_dot_files = self.gl_worker.get_dot_files(
@@ -1102,8 +1102,8 @@ class DY(object):
     @set_gammaloop_level(logging.ERROR, logging.INFO)
     def plot(self, **opts):
         import matplotlib.pyplot as plt  # type: ignore # nopep8
-        import numpy as np
-        from mpl_toolkits.mplot3d import (
+        import numpy as np  # pyright: ignore
+        from mpl_toolkits.mplot3d import (  # pyright: ignore
             Axes3D,  # type: ignore # noqa: F401 # nopep8 # fmt: off
         )
 
@@ -1150,7 +1150,8 @@ class DY(object):
                     )
                 else:
                     wgt = self.integrand(
-                        [Vector(xs[0], xs[1], xs[2])], opts["integrand_implementation"]
+                        [Vector(xs[0], xs[1], xs[2])],  # pyright: ignore
+                        opts["integrand_implementation"],
                     )  # type: ignore
                     match opts.get("phase", None):
                         case "real":

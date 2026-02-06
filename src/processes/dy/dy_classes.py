@@ -13,7 +13,7 @@ except ImportError:
 import copy
 
 import pydot
-from symbolica import E, Expression # pyright: ignore
+from symbolica import E, Expression  # pyright: ignore
 
 from processes.dy.dy_graph_utils import (
     _all_node_names,
@@ -33,7 +33,12 @@ from processes.dy.dy_graph_utils import (
     remove_edge_attr,
     sort_half_edges_by_port,
 )
-from utils.utils import DotGraph, DotGraphs, expr_to_string, pygloopException  # noqa: F401
+from utils.utils import (  # noqa: F401
+    DotGraph,
+    DotGraphs,
+    expr_to_string,
+    pygloopException,
+)
 
 
 def Es(expr: str) -> Expression:
@@ -665,8 +670,6 @@ class DYDotGraph(DotGraph):
         attrs = dict(e1.get_attributes() or {})
         attrs["is_cut"] = "1"
 
-        attrs_e1 = e1.get_attributes()
-
         print(e1)
 
         ee = remove_edge_attr(pydot.Edge(u, v, **attrs), "lmb_rep")
@@ -732,26 +735,30 @@ class DYDotGraph(DotGraph):
                     paired_up.append(ep)
 
         # NEW STUFF: RELABEL SO THAT IDs ARE CONSECUTIVE
-        substitutions=[]
+        substitutions = []
         for e, i in zip(
             vacuum_graph.get_edges(), range(0, len(vacuum_graph.get_edges()))
         ):
-            print(e.get('id'))
+            print(e.get("id"))
             print(i)
             print("----")
-            pattern=E(f"Q({e.get('id')},y___)", default_namespace="gammalooprs")
-            substitution=E(f"Q({i},y___)", default_namespace="gammalooprs")
-            substitutions.append((i,pattern,substitution))
+            pattern = E(f"Q({e.get('id')},y___)", default_namespace="gammalooprs")
+            substitution = E(f"Q({i},y___)", default_namespace="gammalooprs")
+            substitutions.append((i, pattern, substitution))
             e.get_attributes()["id"] = i
 
         for e in vacuum_graph.get_edges():
-            for (id, pat, rep) in substitutions:
-                if e.get("id")==id:
-                    e.get_attributes()["num"]=expr_to_string(Es(e.get("num")).replace(pat, rep))
+            for id, pat, rep in substitutions:
+                if e.get("id") == id:
+                    e.get_attributes()["num"] = expr_to_string(
+                        Es(e.get("num")).replace(pat, rep)
+                    )
 
         for v in vacuum_graph.get_nodes():
-            for (id, pat, rep) in substitutions:
-                v.get_attributes()["num"]=expr_to_string(Es(v.get("num")).replace(pat, rep))
+            for id, pat, rep in substitutions:
+                v.get_attributes()["num"] = expr_to_string(
+                    Es(v.get("num")).replace(pat, rep)
+                )
 
         return VacuumDotGraph(
             vacuum_graph  # , self.get_numerator(include_overall_factor=True)

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import copy
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, List, Tuple
 
 from symbolica import E, Evaluator, Expression, Replacement, S  # isort: skip # noqa: F401 # type: ignore
 import itertools
@@ -91,7 +91,9 @@ class ClassicalLimitProcessor(object):
     # if we represented powers of momenta as dots on edges, the resulting expression for the numerator would
     # have at most two dots per edge.
 
-    def arrange_power_energies(self, g: DotGraph):
+    def arrange_power_energies(
+        self, g: DotGraph
+    ) -> List[List[Tuple[Tuple[int], Expression]]]:
 
         graviton_edges = set([
             e

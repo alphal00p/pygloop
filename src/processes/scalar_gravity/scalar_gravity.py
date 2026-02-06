@@ -10,26 +10,26 @@ import time
 from pprint import pformat, pprint  # noqa: F401
 from typing import Any
 
-import progressbar
+import progressbar  # pyright: ignore
 
 from gammaloop import GammaLoopAPI, LogLevel, evaluate_graph_overall_factor, git_version  # isort: skip # type: ignore # noqa: F401
 
-from matplotlib.typing import CapStyleType, ColorType  # noqa: F401
-from symbolica import (
+from matplotlib.typing import CapStyleType, ColorType  # noqa: F401 # pyright: ignore
+from symbolica import (  # pyright: ignore
     E,
     Evaluator,
     Expression,
     Replacement,
     S,
 )
-from symbolica.community.idenso import (
+from symbolica.community.idenso import (  # pyright: ignore
     cook_indices,
     simplify_color,
-    simplify_gamma,
-    simplify_metrics,
+    simplify_gamma,  # noqa: F401
+    simplify_metrics,  # noqa: F401
 )  # isort: skip # noqa: F401
-from symbolica.community.spenso import TensorLibrary, TensorNetwork
-from ufo_model_loader.commands import Model
+from symbolica.community.spenso import TensorLibrary, TensorNetwork  # pyright: ignore
+from ufo_model_loader.commands import Model  # pyright: ignore
 
 from processes.scalar_gravity.classical_limit_tools import ClassicalLimitProcessor
 from utils.cff import CFFStructure, CFFTerm
@@ -689,7 +689,7 @@ class ScalarGravity(object):
                     progressbar.AdaptiveETA(),
                 ],
             )
-            progress_bar.start()
+            progress_bar.start()  # pyright: ignore
 
         full_expression: Expression = E("0")
         full_evaluator: Evaluator | None = None
@@ -1686,11 +1686,11 @@ class ScalarGravity(object):
                 f"Spenso evaluators for integrand {integrand_name} not generated yet. Run generate_spenso_code first."
             )
 
-        parameters_evaluator = self.spenso_evaluators[integrand_name][
+        parameters_evaluator = self.spenso_evaluators[integrand_name][  # pyright: ignore
             "input_parameters_evaluator"
         ]  # type: ignore
         if not parametric:
-            full_evaluator = self.spenso_evaluators[integrand_name][
+            full_evaluator = self.spenso_evaluators[integrand_name][  # pyright: ignore
                 "full_integrand_evaluator"
             ]  # type: ignore
             if full_evaluator is None:
@@ -1704,7 +1704,7 @@ class ScalarGravity(object):
             return full_evaluator_result
 
         else:
-            parametric_evaluator = self.spenso_evaluators[integrand_name][
+            parametric_evaluator = self.spenso_evaluators[integrand_name][  # pyright: ignore
                 "parametric_integrand_evaluator"
             ]  # type: ignore
             cff_structure = parametric_evaluator.additional_data["cff_structure"]
