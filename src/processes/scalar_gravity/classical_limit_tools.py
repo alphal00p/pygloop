@@ -311,8 +311,8 @@ class ClassicalLimitProcessor(object):
                         )
                     )
 
-                newp = E("0")
                 for pupu in prod:
+                    newp = E("0")
                     for monomial in pupu[1].expand():
                         new_monomial = monomial.replace(
                             E("Q(x_,y___)*Q(z_,w___)*rest___"), E("rest___")
@@ -329,10 +329,11 @@ class ClassicalLimitProcessor(object):
                             q_factor1 = q_factor1.replace(rep, sub)
                         newp += new_monomial * q_factor1 * q_factor2
                     new_pupu = [copy.deepcopy(pupu[0]), copy.deepcopy(newp)]
-                new_prod.append(new_pupu)
+                    new_prod.append(new_pupu)
 
             else:
                 new_prod = copy.deepcopy(prod)
+
             new_prods.append(new_prod)
 
         return new_prods
@@ -356,6 +357,16 @@ class ClassicalLimitProcessor(object):
             # num_split = self.arrange_power_energies(g)
 
             reso = self.delocalize_numerators(g)
+
+            g.dot.set("num_matrices", reso)
+            # for r in reso:
+            #    print("PRODUCTTTT")
+            #    for p in r:
+            #        for mon in p[1].expand():
+            #            print("---------")
+            #            print(p[0])
+            #            print(mon)
+
             processed_graphs.append(g)
 
             # As an example, add a fake UV equal to the original graph
