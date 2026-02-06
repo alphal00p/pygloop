@@ -100,7 +100,6 @@ class ClassicalLimitProcessor(object):
         ])
 
         selected_edges = []
-        print([e.get_attributes()["id"] for e in graviton_edges])
         # to express all momenta in a graviton vertex in terms of N-1 momenta, determine substitution rules
         for v in g.dot.get_nodes():
             int_id = v.get_attributes().get("int_id", "").strip().strip('"')
@@ -112,11 +111,6 @@ class ClassicalLimitProcessor(object):
             ):
                 v_id = v.get_name()
                 bdry = list(boundary_edges(g.dot, {v_id}))
-
-                print("----------")
-                print([e.get_attributes()["id"] for e in graviton_edges])
-                print([e.get_attributes()["id"] for e in bdry])
-                print([e for e in selected_edges])
 
                 if len(set(bdry).intersection(graviton_edges)) == len(bdry):
                     selected_edges.append((v, bdry[-1], bdry[:-1]))
@@ -213,7 +207,6 @@ class ClassicalLimitProcessor(object):
                     new_possible_cuts.append([[chosen_e, cut]])
         else:
             for previous_cuts in possible_cuts:
-                print(previous_cuts)
                 for cut in total_cuts:
                     bry_cut = set(boundary_edges(g.dot, cut)) - {chosen_e}
                     if (
@@ -239,8 +232,6 @@ class ClassicalLimitProcessor(object):
                             copy_cut = copy.deepcopy(previous_cuts)
                             copy_cut.append([chosen_e, cut])
                             new_possible_cuts.append(copy_cut)
-            # print("new_cuts")
-            # print(new_possible_cuts)
 
         reduced_graph_edges_deg2 = reduced_graph_edges_deg2[:-1]
 
@@ -289,18 +280,66 @@ class ClassicalLimitProcessor(object):
                 "Not possible to arrange squared energies... check your graph."
             )
 
-    def delocalize_numerators(self, g: DotGraph) -> None:
+    def delocalize_numerators(self, g: DotGraph):
 
         num_split = self.arrange_power_energies(g)
 
         print(num_split)
 
-        for prod in itertools.product(*num_split):
-            self.get_squared_replacements(g, [p[0] for p in prod])
+        numerator_products = []
 
-        attrs = g.get_attributes()
-        attrs["num"] = f'"{expr_to_string(g.get_numerator())}"'
-        g.set_local_numerators_to_one()
+        new_prods = []
+
+        for prod in itertools.product(*num_split):
+            replacements = self.get_squared_replacements(g, [p[0] for p in prod])
+
+            patterns_symb = []
+            replacements_symb = []
+            new_prod = []
+
+            if len(replacements) > 0:
+                for rep in replacements[0]:
+                    e_pat = rep[0]
+                    es_sub = [e for e in set(boundary_edges(g.dot, rep[1])) - {e_pat}]
+                    patterns_symb.append(E(f"Q({e_pat.get_attributes()['id']},y___)"))
+                    replacements_symb.append(
+                        (-1 if _node_key(e_pat.get_source()) in rep[1] else 1)
+                        * sum(
+                            (1 if _node_key(e.get_source()) in rep[1] else -1)
+                            * E(f"Q({e.get_attributes()['id']},y___)")
+                            for e in es_sub
+                        )
+                    )
+
+                newp = E("0")
+                for pupu in prod:
+                    for monomial in pupu[1].expand():
+                        new_monomial = monomial.replace(
+                            E("Q(x_,y___)*Q(z_,w___)*rest___"), E("rest___")
+                        )
+                        q_factors = monomial.replace(
+                            E("Q(x_,y___)*Q(z_,w___)*rest___"),
+                            E("Q(x_,y___)*Q(z_,w___)"),
+                        )
+                        q_factor1 = monomial.replace(
+                            E("Q(x_,y___)*Q(z_,w___)*rest___"), E("Q(x_,y___)")
+                        )
+                        q_factor2 = q_factors / q_factor1
+                        for rep, sub in zip(patterns_symb, replacements_symb):
+                            q_factor1 = q_factor1.replace(rep, sub)
+                        newp += new_monomial * q_factor1 * q_factor2
+                    new_pupu = [copy.deepcopy(pupu[0]), copy.deepcopy(newp)]
+                new_prod.append(new_pupu)
+
+            else:
+                new_prod = copy.deepcopy(prod)
+            new_prods.append(new_prod)
+
+        return new_prods
+
+        # attrs = g.get_attributes()
+        # attrs["num"] = f'"{expr_to_string(g.get_numerator())}"'
+        # g.set_local_numerators_to_one()
 
     def process_graphs(self, graphs: DotGraphs) -> DotGraphs:
         processed_graphs = DotGraphs()
@@ -314,8 +353,9 @@ class ClassicalLimitProcessor(object):
             self.adjust_projectors(g)
             # self.delocalize_numerators(g)
             print("hiiiiiiiiiiiiiiiii")
-            # self.arrange_power_energies(g)
-            self.delocalize_numerators(g)
+            # num_split = self.arrange_power_energies(g)
+
+            reso = self.delocalize_numerators(g)
             processed_graphs.append(g)
 
             # As an example, add a fake UV equal to the original graph
