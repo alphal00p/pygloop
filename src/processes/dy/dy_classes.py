@@ -434,7 +434,7 @@ class VacuumDotGraph(object):
 
         return graph
 
-    # Checks that a certain routed graph has been routed correctly.
+    # Checks that a certain routed graph has been routed correctly. This function is limited to Drell-Yan.
     def check_routing(
         self, graph: pydot.Dot, partition: List[List[pydot.Edge]]
     ) -> bool:
@@ -580,17 +580,29 @@ class VacuumDotGraph(object):
             if sp is None:
                 raise RuntimeError("sympy not available")
 
+            # Changed to be generic
+
             for e in graph[3].get_edges():
+                attrs = e.get_attributes()
+                loop_routings = [
+                    sp.Rational(v)
+                    for k, v in attrs.items()
+                    if k.startswith("routing_k")
+                ]
+                all_loop_zero = all(r == 0 for r in loop_routings)
+
                 if (
                     sp.Rational(e.get_attributes()["routing_p1"]) != 0
-                    and sp.Rational(e.get_attributes()["routing_k0"]) == 0
+                    and all_loop_zero
+                    # and sp.Rational(e.get_attributes()["routing_k0"]) == 0
                     and sp.Rational(e.get_attributes()["routing_p2"]) == 0
                     and _strip_quotes(e.get_attributes().get("particle", "")) != "a"
                 ):
                     count_p1 = True
                 elif (
                     sp.Rational(e.get_attributes()["routing_p2"]) != 0
-                    and sp.Rational(e.get_attributes()["routing_k0"]) == 0
+                    and all_loop_zero
+                    # and sp.Rational(e.get_attributes()["routing_k0"]) == 0
                     and sp.Rational(e.get_attributes()["routing_p1"]) == 0
                     and _strip_quotes(e.get_attributes().get("particle", "")) != "a"
                 ):

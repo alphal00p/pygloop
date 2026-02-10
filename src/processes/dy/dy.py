@@ -29,7 +29,11 @@ from symbolica.community.idenso import (  # noqa: F401 # pyright: ignore
 from symbolica.community.spenso import *  # noqa: F403 # type: ignore
 
 from processes.dy.dy_classes import DYDotGraphs, VacuumDotGraph  # noqa: F401
-from processes.dy.dy_integrand import IntegrandConstructor, routed_cut_graph
+from processes.dy.dy_integrand import (
+    IntegrandConstructor,
+    evaluate_integrand,
+    routed_cut_graph,
+)
 from utils.utils import (
     CONFIGS_FOLDER,  # noqa: F401
     DOTS_FOLDER,  # noqa: F401
@@ -269,7 +273,7 @@ class DY(object):
         filtered_graphs = DYDotGraphs()
         filtered_graphs.extend(copy.deepcopy(graphs.filter_particle_definition(["a"])))
 
-        processor = IntegrandConstructor([], "tests")
+        processor = IntegrandConstructor([], "tests", 1)
 
         for graph in filtered_graphs:
             g = copy.deepcopy(graph)
@@ -281,8 +285,14 @@ class DY(object):
             )
             for gg in routed_graphs:
                 processed_graphs.append(gg[3])
-            cut_graph = routed_cut_graph(gg[3], gg[0], gg[1], gg[2])
-            processor.get_integrand(cut_graph)
+                cut_graph = routed_cut_graph(gg[3], gg[0], gg[1], gg[2])
+                integrand = processor.get_integrand(cut_graph)
+                my_evaluator = evaluate_integrand(1, integrand, "DY")
+                print(
+                    my_evaluator.eval(
+                        [[0.1, 0.2, 0.3]], [0.0, 0.0, 1], [0.0, 0.0, -1], 1
+                    )
+                )
             # print("n cuts:", len(cuts))
             # print("n routed:", len(processed_graphs))
         return processed_graphs
@@ -322,7 +332,7 @@ class DY(object):
                 #    f"generate amp d d~ > d d~ | d d~ g a QED==2 [{{1}}] --only-diagrams --numerator-grouping only_detect_zeroes --symmetrize-left-right-states true -p {base_name} -i {graphs_process_name}"
                 # )
                 self.gl_worker.run(
-                    f"generate amp d g > d g | d d~ g a QED==2 [{{1}}] --only-diagrams --numerator-grouping only_detect_zeroes --select-graphs GL10 -p {base_name} -i {graphs_process_name}"  #
+                    f"generate amp d g > d g | d d~ g a QED==2 [{{1}}] --only-diagrams --numerator-grouping only_detect_zeroes --select-graphs GL11 -p {base_name} -i {graphs_process_name}"  #
                 )
                 self.gl_worker.run("save state -o")
                 DY_1L_dot_files = self.gl_worker.get_dot_files(
