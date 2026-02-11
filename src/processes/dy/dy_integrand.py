@@ -1,6 +1,5 @@
 import json
 import os
-from typing import List
 
 import pydot
 from gammaloop import (  # iso\rt: skip # type: ignore # noqa: F401
@@ -9,7 +8,7 @@ from gammaloop import (  # iso\rt: skip # type: ignore # noqa: F401
     evaluate_graph_overall_factor,
     git_version,
 )
-from symbolica import E, Expression, S  # pyright: ignore
+from symbolica import E, Expression  # pyright: ignore
 from symbolica.community.idenso import (  # pyright: ignore
     simplify_color,
     simplify_gamma,
@@ -167,7 +166,7 @@ class IntegrandConstructor(object):
                 E(f"sigma({info.s_bridge_sub_R['id_s']})"), E("1")
             )
         for id in edge_ids:
-            energies *= 1 / E(f"E({id})")
+            energies *= 1 / E(f"2*E({id})")
 
         total1 = E("0")
 
@@ -223,6 +222,7 @@ class IntegrandConstructor(object):
         for v in comp:
             bdry = boundary_edges(graph, {v})
             check = 0
+            # DOES NOT WORK OUTSIDE DY
             for e in bdry:
                 if (
                     e.get_attributes()["routing_p1"] != "0"
@@ -249,11 +249,51 @@ class IntegrandConstructor(object):
             else:
                 has_s_bridge = True
 
-        # print("here they are")
-        # print(has_s_bridge)
-        # print(s_bridge_sub)
-
         return has_s_bridge, s_bridge_sub, new_comp
+
+    def find_gluon_lmb(self, cut_graph: routed_cut_graph, integrand):
+        return
+
+    def concretise_sclar_products(self, integrand):
+
+        if self.name == "DY":
+            integrand = integrand.replace(E("m(a)^2"), E("4*z^2*sp3(p(1),p(1))"))
+
+        integrand = integrand.replace(
+            E("sp3(x__,z_+w__)"),
+            E("sp3(x__, z_)") + E("sp3(x__,w__)"),
+            repeat=True,
+        )
+        integrand = integrand.replace(
+            E("sp3(x__,-z_+w__)"),
+            -E("sp3(x__, z_)") + E("sp3(x__,w__)"),
+            repeat=True,
+        )
+        integrand = integrand.replace(
+            E("sp3(x_+y__,z__)"),
+            E("sp3(x_, z__)") + E("sp3(y__,z__)"),
+            repeat=True,
+        )
+        integrand = integrand.replace(
+            E("sp3(-x_+y__,z__)"),
+            -E("sp3(x_, z__)") + E("sp3(y__,z__)"),
+            repeat=True,
+        )
+        integrand = integrand.replace(E("sp3(-x_,z_)"), E("-sp3(x_,z_)"))
+        integrand = integrand.replace(E("sp3(x_,-z_)"), E("-sp3(x_,z_)"))
+        integrand = integrand.replace(
+            E("sp3(k(x_),k(y_))"), E("k(x_,1)*k(y_,1)+k(x_,2)*k(y_,2)+k(x_,3)*k(y_,3)")
+        )
+        integrand = integrand.replace(
+            E("sp3(k(x_),p(y_))"), E("k(x_,1)*p(y_,1)+k(x_,2)*p(y_,2)+k(x_,3)*p(y_,3)")
+        )
+        integrand = integrand.replace(
+            E("sp3(p(x_),k(y_))"), E("p(x_,1)*k(y_,1)+p(x_,2)*k(y_,2)+p(x_,3)*k(y_,3)")
+        )
+        integrand = integrand.replace(
+            E("sp3(p(x_),p(y_))"), E("p(x_,1)*p(y_,1)+p(x_,2)*p(y_,2)+p(x_,3)*p(y_,3)")
+        )
+        return integrand
 
     def integrand_approximator(self, cut_graph: routed_cut_graph, integrand):
         partition = json.loads(cut_graph.graph.get_attributes()["partition"])
@@ -275,7 +315,6 @@ class IntegrandConstructor(object):
                 eid = _strip_quotes(eid_raw) if isinstance(eid_raw, str) else eid_raw
                 target = E(f"E({eid})")
                 particle = _strip_quotes(str(e_atts["particle"]))
-
                 if particle not in ["d", "d~", "g"]:
                     replacement = E(f"(sp3(q({eid}),q({eid}))+m({particle})^2)^(1/2)")
                 else:
@@ -284,7 +323,6 @@ class IntegrandConstructor(object):
                 approximated_integrand = approximated_integrand.replace(
                     target, replacement
                 )
-
             for e in cut_graph.graph.get_edges():
                 e_atts = e.get_attributes()
                 routing_items = E("0")
@@ -299,6 +337,109 @@ class IntegrandConstructor(object):
                 approximated_integrand = approximated_integrand.replace(
                     E(f"q({e_atts['id']})"), routing_items
                 )
+
+            approximated_integrand = self.concretise_sclar_products(
+                approximated_integrand
+            )
+
+        ### FOLLOWING GEARED AS A REPLACEMENT IN k(0), MIGHT NOT GENERALISE
+        if len(partition[0]) > 1 and len(partition[1]) == 1:
+            # approximated_integrand = E("1/E(3)")
+            # print(approximated_integrand)
+            for e in cut_graph.graph.get_edges():
+                e_atts = e.get_attributes()
+                e_id = e_atts["id"]
+                particle = _strip_quotes(str(e_atts["particle"]))
+
+                if e_id == partition[0][0]:
+                    approximated_integrand = approximated_integrand.replace(
+                        E(f"E({e_id})"),
+                        E(
+                            "x*sp3(p(1),p(1))^(1/2)+lam*sp3(p(1),p(1))^(-1/2)*x^(-1)*sp3(kperp(0),kperp(0))"
+                        ),
+                    )
+                elif e_id == partition[0][1]:
+                    approximated_integrand = approximated_integrand.replace(
+                        E(f"E({e_id})"),
+                        E(
+                            "(1-x)*sp3(p(1),p(1))^(1/2)+lam*sp3(p(1),p(1))^(-1/2)*(1-x)^(-1)*sp3(kperp(0),kperp(0))"
+                        ),
+                    )
+                elif e_atts["routing_k0"] == "0" and e_atts["routing_p2"] == "0":
+                    approximated_integrand = approximated_integrand.replace(
+                        E(f"E({e_id})"),
+                        E("sp3(p(1),p(1))^(1/2)"),  # +lam*p1sq/sp3(p(1),p(1))^(1/2)"),
+                    )
+                else:
+                    # print(E(f"E({e_id})"))
+                    if particle not in ["d", "d~", "g"]:
+                        replacement = E(
+                            f"(sp3(q({e_id}),q({e_id}))+m({particle})^2)^(1/2)"
+                        )
+                    else:
+                        replacement = E(f"(sp3(q({e_id}),q({e_id})))^(1/2)")
+                    approximated_integrand = approximated_integrand.replace(
+                        E(f"E({e_id})"), replacement
+                    )
+                    # print(E(f"E({e_id})").replace(E(f"E({e_id})"), replacement))
+
+            collinear_momentum = E("0")
+            for e in cut_graph.graph.get_edges():
+                e_atts = e.get_attributes()
+                routing_items = E("0")
+                e_id = e_atts["id"]
+                for i in range(self.L + 1):
+                    key = f"routing_k{i}"
+                    if key in e_atts:
+                        routing_items += E(f"{e_atts[key]}*k({i})")
+                for i in range(0, 2):
+                    key = f"routing_p{i + 1}"
+                    if key in e_atts:
+                        routing_items += E(f"{e_atts[key]}*p({i + 1})")
+                approximated_integrand = approximated_integrand.replace(
+                    E(f"q({e_atts['id']})"), routing_items
+                )
+                if e_id == partition[0][0]:
+                    collinear_momentum = [routing_items, e_atts["is_cut_DY"]]
+
+            approximated_integrand = self.concretise_sclar_products(
+                approximated_integrand
+            )
+            coeff = collinear_momentum[0].replace(E("b___+k(0)"), E("1"))
+            coeff = coeff.replace(E("b___-k(0)"), E("-1"))
+            repl = -(collinear_momentum[0] - coeff * E("k(0)")) + collinear_momentum[
+                1
+            ] * E("x*p(1)")
+
+            # print("REPLACEMENTS")
+            # print(repl)
+
+            for j in range(1, 4):
+                repl_i = repl.replace(E("k(x_)"), E(f"k(x_,{j})"))
+                repl_i = repl_i.replace(E("p(1)"), E(f"p(1,{j})"))
+                repl_i = repl_i.replace(E("p(2)"), E(f"p(2,{j})"))
+                approximated_integrand = approximated_integrand.replace(
+                    E(f"k(0,{j})"), repl_i
+                )
+                # print(repl_i)
+
+            approximated_integrand = (
+                approximated_integrand
+                .series(E("lam"), 0, -1)
+                .to_expression()
+                .replace(E("lam"), E("1"))
+            )
+
+            ## replacements only valid when hadrons are aligned with z axis
+            repl_x = collinear_momentum[1] * E("(p(1,3)*k(0,3))/(p(1,3)*p(1,3))")
+            repl_kperp = E("k(0,1)^2+k(0,2)^2")
+
+            # print(approximated_integrand)
+
+            approximated_integrand = approximated_integrand.replace(E("x"), repl_x)
+            approximated_integrand = approximated_integrand.replace(
+                E("sp3(kperp(0),kperp(0))"), repl_kperp
+            )
 
         return approximated_integrand
 
@@ -318,23 +459,29 @@ class IntegrandConstructor(object):
         )
 
         dangling = [[], []]
+
+        cut_ids = [
+            e.get_attributes()["id"]
+            for e in cut_graph.initial_cut + cut_graph.final_cut
+        ]
+
         for i in [0, 1]:
-            for e in boundary_edges(cut_graph.graph, set(comps[i])):
-                e_cut_attributes = e.get_attributes()
-                if e_cut_attributes.get("is_cut") is None:
-                    raise ValueError("No is_cut attribute in cut edge... impossible!")
-                elif e_cut_attributes.get("is_cut") == -1:
-                    dangling[i].append(int(e_cut_attributes.get("id")))
-                e_cut_attributes["is_cut_DY"] = e_cut_attributes.get("is_cut")
+            for e in cut_graph.graph.get_edges():
+                if e.get_attributes()["id"] in cut_ids:
+                    e_cut_attributes = e.get_attributes()
+                    if e_cut_attributes.get("is_cut") is None:
+                        raise ValueError(
+                            "No is_cut attribute in cut edge... impossible!"
+                        )
+                    elif e_cut_attributes.get("is_cut") == -1:
+                        dangling[i].append(int(e_cut_attributes.get("id")))
+                    e_cut_attributes["is_cut_DY"] = e_cut_attributes.get("is_cut")
 
         for i in [0, 1]:
             for e in cut_graph.graph.get_edges():
                 e_cut_attributes = e.get_attributes()
                 if e_cut_attributes.get("is_cut", None) is not None:
                     e_cut_attributes.pop("is_cut")
-
-        # cff_structure_L = self.get_CFF(cut_graph.graph, list(comps[0]), dangling[0])
-        # print(cff_structure_L)
 
         comps = [new_comp_L, new_comp_R]
 
@@ -361,8 +508,6 @@ class IntegrandConstructor(object):
             has_s_bridge_R,
         )
 
-        print(cut_graph.graph)
-
         cut_integrand = self.construct_cuts(graph_integrand_info)
 
         for e in cut_graph.graph.get_edges():
@@ -373,10 +518,7 @@ class IntegrandConstructor(object):
                     E(f"sigma({cut_id})"), E(f"{cut_val}")
                 )
 
-        print(cut_integrand)
-        print("------------")
         cut_integrand = self.integrand_approximator(cut_graph, cut_integrand)
-        print(cut_integrand)
 
         return cut_integrand
 
@@ -393,62 +535,27 @@ class evaluate_integrand(object):
             for j in range(1, 4):
                 self.symbols.append(E(f"p({i},{j})"))
 
-        self.cut_integrand = cut_integrand
-
         if process == "DY":
-            self.symbols.append(S("z"))
-            self.cut_integrand = self.cut_integrand.replace(
-                E("m(a)^2"), E("(1-z)*sp3(p(1)+p(2),p(1)+p(2))")
-            )
+            self.symbols.append(E("z"))
 
-        self.cut_integrand = self.cut_integrand.replace(
-            E("sp3(x__,z_+w__)"),
-            E("sp3(x__, z_)") + E("sp3(x__,w__)"),
-            repeat=True,
-        )
-        self.cut_integrand = self.cut_integrand.replace(
-            E("sp3(x__,-z_+w__)"),
-            -E("sp3(x__, z_)") + E("sp3(x__,w__)"),
-            repeat=True,
-        )
-        self.cut_integrand = self.cut_integrand.replace(
-            E("sp3(x_+y__,z__)"),
-            E("sp3(x_, z__)") + E("sp3(y__,z__)"),
-            repeat=True,
-        )
-        self.cut_integrand = self.cut_integrand.replace(
-            E("sp3(-x_+y__,z__)"),
-            -E("sp3(x_, z__)") + E("sp3(y__,z__)"),
-            repeat=True,
-        )
-        self.cut_integrand = self.cut_integrand.replace(
-            E("sp3(-x_,z_)"), E("-sp3(x_,z_)")
-        )
-        self.cut_integrand = self.cut_integrand.replace(
-            E("sp3(x_,-z_)"), E("-sp3(x_,z_)")
-        )
-        self.cut_integrand = self.cut_integrand.replace(
-            E("sp3(k(x_),k(y_))"), E("k(x_,1)*k(y_,1)+k(x_,2)*k(y_,2)+k(x_,3)*k(y_,3)")
-        )
-        self.cut_integrand = self.cut_integrand.replace(
-            E("sp3(k(x_),p(y_))"), E("k(x_,1)*p(y_,1)+k(x_,2)*p(y_,2)+k(x_,3)*p(y_,3)")
-        )
-        self.cut_integrand = self.cut_integrand.replace(
-            E("sp3(p(x_),k(y_))"), E("p(x_,1)*k(y_,1)+p(x_,2)*k(y_,2)+p(x_,3)*k(y_,3)")
-        )
-        self.cut_integrand = self.cut_integrand.replace(
-            E("sp3(p(x_),p(y_))"), E("p(x_,1)*p(y_,1)+p(x_,2)*p(y_,2)+p(x_,3)*p(y_,3)")
-        )
+        self.cut_integrand = cut_integrand
 
         self.cut_integrand = self.cut_integrand.replace(E("TR"), E("1/2"))
         self.cut_integrand = self.cut_integrand.replace(E("GC_11"), E("1"))
         self.cut_integrand = self.cut_integrand.replace(E("GC_1"), E("1"))
 
-        print(self.cut_integrand)
+        # print(self.cut_integrand)
 
         self.evaluator = self.cut_integrand.evaluator({}, {}, self.symbols)
 
-    def param_builder(self, k, p1, p2, z=1):
+        # print("TESTTTTTT")
+        # my_e = E(
+        #    "(p(1,1)^2+p(1,2)^2+p(1,3)^2+(-z+1)*(p(1,1)^2+p(1,2)^2+p(1,3)^2+p(2,1)^2+p(2,2)^2+p(2,3)^2+2*p(1,1)*p(2,1)+2*p(1,2)*p(2,2)+2*p(1,3)*p(2,3)))^(-1/2)"
+        # )
+        # my_ev = my_e.evaluator({}, {}, self.symbols)
+        # print(my_ev.evaluate([0.1, 0.2, 0.3, 0.0, 0.0, 1, 0.0, 0.0, -1, 0.588]))
+
+    def param_builder(self, k, p1, p2, z):
         param_list = []
         for i in range(self.L):
             for j in range(0, 3):
@@ -458,10 +565,13 @@ class evaluate_integrand(object):
         for j in range(0, 3):
             param_list.append(p2[j])
         if self.process == "DY":
+            # print("here")
             param_list.append(z)
+            # print(param_list)
 
         return param_list
 
-    def eval(self, k, p1, p2, z=1):
+    def eval(self, k, p1, p2, z):
+        # print(z)
         param_list = self.param_builder(k, p1, p2, z)
         return self.evaluator.evaluate(param_list)
