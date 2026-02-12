@@ -1,8 +1,8 @@
 from enum import StrEnum
 from typing import Any
 
-import numpy
-from symbolica import E, Expression, S
+import numpy  # pyright:ignore
+from symbolica import E, Expression, S  # pyright:ignore
 
 from utils.utils import Colour, np_cmplx_one, np_cmplx_zero
 
@@ -21,6 +21,9 @@ class EdgeOrientation(StrEnum):
         if label.upper() == "UNDIRECTED":
             return EdgeOrientation.UNDIRECTED
         raise ValueError(f"Unknown EdgeOrientation: {label}")
+
+    def is_default(self) -> bool:
+        return self == EdgeOrientation.DEFAULT
 
     def is_reversed(self) -> bool:
         return self == EdgeOrientation.REVERSED
@@ -113,10 +116,12 @@ class HSurface(object):
         id: int,
         positive_oses: tuple[int, ...],
         negative_oses: tuple[int, ...],
+        external_shift: list[tuple[int, int]],
     ):
         self.id = id
         self.positive_oses = positive_oses
         self.negative_oses = negative_oses
+        self.external_shift = external_shift
         self.expression: Expression = self.get_expression()
 
     def get_expression(self) -> Expression:
@@ -125,6 +130,8 @@ class HSurface(object):
             h_surf += CFFStructure.SB["E"](e_id)
         for e_id in self.negative_oses:
             h_surf -= CFFStructure.SB["E"](e_id)
+        for e_id, sign in self.external_shift:
+            h_surf += sign * CFFStructure.SB["E"](e_id)
         return h_surf
 
     def __str__(self):
@@ -206,6 +213,7 @@ class CFFStructure(object):
                     id=e_id,
                     positive_oses=h_surf["positive_energies"],
                     negative_oses=h_surf["negative_energies"],
+                    external_shift=h_surf["external_shift"],
                 )
             )
 
