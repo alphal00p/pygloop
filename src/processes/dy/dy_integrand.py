@@ -1,5 +1,7 @@
 import json
 import os
+from copy import deepcopy
+from fractions import Fraction
 
 import pydot
 from gammaloop import (  # iso\rt: skip # type: ignore # noqa: F401
@@ -16,6 +18,7 @@ from symbolica.community.idenso import (  # pyright: ignore
 )
 
 from processes.dy.dy_graph_utils import (
+    _node_key,
     _strip_quotes,
     boundary_edges,
     get_LR_components,
@@ -128,9 +131,8 @@ class IntegrandConstructor(object):
         numerator = info.num.replace(
             E("sp(x_,y_)"), E("sigma(x_)*sigma(y_)*E(x_)*E(y_)-sp3(q(x_),q(y_))")
         )
-
         if info.has_s_bridge_L:
-            edge_ids.remove(info.s_bridge_sub_L["id_s"])
+            edge_ids.remove(info.s_bridge_sub_L["id_s"][0])
             energies *= (
                 1
                 / (
@@ -140,15 +142,18 @@ class IntegrandConstructor(object):
                 ** 2
             )
             numerator = numerator.replace(
-                E(f"E({info.s_bridge_sub_L['id_s']})"),
-                E(f"E({info.s_bridge_sub_L['id_p1']})")
-                + E(f"E({info.s_bridge_sub_L['id_p2']})"),
+                E(f"E({info.s_bridge_sub_L['id_s'][0]})"),
+                info.s_bridge_sub_L["id_s"][1]
+                * (
+                    E(f"E({info.s_bridge_sub_L['id_p1']})")
+                    + E(f"E({info.s_bridge_sub_L['id_p2']})")
+                ),
             )
             numerator = numerator.replace(
-                E(f"sigma({info.s_bridge_sub_L['id_s']})"), E("1")
+                E(f"sigma({info.s_bridge_sub_L['id_s'][0]})"), E("1")
             )
         if info.has_s_bridge_R:
-            edge_ids.remove(info.s_bridge_sub_R["id_s"])
+            edge_ids.remove(info.s_bridge_sub_R["id_s"][0])
             energies *= (
                 1
                 / (
@@ -158,12 +163,15 @@ class IntegrandConstructor(object):
                 ** 2
             )
             numerator = numerator.replace(
-                E(f"E({info.s_bridge_sub_R['id_s']})"),
-                E(f"E({info.s_bridge_sub_R['id_p1']})")
-                + E(f"E({info.s_bridge_sub_R['id_p2']})"),
+                E(f"E({info.s_bridge_sub_R['id_s'][0]})"),
+                info.s_bridge_sub_R["id_s"][1]
+                * (
+                    E(f"E({info.s_bridge_sub_R['id_p1']})")
+                    + E(f"E({info.s_bridge_sub_R['id_p2']})")
+                ),
             )
             numerator = numerator.replace(
-                E(f"sigma({info.s_bridge_sub_R['id_s']})"), E("1")
+                E(f"sigma({info.s_bridge_sub_R['id_s'][0]})"), E("1")
             )
         for id in edge_ids:
             energies *= 1 / E(f"2*E({id})")
@@ -216,49 +224,72 @@ class IntegrandConstructor(object):
         return energies * total2
 
     def eliminate_s_channel_bridges(self, graph: pydot.Dot, comp):
-        new_comp = set()
-        s_bridge_sub = {"id_s": 0, "id_p1": 0, "id_p2": 0}
+        new_comp = comp
+        s_bridge_sub = {"id_s": (0, 0), "id_p1": 0, "id_p2": 0}
         has_s_bridge = False
-        for v in comp:
-            bdry = boundary_edges(graph, {v})
-            check = 0
-            # DOES NOT WORK OUTSIDE DY
-            for e in bdry:
-                if (
-                    e.get_attributes()["routing_p1"] != "0"
-                    and e.get_attributes()["routing_k0"] == "0"
-                    and e.get_attributes()["routing_p2"] == "0"
-                ):
-                    check += 1
-                    s_bridge_sub["id_p1"] = e.get_attributes()["id"]
-                elif (
-                    e.get_attributes()["routing_p2"] != "0"
-                    and e.get_attributes()["routing_k0"] == "0"
-                    and e.get_attributes()["routing_p1"] == "0"
-                ):
-                    check += 1
-                    s_bridge_sub["id_p2"] = e.get_attributes()["id"]
-                elif (
+        for e in graph.get_edges():
+            e_atts = e.get_attributes()
+            if (
+                (
                     e.get_attributes()["routing_p2"] != "0"
                     and e.get_attributes()["routing_k0"] == "0"
                     and e.get_attributes()["routing_p1"] != "0"
-                ):
-                    s_bridge_sub["id_s"] = e.get_attributes()["id"]
-            if check != 2:
-                new_comp.add(v)
-            else:
+                )
+                and _node_key(e.get_source()) in comp
+                and _node_key(e.get_destination()) in comp
+            ):
                 has_s_bridge = True
+                bdry_src = list(
+                    set(boundary_edges(graph, {_node_key(e.get_source())})) - {e}
+                )
+                bdry_dest = list(
+                    set(boundary_edges(graph, {_node_key(e.get_destination())})) - {e}
+                )
+                if all(ep.get_attributes().get("is_cut", 0) != 0 for ep in bdry_src):
+                    new_comp = comp - {_node_key(e.get_source())}
+                    sign = 1
+                    if (
+                        _node_key(bdry_src[0].get_source()) == _node_key(e.get_source())
+                        and bdry_src[0].get_attributes()["is_cut"] == 1
+                    ) or (
+                        _node_key(bdry_src[0].get_destination())
+                        == _node_key(e.get_source())
+                        and bdry_src[0].get_attributes()["is_cut"] == -1
+                    ):
+                        sign = -1
+
+                    s_bridge_sub["id_s"] = (e_atts["id"], sign)
+                    if len(bdry_src) == 2:
+                        s_bridge_sub["id_p1"] = bdry_src[0].get_attributes()["id"]
+                        s_bridge_sub["id_p2"] = bdry_src[1].get_attributes()["id"]
+                    else:
+                        raise ValueError("problem with s-channel identification")
+                elif all(ep.get_attributes().get("is_cut", 0) != 0 for ep in bdry_dest):
+                    new_comp = comp - {_node_key(e.get_destination())}
+                    sign = 1
+                    if (
+                        _node_key(bdry_dest[0].get_destination())
+                        == _node_key(e.get_destination())
+                        and bdry_src[0].get_attributes()["is_cut"] == 1
+                    ) or (
+                        _node_key(bdry_dest[0].get_source())
+                        == _node_key(e.get_destination())
+                        and bdry_src[0].get_attributes()["is_cut"] == -1
+                    ):
+                        sign = -1
+
+                    s_bridge_sub["id_s"] = (e_atts["id"], sign)
+                    if len(bdry_dest) == 2:
+                        s_bridge_sub["id_p1"] = bdry_dest[0].get_attributes()["id"]
+                        s_bridge_sub["id_p2"] = bdry_dest[1].get_attributes()["id"]
+                    else:
+                        raise ValueError("problem with s-channel identification")
+                else:
+                    raise ValueError("problem with s-channel identification")
 
         return has_s_bridge, s_bridge_sub, new_comp
 
-    def find_gluon_lmb(self, cut_graph: routed_cut_graph, integrand):
-        return
-
-    def concretise_sclar_products(self, integrand):
-
-        if self.name == "DY":
-            integrand = integrand.replace(E("m(a)^2"), E("4*z^2*sp3(p(1),p(1))"))
-
+    def linearise_scalar_products(self, integrand):
         integrand = integrand.replace(
             E("sp3(x__,z_+w__)"),
             E("sp3(x__, z_)") + E("sp3(x__,w__)"),
@@ -281,6 +312,13 @@ class IntegrandConstructor(object):
         )
         integrand = integrand.replace(E("sp3(-x_,z_)"), E("-sp3(x_,z_)"))
         integrand = integrand.replace(E("sp3(x_,-z_)"), E("-sp3(x_,z_)"))
+        return integrand
+
+    def concretise_scalar_products(self, integrand):
+
+        if self.name == "DY":
+            integrand = integrand.replace(E("m(a)^2"), E("4*z*sp3(p(1),p(1))"))
+
         integrand = integrand.replace(
             E("sp3(k(x_),k(y_))"), E("k(x_,1)*k(y_,1)+k(x_,2)*k(y_,2)+k(x_,3)*k(y_,3)")
         )
@@ -294,6 +332,25 @@ class IntegrandConstructor(object):
             E("sp3(p(x_),p(y_))"), E("p(x_,1)*p(y_,1)+p(x_,2)*p(y_,2)+p(x_,3)*p(y_,3)")
         )
         return integrand
+
+    def t_parametrise(self, cut_integrand, cut_graph, process="DY"):
+
+        if process == "DY":
+            if len(cut_graph.final_cut) > 1:
+                cut_integrand = cut_integrand.replace(
+                    E("sp3(k(0),x___)"), E("t*sp3(k(0),x___)")
+                )
+                cut_integrand = cut_integrand.replace(
+                    E("sp3(x___,k(0))"), E("t*sp3(x___,k(0))")
+                )
+                print(cut_integrand)
+                t = E("4*sp3(p(1),p(1))-m(a)^2") / (
+                    2 * E("sp3(k(0),k(0))^(1/2)") * 2 * E("sp3(p(1),p(1))^(1/2)")
+                )
+                cut_integrand = cut_integrand.replace(E("t"), t)
+                return cut_integrand
+            else:
+                return cut_integrand
 
     def integrand_approximator(self, cut_graph: routed_cut_graph, integrand):
         partition = json.loads(cut_graph.graph.get_attributes()["partition"])
@@ -338,19 +395,26 @@ class IntegrandConstructor(object):
                     E(f"q({e_atts['id']})"), routing_items
                 )
 
-            approximated_integrand = self.concretise_sclar_products(
+            approximated_integrand = self.linearise_scalar_products(
+                approximated_integrand
+            )
+
+            approximated_integrand = self.t_parametrise(
+                approximated_integrand, cut_graph
+            )
+
+            approximated_integrand = self.concretise_scalar_products(
                 approximated_integrand
             )
 
         ### FOLLOWING GEARED AS A REPLACEMENT IN k(0), MIGHT NOT GENERALISE
         if len(partition[0]) > 1 and len(partition[1]) == 1:
-            # approximated_integrand = E("1/E(3)")
-            # print(approximated_integrand)
             for e in cut_graph.graph.get_edges():
                 e_atts = e.get_attributes()
                 e_id = e_atts["id"]
                 particle = _strip_quotes(str(e_atts["particle"]))
 
+                # FIX DIRECTIONS OF COLLINEAR LIMIT
                 if e_id == partition[0][0]:
                     approximated_integrand = approximated_integrand.replace(
                         E(f"E({e_id})"),
@@ -368,10 +432,9 @@ class IntegrandConstructor(object):
                 elif e_atts["routing_k0"] == "0" and e_atts["routing_p2"] == "0":
                     approximated_integrand = approximated_integrand.replace(
                         E(f"E({e_id})"),
-                        E("sp3(p(1),p(1))^(1/2)"),  # +lam*p1sq/sp3(p(1),p(1))^(1/2)"),
+                        E("sp3(p(1),p(1))^(1/2)+lam*p1sq/sp3(p(1),p(1))^(1/2)"),
                     )
                 else:
-                    # print(E(f"E({e_id})"))
                     if particle not in ["d", "d~", "g"]:
                         replacement = E(
                             f"(sp3(q({e_id}),q({e_id}))+m({particle})^2)^(1/2)"
@@ -381,7 +444,10 @@ class IntegrandConstructor(object):
                     approximated_integrand = approximated_integrand.replace(
                         E(f"E({e_id})"), replacement
                     )
-                    # print(E(f"E({e_id})").replace(E(f"E({e_id})"), replacement))
+
+            approximated_integrand = approximated_integrand.series(
+                E("p1sq"), 0, 0
+            ).to_expression()
 
             collinear_momentum = E("0")
             for e in cut_graph.graph.get_edges():
@@ -402,17 +468,15 @@ class IntegrandConstructor(object):
                 if e_id == partition[0][0]:
                     collinear_momentum = [routing_items, e_atts["is_cut_DY"]]
 
-            approximated_integrand = self.concretise_sclar_products(
+            approximated_integrand = self.concretise_scalar_products(
                 approximated_integrand
             )
+
             coeff = collinear_momentum[0].replace(E("b___+k(0)"), E("1"))
             coeff = coeff.replace(E("b___-k(0)"), E("-1"))
             repl = -(collinear_momentum[0] - coeff * E("k(0)")) + collinear_momentum[
                 1
             ] * E("x*p(1)")
-
-            # print("REPLACEMENTS")
-            # print(repl)
 
             for j in range(1, 4):
                 repl_i = repl.replace(E("k(x_)"), E(f"k(x_,{j})"))
@@ -421,7 +485,6 @@ class IntegrandConstructor(object):
                 approximated_integrand = approximated_integrand.replace(
                     E(f"k(0,{j})"), repl_i
                 )
-                # print(repl_i)
 
             approximated_integrand = (
                 approximated_integrand
@@ -434,20 +497,185 @@ class IntegrandConstructor(object):
             repl_x = collinear_momentum[1] * E("(p(1,3)*k(0,3))/(p(1,3)*p(1,3))")
             repl_kperp = E("k(0,1)^2+k(0,2)^2")
 
-            # print(approximated_integrand)
-
             approximated_integrand = approximated_integrand.replace(E("x"), repl_x)
             approximated_integrand = approximated_integrand.replace(
                 E("sp3(kperp(0),kperp(0))"), repl_kperp
             )
 
+        ## choose rest frame
+        approximated_integrand = approximated_integrand.replace(E("p(x_,2)"), E("0"))
+        approximated_integrand = approximated_integrand.replace(E("p(x_,1)"), E("0"))
+
         return approximated_integrand
+
+    def _routing_sign_match(self, e: pydot.Edge, ep: pydot.Edge):
+        a = e.get_attributes()
+        b = ep.get_attributes()
+
+        # collect all routing keys (p1, p2 and any k*)
+        keys = [k for k in set(a.keys()) | set(b.keys()) if k.startswith("routing_")]
+
+        # if any key missing, treat as 0
+        def val(attrs, k):
+            return E(attrs.get(k, "0"))
+
+        same = all(val(a, k) == val(b, k) for k in keys)
+        opp = all(val(a, k) == -val(b, k) for k in keys)
+        return same or opp
+
+    def change_routing(self, graph, lmb_choice):
+        edges = list(graph.get_edges())
+        if len(edges) == 0:
+            return graph
+
+        # Collect routing key sets from graph.
+        routing_keys = set()
+        for e in edges:
+            routing_keys.update(
+                k for k in e.get_attributes().keys() if k.startswith("routing_")
+            )
+        k_keys = sorted(
+            [k for k in routing_keys if k.startswith("routing_k")],
+            key=lambda x: int(x.replace("routing_k", "")),
+        )
+        p_keys = sorted([k for k in routing_keys if k.startswith("routing_p")])
+        n_loops = len(k_keys)
+
+        print(k_keys)
+        print(lmb_choice)
+
+        if n_loops == 0:
+            return graph
+
+        if len(lmb_choice) != n_loops:
+            raise ValueError(
+                f"Invalid lmb_choice length: expected {n_loops}, got {len(lmb_choice)}"
+            )
+
+        def _to_frac(v):
+            if isinstance(v, Fraction):
+                return v
+            return Fraction(str(v))
+
+        def _frac_to_str(v: Fraction | int) -> str:
+            v = Fraction(v)
+            return str(v.numerator) if v.denominator == 1 else str(v)
+
+        def _mat_inv(m):
+            n = len(m)
+            aug = [
+                [Fraction(m[i][j]) for j in range(n)]
+                + [Fraction(1 if i == j else 0) for j in range(n)]
+                for i in range(n)
+            ]
+            for col in range(n):
+                piv = None
+                for row in range(col, n):
+                    if aug[row][col] != 0:
+                        piv = row
+                        break
+                if piv is None:
+                    raise ValueError(
+                        "Invalid lmb_choice: loop routing matrix is singular"
+                    )
+                if piv != col:
+                    aug[col], aug[piv] = aug[piv], aug[col]
+
+                pivot = aug[col][col]
+                aug[col] = [x / pivot for x in aug[col]]
+
+                for row in range(n):
+                    if row == col:
+                        continue
+                    fac = aug[row][col]
+                    if fac != 0:
+                        aug[row] = [
+                            aug[row][j] - fac * aug[col][j] for j in range(2 * n)
+                        ]
+
+            return [row[n:] for row in aug]
+
+        def _mat_mul(a, b):
+            return [
+                [
+                    sum(a[i][k] * b[k][j] for k in range(len(a[0])))
+                    for j in range(len(b[0]))
+                ]
+                for i in range(len(a))
+            ]
+
+        def _norm_id(v):
+            if isinstance(v, str):
+                return _strip_quotes(v)
+            return str(v)
+
+        # Map ids to edge objects (ids can be quoted or unquoted in attrs).
+        by_id = {}
+        for e in edges:
+            eid = _norm_id(e.get_attributes().get("id", ""))
+            by_id[eid] = e
+
+        lmb_edges = []
+        for sel in lmb_choice:
+            sid = _norm_id(sel)
+            if sid not in by_id:
+                raise ValueError(f"Edge id {sel} in lmb_choice not found in graph")
+            lmb_edges.append(by_id[sid])
+
+        # Build C and P from selected lambda edges:
+        # l = C k + P p  =>  k = C^{-1} l - C^{-1} P p
+        C = []
+        P = []
+        for e in lmb_edges:
+            atts = e.get_attributes()
+            C.append([_to_frac(atts.get(k, "0")) for k in k_keys])
+            P.append([_to_frac(atts.get(p, "0")) for p in p_keys])
+
+        C_inv = _mat_inv(C)
+
+        # For every edge r = c k + p  =>  r = (c C^{-1}) l + (p - c C^{-1}P) p
+        for e in edges:
+            atts = e.get_attributes()
+            c = [_to_frac(atts.get(k, "0")) for k in k_keys]
+            p = [_to_frac(atts.get(pk, "0")) for pk in p_keys]
+
+            new_k = [
+                sum(c[a] * C_inv[a][j] for a in range(n_loops)) for j in range(n_loops)
+            ]
+            if len(p_keys) > 0:
+                cCinvP = [
+                    sum(new_k[a] * P[a][j] for a in range(n_loops))
+                    for j in range(len(p_keys))
+                ]
+                new_p = [p[j] - cCinvP[j] for j in range(len(p_keys))]
+            else:
+                new_p = []
+
+            for j, key in enumerate(k_keys):
+                e.set(key, _frac_to_str(new_k[j]))
+            for j, key in enumerate(p_keys):
+                e.set(key, _frac_to_str(new_p[j]))
+
+        return graph
 
     def get_integrand(self, cut_graph: routed_cut_graph):
 
         comps = get_LR_components(
             cut_graph.graph, cut_graph.initial_cut, cut_graph.final_cut
         )
+
+        if len(cut_graph.initial_cut) > 1:
+            lmb_choice = []
+            for e in cut_graph.final_cut:
+                # print(e.get_attributes()["particle"])
+                e_atts = e.get_attributes()
+                if _strip_quotes(str(e_atts["particle"])) == "a":
+                    lmb_choice.append(e_atts["id"])
+            # print(lmb_choice)
+            cut_graph.graph = self.change_routing(cut_graph.graph, lmb_choice)
+
+        else:
+            raise ValueError("Implement me")
 
         num = self.get_numerator(cut_graph.graph)
 
@@ -465,15 +693,19 @@ class IntegrandConstructor(object):
             for e in cut_graph.initial_cut + cut_graph.final_cut
         ]
 
+        # PROBLEM WITH DANGLING EDGES WHEN A SUBGRAPH'S BOUNDARY CONTAINS THE SAME EDGE TWICE
         for i in [0, 1]:
             for e in cut_graph.graph.get_edges():
                 if e.get_attributes()["id"] in cut_ids:
                     e_cut_attributes = e.get_attributes()
+                    src_sign = 1 if _strip_quotes(e.get_source()) in comps[i] else -1
                     if e_cut_attributes.get("is_cut") is None:
                         raise ValueError(
                             "No is_cut attribute in cut edge... impossible!"
                         )
-                    elif e_cut_attributes.get("is_cut") == -1:
+                    elif (
+                        src_sign * e_cut_attributes.get("is_cut") == -1
+                    ):  ## FUNKY DANGLING LOGIC, CHECK CONVENTION
                         dangling[i].append(int(e_cut_attributes.get("id")))
                     e_cut_attributes["is_cut_DY"] = e_cut_attributes.get("is_cut")
 
@@ -483,14 +715,67 @@ class IntegrandConstructor(object):
                 if e_cut_attributes.get("is_cut", None) is not None:
                     e_cut_attributes.pop("is_cut")
 
+        raised_cut = []
+        for e, i in zip(
+            cut_graph.graph.get_edges(), range(len(cut_graph.graph.get_edges()))
+        ):
+            e_atts = e.get_attributes()
+            for ep, j in zip(
+                cut_graph.graph.get_edges(), range(len(cut_graph.graph.get_edges()))
+            ):
+                ep_atts = ep.get_attributes()
+                if j > i and self._routing_sign_match(e, ep):
+                    if (
+                        e_atts.get("is_cut_DY", None) is not None
+                        or ep_atts.get("is_cut_DY", None) is not None
+                    ):
+                        raised_cut.append([e_atts["id"], ep_atts["id"]])
+
         comps = [new_comp_L, new_comp_R]
 
+        ## DEALING WITH SPECTATORS FOR CFF
+
+        input_graph = deepcopy(cut_graph.graph)
+
+        spectator_ids = [
+            e.get_attributes()["id"]
+            for e in set(cut_graph.initial_cut).intersection(set(cut_graph.final_cut))
+        ]
+
+        repl = []
+        tot_e = len(input_graph.get_edges())
+        for e in input_graph.get_edges():
+            e_atts = e.get_attributes()
+            e_atts.pop("sink", None)
+            e_atts.pop("source", None)
+            e_id = e_atts["id"]
+            e_source = e.get_source()
+            e_dest = e.get_destination()
+            if e_id in spectator_ids:
+                i = spectator_ids.index(e_id)
+                edge_to_add_1 = pydot.Edge(f"ext{2 * i}", e_dest, **e_atts)
+                edge_to_add_2 = pydot.Edge(e_source, f"ext{2 * i + 1}", **e_atts)
+                edge_to_add_2.set("num", "1")
+                edge_to_add_2.set("id", f"{tot_e + i}")
+                repl.append([E(f"E({tot_e + i})"), E(f"E({e_id})")])
+                input_graph.del_edge(e_source, e_dest, e_id)
+                input_graph.add_edge(edge_to_add_1)
+                input_graph.add_edge(edge_to_add_2)
+                input_graph.add_node(pydot.Node(f"ext{2 * i}", style="invis"))
+                input_graph.add_node(pydot.Node(f"ext{2 * i + 1}", style="invis"))
+                if e_id in dangling[0]:
+                    dangling[0].append(tot_e + i)
+                if e_id in dangling[1]:
+                    dangling[1].append(tot_e + i)
+
         if len(comps[0]) > 1:
-            cff_structure_L = self.get_CFF(cut_graph.graph, list(comps[0]), dangling[0])
+            # cff_structure_L = self.get_CFF(cut_graph.graph, list(comps[0]), dangling[0])
+            cff_structure_L = self.get_CFF(input_graph, list(comps[0]), dangling[0])
         else:
             cff_structure_L = None
         if len(comps[1]) > 1:
-            cff_structure_R = self.get_CFF(cut_graph.graph, list(comps[1]), dangling[1])
+            # cff_structure_R = self.get_CFF(cut_graph.graph, list(comps[1]), dangling[1])
+            cff_structure_R = self.get_CFF(input_graph, list(comps[1]), dangling[1])
         else:
             cff_structure_R = None
 
@@ -509,6 +794,14 @@ class IntegrandConstructor(object):
         )
 
         cut_integrand = self.construct_cuts(graph_integrand_info)
+
+        for r in repl:
+            cut_integrand = E(str(cut_integrand)).replace(r[0], r[1])
+
+        if len(raised_cut) > 0:
+            cut_integrand = cut_integrand * (
+                E(f"E({raised_cut[0][0]})") - E(f"E({raised_cut[0][1]})")
+            )
 
         for e in cut_graph.graph.get_edges():
             cut_val = e.get_attributes().get("is_cut_DY", None)
@@ -544,16 +837,7 @@ class evaluate_integrand(object):
         self.cut_integrand = self.cut_integrand.replace(E("GC_11"), E("1"))
         self.cut_integrand = self.cut_integrand.replace(E("GC_1"), E("1"))
 
-        # print(self.cut_integrand)
-
         self.evaluator = self.cut_integrand.evaluator({}, {}, self.symbols)
-
-        # print("TESTTTTTT")
-        # my_e = E(
-        #    "(p(1,1)^2+p(1,2)^2+p(1,3)^2+(-z+1)*(p(1,1)^2+p(1,2)^2+p(1,3)^2+p(2,1)^2+p(2,2)^2+p(2,3)^2+2*p(1,1)*p(2,1)+2*p(1,2)*p(2,2)+2*p(1,3)*p(2,3)))^(-1/2)"
-        # )
-        # my_ev = my_e.evaluator({}, {}, self.symbols)
-        # print(my_ev.evaluate([0.1, 0.2, 0.3, 0.0, 0.0, 1, 0.0, 0.0, -1, 0.588]))
 
     def param_builder(self, k, p1, p2, z):
         param_list = []
@@ -565,13 +849,10 @@ class evaluate_integrand(object):
         for j in range(0, 3):
             param_list.append(p2[j])
         if self.process == "DY":
-            # print("here")
             param_list.append(z)
-            # print(param_list)
 
         return param_list
 
     def eval(self, k, p1, p2, z):
-        # print(z)
         param_list = self.param_builder(k, p1, p2, z)
         return self.evaluator.evaluate(param_list)
