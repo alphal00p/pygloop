@@ -1,5 +1,6 @@
 import json
 import os
+import re
 from copy import deepcopy
 from fractions import Fraction
 
@@ -10,7 +11,7 @@ from gammaloop import (  # iso\rt: skip # type: ignore # noqa: F401
     evaluate_graph_overall_factor,
     git_version,
 )
-from symbolica import E, Expression  # pyright: ignore
+from symbolica import E, Expression, S  # pyright: ignore
 from symbolica.community.idenso import (  # pyright: ignore
     simplify_color,
     simplify_gamma,
@@ -20,9 +21,7 @@ from symbolica.community.idenso import (  # pyright: ignore
 from processes.dy.dy_graph_utils import (
     _node_key,
     _strip_quotes,
-    boundary_edges,
     get_LR_components,
-    get_spanning_tree,
 )
 from utils.cff import CFFStructure
 from utils.utils import PYGLOOP_FOLDER
@@ -31,9 +30,14 @@ pjoin = os.path.join
 
 gl_log_level = LogLevel.Off
 
+debug = False
+
 
 def Es(expr: str) -> Expression:
     return E(expr.replace('"', ""), default_namespace="gammalooprs")
+
+
+# Little struct that makes it more manageable to deal with cut graphs
 
 
 class routed_cut_graph(object):
@@ -43,38 +47,23 @@ class routed_cut_graph(object):
         self.final_cut = final_cut
         self.partition = partition
 
-    def get_n_loops(self) -> int:
-        return len(
-            set(self.graph.get_edges())
-            - set(get_spanning_tree(self.graph))
-            - set(self.initial_cut)
-            - set(self.final_cut)
-        )
 
-
-class integrand_info(object):
+# We will extract amplitude graphs from cut graphs. Amplitude graphs are graphs together with a list
+# of replacements that allow to map edge ids in the amplitude graph back to those of the cut graph
+class amplitude_graph(object):
     def __init__(
         self,
-        num,
-        graph: routed_cut_graph,
-        cff_L,
-        cff_R,
-        s_bridge_sub_L,
-        s_bridge_sub_R,
-        has_s_bridge_L,
-        has_s_bridge_R,
+        graph,
+        replacements,
     ):
-        self.num = num
         self.graph = graph
-        self.cff_L = cff_L
-        self.cff_R = cff_R
-        self.s_bridge_sub_L = s_bridge_sub_L
-        self.s_bridge_sub_R = s_bridge_sub_R
-        self.has_s_bridge_L = has_s_bridge_L
-        self.has_s_bridge_R = has_s_bridge_R
+        self.replacements = replacements
 
 
-class IntegrandConstructor(object):
+# This class is responsible for generating the CFF representation of the cut graph
+
+
+class EMRIntegrandConstructor(object):
     def __init__(self, params, name, L):
         self.L = L
         self.params = params
@@ -87,6 +76,7 @@ class IntegrandConstructor(object):
         # GAMMALOOP_STATE_FOLDER
         self.gl_worker.run("import model sm-default.json")
 
+    # get the numerator of the graph
     def get_numerator(self, graph) -> Expression:
         num = E("1")
         for node in graph.get_nodes():
@@ -105,12 +95,15 @@ class IntegrandConstructor(object):
 
         return out
 
+    # get cff of a graph
     def get_CFF(
         self, graph, subgraph_as_nodes, reversed_edge_flows_ids
     ) -> CFFStructure:
+        graph_for_cff = deepcopy(graph)
+        self.canonicalize_ports_for_cff(graph_for_cff)
 
         cff_structure = self.gl_worker.generate_cff_as_json_string(
-            dot_string=graph.to_string(),
+            dot_string=graph_for_cff.to_string(),
             subgraph_nodes=subgraph_as_nodes,
             reverse_dangling=reversed_edge_flows_ids,
             orientation_pattern=None,
@@ -125,388 +118,486 @@ class IntegrandConstructor(object):
 
         return cff_structure
 
-    def construct_cuts(self, info: integrand_info) -> Expression:
-        energies = E("1")
-        edge_ids = [e.get("id") for e in info.graph.graph.get_edges()]
-        numerator = info.num.replace(
-            E("sp(x_,y_)"), E("sigma(x_)*sigma(y_)*E(x_)*E(y_)-sp3(q(x_),q(y_))")
-        )
-        if info.has_s_bridge_L:
-            edge_ids.remove(info.s_bridge_sub_L["id_s"][0])
-            energies *= (
-                1
-                / (
-                    E(f"E({info.s_bridge_sub_L['id_p1']})")
-                    + E(f"E({info.s_bridge_sub_L['id_p2']})")
-                )
-                ** 2
-            )
-            numerator = numerator.replace(
-                E(f"E({info.s_bridge_sub_L['id_s'][0]})"),
-                info.s_bridge_sub_L["id_s"][1]
-                * (
-                    E(f"E({info.s_bridge_sub_L['id_p1']})")
-                    + E(f"E({info.s_bridge_sub_L['id_p2']})")
-                ),
-            )
-            numerator = numerator.replace(
-                E(f"sigma({info.s_bridge_sub_L['id_s'][0]})"), E("1")
-            )
-        if info.has_s_bridge_R:
-            edge_ids.remove(info.s_bridge_sub_R["id_s"][0])
-            energies *= (
-                1
-                / (
-                    E(f"E({info.s_bridge_sub_R['id_p1']})")
-                    + E(f"E({info.s_bridge_sub_R['id_p2']})")
-                )
-                ** 2
-            )
-            numerator = numerator.replace(
-                E(f"E({info.s_bridge_sub_R['id_s'][0]})"),
-                info.s_bridge_sub_R["id_s"][1]
-                * (
-                    E(f"E({info.s_bridge_sub_R['id_p1']})")
-                    + E(f"E({info.s_bridge_sub_R['id_p2']})")
-                ),
-            )
-            numerator = numerator.replace(
-                E(f"sigma({info.s_bridge_sub_R['id_s'][0]})"), E("1")
-            )
-        for id in edge_ids:
-            energies *= 1 / E(f"2*E({id})")
+    # The following function canonicalises the ports of a pydot graph so that they go from 0,...,N
 
-        total1 = E("0")
+    def canonicalize_ports_for_cff(self, graph):
+        port_re = re.compile(r"^([^:]+):(\d+)$")
 
-        if info.cff_L is not None:
-            for cffterm in info.cff_L.expressions:
-                cff_term = numerator * cffterm.expression
-                for o, i in zip(
-                    cffterm.orientation, range(0, len(cffterm.orientation))
-                ):
-                    if o.is_reversed():
-                        cff_term = cff_term.replace(E(f"sigma({i})"), E("-1"))
-                    if o.is_default():
-                        cff_term = cff_term.replace(E(f"sigma({i})"), E("1"))
-                total1 += cff_term
+        def parse_endpoint(endpoint):
+            ep = _strip_quotes(str(endpoint))
+            m = port_re.fullmatch(ep)
+            if not m:
+                return ep, None
+            return m.group(1), int(m.group(2))
 
-            for hetas in info.cff_L.h_surfaces:
-                total1 = total1.replace(E(f"pygloop::γ({hetas.id})"), hetas.expression)
+        remapped_edges = []
+        next_port = 0
+        for e in graph.get_edges():
+            attrs = deepcopy(e.get_attributes())
 
-            for etas in info.cff_L.e_surfaces:
-                total1 = total1.replace(E(f"pygloop::η({etas.id})"), etas.expression)
-                # total1=total1.substitute()
-        else:
-            total1 += numerator
+            src_node, src_port = parse_endpoint(e.get_source())
+            if src_port is None:
+                new_src = src_node
+            else:
+                new_src = f"{src_node}:{next_port}"
+                next_port += 1
 
-        total2 = E("0")
-        if info.cff_R is not None:
-            for cffterm in info.cff_R.expressions:
-                cff_term = total1 * cffterm.expression
-                for o, i in zip(
-                    cffterm.orientation, range(0, len(cffterm.orientation))
-                ):
-                    if o.is_reversed():
-                        cff_term = cff_term.replace(E(f"sigma({i})"), E("-1"))
-                    if o.is_default():
-                        cff_term = cff_term.replace(E(f"sigma({i})"), E("1"))
-                total2 += cff_term
+            dst_node, dst_port = parse_endpoint(e.get_destination())
+            if dst_port is None:
+                new_dst = dst_node
+            else:
+                new_dst = f"{dst_node}:{next_port}"
+                next_port += 1
 
-            for hetas in info.cff_R.h_surfaces:
-                total2 = total2.replace(E(f"pygloop::γ({hetas.id})"), hetas.expression)
+            remapped_edges.append(pydot.Edge(new_src, new_dst, **attrs))
 
-            for etas in info.cff_R.e_surfaces:
-                total2 = total2.replace(E(f"pygloop::η({etas.id})"), etas.expression)
+        graph.obj_dict["edges"] = {}
+        for e in remapped_edges:
+            graph.add_edge(e)
 
-        else:
-            total2 = total1
+    # The following function can be used to remove unwanted attributes from the graph
 
-        return energies * total2
+    def normalise_graph(self, graph):
 
-    def eliminate_s_channel_bridges(self, graph: pydot.Dot, comp):
-        new_comp = comp
-        s_bridge_sub = {"id_s": (0, 0), "id_p1": 0, "id_p2": 0}
-        has_s_bridge = False
         for e in graph.get_edges():
             e_atts = e.get_attributes()
-            if (
-                (
-                    e.get_attributes()["routing_p2"] != "0"
-                    and e.get_attributes()["routing_k0"] == "0"
-                    and e.get_attributes()["routing_p1"] != "0"
-                )
-                and _node_key(e.get_source()) in comp
-                and _node_key(e.get_destination()) in comp
-            ):
-                has_s_bridge = True
-                bdry_src = list(
-                    set(boundary_edges(graph, {_node_key(e.get_source())})) - {e}
-                )
-                bdry_dest = list(
-                    set(boundary_edges(graph, {_node_key(e.get_destination())})) - {e}
-                )
-                if all(ep.get_attributes().get("is_cut", 0) != 0 for ep in bdry_src):
-                    new_comp = comp - {_node_key(e.get_source())}
-                    sign = 1
-                    if (
-                        _node_key(bdry_src[0].get_source()) == _node_key(e.get_source())
-                        and bdry_src[0].get_attributes()["is_cut"] == 1
-                    ) or (
-                        _node_key(bdry_src[0].get_destination())
-                        == _node_key(e.get_source())
-                        and bdry_src[0].get_attributes()["is_cut"] == -1
-                    ):
-                        sign = -1
+            if e_atts["is_cut"] != 0:
+                e_atts["is_cut_DY"] = e_atts["is_cut"]
+            e_atts.pop("is_cut", None)
+            e_atts.pop("source", None)
+            e_atts.pop("num", None)
+            e_atts.pop("sink", None)
+            e_atts.pop("is_dummy", None)
+            e_atts.pop("dir_in_cycle", None)
 
-                    s_bridge_sub["id_s"] = (e_atts["id"], sign)
-                    if len(bdry_src) == 2:
-                        s_bridge_sub["id_p1"] = bdry_src[0].get_attributes()["id"]
-                        s_bridge_sub["id_p2"] = bdry_src[1].get_attributes()["id"]
-                    else:
-                        raise ValueError("problem with s-channel identification")
-                elif all(ep.get_attributes().get("is_cut", 0) != 0 for ep in bdry_dest):
-                    new_comp = comp - {_node_key(e.get_destination())}
-                    sign = 1
-                    if (
-                        _node_key(bdry_dest[0].get_destination())
-                        == _node_key(e.get_destination())
-                        and bdry_src[0].get_attributes()["is_cut"] == 1
-                    ) or (
-                        _node_key(bdry_dest[0].get_source())
-                        == _node_key(e.get_destination())
-                        and bdry_src[0].get_attributes()["is_cut"] == -1
-                    ):
-                        sign = -1
+    # The following function takes a cut graph and gives out the two amplitude graphs which, glued together
+    # give back the original cut graph. In order to do so it has to check if edges of the cut_graph are contained
+    # in one or the other graph, if they are "externals", or if they are spectators.
+    # Edge ids are normalised to that they go from 0,...,M
 
-                    s_bridge_sub["id_s"] = (e_atts["id"], sign)
-                    if len(bdry_dest) == 2:
-                        s_bridge_sub["id_p1"] = bdry_dest[0].get_attributes()["id"]
-                        s_bridge_sub["id_p2"] = bdry_dest[1].get_attributes()["id"]
-                    else:
-                        raise ValueError("problem with s-channel identification")
+    def get_LR_graphs(self, cut_graph):
+        comps = get_LR_components(
+            cut_graph.graph, cut_graph.initial_cut, cut_graph.final_cut
+        )
+
+        graph_L = deepcopy(cut_graph.graph)
+        graph_R = deepcopy(cut_graph.graph)
+        new_graphs = [graph_L, graph_R]
+
+        highest_ext = 0
+        for v in cut_graph.graph.get_nodes():
+            name = _strip_quotes(v.get_name())
+            if name.startswith("ext"):
+                suffix = name[3:]
+                if suffix.isdigit():
+                    highest_ext = max(highest_ext, int(suffix))
+
+        # highest_ext = 0
+
+        # tot_e = len(cut_graph.graph.get_edges())
+        tot_e = 0
+        replacements = [[], []]
+        for i in [0, 1]:
+            counter = 1
+            for e in cut_graph.graph.get_edges():
+                e_atts = e.get_attributes()
+                src = e.get_source()
+                dest = e.get_destination()
+                src_key = _node_key(e.get_source())
+                dest_key = _node_key(e.get_destination())
+                if src_key not in comps[i] and dest_key not in comps[i]:
+                    new_graphs[i].del_edge(src, dest, e_atts["id"])
+                elif src_key in comps[i] and dest_key not in comps[i]:
+                    new_graphs[i].del_edge(src, dest, e_atts["id"])
+                    new_atts = deepcopy(e_atts)
+                    new_atts["id"] = tot_e + counter - 1
+                    new_graphs[i].add_edge(
+                        pydot.Edge(src, f"ext{highest_ext + counter}", **new_atts)
+                    )
+                    new_graphs[i].add_node(
+                        pydot.Node(f"ext{highest_ext + counter}", style="invis")
+                    )
+                    replacements[i].append([
+                        tot_e + counter - 1,
+                        e_atts["id"],
+                    ])
+                    counter += 1
+                elif dest_key in comps[i] and src_key not in comps[i]:
+                    new_graphs[i].del_edge(src, dest, e_atts["id"])
+                    new_atts = deepcopy(e_atts)
+                    new_atts["id"] = tot_e + counter - 1
+                    new_graphs[i].add_edge(
+                        pydot.Edge(f"ext{highest_ext + counter}", dest, **new_atts)
+                    )
+                    new_graphs[i].add_node(
+                        pydot.Node(f"ext{highest_ext + counter}", style="invis")
+                    )
+                    replacements[i].append([
+                        tot_e + counter - 1,
+                        e_atts["id"],
+                    ])
+                    counter += 1
+                elif (
+                    dest_key in comps[i]
+                    and src_key in comps[i]
+                    and e_atts.get("is_cut_DY", None) is not None
+                    and not (dest_key.startswith("ext") or src_key.startswith("ext"))
+                ):
+                    new_graphs[i].del_edge(src, dest, e_atts["id"])
+                    new_atts1 = deepcopy(e_atts)
+                    new_atts1["id"] = tot_e + counter - 1
+                    new_graphs[i].add_edge(
+                        pydot.Edge(f"ext{highest_ext + counter}", dest, **new_atts1)
+                    )
+                    new_graphs[i].add_node(
+                        pydot.Node(f"ext{highest_ext + counter}", style="invis")
+                    )
+                    replacements[i].append([
+                        tot_e + counter - 1,
+                        e_atts["id"],
+                    ])
+                    counter += 1
+                    new_atts2 = deepcopy(e_atts)
+                    new_atts2["id"] = tot_e + counter - 1
+                    new_graphs[i].add_edge(
+                        pydot.Edge(src, f"ext{highest_ext + counter}", **new_atts2)
+                    )
+                    new_graphs[i].add_node(
+                        pydot.Node(f"ext{highest_ext + counter}", style="invis")
+                    )
+                    replacements[i].append([
+                        tot_e + counter - 1,
+                        e_atts["id"],
+                    ])
+                    counter += 1
                 else:
-                    raise ValueError("problem with s-channel identification")
+                    new_graphs[i].del_edge(src, dest, e_atts["id"])
+                    new_atts1 = deepcopy(e_atts)
+                    new_atts1["id"] = tot_e + counter - 1
+                    new_graphs[i].add_edge(pydot.Edge(src, dest, **new_atts1))
+                    replacements[i].append([tot_e + counter - 1, e_atts["id"]])
+                    counter += 1
 
-        return has_s_bridge, s_bridge_sub, new_comp
+            edge_nodes = set()
+            for e in new_graphs[i].get_edges():
+                edge_nodes.add(_node_key(e.get_source()))
+                edge_nodes.add(_node_key(e.get_destination()))
+            for v in list(new_graphs[i].get_nodes()):
+                if _node_key(v.get_name()) not in edge_nodes:
+                    new_graphs[i].del_node(v)
 
-    def linearise_scalar_products(self, integrand):
-        integrand = integrand.replace(
-            E("sp3(x__,z_+w__)"),
-            E("sp3(x__, z_)") + E("sp3(x__,w__)"),
-            repeat=True,
+        return amplitude_graph(new_graphs[0], replacements[0]), amplitude_graph(
+            new_graphs[1], replacements[1]
         )
-        integrand = integrand.replace(
-            E("sp3(x__,-z_+w__)"),
-            -E("sp3(x__, z_)") + E("sp3(x__,w__)"),
-            repeat=True,
+
+    # This function takes an amplitude graph and makes the composition of its replacements with
+    # those of old replacements. In other words, indexes are propagated through the two replacements
+    # and the final result is a single replacement expressing this chain of replacements
+
+    def update_substitutions(self, graph: amplitude_graph, old_replacements):
+        old_map = {src: dst for src, dst in old_replacements}
+        composed = []
+        for src, mid in graph.replacements:
+            composed.append([src, old_map.get(mid, mid)])
+        graph.replacements = composed
+
+    # This function finds s_channel propagators and iteratively divides the amplitude graph into
+    # amplitude subgraphs by deleting the s_channel propagators (which must be bridges).
+
+    def split_s_channels(self, graph: amplitude_graph):
+
+        s_channel_edges = []
+        for e in graph.graph.get_edges():
+            e_atts = e.get_attributes()
+            loop_keys = [f"routing_k{i}" for i in range(0, self.L)]
+            s_channel = (
+                all(e_atts[key] == "0" for key in loop_keys)
+                and e_atts["routing_p1"] != "0"
+                and e_atts["routing_p2"] != "0"
+            )
+            if s_channel:
+                s_channel_edges.append(e)
+
+        s_channel_edges_copy = deepcopy(s_channel_edges)
+        s_split_graphs = [graph]
+        while len(s_channel_edges) > 0:
+            chosen_s_edge = s_channel_edges.pop()
+            chosen_src = chosen_s_edge.get_source()
+            chosen_dest = chosen_s_edge.get_destination()
+            check = False
+            for g in s_split_graphs:
+                for e in g.graph.get_edges():
+                    src = e.get_source()
+                    dest = e.get_destination()
+                    if src == chosen_src and dest == chosen_dest:
+                        s_cut_graph = routed_cut_graph(g.graph, [e], [], [])
+                        graph_L, graph_R = self.get_LR_graphs(s_cut_graph)
+                        s_split_graphs.remove(g)
+                        self.update_substitutions(graph_L, g.replacements)
+                        self.update_substitutions(graph_R, g.replacements)
+                        s_split_graphs.append(graph_L)
+                        s_split_graphs.append(graph_R)
+                        check = True
+                        break
+                if check:
+                    break
+
+        return s_split_graphs, s_channel_edges_copy
+
+    # This function takes a bunch of graphs, contained in s_split_graphs, and constructs the
+    # cff for the product of these graphs assuming the numerator is num. It multiplies this by
+    # the inverse energies for all edges in the initial and final state cuts (members of cut_graph)
+    # and by the s-channel propagators (in the rest freme) contained in s_channel_edges
+
+    def get_cff(self, cut_graph, s_split_graphs, s_channel_edges, num):
+
+        numerator = num.replace(
+            E("sp(x_,y_)"), E("sigma(x_)*sigma(y_)*E(x_)*E(y_)-sp3(q(x_),q(y_))")
         )
-        integrand = integrand.replace(
-            E("sp3(x_+y__,z__)"),
-            E("sp3(x_, z__)") + E("sp3(y__,z__)"),
-            repeat=True,
+
+        split_graphs_gt2_non_ext = []
+        for g in s_split_graphs:
+            non_ext_count = 0
+            for v in g.graph.get_nodes():
+                name = _strip_quotes(v.get_name())
+                is_ext = name.startswith("ext") and name[3:].isdigit()
+                if not is_ext:
+                    non_ext_count += 1
+            if non_ext_count > 1:
+                split_graphs_gt2_non_ext.append(g)
+
+        previous_cff = numerator
+
+        # previous_cff = cff_family(num, [], [])
+
+        # print("numerator")
+        # print(previous_cff)
+
+        for g in split_graphs_gt2_non_ext:
+            cff_g = self.get_CFF(g.graph, [], [])
+            new_cff = E("0")
+            g_rep = g.replacements
+            for cffterm in cff_g.expressions:
+                cff_term = previous_cff * cffterm.expression
+                for o, i in zip(
+                    cffterm.orientation, range(0, len(cffterm.orientation))
+                ):
+                    if o.is_reversed():
+                        cff_term = cff_term.replace(E(f"sigma({g_rep[i][1]})"), E("-1"))
+                    if o.is_default():
+                        cff_term = cff_term.replace(E(f"sigma({g_rep[i][1]})"), E("1"))
+                for etas in cff_g.e_surfaces:
+                    eta = etas.expression
+                    for rep in g.replacements:
+                        eta = eta.replace(E(f"pygloop::E({rep[0]})"), E(f"E({rep[1]})"))
+                    cff_term = cff_term.replace(E(f"pygloop::η({etas.id})"), eta)
+
+                new_cff += cff_term
+            previous_cff = new_cff
+
+        popping_edges = deepcopy(s_channel_edges)
+
+        print("cff with no s-channel")
+        print(previous_cff)
+
+        while len(popping_edges) > 0:
+            current_s_edge = popping_edges.pop()
+            s_edge_atts = current_s_edge.get_attributes()
+            check = False
+            for g in s_split_graphs:
+                g_rep = g.replacements
+                for e in g.graph.get_edges():
+                    e_atts = e.get_attributes()
+                    e_src = e.get_source()
+                    if s_edge_atts["name"] == e_atts["name"]:
+                        denom = E("0")
+                        for ep in g.graph.get_edges():
+                            ep_src = ep.get_source()
+                            ep_dest = ep.get_destination()
+                            ep_atts = ep.get_attributes()
+                            if ep_src.startswith("ext") and ep != e:
+                                denom += ep_atts["is_cut_DY"] * E(
+                                    f"E({g.replacements[ep_atts['id']][1]})"
+                                )
+                            if ep_dest.startswith("ext") and ep != e:
+                                denom -= ep_atts["is_cut_DY"] * E(
+                                    f"E({g.replacements[ep_atts['id']][1]})"
+                                )
+                        ## MISSING s-CHANNEL-ENERGY REPLACEMENT ??
+                        # print("replacements?")
+                        # print(previous_cff)
+                        previous_cff = previous_cff / denom**2
+                        sign = 1 if e_src.startswith("ext") else -1
+                        previous_cff = previous_cff.replace(
+                            E(f"E({g.replacements[e_atts['id']][1]})"), -sign * denom
+                        )
+                        previous_cff = previous_cff.replace(
+                            E(f"sigma({g.replacements[e_atts['id']][1]})"), E("1")
+                        )
+                        # print(previous_cff)
+                        check = True
+                        break
+                if check:
+                    break
+
+        print("beff")
+        print(previous_cff)
+
+        energies = E("1")
+        # print(cut_graph.graph)
+        for e in cut_graph.graph.get_edges():
+            e_atts = e.get_attributes()
+            cut_val = e_atts.get("is_cut_DY", None)
+            if cut_val is not None:
+                energies *= 1 / E(f"2*E({e_atts['id']})")
+                previous_cff = previous_cff.replace(
+                    E(f"sigma({e_atts['id']})"),
+                    cut_val,
+                )
+
+        print("cff with s-channel")
+        print(energies)
+        print(previous_cff * energies)
+
+        return previous_cff * energies
+
+    # Use all the previous functions to get the cff for the cut graph
+
+    def get_integrand(self, cut_graph: routed_cut_graph):
+
+        num = self.get_numerator(cut_graph.graph)
+
+        self.normalise_graph(cut_graph.graph)
+
+        graph_L, graph_R = self.get_LR_graphs(cut_graph)
+
+        s_split_graphs_L, s_channel_edges_L = self.split_s_channels(graph_L)
+        s_split_graphs_R, s_channel_edges_R = self.split_s_channels(graph_R)
+
+        if debug:
+            print(num)
+            print("L graph")
+            print(graph_L.graph)
+            print(graph_L.replacements)
+            print("R graph")
+            print(graph_R.graph)
+            print(graph_R.replacements)
+
+            print("s-channel splitting for L graph")
+            print("length: ", len(s_split_graphs_L))
+            for g in s_split_graphs_L:
+                print(g.graph)
+                print(g.replacements)
+
+            print("s-channel splitting for R graph")
+            print("length: ", len(s_split_graphs_R))
+            for g in s_split_graphs_R:
+                print(g.graph)
+                print(g.replacements)
+
+            print(
+                self.get_cff(
+                    cut_graph,
+                    s_split_graphs_L + s_split_graphs_R,
+                    s_channel_edges_L + s_channel_edges_R,
+                    num,
+                )
+            )
+
+        print(num)
+
+        ## DEBUG: set numerator to 1
+        # num = E("1")
+
+        return self.get_cff(
+            cut_graph,
+            s_split_graphs_L + s_split_graphs_R,
+            s_channel_edges_L + s_channel_edges_R,
+            num,
         )
+
+
+class LoopIntegrandConstructor(object):
+    def __init__(self, params, name, L):
+        self.L = L
+        self.params = params
+        self.name = name
+        self.emr_processor = EMRIntegrandConstructor(params, name, L)
+        self.sp3D = S("sp3D", is_linear=True, is_symmetric=True)
+
+    def replace_energies(self, integrand, cut_graph):
+
+        for e in cut_graph.graph.get_edges():
+            e_atts = e.get_attributes()
+            eid_raw = e_atts["id"]
+            eid = _strip_quotes(eid_raw) if isinstance(eid_raw, str) else eid_raw
+            target = E(f"E({eid})")
+            particle = _strip_quotes(str(e_atts["particle"]))
+            if particle not in ["d", "d~", "g"]:
+                replacement = (
+                    self.sp3D(E(f"q({eid})"), E(f"q({eid})")) + E(f"m({particle})") ** 2
+                ) ** E("1/2")
+            else:
+                replacement = (self.sp3D(E(f"q({eid})"), E(f"q({eid})"))) ** E("1/2")
+
+            integrand = integrand.replace(target, replacement)
+
+        return integrand
+
+    def route_integrand(self, integrand, cut_graph):
+
+        for e in cut_graph.graph.get_edges():
+            e_atts = e.get_attributes()
+            routing_items = E("0")
+            for i in range(self.L + 1):
+                key = f"routing_k{i}"
+                if key in e_atts:
+                    routing_items += E(f"{e_atts[key]}*k[{i}]")
+            for i in range(0, 2):
+                key = f"routing_p{i + 1}"
+                if key in e_atts:
+                    routing_items += E(f"{e_atts[key]}*p[{i + 1}]")
+            integrand = integrand.replace(E(f"q({e_atts['id']})"), routing_items)
+
         integrand = integrand.replace(
-            E("sp3(-x_+y__,z__)"),
-            -E("sp3(x_, z__)") + E("sp3(y__,z__)"),
-            repeat=True,
+            E("sp3(x___,y___)"), self.sp3D(S("x___"), S("y___"))
         )
-        integrand = integrand.replace(E("sp3(-x_,z_)"), E("-sp3(x_,z_)"))
-        integrand = integrand.replace(E("sp3(x_,-z_)"), E("-sp3(x_,z_)"))
         return integrand
 
     def concretise_scalar_products(self, integrand):
 
         if self.name == "DY":
-            integrand = integrand.replace(E("m(a)^2"), E("4*z*sp3(p(1),p(1))"))
+            integrand = integrand.replace(E("m(a)^2"), E("4*z*sp3D(p(1),p(1))"))
 
         integrand = integrand.replace(
-            E("sp3(k(x_),k(y_))"), E("k(x_,1)*k(y_,1)+k(x_,2)*k(y_,2)+k(x_,3)*k(y_,3)")
+            E("sp3D(w_(x_),z_(y_))"),
+            E("w_(x_,1)*z_(y_,1)+w_(x_,2)*z_(y_,2)+w_(x_,3)*z_(y_,3)"),
         )
-        integrand = integrand.replace(
-            E("sp3(k(x_),p(y_))"), E("k(x_,1)*p(y_,1)+k(x_,2)*p(y_,2)+k(x_,3)*p(y_,3)")
-        )
-        integrand = integrand.replace(
-            E("sp3(p(x_),k(y_))"), E("p(x_,1)*k(y_,1)+p(x_,2)*k(y_,2)+p(x_,3)*k(y_,3)")
-        )
-        integrand = integrand.replace(
-            E("sp3(p(x_),p(y_))"), E("p(x_,1)*p(y_,1)+p(x_,2)*p(y_,2)+p(x_,3)*p(y_,3)")
-        )
+
         return integrand
 
     def t_parametrise(self, cut_integrand, cut_graph, process="DY"):
 
         if process == "DY":
             if len(cut_graph.final_cut) > 1:
+                t = S("t", is_scalar=True)
                 cut_integrand = cut_integrand.replace(
-                    E("sp3(k(0),x___)"), E("t*sp3(k(0),x___)")
+                    self.sp3D(E("k(x___)"), E("p(y___)")),
+                    self.sp3D(t * E("k(x___)"), E("p(y___)")),
                 )
                 cut_integrand = cut_integrand.replace(
-                    E("sp3(x___,k(0))"), E("t*sp3(x___,k(0))")
+                    self.sp3D(E("k(x___)"), E("k(y___)")),
+                    self.sp3D(t * E("k(x___)"), t * E("k(y___)")),
                 )
-                print(cut_integrand)
-                t = E("4*sp3(p(1),p(1))-m(a)^2") / (
-                    2 * E("sp3(k(0),k(0))^(1/2)") * 2 * E("sp3(p(1),p(1))^(1/2)")
+                t_rep = E("4*sp3D(p(1),p(1))-m(a)^2") / (
+                    2 * E("sp3D(k(0),k(0))^(1/2)") * 2 * E("sp3D(p(1),p(1))^(1/2)")
                 )
-                cut_integrand = cut_integrand.replace(E("t"), t)
+                cut_integrand = cut_integrand.replace(t, t_rep)
                 return cut_integrand
             else:
                 return cut_integrand
 
-    def integrand_approximator(self, cut_graph: routed_cut_graph, integrand):
-        partition = json.loads(cut_graph.graph.get_attributes()["partition"])
-
-        approximated_integrand = integrand
-
-        for e in cut_graph.graph.get_edges():
-            e_atts = e.get_attributes()
-            eid_raw = e_atts["id"]
-            eid = _strip_quotes(eid_raw) if isinstance(eid_raw, str) else eid_raw
-            approximated_integrand = approximated_integrand.replace(
-                E(f"pygloop::E({eid})"), E(f"E({eid})")
-            )
-
-        if len(partition[0]) == 1 and len(partition[1]) == 1:
-            for e in cut_graph.graph.get_edges():
-                e_atts = e.get_attributes()
-                eid_raw = e_atts["id"]
-                eid = _strip_quotes(eid_raw) if isinstance(eid_raw, str) else eid_raw
-                target = E(f"E({eid})")
-                particle = _strip_quotes(str(e_atts["particle"]))
-                if particle not in ["d", "d~", "g"]:
-                    replacement = E(f"(sp3(q({eid}),q({eid}))+m({particle})^2)^(1/2)")
-                else:
-                    replacement = E(f"(sp3(q({eid}),q({eid})))^(1/2)")
-
-                approximated_integrand = approximated_integrand.replace(
-                    target, replacement
-                )
-            for e in cut_graph.graph.get_edges():
-                e_atts = e.get_attributes()
-                routing_items = E("0")
-                for i in range(self.L + 1):
-                    key = f"routing_k{i}"
-                    if key in e_atts:
-                        routing_items += E(f"{e_atts[key]}*k[{i}]")
-                for i in range(0, 2):
-                    key = f"routing_p{i + 1}"
-                    if key in e_atts:
-                        routing_items += E(f"{e_atts[key]}*p[{i + 1}]")
-                approximated_integrand = approximated_integrand.replace(
-                    E(f"q({e_atts['id']})"), routing_items
-                )
-
-            approximated_integrand = self.linearise_scalar_products(
-                approximated_integrand
-            )
-
-            approximated_integrand = self.t_parametrise(
-                approximated_integrand, cut_graph
-            )
-
-            approximated_integrand = self.concretise_scalar_products(
-                approximated_integrand
-            )
-
-        ### FOLLOWING GEARED AS A REPLACEMENT IN k(0), MIGHT NOT GENERALISE
-        if len(partition[0]) > 1 and len(partition[1]) == 1:
-            for e in cut_graph.graph.get_edges():
-                e_atts = e.get_attributes()
-                e_id = e_atts["id"]
-                particle = _strip_quotes(str(e_atts["particle"]))
-
-                # FIX DIRECTIONS OF COLLINEAR LIMIT
-                if e_id == partition[0][0]:
-                    approximated_integrand = approximated_integrand.replace(
-                        E(f"E({e_id})"),
-                        E(
-                            "x*sp3(p(1),p(1))^(1/2)+lam*sp3(p(1),p(1))^(-1/2)*x^(-1)*sp3(kperp(0),kperp(0))"
-                        ),
-                    )
-                elif e_id == partition[0][1]:
-                    approximated_integrand = approximated_integrand.replace(
-                        E(f"E({e_id})"),
-                        E(
-                            "(1-x)*sp3(p(1),p(1))^(1/2)+lam*sp3(p(1),p(1))^(-1/2)*(1-x)^(-1)*sp3(kperp(0),kperp(0))"
-                        ),
-                    )
-                elif e_atts["routing_k0"] == "0" and e_atts["routing_p2"] == "0":
-                    approximated_integrand = approximated_integrand.replace(
-                        E(f"E({e_id})"),
-                        E("sp3(p(1),p(1))^(1/2)+lam*p1sq/sp3(p(1),p(1))^(1/2)"),
-                    )
-                else:
-                    if particle not in ["d", "d~", "g"]:
-                        replacement = E(
-                            f"(sp3(q({e_id}),q({e_id}))+m({particle})^2)^(1/2)"
-                        )
-                    else:
-                        replacement = E(f"(sp3(q({e_id}),q({e_id})))^(1/2)")
-                    approximated_integrand = approximated_integrand.replace(
-                        E(f"E({e_id})"), replacement
-                    )
-
-            approximated_integrand = approximated_integrand.series(
-                E("p1sq"), 0, 0
-            ).to_expression()
-
-            collinear_momentum = E("0")
-            for e in cut_graph.graph.get_edges():
-                e_atts = e.get_attributes()
-                routing_items = E("0")
-                e_id = e_atts["id"]
-                for i in range(self.L + 1):
-                    key = f"routing_k{i}"
-                    if key in e_atts:
-                        routing_items += E(f"{e_atts[key]}*k({i})")
-                for i in range(0, 2):
-                    key = f"routing_p{i + 1}"
-                    if key in e_atts:
-                        routing_items += E(f"{e_atts[key]}*p({i + 1})")
-                approximated_integrand = approximated_integrand.replace(
-                    E(f"q({e_atts['id']})"), routing_items
-                )
-                if e_id == partition[0][0]:
-                    collinear_momentum = [routing_items, e_atts["is_cut_DY"]]
-
-            approximated_integrand = self.concretise_scalar_products(
-                approximated_integrand
-            )
-
-            coeff = collinear_momentum[0].replace(E("b___+k(0)"), E("1"))
-            coeff = coeff.replace(E("b___-k(0)"), E("-1"))
-            repl = -(collinear_momentum[0] - coeff * E("k(0)")) + collinear_momentum[
-                1
-            ] * E("x*p(1)")
-
-            for j in range(1, 4):
-                repl_i = repl.replace(E("k(x_)"), E(f"k(x_,{j})"))
-                repl_i = repl_i.replace(E("p(1)"), E(f"p(1,{j})"))
-                repl_i = repl_i.replace(E("p(2)"), E(f"p(2,{j})"))
-                approximated_integrand = approximated_integrand.replace(
-                    E(f"k(0,{j})"), repl_i
-                )
-
-            approximated_integrand = (
-                approximated_integrand
-                .series(E("lam"), 0, -1)
-                .to_expression()
-                .replace(E("lam"), E("1"))
-            )
-
-            ## replacements only valid when hadrons are aligned with z axis
-            repl_x = collinear_momentum[1] * E("(p(1,3)*k(0,3))/(p(1,3)*p(1,3))")
-            repl_kperp = E("k(0,1)^2+k(0,2)^2")
-
-            approximated_integrand = approximated_integrand.replace(E("x"), repl_x)
-            approximated_integrand = approximated_integrand.replace(
-                E("sp3(kperp(0),kperp(0))"), repl_kperp
-            )
-
-        ## choose rest frame
-        approximated_integrand = approximated_integrand.replace(E("p(x_,2)"), E("0"))
-        approximated_integrand = approximated_integrand.replace(E("p(x_,1)"), E("0"))
-
-        return approximated_integrand
+        return cut_integrand
 
     def _routing_sign_match(self, e: pydot.Edge, ep: pydot.Edge):
         a = e.get_attributes()
@@ -595,15 +686,6 @@ class IntegrandConstructor(object):
 
             return [row[n:] for row in aug]
 
-        def _mat_mul(a, b):
-            return [
-                [
-                    sum(a[i][k] * b[k][j] for k in range(len(a[0])))
-                    for j in range(len(b[0]))
-                ]
-                for i in range(len(a))
-            ]
-
         def _norm_id(v):
             if isinstance(v, str):
                 return _strip_quotes(v)
@@ -658,162 +740,122 @@ class IntegrandConstructor(object):
 
         return graph
 
-    def get_integrand(self, cut_graph: routed_cut_graph):
+    def impose_rest_frame(self, integrand):
+        return integrand.replace(E("p(x_,1)"), E("0")).replace(E("p(x_,2)"), E("0"))
 
-        comps = get_LR_components(
-            cut_graph.graph, cut_graph.initial_cut, cut_graph.final_cut
-        )
+    def approximator(self, integrand, cut_graph):
 
-        if len(cut_graph.initial_cut) > 1:
+        partition = cut_graph.partition
+
+        if len(partition[0]) == 1 and len(partition[1]) == 1:
+            integrand = self.replace_energies(integrand, cut_graph)
+            integrand = self.route_integrand(integrand, cut_graph)
+            integrand = self.t_parametrise(integrand, cut_graph)
+        elif len(partition[0]) > 1 and len(partition[1]) == 1:
+            x = S("x", is_scalar=True, is_positive=True)
+            lam = S("λ", is_scalar=True)
+            momentum = E("0")
+
+            coll_moms = []
+            for ep in partition[0]:
+                ep_atts = ep.get_attributes()
+                id = ep_atts["id"]
+                coll_moms.append(id)
+                for e in cut_graph.graph.get_edges():
+                    e_atts = e.get_attributes()
+                    if e_atts["id"] == id:
+                        k_keys = ["routing_k" + str(i) for i in range(0, self.L)]
+                        loop_coeff = [E(e_atts[rout]) for rout in k_keys]
+                        k_id = next(
+                            (i, c) for i, c in enumerate(loop_coeff) if str(c) != "0"
+                        )
+                        momentum = (
+                            sum(loop_coeff[i] * E(f"k({i})") for i in range(0, self.L))
+                            + E(e_atts["routing_p1"]) * E("p(1)")
+                            + E(e_atts["routing_p1"]) * E("p(2)")
+                        )
+
+            kperp_sq = E(f"sp3D(k_perp({k_id[0]}),k_perp({k_id[0]}))")
+            coll_en = x * E("sp3D(p(1),p(1))^(1/2)") + lam**2 * kperp_sq / (
+                2 * x * E("sp3D(p(1),p(1))^(1/2)")
+            )
+            a_coll_en = (1 - x) * E("sp3D(p(1),p(1))^(1/2)") + lam**2 * kperp_sq / (
+                2 * (1 - x) * E("sp3D(p(1),p(1))^(1/2)")
+            )
+
+            ## IN ORDER TO MAKE SURE THE FOLLOWING ALWAYS WORK, REPLACE A FINAL-STATE ENERGY BY
+            # ENERGY CONSERVATION
+
+            rep = E("0")
+            for i, e in enumerate(cut_graph.final_cut):
+                e_atts = e.get_attributes()
+                if i == 0:
+                    patt = E(f"E({e_atts['id']})")
+                else:
+                    rep -= E(f"E({e_atts['id']})")
+            for i, e in enumerate(cut_graph.initial_cut):
+                e_atts = e.get_attributes()
+                rep += E(f"E({e_atts['id']})")
+
+            integrand = integrand.replace(patt, rep)
+
+            integrand = integrand.replace(E(f"E({coll_moms[0]})"), coll_en)
+            integrand = integrand.replace(E(f"E({coll_moms[1]})"), a_coll_en)
+
+            integrand = self.replace_energies(integrand, cut_graph)
+            integrand = self.route_integrand(integrand, cut_graph)
+            integrand = self.t_parametrise(integrand, cut_graph)
+
+            ## check these replacements
+            repl = k_id[1] * (
+                x * E("p(1)")
+                - (momentum - k_id[1] * E(f"k({k_id[0]})"))
+                + lam * E(f"k_perp({k_id[0]})")
+            )
+            integrand = integrand.replace(E(f"k({k_id[0]})"), repl)
+            integrand = integrand.replace(
+                self.sp3D(E(f"k_perp({k_id[0]})"), E("p(x_)")), E("0")
+            )
+
+            repl_x = (
+                k_id[1]
+                * self.sp3D(E("p(1)"), E(f"k({k_id[0]})"))
+                / self.sp3D(E("p(1)"), E("p(1)"))
+            )
+            repl_kperp = E(f"k({k_id[0]},1)^2+k({k_id[0]},2)^2")
+
+            integrand = integrand.replace(E("x"), repl_x)
+            integrand = integrand.replace(E("sp3(kperp(0),kperp(0))"), repl_kperp)
+
+            integrand = integrand.series(lam, 0, -1).to_expression()
+        else:
+            raise ValueError("reached not implemented part")
+
+        return integrand
+
+    def get_integrand(self, cut_graph):
+        emr_integrand = self.emr_processor.get_integrand(cut_graph)
+
+        print(emr_integrand)
+        if len(cut_graph.final_cut) > 1 and self.name == "DY":
             lmb_choice = []
             for e in cut_graph.final_cut:
-                # print(e.get_attributes()["particle"])
                 e_atts = e.get_attributes()
                 if _strip_quotes(str(e_atts["particle"])) == "a":
                     lmb_choice.append(e_atts["id"])
-            # print(lmb_choice)
             cut_graph.graph = self.change_routing(cut_graph.graph, lmb_choice)
 
-        else:
-            raise ValueError("Implement me")
+        # print(cut_graph.graph)
+        # loop_integrand = self.route_integrand(emr_integrand, cut_graph)
+        # print(loop_integrand)
+        # loop_integrand = self.t_parametrise(loop_integrand, cut_graph)
+        loop_integrand = self.approximator(emr_integrand, cut_graph)
+        # print(loop_integrand)
+        loop_integrand = self.concretise_scalar_products(loop_integrand)
+        loop_integrand = self.impose_rest_frame(loop_integrand)
 
-        num = self.get_numerator(cut_graph.graph)
-
-        has_s_bridge_L, s_bridge_sub_L, new_comp_L = self.eliminate_s_channel_bridges(
-            cut_graph.graph, comps[0]
-        )
-        has_s_bridge_R, s_bridge_sub_R, new_comp_R = self.eliminate_s_channel_bridges(
-            cut_graph.graph, comps[1]
-        )
-
-        dangling = [[], []]
-
-        cut_ids = [
-            e.get_attributes()["id"]
-            for e in cut_graph.initial_cut + cut_graph.final_cut
-        ]
-
-        # PROBLEM WITH DANGLING EDGES WHEN A SUBGRAPH'S BOUNDARY CONTAINS THE SAME EDGE TWICE
-        for i in [0, 1]:
-            for e in cut_graph.graph.get_edges():
-                if e.get_attributes()["id"] in cut_ids:
-                    e_cut_attributes = e.get_attributes()
-                    src_sign = 1 if _strip_quotes(e.get_source()) in comps[i] else -1
-                    if e_cut_attributes.get("is_cut") is None:
-                        raise ValueError(
-                            "No is_cut attribute in cut edge... impossible!"
-                        )
-                    elif (
-                        src_sign * e_cut_attributes.get("is_cut") == -1
-                    ):  ## FUNKY DANGLING LOGIC, CHECK CONVENTION
-                        dangling[i].append(int(e_cut_attributes.get("id")))
-                    e_cut_attributes["is_cut_DY"] = e_cut_attributes.get("is_cut")
-
-        for i in [0, 1]:
-            for e in cut_graph.graph.get_edges():
-                e_cut_attributes = e.get_attributes()
-                if e_cut_attributes.get("is_cut", None) is not None:
-                    e_cut_attributes.pop("is_cut")
-
-        raised_cut = []
-        for e, i in zip(
-            cut_graph.graph.get_edges(), range(len(cut_graph.graph.get_edges()))
-        ):
-            e_atts = e.get_attributes()
-            for ep, j in zip(
-                cut_graph.graph.get_edges(), range(len(cut_graph.graph.get_edges()))
-            ):
-                ep_atts = ep.get_attributes()
-                if j > i and self._routing_sign_match(e, ep):
-                    if (
-                        e_atts.get("is_cut_DY", None) is not None
-                        or ep_atts.get("is_cut_DY", None) is not None
-                    ):
-                        raised_cut.append([e_atts["id"], ep_atts["id"]])
-
-        comps = [new_comp_L, new_comp_R]
-
-        ## DEALING WITH SPECTATORS FOR CFF
-
-        input_graph = deepcopy(cut_graph.graph)
-
-        spectator_ids = [
-            e.get_attributes()["id"]
-            for e in set(cut_graph.initial_cut).intersection(set(cut_graph.final_cut))
-        ]
-
-        repl = []
-        tot_e = len(input_graph.get_edges())
-        for e in input_graph.get_edges():
-            e_atts = e.get_attributes()
-            e_atts.pop("sink", None)
-            e_atts.pop("source", None)
-            e_id = e_atts["id"]
-            e_source = e.get_source()
-            e_dest = e.get_destination()
-            if e_id in spectator_ids:
-                i = spectator_ids.index(e_id)
-                edge_to_add_1 = pydot.Edge(f"ext{2 * i}", e_dest, **e_atts)
-                edge_to_add_2 = pydot.Edge(e_source, f"ext{2 * i + 1}", **e_atts)
-                edge_to_add_2.set("num", "1")
-                edge_to_add_2.set("id", f"{tot_e + i}")
-                repl.append([E(f"E({tot_e + i})"), E(f"E({e_id})")])
-                input_graph.del_edge(e_source, e_dest, e_id)
-                input_graph.add_edge(edge_to_add_1)
-                input_graph.add_edge(edge_to_add_2)
-                input_graph.add_node(pydot.Node(f"ext{2 * i}", style="invis"))
-                input_graph.add_node(pydot.Node(f"ext{2 * i + 1}", style="invis"))
-                if e_id in dangling[0]:
-                    dangling[0].append(tot_e + i)
-                if e_id in dangling[1]:
-                    dangling[1].append(tot_e + i)
-
-        if len(comps[0]) > 1:
-            # cff_structure_L = self.get_CFF(cut_graph.graph, list(comps[0]), dangling[0])
-            cff_structure_L = self.get_CFF(input_graph, list(comps[0]), dangling[0])
-        else:
-            cff_structure_L = None
-        if len(comps[1]) > 1:
-            # cff_structure_R = self.get_CFF(cut_graph.graph, list(comps[1]), dangling[1])
-            cff_structure_R = self.get_CFF(input_graph, list(comps[1]), dangling[1])
-        else:
-            cff_structure_R = None
-
-        # add cut info: which of the four cases (00, 01, 10, 11) this cut diagram will fall into
-        # partition = json.loads(cut_graph.graph.get_attributes()["partition"])
-
-        graph_integrand_info = integrand_info(
-            num,
-            cut_graph,
-            cff_structure_L,
-            cff_structure_R,
-            s_bridge_sub_L,
-            s_bridge_sub_R,
-            has_s_bridge_L,
-            has_s_bridge_R,
-        )
-
-        cut_integrand = self.construct_cuts(graph_integrand_info)
-
-        for r in repl:
-            cut_integrand = E(str(cut_integrand)).replace(r[0], r[1])
-
-        if len(raised_cut) > 0:
-            cut_integrand = cut_integrand * (
-                E(f"E({raised_cut[0][0]})") - E(f"E({raised_cut[0][1]})")
-            )
-
-        for e in cut_graph.graph.get_edges():
-            cut_val = e.get_attributes().get("is_cut_DY", None)
-            cut_id = e.get_attributes().get("id", None)
-            if cut_val is not None:
-                cut_integrand = cut_integrand.replace(
-                    E(f"sigma({cut_id})"), E(f"{cut_val}")
-                )
-
-        cut_integrand = self.integrand_approximator(cut_graph, cut_integrand)
-
-        return cut_integrand
+        # print(loop_integrand)
+        return loop_integrand
 
 
 class evaluate_integrand(object):
@@ -836,7 +878,7 @@ class evaluate_integrand(object):
         self.cut_integrand = self.cut_integrand.replace(E("TR"), E("1/2"))
         self.cut_integrand = self.cut_integrand.replace(E("GC_11"), E("1"))
         self.cut_integrand = self.cut_integrand.replace(E("GC_1"), E("1"))
-
+        print(self.cut_integrand)
         self.evaluator = self.cut_integrand.evaluator({}, {}, self.symbols)
 
     def param_builder(self, k, p1, p2, z):
