@@ -30,7 +30,7 @@ pjoin = os.path.join
 
 gl_log_level = LogLevel.Off
 
-debug = False
+debug = True
 
 
 def Es(expr: str) -> Expression:
@@ -50,13 +50,18 @@ class routed_cut_graph(object):
 
 # We will extract amplitude graphs from cut graphs. Amplitude graphs are graphs together with a list
 # of replacements that allow to map edge ids in the amplitude graph back to those of the cut graph
+
+
 class amplitude_graph(object):
-    def __init__(
-        self,
-        graph,
-        replacements,
-    ):
+    def __init__(self, graph, replacements):
         self.graph = graph
+        self.replacements = replacements
+
+
+class RoutedIntegrand(object):
+    def __init__(self, integrand, cut_graph, replacements):
+        self.integrand = integrand
+        self.cut_graph = cut_graph
         self.replacements = replacements
 
 
@@ -76,7 +81,8 @@ class EMRIntegrandConstructor(object):
         # GAMMALOOP_STATE_FOLDER
         self.gl_worker.run("import model sm-default.json")
 
-    # get the numerator of the graph
+    # Get the numerator of the graph
+
     def get_numerator(self, graph) -> Expression:
         num = E("1")
         for node in graph.get_nodes():
@@ -95,7 +101,9 @@ class EMRIntegrandConstructor(object):
 
         return out
 
-    # get cff of a graph
+    # Get cff of a graph; the dependence on subgraph_as_nodes and reversed_edge_flows_ids
+    # is explicit but is not used for the rest of the code. All graphs are amplitude graphs now.
+
     def get_CFF(
         self, graph, subgraph_as_nodes, reversed_edge_flows_ids
     ) -> CFFStructure:
@@ -118,7 +126,8 @@ class EMRIntegrandConstructor(object):
 
         return cff_structure
 
-    # The following function canonicalises the ports of a pydot graph so that they go from 0,...,N
+    # The following function canonicalises the nodes and the ports of a pydot graph so that they go from 0,...,N and 0,...,M.
+    # This normalisation is needed for linnet. One could also remove the ports.
 
     def canonicalize_ports_for_cff(self, graph):
         port_re = re.compile(r"^([^:]+):(\d+)$")
@@ -130,12 +139,38 @@ class EMRIntegrandConstructor(object):
                 return ep, None
             return m.group(1), int(m.group(2))
 
+        # Build a deterministic node relabeling map: old label -> "0", "1", ..., "N".
+        node_labels = []
+        for n in graph.get_nodes():
+            name = _strip_quotes(str(n.get_name()))
+            if name in ["node", "edge", "graph"]:
+                continue
+            node_labels.append(name)
+
+        for e in graph.get_edges():
+            src_node, _ = parse_endpoint(e.get_source())
+            dst_node, _ = parse_endpoint(e.get_destination())
+            node_labels.append(src_node)
+            node_labels.append(dst_node)
+
+        unique_labels = list(dict.fromkeys(node_labels))
+        node_map = {old: str(i) for i, old in enumerate(unique_labels)}
+
+        remapped_nodes = []
+        for n in graph.get_nodes():
+            name = _strip_quotes(str(n.get_name()))
+            if name in ["node", "edge", "graph"]:
+                continue
+            attrs = deepcopy(n.get_attributes())
+            remapped_nodes.append(pydot.Node(node_map[name], **attrs))
+
         remapped_edges = []
         next_port = 0
         for e in graph.get_edges():
             attrs = deepcopy(e.get_attributes())
 
             src_node, src_port = parse_endpoint(e.get_source())
+            src_node = node_map[src_node]
             if src_port is None:
                 new_src = src_node
             else:
@@ -143,6 +178,7 @@ class EMRIntegrandConstructor(object):
                 next_port += 1
 
             dst_node, dst_port = parse_endpoint(e.get_destination())
+            dst_node = node_map[dst_node]
             if dst_port is None:
                 new_dst = dst_node
             else:
@@ -151,11 +187,14 @@ class EMRIntegrandConstructor(object):
 
             remapped_edges.append(pydot.Edge(new_src, new_dst, **attrs))
 
+        graph.obj_dict["nodes"] = {}
         graph.obj_dict["edges"] = {}
+        for n in remapped_nodes:
+            graph.add_node(n)
         for e in remapped_edges:
             graph.add_edge(e)
 
-    # The following function can be used to remove unwanted attributes from the graph
+    # The following function can be used to remove unwanted attributes from the graph.
 
     def normalise_graph(self, graph):
 
@@ -192,11 +231,11 @@ class EMRIntegrandConstructor(object):
                 if suffix.isdigit():
                     highest_ext = max(highest_ext, int(suffix))
 
-        # highest_ext = 0
+        # TODO: should check indexing logic, it seems a bit contrived.
 
-        # tot_e = len(cut_graph.graph.get_edges())
         tot_e = 0
         replacements = [[], []]
+
         for i in [0, 1]:
             counter = 1
             for e in cut_graph.graph.get_edges():
@@ -221,6 +260,7 @@ class EMRIntegrandConstructor(object):
                         tot_e + counter - 1,
                         e_atts["id"],
                     ])
+
                     counter += 1
                 elif dest_key in comps[i] and src_key not in comps[i]:
                     new_graphs[i].del_edge(src, dest, e_atts["id"])
@@ -302,9 +342,15 @@ class EMRIntegrandConstructor(object):
         graph.replacements = composed
 
     # This function finds s_channel propagators and iteratively divides the amplitude graph into
-    # amplitude subgraphs by deleting the s_channel propagators (which must be bridges).
+    # amplitude subgraphs by deleting the s_channel propagators (which must be bridges). This is
+    # needed because in the rest-frame the cff representation of massless s-channel propagators
+    # is ill-defined. The amplitude subgraphs obtained by this procedure will later be individually fed to
+    # the cff generator and the s-channel propagators will be added back by and in non-partial fractioned
+    # form.
 
     def split_s_channels(self, graph: amplitude_graph):
+
+        # Find s-channel propagators
 
         s_channel_edges = []
         for e in graph.graph.get_edges():
@@ -317,6 +363,8 @@ class EMRIntegrandConstructor(object):
             )
             if s_channel:
                 s_channel_edges.append(e)
+
+        # Goes through one s-channel propagator at a time and divides the in two more subgraph by cutting it.
 
         s_channel_edges_copy = deepcopy(s_channel_edges)
         s_split_graphs = [graph]
@@ -355,6 +403,13 @@ class EMRIntegrandConstructor(object):
             E("sp(x_,y_)"), E("sigma(x_)*sigma(y_)*E(x_)*E(y_)-sp3(q(x_),q(y_))")
         )
 
+        cut_g_edges = sorted(
+            cut_graph.graph.get_edges(), key=lambda e: int(e.get_attributes()["id"])
+        )
+
+        # We only derive the CFF of graphs that have more than one node. It's trivial otherwise
+        # and the CFF generator crashes for these graphs for some reason.
+
         split_graphs_gt2_non_ext = []
         for g in s_split_graphs:
             non_ext_count = 0
@@ -366,39 +421,56 @@ class EMRIntegrandConstructor(object):
             if non_ext_count > 1:
                 split_graphs_gt2_non_ext.append(g)
 
+        # Constructs the product of CFF representations obtained from all the subgraphs obtained
+        # by deleting s-channel edges and cut edges. Also reverses sign of external edges that
+        # are cut and have negative energy flow.
+
         previous_cff = numerator
-
-        # previous_cff = cff_family(num, [], [])
-
-        # print("numerator")
-        # print(previous_cff)
 
         for g in split_graphs_gt2_non_ext:
             cff_g = self.get_CFF(g.graph, [], [])
             new_cff = E("0")
             g_rep = g.replacements
+
             for cffterm in cff_g.expressions:
                 cff_term = previous_cff * cffterm.expression
+                edges_to_reverse = []
                 for o, i in zip(
                     cffterm.orientation, range(0, len(cffterm.orientation))
                 ):
+                    id_in_original_graph = g_rep[i][1]
+                    this_e_atts = cut_g_edges[id_in_original_graph].get_attributes()
                     if o.is_reversed():
-                        cff_term = cff_term.replace(E(f"sigma({g_rep[i][1]})"), E("-1"))
+                        cff_term = cff_term.replace(
+                            E(f"sigma({id_in_original_graph})"), E("-1")
+                        )
                     if o.is_default():
-                        cff_term = cff_term.replace(E(f"sigma({g_rep[i][1]})"), E("1"))
+                        cff_term = cff_term.replace(
+                            E(f"sigma({id_in_original_graph})"), E("1")
+                        )
+                    if this_e_atts.get("is_cut_DY", 0) == -1:
+                        edges_to_reverse.append(id_in_original_graph)
                 for etas in cff_g.e_surfaces:
                     eta = etas.expression
                     for rep in g.replacements:
                         eta = eta.replace(E(f"pygloop::E({rep[0]})"), E(f"E({rep[1]})"))
                     cff_term = cff_term.replace(E(f"pygloop::η({etas.id})"), eta)
 
+                for id in set(edges_to_reverse):
+                    cff_term = cff_term.replace(E(f"E({id})"), -E(f"E({id})"))
+
                 new_cff += cff_term
             previous_cff = new_cff
 
-        popping_edges = deepcopy(s_channel_edges)
+        # Multiplies by non-partial-fractioned s-channel propagators and sets the s-channel particle's
+        # energy in terms of other cut particles by energy conservation. The logic is weak for many s-channel
+        # propagators since you can have a subgraph sandwiched between two s-channel propagators (TODO: FIX).
+        # Also sets the sign of the propagator sigma(i) by one (i.e. according to original orientation)
 
-        print("cff with no s-channel")
+        print("prior to setting cut sign")
         print(previous_cff)
+
+        popping_edges = deepcopy(s_channel_edges)
 
         while len(popping_edges) > 0:
             current_s_edge = popping_edges.pop()
@@ -423,9 +495,6 @@ class EMRIntegrandConstructor(object):
                                 denom -= ep_atts["is_cut_DY"] * E(
                                     f"E({g.replacements[ep_atts['id']][1]})"
                                 )
-                        ## MISSING s-CHANNEL-ENERGY REPLACEMENT ??
-                        # print("replacements?")
-                        # print(previous_cff)
                         previous_cff = previous_cff / denom**2
                         sign = 1 if e_src.startswith("ext") else -1
                         previous_cff = previous_cff.replace(
@@ -434,36 +503,36 @@ class EMRIntegrandConstructor(object):
                         previous_cff = previous_cff.replace(
                             E(f"sigma({g.replacements[e_atts['id']][1]})"), E("1")
                         )
-                        # print(previous_cff)
                         check = True
                         break
                 if check:
                     break
 
-        print("beff")
-        print(previous_cff)
+        # Multiplies by inverse cut energies and substitutes their orientation acoording to
+        # the cut.
 
         energies = E("1")
-        # print(cut_graph.graph)
         for e in cut_graph.graph.get_edges():
             e_atts = e.get_attributes()
             cut_val = e_atts.get("is_cut_DY", None)
-            if cut_val is not None:
+
+            if e not in s_channel_edges:
                 energies *= 1 / E(f"2*E({e_atts['id']})")
+
+            if cut_val is not None:
                 previous_cff = previous_cff.replace(
                     E(f"sigma({e_atts['id']})"),
                     cut_val,
                 )
-
-        print("cff with s-channel")
-        print(energies)
-        print(previous_cff * energies)
 
         return previous_cff * energies
 
     # Use all the previous functions to get the cff for the cut graph
 
     def get_integrand(self, cut_graph: routed_cut_graph):
+
+        # Derives numerator, eliminates useless labels, get left and right graphs and further
+        # splits them if they have s-channel propagators.
 
         num = self.get_numerator(cut_graph.graph)
 
@@ -503,8 +572,6 @@ class EMRIntegrandConstructor(object):
                     num,
                 )
             )
-
-        print(num)
 
         ## DEBUG: set numerator to 1
         # num = E("1")
@@ -564,41 +631,6 @@ class LoopIntegrandConstructor(object):
         )
         return integrand
 
-    def concretise_scalar_products(self, integrand):
-
-        if self.name == "DY":
-            integrand = integrand.replace(E("m(a)^2"), E("4*z*sp3D(p(1),p(1))"))
-
-        integrand = integrand.replace(
-            E("sp3D(w_(x_),z_(y_))"),
-            E("w_(x_,1)*z_(y_,1)+w_(x_,2)*z_(y_,2)+w_(x_,3)*z_(y_,3)"),
-        )
-
-        return integrand
-
-    def t_parametrise(self, cut_integrand, cut_graph, process="DY"):
-
-        if process == "DY":
-            if len(cut_graph.final_cut) > 1:
-                t = S("t", is_scalar=True)
-                cut_integrand = cut_integrand.replace(
-                    self.sp3D(E("k(x___)"), E("p(y___)")),
-                    self.sp3D(t * E("k(x___)"), E("p(y___)")),
-                )
-                cut_integrand = cut_integrand.replace(
-                    self.sp3D(E("k(x___)"), E("k(y___)")),
-                    self.sp3D(t * E("k(x___)"), t * E("k(y___)")),
-                )
-                t_rep = E("4*sp3D(p(1),p(1))-m(a)^2") / (
-                    2 * E("sp3D(k(0),k(0))^(1/2)") * 2 * E("sp3D(p(1),p(1))^(1/2)")
-                )
-                cut_integrand = cut_integrand.replace(t, t_rep)
-                return cut_integrand
-            else:
-                return cut_integrand
-
-        return cut_integrand
-
     def _routing_sign_match(self, e: pydot.Edge, ep: pydot.Edge):
         a = e.get_attributes()
         b = ep.get_attributes()
@@ -631,9 +663,6 @@ class LoopIntegrandConstructor(object):
         )
         p_keys = sorted([k for k in routing_keys if k.startswith("routing_p")])
         n_loops = len(k_keys)
-
-        print(k_keys)
-        print(lmb_choice)
 
         if n_loops == 0:
             return graph
@@ -740,9 +769,6 @@ class LoopIntegrandConstructor(object):
 
         return graph
 
-    def impose_rest_frame(self, integrand):
-        return integrand.replace(E("p(x_,1)"), E("0")).replace(E("p(x_,2)"), E("0"))
-
     def approximator(self, integrand, cut_graph):
 
         partition = cut_graph.partition
@@ -750,7 +776,9 @@ class LoopIntegrandConstructor(object):
         if len(partition[0]) == 1 and len(partition[1]) == 1:
             integrand = self.replace_energies(integrand, cut_graph)
             integrand = self.route_integrand(integrand, cut_graph)
-            integrand = self.t_parametrise(integrand, cut_graph)
+            # integrand = self.t_parametrise(integrand, cut_graph)
+            return RoutedIntegrand(integrand, cut_graph, [])
+
         elif len(partition[0]) > 1 and len(partition[1]) == 1:
             x = S("x", is_scalar=True, is_positive=True)
             lam = S("λ", is_scalar=True)
@@ -759,21 +787,32 @@ class LoopIntegrandConstructor(object):
             coll_moms = []
             for ep in partition[0]:
                 ep_atts = ep.get_attributes()
+                print("partition edge")
+                print(ep)
                 id = ep_atts["id"]
                 coll_moms.append(id)
                 for e in cut_graph.graph.get_edges():
                     e_atts = e.get_attributes()
                     if e_atts["id"] == id:
+                        print("found matching")
+                        print(e)
                         k_keys = ["routing_k" + str(i) for i in range(0, self.L)]
                         loop_coeff = [E(e_atts[rout]) for rout in k_keys]
                         k_id = next(
                             (i, c) for i, c in enumerate(loop_coeff) if str(c) != "0"
                         )
-                        momentum = (
-                            sum(loop_coeff[i] * E(f"k({i})") for i in range(0, self.L))
-                            + E(e_atts["routing_p1"]) * E("p(1)")
-                            + E(e_atts["routing_p1"]) * E("p(2)")
-                        )
+                        momentum = [
+                            (
+                                sum(
+                                    loop_coeff[i] * E(f"k({i})")
+                                    for i in range(0, self.L)
+                                )
+                                + E(e_atts["routing_p1"]) * E("p(1)")
+                                + E(e_atts["routing_p2"]) * E("p(2)")
+                            ),
+                            e_atts["is_cut_DY"],
+                        ]
+                        print(momentum)
 
             kperp_sq = E(f"sp3D(k_perp({k_id[0]}),k_perp({k_id[0]}))")
             coll_en = x * E("sp3D(p(1),p(1))^(1/2)") + lam**2 * kperp_sq / (
@@ -783,19 +822,30 @@ class LoopIntegrandConstructor(object):
                 2 * (1 - x) * E("sp3D(p(1),p(1))^(1/2)")
             )
 
-            ## IN ORDER TO MAKE SURE THE FOLLOWING ALWAYS WORK, REPLACE A FINAL-STATE ENERGY BY
-            # ENERGY CONSERVATION
+            # In order to make the collinear replacement always work, replace a final-state energy
+            # by energy conservation.
 
             rep = E("0")
-            for i, e in enumerate(cut_graph.final_cut):
+
+            f_cut_set = set(cut_graph.final_cut)
+            i_cut_set = set(cut_graph.initial_cut)
+            cut_union = f_cut_set.union(i_cut_set)
+            cut_intersection = f_cut_set.intersection(i_cut_set)
+
+            first_f = True
+            patt = None
+            for e in cut_union - cut_intersection:
+                print(e)
                 e_atts = e.get_attributes()
-                if i == 0:
+                if first_f and e in f_cut_set:
                     patt = E(f"E({e_atts['id']})")
-                else:
+                    first_f = False
+                elif e in f_cut_set:
                     rep -= E(f"E({e_atts['id']})")
-            for i, e in enumerate(cut_graph.initial_cut):
-                e_atts = e.get_attributes()
-                rep += E(f"E({e_atts['id']})")
+                else:
+                    rep += E(f"E({e_atts['id']})")
+            if patt is None:
+                raise ValueError("Could not identify a final-cut energy to replace.")
 
             integrand = integrand.replace(patt, rep)
 
@@ -804,12 +854,14 @@ class LoopIntegrandConstructor(object):
 
             integrand = self.replace_energies(integrand, cut_graph)
             integrand = self.route_integrand(integrand, cut_graph)
-            integrand = self.t_parametrise(integrand, cut_graph)
 
-            ## check these replacements
+            # Let s*q(i) be the vector that should become collinear to p(1). s encodes the cut orientation. We
+            # write s*q(i)=s*(q(i)-a*k(j))+a*s*k(j)= x*p(1)+lam*k_perp(j) and solve in k(j), giving
+            # k(j)=a*s*x*p(1)+a*s*lam*k_perp(j)-a*(q(i)-a*k(j)). Now s=momentum[1] and a=k_id[1] and j=k_id[0].
+
             repl = k_id[1] * (
-                x * E("p(1)")
-                - (momentum - k_id[1] * E(f"k({k_id[0]})"))
+                momentum[1] * x * E("p(1)")
+                - (momentum[0] - k_id[1] * E(f"k({k_id[0]})"))
                 + lam * E(f"k_perp({k_id[0]})")
             )
             integrand = integrand.replace(E(f"k({k_id[0]})"), repl)
@@ -817,26 +869,41 @@ class LoopIntegrandConstructor(object):
                 self.sp3D(E(f"k_perp({k_id[0]})"), E("p(x_)")), E("0")
             )
 
+            # Only consider leading-virtuality contribution
+
+            integrand = integrand.series(lam, 0, -1).to_expression().replace(lam, 1)
+
+            # Invert back the collinear parametrisation. Since s*q(i)= x*p(1)+lam*k_perp(j), we have
+            # x=s*q(i).p(1)/p(1).p(1)
+
             repl_x = (
-                k_id[1]
-                * self.sp3D(E("p(1)"), E(f"k({k_id[0]})"))
+                momentum[1]
+                * self.sp3D(momentum[0], E("p(1)"))
                 / self.sp3D(E("p(1)"), E("p(1)"))
             )
+
             repl_kperp = E(f"k({k_id[0]},1)^2+k({k_id[0]},2)^2")
 
             integrand = integrand.replace(E("x"), repl_x)
-            integrand = integrand.replace(E("sp3(kperp(0),kperp(0))"), repl_kperp)
+            integrand = integrand.replace(
+                self.sp3D(E("k_perp(0)"), E("k_perp(0)")), repl_kperp
+            )
 
-            integrand = integrand.series(lam, 0, -1).to_expression()
+            return RoutedIntegrand(
+                integrand,
+                cut_graph,
+                [
+                    E(f"k({k_id[0]})"),
+                    repl.replace(x, repl_x).series(lam, 0, 0).to_expression(),
+                ],
+            )
+
         else:
             raise ValueError("reached not implemented part")
-
-        return integrand
 
     def get_integrand(self, cut_graph):
         emr_integrand = self.emr_processor.get_integrand(cut_graph)
 
-        print(emr_integrand)
         if len(cut_graph.final_cut) > 1 and self.name == "DY":
             lmb_choice = []
             for e in cut_graph.final_cut:
@@ -845,23 +912,43 @@ class LoopIntegrandConstructor(object):
                     lmb_choice.append(e_atts["id"])
             cut_graph.graph = self.change_routing(cut_graph.graph, lmb_choice)
 
-        # print(cut_graph.graph)
-        # loop_integrand = self.route_integrand(emr_integrand, cut_graph)
-        # print(loop_integrand)
-        # loop_integrand = self.t_parametrise(loop_integrand, cut_graph)
         loop_integrand = self.approximator(emr_integrand, cut_graph)
-        # print(loop_integrand)
-        loop_integrand = self.concretise_scalar_products(loop_integrand)
-        loop_integrand = self.impose_rest_frame(loop_integrand)
 
-        # print(loop_integrand)
         return loop_integrand
 
 
 class evaluate_integrand(object):
-    def __init__(self, L, cut_integrand, process):
+    def impose_rest_frame(self, integrand):
+        return integrand.replace(E("p(x_,1)"), E("0")).replace(E("p(x_,2)"), E("0"))
+
+    def concretise_scalar_products(self, integrand):
+
+        if self.process == "DY":
+            integrand = integrand.replace(E("m(a)^2"), E("4*z*sp3D(p(1),p(1))"))
+
+        integrand = integrand.replace(
+            E("sp3D(w_(x_),z_(y_))"),
+            E("w_(x_,1)*z_(y_,1)+w_(x_,2)*z_(y_,2)+w_(x_,3)*z_(y_,3)"),
+        )
+
+        return integrand
+
+    def t_parametrise(self, integrand):
+
+        t = S("t")
+        integrand = integrand.replace(
+            E("k(x___,y___)"),
+            t * E("k(x___,y___)"),
+        )
+        print(integrand)
+
+        return integrand
+
+    def __init__(self, L, process, routed_integrand):
         self.L = L
         self.process = process
+        self.routed_integrand = routed_integrand
+
         self.symbols = []
         for i in range(self.L):
             for j in range(1, 4):
@@ -873,13 +960,127 @@ class evaluate_integrand(object):
         if process == "DY":
             self.symbols.append(E("z"))
 
-        self.cut_integrand = cut_integrand
+        self.symbols.append(E("t"))
 
-        self.cut_integrand = self.cut_integrand.replace(E("TR"), E("1/2"))
-        self.cut_integrand = self.cut_integrand.replace(E("GC_11"), E("1"))
-        self.cut_integrand = self.cut_integrand.replace(E("GC_1"), E("1"))
-        print(self.cut_integrand)
-        self.evaluator = self.cut_integrand.evaluator({}, {}, self.symbols)
+        self.routed_integrand.integrand = self.concretise_scalar_products(
+            self.routed_integrand.integrand
+        )
+        self.routed_integrand.integrand = self.impose_rest_frame(
+            self.routed_integrand.integrand
+        )
+        self.routed_integrand.integrand = self.t_parametrise(
+            self.routed_integrand.integrand
+        )
+
+        self.routed_integrand.integrand = self.routed_integrand.integrand.replace(
+            E("TR"), E("1/2")
+        )
+        self.routed_integrand.integrand = self.routed_integrand.integrand.replace(
+            E("GC_11"), E("1")
+        )
+        self.routed_integrand.integrand = self.routed_integrand.integrand.replace(
+            E("GC_1"), E("1")
+        )
+        self.evaluator = self.routed_integrand.integrand.evaluator({}, {}, self.symbols)
+
+        self.sp3D = S("sp3D", is_linear=True, is_symmetric=True)
+
+    def set_t_value(self, k, p1, p2, z):
+
+        if self.process == "DY":
+            if len(self.routed_integrand.cut_graph.final_cut) > 1:
+                final_moms = []
+                e_surface = E("-s^(1/2)")
+
+                for ep in self.routed_integrand.cut_graph.final_cut:
+                    ep_atts = ep.get_attributes()
+                    id = ep_atts["id"]
+                    for e in self.routed_integrand.cut_graph.graph.get_edges():
+                        e_atts = e.get_attributes()
+                        if e_atts["id"] == id:
+                            k_keys = ["routing_k" + str(i) for i in range(0, self.L)]
+                            loop_coeff = [E(e_atts[rout]) for rout in k_keys]
+                            mass = (
+                                E("0")
+                                if _strip_quotes(e_atts["particle"]) != "a"
+                                else E("m(a)")
+                            )
+                            final_mom = (
+                                sum(
+                                    loop_coeff[i] * E(f"k({i})")
+                                    for i in range(0, self.L)
+                                )
+                                + E(e_atts["routing_p1"]) * E("p(1)")
+                                + E(e_atts["routing_p2"]) * E("p(2)")
+                            )
+                            final_moms.append([
+                                final_mom,
+                                mass,
+                            ])
+                            e_surface += (
+                                self.sp3D(final_mom, final_mom) + mass**2
+                            ) ** E("1/2")
+
+                print(e_surface)
+                e_surface = self.concretise_scalar_products(e_surface)
+                print("before substitutions")
+                print(e_surface)
+                if len(self.routed_integrand.replacements) > 0:
+                    patts = [
+                        self.concretise_scalar_products(
+                            self.routed_integrand.replacements[0]
+                        ).replace(E("x_(y_)"), E(f"x_(y_,{i})"))
+                        for i in range(1, 4)
+                    ]
+                    repls = [
+                        self.concretise_scalar_products(
+                            self.routed_integrand.replacements[1]
+                        ).replace(E("x_(y_)"), E(f"x_(y_,{i})"))
+                        for i in range(1, 4)
+                    ]
+                    for i in range(0, 3):
+                        e_surface = e_surface.replace(patts[i], repls[i])
+
+                    e_surface = self.concretise_scalar_products(e_surface)
+                    print("here")
+                    print(e_surface)
+                    e_surface = self.concretise_scalar_products(e_surface)
+                    print(e_surface)
+                    e_surface = self.impose_rest_frame(e_surface)
+                    print("here")
+                    print(e_surface)
+
+                    e_surface = e_surface.replace(E("k(0,x_)"), E("t*k(0,x_)"))
+                    s = 4 * p1[2] ** 2
+                    input_vals = {
+                        E("k(0,1)"): k[0][0],
+                        E("k(0,2)"): k[0][1],
+                        E("k(0,3)"): k[0][2],
+                        E("p(1,3)"): p1[2],
+                        E("p(2,3)"): p2[2],
+                        E("s"): s,
+                        E("z"): z,
+                    }
+                    print(input_vals)
+                    print(e_surface)
+                    for j in range(0, self.L):
+                        for i in range(0, 3):
+                            e_surface = e_surface.replace(E(f"k({j},{i + 1})"), k[j][i])
+                    for i in range(0, 3):
+                        e_surface = e_surface.replace(E(f"p(1,{i + 1})"), p1[i])
+                    for i in range(0, 3):
+                        e_surface = e_surface.replace(E(f"p(2,{i + 1})"), p2[i])
+                    e_surface = e_surface.replace(E("s"), s)
+                    e_surface = e_surface.replace(E("z"), z)
+
+                    print("hereee")
+                    print(e_surface)
+                    t_sol = e_surface.nsolve(E("t"), 1.0)
+                    return t_sol
+                else:
+                    return 1
+
+            return 1
 
     def param_builder(self, k, p1, p2, z):
         param_list = []
@@ -893,8 +1094,14 @@ class evaluate_integrand(object):
         if self.process == "DY":
             param_list.append(z)
 
+        t_sol = self.set_t_value(k, p1, p2, z)
+
+        param_list.append(t_sol)
+
         return param_list
 
     def eval(self, k, p1, p2, z):
+        self.set_t_value(k, p1, p2, z)
         param_list = self.param_builder(k, p1, p2, z)
+        print(param_list)
         return self.evaluator.evaluate(param_list)
