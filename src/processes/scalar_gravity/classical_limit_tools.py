@@ -18,12 +18,16 @@ from symbolica.community.spenso import (  # noqa: F401 # type: ignore
 )
 from ufo_model_loader.commands import Model  # noqa: F401 # type: ignore
 
-from processes.dy.dy_graph_utils import (
-    _is_ext_edge,
-    _node_key,
-    boundary_edges,
-    is_connected,
-)
+# ====
+# IMPORTS ACROSS PROCESSES *NOT* PERMITTED. THEY MUST REMAIN INDEPENDENT!
+# REFACTOR NEEDED
+# ====
+# from processes.dy.dy_graph_utils import (
+#     _is_ext_edge,
+#     _node_key,
+#     boundary_edges,
+#     is_connected,
+# )
 from utils.utils import DotGraph, DotGraphs, expr_to_string
 
 if TYPE_CHECKING:
@@ -62,9 +66,7 @@ class ClassicalLimitProcessor(object):
 
     def adjust_projectors(self, g: DotGraph) -> None:
         attrs = g.get_attributes()
-        attrs["projector"] = (
-            f'"{expr_to_string(g.get_projector() * self.get_color_projector())}"'
-        )
+        attrs["projector"] = f'"{expr_to_string(g.get_projector() * self.get_color_projector())}"'
         return
 
     def set_group_id(self, g: DotGraph, group_id: int, is_master: bool = False) -> None:
@@ -91,15 +93,8 @@ class ClassicalLimitProcessor(object):
     # if we represented powers of momenta as dots on edges, the resulting expression for the numerator would
     # have at most two dots per edge.
 
-    def arrange_power_energies(
-        self, g: DotGraph
-    ) -> List[List[Tuple[Tuple[int], Expression]]]:
-
-        graviton_edges = set([
-            e
-            for e in g.dot.get_edges()
-            if e.get_attributes()["particle"].strip('"') == "graviton"
-        ])
+    def arrange_power_energies(self, g: DotGraph) -> List[List[Tuple[Tuple[int], Expression]]]:
+        graviton_edges = set([e for e in g.dot.get_edges() if e.get_attributes()["particle"].strip('"') == "graviton"])
 
         selected_edges = []
 
@@ -114,11 +109,7 @@ class ClassicalLimitProcessor(object):
         for v in g.dot.get_nodes():
             int_id = v.get_attributes().get("int_id", "").strip().strip('"')
             name_id = v.get_name()
-            if (
-                (not int_id.startswith("V_S1S1"))
-                and (not int_id.startswith("V_S2S2"))
-                and (not name_id.startswith("ext"))
-            ):
+            if (not int_id.startswith("V_S1S1")) and (not int_id.startswith("V_S2S2")) and (not name_id.startswith("ext")):
                 v_id = v.get_name()
                 bdry = list(boundary_edges(g.dot, {v_id}))
 
@@ -148,12 +139,8 @@ class ClassicalLimitProcessor(object):
                 continue
 
             edge_id_pattern = E(f"Q({e_pat.get_attributes()['id']},y___)")
-            edge_id_replace = (
-                -1 if _node_key(e_pat.get_source()) == v.get_name() else 1
-            ) * sum(
-                (1 if _node_key(e.get_source()) == v.get_name() else -1)
-                * E(f"Q({e.get_attributes()['id']},y___)")
-                for e in es_sub
+            edge_id_replace = (-1 if _node_key(e_pat.get_source()) == v.get_name() else 1) * sum(
+                (1 if _node_key(e.get_source()) == v.get_name() else -1) * E(f"Q({e.get_attributes()['id']},y___)") for e in es_sub
             )
             num = num.replace(edge_id_pattern, edge_id_replace)
             index_set = set([id[S("x_")] for id in num.match(E("Q(x_,y___)"))])
@@ -162,11 +149,7 @@ class ClassicalLimitProcessor(object):
             # write it as [[(8,8),Q(8)*Q(8)],[(8,7),Q(8)*Q(7)],[(7,7),Q(7)*Q(7)]] (of course terms are many more dure to index)
             # combinatorics
 
-            subsets = list(
-                itertools.combinations_with_replacement(
-                    sorted(index_set), len(index_set)
-                )
-            )
+            subsets = list(itertools.combinations_with_replacement(sorted(index_set), len(index_set)))  # type: ignore
             numerator_terms = [[sub, E("0")] for sub in subsets]
             for term in num.expand():
                 ids = term.match(E("Q(x_,y___)"))
@@ -204,16 +187,10 @@ class ClassicalLimitProcessor(object):
     # contain any edge in the boundary of S1,S2,... (after follow up substitution rules, these edges
     # will also have one power of momentum in the numerator.
 
-    def iterate_remove_square(
-        self, g, possible_cuts, reduced_graph_edges_deg2, reduced_graph_edges_deg1
-    ):
+    def iterate_remove_square(self, g, possible_cuts, reduced_graph_edges_deg2, reduced_graph_edges_deg1):
         chosen_e = reduced_graph_edges_deg2[-1]
 
-        nodes = set([
-            v.get_name()
-            for v in g.dot.get_nodes()
-            if not v.get_name().startswith("ext")
-        ])
+        nodes = set([v.get_name() for v in g.dot.get_nodes() if not v.get_name().startswith("ext")])
         v_s = _node_key(chosen_e.get_source())
         v_d = _node_key(chosen_e.get_destination())
         cuts_1 = self.subsets_containing_S1_not_S2(g.dot, nodes, {v_s}, {v_d})
@@ -225,40 +202,20 @@ class ClassicalLimitProcessor(object):
         if len(possible_cuts) == 0:
             for cut in total_cuts:
                 bry_cut = set(boundary_edges(g.dot, cut)) - {chosen_e}
-                if (
-                    len(
-                        bry_cut.intersection(
-                            set(reduced_graph_edges_deg2).union(
-                                set(reduced_graph_edges_deg1)
-                            )
-                        )
-                    )
-                    == 0
-                ):
+                if len(bry_cut.intersection(set(reduced_graph_edges_deg2).union(set(reduced_graph_edges_deg1)))) == 0:
                     new_possible_cuts.append([[chosen_e, cut]])
         else:
             for previous_cuts in possible_cuts:
                 for cut in total_cuts:
                     bry_cut = set(boundary_edges(g.dot, cut)) - {chosen_e}
-                    if (
-                        len(
-                            bry_cut.intersection(
-                                set(reduced_graph_edges_deg2).union(
-                                    set(reduced_graph_edges_deg1)
-                                )
-                            )
-                        )
-                        == 0
-                    ):
-                        es_previous_cuts = set([
-                            e
-                            for previous_cut in previous_cuts
-                            for e in [
-                                ep
-                                for ep in boundary_edges(g.dot, previous_cut[1])
-                                if not _is_ext_edge(ep)
+                    if len(bry_cut.intersection(set(reduced_graph_edges_deg2).union(set(reduced_graph_edges_deg1)))) == 0:
+                        es_previous_cuts = set(
+                            [
+                                e
+                                for previous_cut in previous_cuts
+                                for e in [ep for ep in boundary_edges(g.dot, previous_cut[1]) if not _is_ext_edge(ep)]
                             ]
-                        ])
+                        )
                         if len(bry_cut.intersection(es_previous_cuts)) == 0:
                             copy_cut = copy.deepcopy(previous_cuts)
                             copy_cut.append([chosen_e, cut])
@@ -272,47 +229,32 @@ class ClassicalLimitProcessor(object):
     # that appear with power two to other edges, using momentum conservation.
 
     def get_squared_replacements(self, g: DotGraph, graph_weights):
-
         flattened_weights = [x for ws in graph_weights for x in ws]
-        reduced_graph_edges_deg2 = [
-            e
-            for e in g.dot.get_edges()
-            if flattened_weights.count(int(e.get_attributes()["id"])) > 1
-        ]
-        reduced_graph_edges_deg1 = [
-            e
-            for e in g.dot.get_edges()
-            if flattened_weights.count(int(e.get_attributes()["id"])) == 1
-        ]
+        reduced_graph_edges_deg2 = [e for e in g.dot.get_edges() if flattened_weights.count(int(e.get_attributes()["id"])) > 1]
+        reduced_graph_edges_deg1 = [e for e in g.dot.get_edges() if flattened_weights.count(int(e.get_attributes()["id"])) == 1]
 
-        reduced_graph_vertices = set([
-            _node_key(e.get_source()) for e in reduced_graph_edges_deg2
-        ]).union([_node_key(e.get_destination()) for e in reduced_graph_edges_deg2])
+        reduced_graph_vertices = set([_node_key(e.get_source()) for e in reduced_graph_edges_deg2]).union(
+            [_node_key(e.get_destination()) for e in reduced_graph_edges_deg2]
+        )
         reduced_loops = len(reduced_graph_edges_deg2) - len(reduced_graph_vertices) + 1
 
         if reduced_loops <= 0:
             possible_cuts = []
-            possible_cuts, reduced_graph_edges_deg2, reduced_graph_edges_deg1 = (
-                self.iterate_remove_square(
-                    g, possible_cuts, reduced_graph_edges_deg2, reduced_graph_edges_deg1
-                )
+            possible_cuts, reduced_graph_edges_deg2, reduced_graph_edges_deg1 = self.iterate_remove_square(
+                g, possible_cuts, reduced_graph_edges_deg2, reduced_graph_edges_deg1
             )
             while len(reduced_graph_edges_deg2) > 0:
-                possible_cuts, reduced_graph_edges_deg2, reduced_graph_edges_deg1 = (
-                    self.iterate_remove_square(
-                        g,
-                        possible_cuts,
-                        reduced_graph_edges_deg2,
-                        reduced_graph_edges_deg1,
-                    )
+                possible_cuts, reduced_graph_edges_deg2, reduced_graph_edges_deg1 = self.iterate_remove_square(
+                    g,
+                    possible_cuts,
+                    reduced_graph_edges_deg2,
+                    reduced_graph_edges_deg1,
                 )
             return possible_cuts
         elif len(reduced_graph_edges_deg2) == 0:
             return []
         else:
-            raise ValueError(
-                "Not possible to arrange squared energies... check your graph."
-            )
+            raise ValueError("Not possible to arrange squared energies... check your graph.")
 
     # The result of self.arrange_power_energies(g) gives a set of summands of the numerator in the following form:
     # [[[(6,6),(terms of vertex1 that are in the form Q(6)*Q(6))],[(2,5),(terms of vertex2 that are in the form Q(2)*Q(5))]],... ]
@@ -321,7 +263,6 @@ class ClassicalLimitProcessor(object):
     # [[[(6,6),(terms of vertex1 that are in the form Q(6)*(Q(3)+Q(4)))],[(2,5),(terms of vertex2 that are in the form Q(2)*Q(5))]],... ]
 
     def delocalize_numerators(self, g: DotGraph):
-
         num_split = self.arrange_power_energies(g)
 
         new_prods = []
@@ -345,11 +286,7 @@ class ClassicalLimitProcessor(object):
                     patterns_symb.append(E(f"Q({e_pat.get_attributes()['id']},y___)"))
                     replacements_symb.append(
                         (-1 if _node_key(e_pat.get_source()) in rep[1] else 1)
-                        * sum(
-                            (1 if _node_key(e.get_source()) in rep[1] else -1)
-                            * E(f"Q({e.get_attributes()['id']},y___)")
-                            for e in es_sub
-                        )
+                        * sum((1 if _node_key(e.get_source()) in rep[1] else -1) * E(f"Q({e.get_attributes()['id']},y___)") for e in es_sub)
                     )
 
                 # Make the replacement making sure that if the expression is Q(8)*Q(8), only one instance of Q(8)
@@ -358,16 +295,12 @@ class ClassicalLimitProcessor(object):
                 for pupu in prod:
                     newp = E("0")
                     for monomial in pupu[1].expand():
-                        new_monomial = monomial.replace(
-                            E("Q(x_,y___)*Q(z_,w___)*rest___"), E("rest___")
-                        )
+                        new_monomial = monomial.replace(E("Q(x_,y___)*Q(z_,w___)*rest___"), E("rest___"))
                         q_factors = monomial.replace(
                             E("Q(x_,y___)*Q(z_,w___)*rest___"),
                             E("Q(x_,y___)*Q(z_,w___)"),
                         )
-                        q_factor1 = monomial.replace(
-                            E("Q(x_,y___)*Q(z_,w___)*rest___"), E("Q(x_,y___)")
-                        )
+                        q_factor1 = monomial.replace(E("Q(x_,y___)*Q(z_,w___)*rest___"), E("Q(x_,y___)"))
                         q_factor2 = q_factors / q_factor1
                         for rep, sub in zip(patterns_symb, replacements_symb):
                             q_factor1 = q_factor1.replace(rep, sub)

@@ -75,14 +75,10 @@ class CFFTerm(object):
             self.masks.append(family_mask)
 
     def __str__(self, show_families=False):
-        res = [
-            f"{''.join(str(o) for o in self.orientation)}: {self.expression.format(show_namespaces=False)}"
-        ]
+        res = [f"{''.join(str(o) for o in self.orientation)}: {self.expression.format(show_namespaces=False)}"]
         if show_families:
             for cff_family in self.families:
-                res.append(
-                    f"      {''.join('■' if included else '□' for included in cff_family)}"
-                )
+                res.append(f"      {''.join('■' if included else '□' for included in cff_family)}")
         return "\n".join(res)
 
 
@@ -170,29 +166,23 @@ class CFFStructure(object):
         res.append("")
         res.append(f"{Colour.GREEN}{len(self.expressions)}{Colour.END} orientations:")
         for cff_expr in self.expressions:
-            res.append(
-                f" {Colour.BLUE}#{cff_expr.id:-3}{Colour.END} > {cff_expr.__str__(show_families=show_families)}"
-            )
+            res.append(f" {Colour.BLUE}#{cff_expr.id:-3}{Colour.END} > {cff_expr.__str__(show_families=show_families)}")
         res.append("")
         return "\n".join(res)
 
     @classmethod
-    def expression_from_node(
-        cls, node_id: int, nodes_list: list[dict]
-    ) -> tuple[Expression, Expression]:
+    def expression_from_node(cls, node_id: int, nodes_list: list[dict]) -> tuple[Expression, Expression]:
         iteration_list = nodes_list[node_id]["data"]
         if "Hsurface" in iteration_list:
             eta = cls.SB["heta"](nodes_list[node_id]["data"]["Hsurface"])
         if "Esurface" in iteration_list:
             eta = cls.SB["eta"](nodes_list[node_id]["data"]["Esurface"])
         if len(nodes_list[node_id]["children"]) == 0:
-            return (eta, 1 / eta)
+            return (eta, E("1") / eta)
         children_expression = E("0")
         children_expression_inv = E("0")
         for child in nodes_list[node_id]["children"]:
-            child_expression, child_expression_inv = CFFStructure.expression_from_node(
-                child, nodes_list
-            )
+            child_expression, child_expression_inv = CFFStructure.expression_from_node(child, nodes_list)
             children_expression += child_expression
             children_expression_inv += child_expression_inv
         return (eta * children_expression, (1 / eta) * children_expression_inv)
@@ -229,22 +219,14 @@ class CFFStructure(object):
             else:
                 cff_terms = [t for t in expanded_cff_expression]
             for cff_family in cff_terms:
-                eta_ids = [
-                    int(str(m[self.SB["x_"]]))
-                    for m in cff_family.match(self.SB["eta(x_)"])
-                ]
-                mask = tuple(
-                    eta_id in eta_ids for eta_id in range(len(self.e_surfaces))
-                )
+                eta_ids = [int(str(m[self.SB["x_"]])) for m in cff_family.match(self.SB["eta(x_)"])]
+                mask = tuple(eta_id in eta_ids for eta_id in range(len(self.e_surfaces)))
                 o_families.append(mask)
 
             self.expressions.append(
                 CFFTerm(
                     id=o_id,
-                    orientation=tuple(
-                        EdgeOrientation.from_str(d)
-                        for d in o_info["data"]["orientation"]
-                    ),
+                    orientation=tuple(EdgeOrientation.from_str(d) for d in o_info["data"]["orientation"]),
                     expression=o_expression_inv,
                     families=tuple(o_families),
                 )

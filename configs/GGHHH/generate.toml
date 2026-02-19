@@ -1,5 +1,6 @@
 [global.generation.evaluator]
 iterative_orientation_optimization = true
+store_atom = false
 
 [global.generation.threshold_subtraction]
 enable_thresholds = true

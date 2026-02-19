@@ -6,6 +6,7 @@ import argparse
 import os
 import sys
 from pathlib import Path
+from typing import Sequence
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
@@ -17,9 +18,9 @@ from pygloop import main  # isort: skip # noqa: E402
 
 
 def run(
-    cli_args: list[tuple[str, str | tuple[str, ...] | None]],
+    cli_args: Sequence[tuple[str, str | tuple[str, ...] | None]],
     cmd: str,
-    cmd_args: list[tuple[str, str | tuple[str, ...] | None]],
+    cmd_args: Sequence[tuple[str, str | tuple[str, ...] | None]],
     debug: bool = False,
 ) -> dict:
     argv = [[a] if v is None else [a, v] for a, v in cli_args] + [[cmd]] + [[a] if v is None else [a, v] for a, v in cmd_args]
@@ -215,8 +216,12 @@ if __name__ == "__main__":
                         [
                             ("-t", "gammaloop"),
                         ]
-                        +([('--n-iterations-cpe', f"{args.n_iterations_cpe}")] if args.n_iterations_cpe is not None else [])
-                        +([('--n-iterations-hornerscheme',f"{args.n_iterations_hornerscheme}")] if args.n_iterations_hornerscheme is not None else []),
+                        + ([("--n-iterations-cpe", f"{args.n_iterations_cpe}")] if args.n_iterations_cpe is not None else [])
+                        + (
+                            [("--n-iterations-hornerscheme", f"{args.n_iterations_hornerscheme}")]
+                            if args.n_iterations_hornerscheme is not None
+                            else []
+                        ),
                         debug=args.debug,
                     )
                 profiling_result[run_description]["bench"] = run(
@@ -254,8 +259,12 @@ if __name__ == "__main__":
                         [
                             ("-t", "gammaloop"),
                         ]
-                        +([('--n-iterations-cpe', f"{args.n_iterations_cpe}")] if args.n_iterations_cpe is not None else [])
-                        +([('--n-iterations-hornerscheme',f"{args.n_iterations_hornerscheme}")] if args.n_iterations_hornerscheme is not None else []),
+                        + ([("--n-iterations-cpe", f"{args.n_iterations_cpe}")] if args.n_iterations_cpe is not None else [])
+                        + (
+                            [("--n-iterations-hornerscheme", f"{args.n_iterations_hornerscheme}")]
+                            if args.n_iterations_hornerscheme is not None
+                            else []
+                        ),
                         debug=args.debug,
                     )
                 profiling_result[run_description]["bench"] = run(
@@ -289,8 +298,12 @@ if __name__ == "__main__":
                             ("-t", "spenso"),
                             ("-g", "function_map"),
                         ]
-                        +([('--n-iterations-cpe', f"{args.n_iterations_cpe}")] if args.n_iterations_cpe is not None else [])
-                        +([('--n-iterations-hornerscheme',f"{args.n_iterations_hornerscheme}")] if args.n_iterations_hornerscheme is not None else []),
+                        + ([("--n-iterations-cpe", f"{args.n_iterations_cpe}")] if args.n_iterations_cpe is not None else [])
+                        + (
+                            [("--n-iterations-hornerscheme", f"{args.n_iterations_hornerscheme}")]
+                            if args.n_iterations_hornerscheme is not None
+                            else []
+                        ),
                         debug=args.debug,
                     )
                 profiling_result[run_description]["bench"] = run(
@@ -324,8 +337,12 @@ if __name__ == "__main__":
                             ("-t", "spenso"),
                             ("-g", "function_map"),
                         ]
-                        +([('--n-iterations-cpe', f"{args.n_iterations_cpe}")] if args.n_iterations_cpe is not None else [])
-                        +([('--n-iterations-hornerscheme',f"{args.n_iterations_hornerscheme}")] if args.n_iterations_hornerscheme is not None else []),
+                        + ([("--n-iterations-cpe", f"{args.n_iterations_cpe}")] if args.n_iterations_cpe is not None else [])
+                        + (
+                            [("--n-iterations-hornerscheme", f"{args.n_iterations_hornerscheme}")]
+                            if args.n_iterations_hornerscheme is not None
+                            else []
+                        ),
                         debug=args.debug,
                     )
                 profiling_result[run_description]["bench"] = run(
@@ -360,8 +377,12 @@ if __name__ == "__main__":
                             ("-t", "spenso"),
                             ("-g", "merging"),
                         ]
-                        +([('--n-iterations-cpe', f"{args.n_iterations_cpe}")] if args.n_iterations_cpe is not None else [])
-                        +([('--n-iterations-hornerscheme',f"{args.n_iterations_hornerscheme}")] if args.n_iterations_hornerscheme is not None else []),
+                        + ([("--n-iterations-cpe", f"{args.n_iterations_cpe}")] if args.n_iterations_cpe is not None else [])
+                        + (
+                            [("--n-iterations-hornerscheme", f"{args.n_iterations_hornerscheme}")]
+                            if args.n_iterations_hornerscheme is not None
+                            else []
+                        ),
                         debug=args.debug,
                     )
                 profiling_result[run_description]["bench"] = run(
@@ -396,8 +417,12 @@ if __name__ == "__main__":
                             ("-t", "spenso"),
                             ("-g", "summing"),
                         ]
-                        +([('--n-iterations-cpe', f"{args.n_iterations_cpe}")] if args.n_iterations_cpe is not None else [])
-                        +([('--n-iterations-hornerscheme',f"{args.n_iterations_hornerscheme}")] if args.n_iterations_hornerscheme is not None else []),
+                        + ([("--n-iterations-cpe", f"{args.n_iterations_cpe}")] if args.n_iterations_cpe is not None else [])
+                        + (
+                            [("--n-iterations-hornerscheme", f"{args.n_iterations_hornerscheme}")]
+                            if args.n_iterations_hornerscheme is not None
+                            else []
+                        ),
                         debug=args.debug,
                     )
                 profiling_result[run_description]["bench"] = run(
@@ -431,8 +456,12 @@ if __name__ == "__main__":
                         [
                             ("-t", "spenso"),
                         ]
-                        +([('--n-iterations-cpe', f"{args.n_iterations_cpe}")] if args.n_iterations_cpe is not None else [])
-                        +([('--n-iterations-hornerscheme',f"{args.n_iterations_hornerscheme}")] if args.n_iterations_hornerscheme is not None else []),
+                        + ([("--n-iterations-cpe", f"{args.n_iterations_cpe}")] if args.n_iterations_cpe is not None else [])
+                        + (
+                            [("--n-iterations-hornerscheme", f"{args.n_iterations_hornerscheme}")]
+                            if args.n_iterations_hornerscheme is not None
+                            else []
+                        ),
                         debug=args.debug,
                     )
                 profiling_result[run_description]["bench"] = run(
@@ -468,8 +497,12 @@ if __name__ == "__main__":
                             ("-t", "spenso"),
                             ("-g", "function_map"),
                         ]
-                        +([('--n-iterations-cpe', f"{args.n_iterations_cpe}")] if args.n_iterations_cpe is not None else [])
-                        +([('--n-iterations-hornerscheme',f"{args.n_iterations_hornerscheme}")] if args.n_iterations_hornerscheme is not None else []),
+                        + ([("--n-iterations-cpe", f"{args.n_iterations_cpe}")] if args.n_iterations_cpe is not None else [])
+                        + (
+                            [("--n-iterations-hornerscheme", f"{args.n_iterations_hornerscheme}")]
+                            if args.n_iterations_hornerscheme is not None
+                            else []
+                        ),
                         debug=args.debug,
                     )
                 profiling_result[run_description]["bench"] = run(
@@ -505,8 +538,14 @@ if __name__ == "__main__":
                             ("-t", "spenso"),
                             ("-g", "function_map"),
                         ]
-                        +([('--n-iterations-cpe', f"{args.n_iterations_cpe}")] if args.n_iterations_cpe is not None else [])
-                        +([('--n-iterations-hornerscheme',f"{args.n_iterations_hornerscheme}"),] if args.n_iterations_hornerscheme is not None else []),
+                        + ([("--n-iterations-cpe", f"{args.n_iterations_cpe}")] if args.n_iterations_cpe is not None else [])
+                        + (
+                            [
+                                ("--n-iterations-hornerscheme", f"{args.n_iterations_hornerscheme}"),
+                            ]
+                            if args.n_iterations_hornerscheme is not None
+                            else []
+                        ),
                         debug=args.debug,
                     )
                 profiling_result[run_description]["bench"] = run(

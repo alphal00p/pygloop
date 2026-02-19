@@ -408,8 +408,8 @@ class PygloopEvaluator(object):
             try:
                 symjit_evaluator = symjit.load_func(symjit_path)
                 # // 2 because symjit counts real/imag pairs for complex inputs
-                if symjit_evaluator.count_params // 2 != n_inputs:
-                    raise pygloopException(f"Symjit evaluator input count mismatch: expected {n_inputs}, got {symjit_evaluator.count_params}.")
+                if symjit_evaluator.complex_compiler.count_params // 2 != n_inputs:  # type: ignore
+                    raise pygloopException(f"Symjit evaluator input count mismatch: expected {n_inputs}, got {symjit_evaluator.count_params}.")  # type: ignore
                 if type(symjit_evaluator) is not symjit.SymbolicaFunc:
                     raise pygloopException("Loaded symjit evaluator is not of type SymbolicaFunc.")
                 loaded_evaluator.symjit_evaluator = symjit_evaluator
@@ -543,9 +543,15 @@ class PygloopEvaluator(object):
             if self.output_length == 1 and not self.complexified:
                 if not SYMJIT_AVAILABLE:
                     raise pygloopException(
-                        f"Aymjit is not available to compile evaluator for '{self.name}'. Please install symjit or use 'symbolica_only' compiler."
+                        f"Symjit is not available to compile evaluator for '{self.name}'. Please install symjit or use 'symbolica_only' compiler."
                     )
-                self.symjit_evaluator = symjit.compile_evaluator(eager_evaluator, dtype="complex128", use_threads=False, use_simd=True)
+                with open("/Users/vjhirsch/Documents/Work/pygloop/1loop_instructions.txt", "w") as f:
+                    f.write(str(eager_evaluator.get_instructions()))
+                symjit_evaluator = symjit.compile_evaluator(eager_evaluator, dtype="complex128", use_threads=False, use_simd=True)
+                assert type(symjit_evaluator) is symjit.SymbolicaFunc, (
+                    f"Expected symjit_evaluator to be of type SymbolicaFunc, got {type(symjit_evaluator)}"
+                )
+                self.symjit_evaluator = symjit_evaluator
                 logger.info(f"Compiling symjit evaluator for '{self.name}' to '{out_dir}'.")
                 self.symjit_evaluator.save(os.path.join(out_dir, f"{self.name}.sjb"))
 
