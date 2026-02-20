@@ -3,6 +3,7 @@ import os
 import re
 from copy import deepcopy
 from fractions import Fraction
+from itertools import product
 
 import pydot
 from gammaloop import (  # iso\rt: skip # type: ignore # noqa: F401
@@ -30,11 +31,18 @@ pjoin = os.path.join
 
 gl_log_level = LogLevel.Off
 
-debug = True
+debug = False
 
 
 def Es(expr: str) -> Expression:
     return E(expr.replace('"', ""), default_namespace="gammalooprs")
+
+
+def heaviside_theta(x):
+    if x > 0:
+        return 1
+    else:
+        return 0
 
 
 # Little struct that makes it more manageable to deal with cut graphs
@@ -59,7 +67,8 @@ class amplitude_graph(object):
 
 
 class RoutedIntegrand(object):
-    def __init__(self, integrand, cut_graph, replacements):
+    def __init__(self, integrand, cut_graph, replacements, emr_integrand):
+        self.emr_integrand = emr_integrand
         self.integrand = integrand
         self.cut_graph = cut_graph
         self.replacements = replacements
@@ -467,9 +476,6 @@ class EMRIntegrandConstructor(object):
         # propagators since you can have a subgraph sandwiched between two s-channel propagators (TODO: FIX).
         # Also sets the sign of the propagator sigma(i) by one (i.e. according to original orientation)
 
-        print("prior to setting cut sign")
-        print(previous_cff)
-
         popping_edges = deepcopy(s_channel_edges)
 
         while len(popping_edges) > 0:
@@ -576,12 +582,16 @@ class EMRIntegrandConstructor(object):
         ## DEBUG: set numerator to 1
         # num = E("1")
 
-        return self.get_cff(
+        cut_graph_cff = self.get_cff(
             cut_graph,
             s_split_graphs_L + s_split_graphs_R,
             s_channel_edges_L + s_channel_edges_R,
             num,
         )
+
+        print(cut_graph_cff)
+
+        return cut_graph_cff
 
 
 class LoopIntegrandConstructor(object):
@@ -591,6 +601,8 @@ class LoopIntegrandConstructor(object):
         self.name = name
         self.emr_processor = EMRIntegrandConstructor(params, name, L)
         self.sp3D = S("sp3D", is_linear=True, is_symmetric=True)
+
+    # Replaces energies by their expression in terms of the emr momenta and particle masses
 
     def replace_energies(self, integrand, cut_graph):
 
@@ -610,6 +622,9 @@ class LoopIntegrandConstructor(object):
             integrand = integrand.replace(target, replacement)
 
         return integrand
+
+    # Substituted the emr momenta by their linear decomposition in terms of
+    # loop variables and external momenta (p1 and p2)
 
     def route_integrand(self, integrand, cut_graph):
 
@@ -631,6 +646,8 @@ class LoopIntegrandConstructor(object):
         )
         return integrand
 
+    # Checks if two edges have the same routing, implying they form a raised propagator.
+
     def _routing_sign_match(self, e: pydot.Edge, ep: pydot.Edge):
         a = e.get_attributes()
         b = ep.get_attributes()
@@ -638,13 +655,14 @@ class LoopIntegrandConstructor(object):
         # collect all routing keys (p1, p2 and any k*)
         keys = [k for k in set(a.keys()) | set(b.keys()) if k.startswith("routing_")]
 
-        # if any key missing, treat as 0
         def val(attrs, k):
             return E(attrs.get(k, "0"))
 
         same = all(val(a, k) == val(b, k) for k in keys)
         opp = all(val(a, k) == -val(b, k) for k in keys)
         return same or opp
+
+    # Changes the routing of a graph based on an input lmb choice.
 
     def change_routing(self, graph, lmb_choice):
         edges = list(graph.get_edges())
@@ -769,15 +787,20 @@ class LoopIntegrandConstructor(object):
 
         return graph
 
-    def approximator(self, integrand, cut_graph):
+    # Approximates the integrand at leading virtuality. For parton model diagrams, it simply replaces the
+    # energies and routes the integrand, giving an expression in terms of loop momenta. No approximation is
+    # performed. For partitions of the type [i_1]_[i_2,i_3,...], takes the limit p2sq->0 by setting i_2,i_3,...
+    # collinear to p2 and expanding for small transverse momenta around this collinear configuration. Same for
+    # [i_2,i_3,...]_[i_1] with p2sq substituted with p1sq.
 
+    def approximator(self, integrand, cut_graph):
+        emr_integrand = integrand
         partition = cut_graph.partition
 
         if len(partition[0]) == 1 and len(partition[1]) == 1:
             integrand = self.replace_energies(integrand, cut_graph)
             integrand = self.route_integrand(integrand, cut_graph)
-            # integrand = self.t_parametrise(integrand, cut_graph)
-            return RoutedIntegrand(integrand, cut_graph, [])
+            return RoutedIntegrand(integrand, cut_graph, [], emr_integrand)
 
         elif len(partition[0]) > 1 and len(partition[1]) == 1:
             x = S("x", is_scalar=True, is_positive=True)
@@ -785,34 +808,34 @@ class LoopIntegrandConstructor(object):
             momentum = E("0")
 
             coll_moms = []
+
+            # Find collinear momenta and particles.
+            first = True
             for ep in partition[0]:
                 ep_atts = ep.get_attributes()
-                print("partition edge")
-                print(ep)
                 id = ep_atts["id"]
                 coll_moms.append(id)
                 for e in cut_graph.graph.get_edges():
                     e_atts = e.get_attributes()
                     if e_atts["id"] == id:
-                        print("found matching")
-                        print(e)
                         k_keys = ["routing_k" + str(i) for i in range(0, self.L)]
                         loop_coeff = [E(e_atts[rout]) for rout in k_keys]
                         k_id = next(
                             (i, c) for i, c in enumerate(loop_coeff) if str(c) != "0"
                         )
-                        momentum = [
-                            (
-                                sum(
-                                    loop_coeff[i] * E(f"k({i})")
-                                    for i in range(0, self.L)
-                                )
-                                + E(e_atts["routing_p1"]) * E("p(1)")
-                                + E(e_atts["routing_p2"]) * E("p(2)")
-                            ),
-                            e_atts["is_cut_DY"],
-                        ]
-                        print(momentum)
+                        if first:
+                            momentum = [
+                                (
+                                    sum(
+                                        loop_coeff[i] * E(f"k({i})")
+                                        for i in range(0, self.L)
+                                    )
+                                    + E(e_atts["routing_p1"]) * E("p(1)")
+                                    + E(e_atts["routing_p2"]) * E("p(2)")
+                                ),
+                                e_atts["is_cut_DY"],
+                            ]
+                            first = False
 
             kperp_sq = E(f"sp3D(k_perp({k_id[0]}),k_perp({k_id[0]}))")
             coll_en = x * E("sp3D(p(1),p(1))^(1/2)") + lam**2 * kperp_sq / (
@@ -835,7 +858,6 @@ class LoopIntegrandConstructor(object):
             first_f = True
             patt = None
             for e in cut_union - cut_intersection:
-                print(e)
                 e_atts = e.get_attributes()
                 if first_f and e in f_cut_set:
                     patt = E(f"E({e_atts['id']})")
@@ -853,6 +875,7 @@ class LoopIntegrandConstructor(object):
             integrand = integrand.replace(E(f"E({coll_moms[1]})"), a_coll_en)
 
             integrand = self.replace_energies(integrand, cut_graph)
+
             integrand = self.route_integrand(integrand, cut_graph)
 
             # Let s*q(i) be the vector that should become collinear to p(1). s encodes the cut orientation. We
@@ -873,6 +896,9 @@ class LoopIntegrandConstructor(object):
 
             integrand = integrand.series(lam, 0, -1).to_expression().replace(lam, 1)
 
+            if integrand.series(lam, 0, -2).to_expression() != 0:
+                raise ValueError("Found super-logarithmic singularity... not possible")
+
             # Invert back the collinear parametrisation. Since s*q(i)= x*p(1)+lam*k_perp(j), we have
             # x=s*q(i).p(1)/p(1).p(1)
 
@@ -889,6 +915,10 @@ class LoopIntegrandConstructor(object):
                 self.sp3D(E("k_perp(0)"), E("k_perp(0)")), repl_kperp
             )
 
+            # multiply theta functions in
+
+            integrand = integrand * E(f"Θ({repl_x})") * E(f"Θ(1-{repl_x})")
+
             return RoutedIntegrand(
                 integrand,
                 cut_graph,
@@ -896,10 +926,162 @@ class LoopIntegrandConstructor(object):
                     E(f"k({k_id[0]})"),
                     repl.replace(x, repl_x).series(lam, 0, 0).to_expression(),
                 ],
+                emr_integrand,
+            )
+        elif len(partition[0]) == 1 and len(partition[1]) > 1:
+            x = S("x", is_scalar=True, is_positive=True)
+            lam = S("λ", is_scalar=True)
+            momentum = E("0")
+
+            coll_moms = []
+
+            # Find collinear momenta and particles.
+
+            for ep in partition[1]:
+                ep_atts = ep.get_attributes()
+                id = ep_atts["id"]
+                coll_moms.append(id)
+                for e in cut_graph.graph.get_edges():
+                    e_atts = e.get_attributes()
+                    if e_atts["id"] == id:
+                        k_keys = ["routing_k" + str(i) for i in range(0, self.L)]
+                        loop_coeff = [E(e_atts[rout]) for rout in k_keys]
+                        k_id = next(
+                            (i, c) for i, c in enumerate(loop_coeff) if str(c) != "0"
+                        )
+                        momentum = [
+                            (
+                                sum(
+                                    loop_coeff[i] * E(f"k({i})")
+                                    for i in range(0, self.L)
+                                )
+                                + E(e_atts["routing_p1"]) * E("p(1)")
+                                + E(e_atts["routing_p2"]) * E("p(2)")
+                            ),
+                            e_atts["is_cut_DY"],
+                        ]
+
+            kperp_sq = E(f"sp3D(k_perp({k_id[0]}),k_perp({k_id[0]}))")
+            coll_en = x * E("sp3D(p(2),p(2))^(1/2)") + lam**2 * kperp_sq / (
+                2 * x * E("sp3D(p(2),p(2))^(1/2)")
+            )
+            a_coll_en = (1 - x) * E("sp3D(p(2),p(2))^(1/2)") + lam**2 * kperp_sq / (
+                2 * (1 - x) * E("sp3D(p(2),p(2))^(1/2)")
+            )
+
+            # In order to make the collinear replacement always work, replace a final-state energy
+            # by energy conservation.
+
+            rep = E("0")
+
+            f_cut_set = set(cut_graph.final_cut)
+            i_cut_set = set(cut_graph.initial_cut)
+            cut_union = f_cut_set.union(i_cut_set)
+            cut_intersection = f_cut_set.intersection(i_cut_set)
+
+            first_f = True
+            patt = None
+            for e in cut_union - cut_intersection:
+                e_atts = e.get_attributes()
+                if first_f and e in f_cut_set:
+                    patt = E(f"E({e_atts['id']})")
+                    first_f = False
+                elif e in f_cut_set:
+                    rep -= E(f"E({e_atts['id']})")
+                else:
+                    rep += E(f"E({e_atts['id']})")
+            if patt is None:
+                raise ValueError("Could not identify a final-cut energy to replace.")
+
+            integrand = integrand.replace(patt, rep)
+
+            integrand = integrand.replace(E(f"E({coll_moms[0]})"), coll_en)
+            integrand = integrand.replace(E(f"E({coll_moms[1]})"), a_coll_en)
+
+            integrand = self.replace_energies(integrand, cut_graph)
+            integrand = self.route_integrand(integrand, cut_graph)
+
+            # Let s*q(i) be the vector that should become collinear to p(2). s encodes the cut orientation. We
+            # write s*q(i)=s*(q(i)-a*k(j))+a*s*k(j)= x*p(2)+lam*k_perp(j) and solve in k(j), giving
+            # k(j)=a*s*x*p(2)+a*s*lam*k_perp(j)-a*(q(i)-a*k(j)). Now s=momentum[1] and a=k_id[1] and j=k_id[0].
+
+            repl = k_id[1] * (
+                momentum[1] * x * E("p(2)")
+                - (momentum[0] - k_id[1] * E(f"k({k_id[0]})"))
+                + lam * E(f"k_perp({k_id[0]})")
+            )
+            integrand = integrand.replace(E(f"k({k_id[0]})"), repl)
+            integrand = integrand.replace(
+                self.sp3D(E(f"k_perp({k_id[0]})"), E("p(x_)")), E("0")
+            )
+
+            # Only consider leading-virtuality contribution
+
+            integrand = integrand.series(lam, 0, -1).to_expression().replace(lam, 1)
+
+            if integrand.series(lam, 0, -2).to_expression() != 0:
+                raise ValueError("Found super-logarithmic singularity... not possible")
+
+            # Invert back the collinear parametrisation. Since s*q(i)= x*p(2)+lam*k_perp(j), we have
+            # x=s*q(i).p(2)/p(2).p(2)
+
+            repl_x = (
+                momentum[1]
+                * self.sp3D(momentum[0], E("p(2)"))
+                / self.sp3D(E("p(2)"), E("p(2)"))
+            )
+
+            repl_kperp = E(f"k({k_id[0]},1)^2+k({k_id[0]},2)^2")
+
+            integrand = integrand.replace(E("x"), repl_x)
+            integrand = integrand.replace(
+                self.sp3D(E("k_perp(0)"), E("k_perp(0)")), repl_kperp
+            )
+
+            # multiply theta functions in
+
+            integrand = integrand * E(f"Θ({repl_x})") * E(f"Θ(1-{repl_x})")
+
+            return RoutedIntegrand(
+                integrand,
+                cut_graph,
+                [
+                    E(f"k({k_id[0]})"),
+                    repl.replace(x, repl_x).series(lam, 0, 0).to_expression(),
+                ],
+                emr_integrand,
             )
 
         else:
             raise ValueError("reached not implemented part")
+
+    # Eliminates raised propagators by multiplying the relevant diagrams by the raised denominator
+
+    def eliminate_raised_cuts(self, emr_representation, cut_graph):
+
+        raised_cut = []
+        g_edges = cut_graph.graph.get_edges()
+        for e, i in zip(g_edges, range(len(g_edges))):
+            e_atts = e.get_attributes()
+            for ep, j in zip(g_edges, range(len(g_edges))):
+                ep_atts = ep.get_attributes()
+                if j > i and self._routing_sign_match(e, ep):
+                    if (
+                        e_atts.get("is_cut_DY", None) is not None
+                        or ep_atts.get("is_cut_DY", None) is not None
+                    ):
+                        raised_cut.append([e_atts["id"], ep_atts["id"]])
+
+        if len(raised_cut) > 0:
+            for cut in raised_cut:
+                emr_representation = emr_representation * (
+                    E(f"E({cut[0]})") - E(f"E({cut[1]})")
+                )
+
+        return emr_representation
+
+    # Derive cff, set the lmb so that the loop momentum coincides with the photon (for DY), and
+    # derive the approximated representation.
 
     def get_integrand(self, cut_graph):
         emr_integrand = self.emr_processor.get_integrand(cut_graph)
@@ -911,6 +1093,8 @@ class LoopIntegrandConstructor(object):
                 if _strip_quotes(str(e_atts["particle"])) == "a":
                     lmb_choice.append(e_atts["id"])
             cut_graph.graph = self.change_routing(cut_graph.graph, lmb_choice)
+
+        loop_integrand = self.eliminate_raised_cuts(emr_integrand, cut_graph)
 
         loop_integrand = self.approximator(emr_integrand, cut_graph)
 
@@ -940,9 +1124,60 @@ class evaluate_integrand(object):
             E("k(x___,y___)"),
             t * E("k(x___,y___)"),
         )
-        print(integrand)
 
         return integrand
+
+    def set_e_surface(self):
+        final_moms = []
+        e_surface = E("-s^(1/2)")
+
+        for ep in self.routed_integrand.cut_graph.final_cut:
+            ep_atts = ep.get_attributes()
+            id = ep_atts["id"]
+
+            for e in self.routed_integrand.cut_graph.graph.get_edges():
+                e_atts = e.get_attributes()
+                if e_atts["id"] == id:
+                    k_keys = ["routing_k" + str(i) for i in range(0, self.L)]
+                    loop_coeff = [E(e_atts[rout]) for rout in k_keys]
+                    mass = (
+                        E("0")
+                        if _strip_quotes(str(e_atts["particle"])) != "a"
+                        else E("m(a)")
+                    )
+                    final_mom = (
+                        sum(loop_coeff[i] * E(f"k({i})") for i in range(0, self.L))
+                        + E(e_atts["routing_p1"]) * E("p(1)")
+                        + E(e_atts["routing_p2"]) * E("p(2)")
+                    )
+                    final_moms.append([
+                        final_mom,
+                        mass,
+                    ])
+                    e_surface += (self.sp3D(final_mom, final_mom) + mass**2) ** E("1/2")
+
+        e_surface = self.concretise_scalar_products(e_surface)
+        if len(self.routed_integrand.replacements) > 0:
+            patts = [
+                self.concretise_scalar_products(
+                    self.routed_integrand.replacements[0]
+                ).replace(E("x_(y_)"), E(f"x_(y_,{i})"))
+                for i in range(1, 4)
+            ]
+            repls = [
+                self.concretise_scalar_products(
+                    self.routed_integrand.replacements[1]
+                ).replace(E("x_(y_)"), E(f"x_(y_,{i})"))
+                for i in range(1, 4)
+            ]
+            for i in range(0, 3):
+                e_surface = e_surface.replace(patts[i], repls[i])
+
+        e_surface = self.concretise_scalar_products(e_surface)
+        e_surface = self.concretise_scalar_products(e_surface)
+        e_surface = self.impose_rest_frame(e_surface)
+
+        return e_surface.replace(E("k(0,x_)"), E("t*k(0,x_)"))
 
     def __init__(self, L, process, routed_integrand):
         self.L = L
@@ -981,106 +1216,121 @@ class evaluate_integrand(object):
         self.routed_integrand.integrand = self.routed_integrand.integrand.replace(
             E("GC_1"), E("1")
         )
+
+        theta_x = self.routed_integrand.integrand.match(E("Θ(x_)"))
+
+        self.theta_val = []
+
+        if theta_x is not None:
+            for th in theta_x:
+                self.theta_val.append(th[E("x_")].evaluator({}, {}, self.symbols))
+
+        self.routed_integrand.integrand = self.routed_integrand.integrand.replace(
+            E("Θ(x_)"), E("1")
+        )
+
         self.evaluator = self.routed_integrand.integrand.evaluator({}, {}, self.symbols)
 
         self.sp3D = S("sp3D", is_linear=True, is_symmetric=True)
+
+        self.e_surface = self.set_e_surface()
+
+        print(self.e_surface)
 
     def set_t_value(self, k, p1, p2, z):
 
         if self.process == "DY":
             if len(self.routed_integrand.cut_graph.final_cut) > 1:
-                final_moms = []
-                e_surface = E("-s^(1/2)")
+                s = 4 * p1[2] ** 2
 
-                for ep in self.routed_integrand.cut_graph.final_cut:
-                    ep_atts = ep.get_attributes()
-                    id = ep_atts["id"]
-                    for e in self.routed_integrand.cut_graph.graph.get_edges():
-                        e_atts = e.get_attributes()
-                        if e_atts["id"] == id:
-                            k_keys = ["routing_k" + str(i) for i in range(0, self.L)]
-                            loop_coeff = [E(e_atts[rout]) for rout in k_keys]
-                            mass = (
-                                E("0")
-                                if _strip_quotes(e_atts["particle"]) != "a"
-                                else E("m(a)")
-                            )
-                            final_mom = (
-                                sum(
-                                    loop_coeff[i] * E(f"k({i})")
-                                    for i in range(0, self.L)
-                                )
-                                + E(e_atts["routing_p1"]) * E("p(1)")
-                                + E(e_atts["routing_p2"]) * E("p(2)")
-                            )
-                            final_moms.append([
-                                final_mom,
-                                mass,
-                            ])
-                            e_surface += (
-                                self.sp3D(final_mom, final_mom) + mass**2
-                            ) ** E("1/2")
+                e_surface = self.e_surface
 
-                print(e_surface)
-                e_surface = self.concretise_scalar_products(e_surface)
-                print("before substitutions")
-                print(e_surface)
-                if len(self.routed_integrand.replacements) > 0:
-                    patts = [
-                        self.concretise_scalar_products(
-                            self.routed_integrand.replacements[0]
-                        ).replace(E("x_(y_)"), E(f"x_(y_,{i})"))
-                        for i in range(1, 4)
-                    ]
-                    repls = [
-                        self.concretise_scalar_products(
-                            self.routed_integrand.replacements[1]
-                        ).replace(E("x_(y_)"), E(f"x_(y_,{i})"))
-                        for i in range(1, 4)
-                    ]
+                for j in range(0, self.L):
                     for i in range(0, 3):
-                        e_surface = e_surface.replace(patts[i], repls[i])
+                        e_surface = e_surface.replace(E(f"k({j},{i + 1})"), k[j][i])
+                for i in range(0, 3):
+                    e_surface = e_surface.replace(E(f"p(1,{i + 1})"), p1[i])
+                for i in range(0, 3):
+                    e_surface = e_surface.replace(E(f"p(2,{i + 1})"), p2[i])
+                e_surface = e_surface.replace(E("s"), s)
+                e_surface = e_surface.replace(E("z"), z)
 
-                    e_surface = self.concretise_scalar_products(e_surface)
-                    print("here")
-                    print(e_surface)
-                    e_surface = self.concretise_scalar_products(e_surface)
-                    print(e_surface)
-                    e_surface = self.impose_rest_frame(e_surface)
-                    print("here")
-                    print(e_surface)
+                t_sol = e_surface.nsolve(E("t"), 1.0)
+                return t_sol
+            else:
+                return 1
 
-                    e_surface = e_surface.replace(E("k(0,x_)"), E("t*k(0,x_)"))
-                    s = 4 * p1[2] ** 2
-                    input_vals = {
-                        E("k(0,1)"): k[0][0],
-                        E("k(0,2)"): k[0][1],
-                        E("k(0,3)"): k[0][2],
-                        E("p(1,3)"): p1[2],
-                        E("p(2,3)"): p2[2],
-                        E("s"): s,
-                        E("z"): z,
-                    }
-                    print(input_vals)
-                    print(e_surface)
-                    for j in range(0, self.L):
-                        for i in range(0, 3):
-                            e_surface = e_surface.replace(E(f"k({j},{i + 1})"), k[j][i])
-                    for i in range(0, 3):
-                        e_surface = e_surface.replace(E(f"p(1,{i + 1})"), p1[i])
-                    for i in range(0, 3):
-                        e_surface = e_surface.replace(E(f"p(2,{i + 1})"), p2[i])
-                    e_surface = e_surface.replace(E("s"), s)
-                    e_surface = e_surface.replace(E("z"), z)
+        return 1
 
-                    print("hereee")
-                    print(e_surface)
-                    t_sol = e_surface.nsolve(E("t"), 1.0)
-                    return t_sol
-                else:
-                    return 1
+    def debug_printout(self, k, p1, p2, z):
+        momenta = []
 
-            return 1
+        tstar = self.set_t_value(k, p1, p2, z)
+
+        # print(k)
+        input_k = {
+            E(f"k({i},{j + 1})"): k[i][j]
+            for (i, j) in product(range(0, self.L), range(0, 3))
+        }
+        input_p1 = {E(f"p(1,{j + 1})"): p1[j] for j in range(0, 3)}
+        input_p2 = {E(f"p(2,{j + 1})"): p2[j] for j in range(0, 3)}
+        input = input_k | input_p1 | input_p2
+        input[E("z")] = z
+        input[E("t")] = tstar
+
+        for e in self.routed_integrand.cut_graph.graph.get_edges():
+            e_atts = e.get_attributes()
+
+            k_keys = ["routing_k" + str(i) for i in range(0, self.L)]
+            loop_coeff = [E(e_atts[rout]) for rout in k_keys]
+
+            mass_sq = (
+                E("0")
+                if _strip_quotes(str(e_atts["particle"])) != "a"
+                else E("4*z*p(1,3)^2")
+            )
+            mom = (
+                sum(loop_coeff[i] * E(f"k({i})") for i in range(0, self.L))
+                + E(e_atts["routing_p1"]) * E("p(1)")
+                + E(e_atts["routing_p2"]) * E("p(2)")
+            )
+            momenta.append([mom, mass_sq, e_atts["id"]])
+
+        energies = {}
+        masses = {}
+        qmomenta = {}
+        for mom, mass_sq, id in momenta:
+            rep = self.routed_integrand.replacements
+            if len(rep) > 0:
+                patt = rep[0]
+                repl = rep[1]
+                mom = mom.replace(patt, repl)
+
+            mom = self.concretise_scalar_products(mom)
+            mom = self.t_parametrise(mom)
+            # print(mom)
+            mom3d = [
+                mom.replace(E("k(x_)"), E(f"k(x_,{i})")).replace(
+                    E("p(x_)"), E(f"p(x_,{i})")
+                )
+                for i in range(1, 4)
+            ]
+
+            for key, val in input.items():
+                for i in range(0, 3):
+                    mom3d[i] = mom3d[i].replace(key, val)
+                    mass_sq = mass_sq.replace(key, val)
+
+            energies[E(f"E({id})")] = (
+                mom3d[0] ** 2 + mom3d[1] ** 2 + mom3d[2] ** 2 + mass_sq
+            ) ** E("1/2")
+            masses[E(f"m({id})^2")] = mass_sq
+            qmomenta[E(f"q({id})")] = mom3d
+
+        print(energies)
+        print(masses)
+        emr_int = self.routed_integrand.emr_integrand
+        print(emr_int)
 
     def param_builder(self, k, p1, p2, z):
         param_list = []
@@ -1101,7 +1351,14 @@ class evaluate_integrand(object):
         return param_list
 
     def eval(self, k, p1, p2, z):
-        self.set_t_value(k, p1, p2, z)
         param_list = self.param_builder(k, p1, p2, z)
-        print(param_list)
-        return self.evaluator.evaluate(param_list)
+        param_list = [float(str(v)) for v in param_list]
+
+        theta = 1
+        for th in self.theta_val:
+            # print("x,1-x: ", th.evaluate(param_list)[0][0])
+            theta *= heaviside_theta(th.evaluate(param_list)[0][0])
+
+        self.debug_printout(k, p1, p2, z)
+
+        return self.evaluator.evaluate(param_list) * theta

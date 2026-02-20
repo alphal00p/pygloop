@@ -334,11 +334,7 @@ class VacuumDotGraph(object):
 
     # Given a graph, two cuts (initial and final) and a partition, it constructs all routings consistent
     # with the simplest clustering criterion
-    def route_cut_graph(
-        self,
-        graph: pydot.Dot,
-        partition: List[List[str]],
-    ):
+    def route_cut_graph(self, graph: pydot.Dot, partition: List[List[str]]):
 
         if len(partition) != 2:
             raise ValueError(
