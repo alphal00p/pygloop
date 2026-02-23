@@ -15,6 +15,7 @@ from symbolica.community.idenso import (  # type: ignore
     simplify_color,  # noqa: F401
     simplify_gamma,  # noqa: F401
     simplify_metrics,  # noqa: F401
+    to_dots,  # noqa: F401
 )  # isort: skip # noqa: F401
 from symbolica.community.spenso import (  # noqa: F401 # type: ignore
     TensorLibrary,
@@ -588,11 +589,13 @@ class ClassicalLimitProcessor(object):
             int_id = v.get_attributes().get("int_id", "").strip().strip('"')
             if int_id.startswith("V_S1S1") or int_id.startswith("V_S2S2"):
                 sum *= Es(v.get_attributes()["num"])
+                v.get_attributes()["num"] = "1"
 
         # Multiply edge numerator
 
         for e in graph.dot.get_edges():
             sum *= Es(e.get_attributes()["num"])
+            e.get_attributes()["num"] = "1"
 
         return sum
 
@@ -616,9 +619,14 @@ class ClassicalLimitProcessor(object):
 
             numerator = self.re_multiply_numerator(g, reso)
 
-            numerator = simplify_metrics(simplify_gamma(numerator))
+            numerator = E(
+                expr_to_string(to_dots(simplify_metrics(simplify_gamma(numerator))))
+            ).replace(Es("UFO::dim"), E("4"), repeat=True)
 
-            print(numerator)
+            print("hereeee")
+            print(expr_to_string(numerator))
+
+            g.get_attributes()["num"] = expr_to_string(numerator)
 
             #            for r in reso:
             #                print("PRODUCTTTT")
@@ -631,7 +639,7 @@ class ClassicalLimitProcessor(object):
             processed_graphs.append(g)
 
             # As an example, add a fake UV equal to the original graph
-            processed_graphs.extend(self.generate_UV_CTs(g, group_id))
+            # processed_graphs.extend(self.generate_UV_CTs(g, group_id))
 
         return processed_graphs
 
