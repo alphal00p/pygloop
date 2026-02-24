@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import copy
 import re
-from collections import deque
+from collections import Counter, deque
 from typing import TYPE_CHECKING, List, Optional, Tuple
 
+import numpy as np
 import pydot
 
 from symbolica import E, Evaluator, Expression, Replacement, S  # isort: skip # noqa: F401 # type: ignore
@@ -166,7 +167,6 @@ class ClassicalLimitProcessor(object):
 
         # Path endpoints are degree-1 vertices
         ends = [v for v, nbrs in adj.items() if len(nbrs) == 1]
-        print(ends)
 
         if len(ends) != 2:
             raise ValueError(f"Expected open path with 2 endpoints, got {len(ends)}")
@@ -346,7 +346,12 @@ class ClassicalLimitProcessor(object):
                 * E(f"Q({e.get_attributes()['id']},y___)")
                 for e in es_sub
             )
+            # print(num)
+
             num = num.replace(edge_id_pattern, edge_id_replace)
+
+            # print(num)
+
             index_set = set([id[S("x_")] for id in num.match(E("Q(x_,y___)"))])
 
             # Group the terms in each vertex by edge_index: in other words, for a numerator Q(8)*Q(8)+Q(8)*Q(7)+Q(7)*Q(7),
@@ -358,14 +363,24 @@ class ClassicalLimitProcessor(object):
                     sorted(index_set), len(index_set)
                 )
             )  # type: ignore
+
+            # print(subsets)
+
+            # print(len(index_set))
+
             numerator_terms = [[sub, E("0")] for sub in subsets]
             for term in num.expand():
+                # print("------")
+                # print(term)
                 ids = term.match(E("Q(x_,y___)"))
                 term_ids = []
                 for mat in ids:
+                    # print(mat)
                     term_ids.append(mat[S("x_")])
                 for i, sub in zip(range(0, len(subsets)), subsets):
-                    if tuple(term_ids) == sub:
+                    # print(tuple(term_ids))
+                    # print(tuple(sub))
+                    if Counter(term_ids) == Counter(sub):
                         numerator_terms[i][1] += term
 
             num_split.append(numerator_terms)
@@ -519,7 +534,9 @@ class ClassicalLimitProcessor(object):
         # in the example above
 
         for prod in itertools.product(*num_split):
-            replacements = self.get_squared_replacements(g, [p[0] for p in prod])
+            p_prod = copy.deepcopy([p[0] for p in prod])
+            copy_prod = copy.deepcopy(prod)
+            replacements = self.get_squared_replacements(g, p_prod)
 
             patterns_symb = []
             replacements_symb = []
@@ -544,8 +561,9 @@ class ClassicalLimitProcessor(object):
                 # Make the replacement making sure that if the expression is Q(8)*Q(8), only one instance of Q(8)
                 # gets substituted, i.e. Q(8)*Q(8)->(Q(2)-Q(3))*Q(8)
 
-                for pupu in prod:
+                for pupu in copy_prod:
                     newp = E("0")
+                    ## ITERATING OVER SUM, CAREFUL ABOUT PRODUCTS; TODO: FIX
                     for monomial in pupu[1].expand():
                         new_monomial = monomial.replace(
                             E("Q(x_,y___)*Q(z_,w___)*rest___"), E("rest___")
@@ -560,8 +578,22 @@ class ClassicalLimitProcessor(object):
                         q_factor2 = q_factors / q_factor1
                         for rep, sub in zip(patterns_symb, replacements_symb):
                             q_factor1 = q_factor1.replace(rep, sub)
-                        newp += new_monomial * q_factor1 * q_factor2
+                        transformed_monomial = new_monomial * q_factor1 * q_factor2
+                        newp += transformed_monomial
+
+                        check_monomial1 = copy.deepcopy(transformed_monomial)
+                        for rep, sub in zip(patterns_symb, replacements_symb):
+                            check_monomial1 = check_monomial1.replace(rep, sub)
+
+                        check_monomial2 = copy.deepcopy(monomial)
+                        for rep, sub in zip(patterns_symb, replacements_symb):
+                            check_monomial2 = check_monomial2.replace(rep, sub)
+
+                        if (check_monomial1 - check_monomial2).expand() != E("0"):
+                            raise ValueError("Uh oh... not passing a core check")
+
                     new_pupu = [copy.deepcopy(pupu[0]), copy.deepcopy(newp)]
+
                     new_prod.append(new_pupu)
 
             else:
@@ -570,6 +602,25 @@ class ClassicalLimitProcessor(object):
             new_prods.append(new_prod)
 
         return new_prods
+
+    def get_numerator(self, graph):
+
+        prod = E("1")
+
+        # Multiply in numerator for vertices
+
+        for v in graph.dot.get_nodes():
+            if v.get("num") is not None:
+                prod *= Es(v.get_attributes()["num"])
+                v.get_attributes()["num"] = "1"
+
+        # Multiply edge numerator
+
+        for e in graph.dot.get_edges():
+            prod *= Es(e.get_attributes()["num"])
+            e.get_attributes()["num"] = "1"
+
+        return prod
 
     def re_multiply_numerator(self, graph, graviton_numerator):
 
@@ -580,8 +631,10 @@ class ClassicalLimitProcessor(object):
         for num in graviton_numerator:
             summand = E("1")
             for factor in num:
-                summand *= factor
+                summand *= factor[1]
             sum += summand
+
+        # print(sum)
 
         # Multiply in numerator for other vertices
 
@@ -589,7 +642,7 @@ class ClassicalLimitProcessor(object):
             int_id = v.get_attributes().get("int_id", "").strip().strip('"')
             if int_id.startswith("V_S1S1") or int_id.startswith("V_S2S2"):
                 sum *= Es(v.get_attributes()["num"])
-                v.get_attributes()["num"] = "1"
+            v.get_attributes()["num"] = "1"
 
         # Multiply edge numerator
 
@@ -597,13 +650,84 @@ class ClassicalLimitProcessor(object):
             sum *= Es(e.get_attributes()["num"])
             e.get_attributes()["num"] = "1"
 
+        # sum = sum.expand()
+
+        sum = sum.replace(
+            E("spenso::mink(4,hedge(x___))"),
+            E("spenso::mink(4,gammalooprs::hedge(x___))"),
+        )
+
+        sum = sum.replace(
+            E("Q(x_,y_)"),
+            E("gammalooprs::Q(x_,y_)"),
+        )
+
         return sum
+
+    def evaluate_numerator(self, numerator, graph, loop_momenta, external_momenta):
+        eval_numerator = copy.deepcopy(numerator)
+        for e in graph.dot.get_edges():
+            e_atts = e.get_attributes()
+            e_id = e_atts["id"]
+            lmb_rep = _strip_quotes(str(e_atts["lmb_rep"]))
+            eval_numerator = eval_numerator.replace(
+                E(f"gammalooprs::Q({e_id},a___)"), E(lmb_rep)
+            )
+
+        #        eval_numerator = eval_numerator.replace(E("UFO::TTT"), E("1/2"))
+        #        eval_numerator = eval_numerator.replace(E("UFO::SSTmpart2"), E("1/3"))
+        #        eval_numerator = eval_numerator.replace(E("UFO::SSTmpart1"), E("1/4"))
+        #        eval_numerator = eval_numerator.replace(E("UFO::SST"), E("1/5"))
+        #        eval_numerator = eval_numerator.replace(E("UFO::SSTTmpart2"), E("1/6"))
+        eval_numerator = eval_numerator.replace(Es("UFO::dim"), E("4"), repeat=True)
+
+        eval_numerator = E(
+            expr_to_string(to_dots(simplify_metrics(simplify_gamma(eval_numerator))))
+        )
+
+        eval_numerator = eval_numerator.replace(
+            E("spenso::dot(spenso::mink(4),q1_(i1_),q2_(i2_))"),
+            E(
+                "q1_(i1_,0)*q2_(i2_,0)-q1_(i1_,1)*q2_(i2_,1)-q1_(i1_,2)*q2_(i2_,2)-q1_(i1_,3)*q2_(i2_,3)"
+            ),
+        )
+
+        for i, k in enumerate(loop_momenta):
+            for j in range(0, 4):
+                eval_numerator = eval_numerator.replace(E(f"K({i},{j})"), E(str(k[j])))
+
+        for i, p in enumerate(external_momenta):
+            for j in range(0, 4):
+                eval_numerator = eval_numerator.replace(E(f"P({i},{j})"), E(str(p[j])))
+
+        return eval_numerator
+
+        # comp_num=numerator.replace(E("spenso::dot(x_,gammalooprs::Q(i_),gammalooprs::Q(j_))"),E())
 
     def process_graphs(self, graphs: DotGraphs) -> DotGraphs:
         processed_graphs = DotGraphs()
 
         for group_id, g_input in enumerate(graphs):
             g: DotGraph = copy.deepcopy(g_input)
+            """
+            for v in g.dot.get_nodes():
+                int_id = v.get_attributes().get("int_id", "").strip().strip('"')
+                if int_id.startswith("V_S1S1") or int_id.startswith("V_S2S2"):
+                    v_num = Es(copy.deepcopy(v.get_attributes()["num"])).expand()
+                    v.get_attributes()["num"] = expr_to_string(v_num[0])
+                elif int_id.startswith("V_Gr"):
+                    v.get_attributes()["num"] = (
+                        "(a*Q(5,spenso::mink(4,hedge(10)))*Q(5,spenso::mink(4,hedge(7,1)))-b*Q(6,spenso::mink(4,hedge(10)))*Q(7,spenso::mink(4,hedge(7,1)))+c*Q(6,spenso::mink(4,hedge(10)))*Q(6,spenso::mink(4,hedge(7,1))))*spenso::g(spenso::mink(4,hedge(10,1)),spenso::mink(4,hedge(9)))*spenso::g(spenso::mink(4,hedge(7)),spenso::mink(4,hedge(9,1)))"
+                    )
+
+            for e in g.dot.get_edges():
+                e_part = e.get_attributes()["particle"]
+                if e_part == "graviton":
+                    e_num = Es(copy.deepcopy(e.get_attributes()["num"])).expand()
+                    e.get_attributes()["num"] = expr_to_string(e_num[0])
+            """
+
+            print(g)
 
             # Add the main graph
             self.set_group_id(g, group_id, is_master=True)
@@ -611,30 +735,100 @@ class ClassicalLimitProcessor(object):
             self.adjust_projectors(g)
             # self.delocalize_numerators(g)
             print("hiiiiiiiiiiiiiiiii")
+
+            """
+            g_copy2 = copy.deepcopy(g)
+
+            print("zzzzzzzzzzzzzzzzzzzzzzzzzz")
+            print(g_copy2.dot)
+
+            reso = self.arrange_power_energies(g_copy2)
+
+            print("zzzzzzzzzzzzzzzzzzzzzzzzzz")
+            print(reso)
+
+            reso = self.delocalize_numerators(g_copy2)
+
+            print("zzzzzzzzzzzzzzzzzzzzzzzzzz")
+            print(sum(r[0][1] for r in reso))
+
             # num_split = self.arrange_power_energies(g)
+            """
 
-            reso = self.delocalize_numerators(g)
-            # print(reso[8][1][1])
-            # g.dot.set("num_matrices", reso)
+            ## Kinematics
 
-            numerator = self.re_multiply_numerator(g, reso)
+            k0 = [0.1, 0.2, 0.3, 0.4]
+            k1 = [0.4, -0.3, 0.15, -0.23]
+            ks = [k0, k1]
+            p1 = np.array([1, 0, 1, 0])
+            p2 = np.array([2, 1, 0, 1])
+            p3 = -np.array([-1.5, -1.5, 1, -1])
+            p4 = -np.array([-1.5, 0.5, -2, 0])
+            ps = [
+                p1,
+                p2,
+                p3,
+                p4,
+            ]
 
-            numerator = E(
-                expr_to_string(to_dots(simplify_metrics(simplify_gamma(numerator))))
-            ).replace(Es("UFO::dim"), E("4"), repeat=True)
+            #            k0 = [E("k0"), 0.0, 0.0, 0.0]
+            #            ks = [k0]
+            #            p1 = np.array([E("p10"), 0, 0, 0])
+            #            p2 = np.array([0, 0, 0, 0])
+            #            p3 = -np.array([-E("p10"), 0, 0, 0])
+            #            p4 = -np.array([-0, 0.0, -0, 0])
+            #            ps = [
+            #                p1,
+            #                p2,
+            #                p3,
+            #                p4,
+            #            ]
 
-            print("hereeee")
-            print(expr_to_string(numerator))
+            print("momentum conservation??")
+            print(p1 + p2 - p3 - p4)
 
-            g.get_attributes()["num"] = expr_to_string(numerator)
+            ## TEST1
 
-            #            for r in reso:
-            #                print("PRODUCTTTT")
-            #                for p in r:
-            #                    for mon in p[1].expand():
-            #                        print("---------")
-            #                        print(p[0])
-            #                        print(mon)
+            g_copy2 = copy.deepcopy(g)
+
+            reso = self.delocalize_numerators(g_copy2)
+
+            post_num = self.re_multiply_numerator(
+                copy.deepcopy(g_copy2), copy.deepcopy(reso)
+            )
+
+            print(
+                self.evaluate_numerator(
+                    post_num,
+                    copy.deepcopy(g_copy2),
+                    ks,
+                    ps,
+                )
+            )
+
+            ## TEST2
+
+            g_copy = copy.deepcopy(g)
+
+            pre_num = self.get_numerator(g_copy)
+
+            print(
+                self.evaluate_numerator(
+                    pre_num,
+                    copy.deepcopy(g_copy),
+                    ks,
+                    ps,
+                )
+            )
+
+            # post_numerator = E(
+            #    expr_to_string(to_dots(simplify_metrics(simplify_gamma(post_num))))
+            # ).replace(Es("UFO::dim"), E("4"), repeat=True)
+
+            # print("hereeee")
+            # print(expr_to_string(post_numerator))
+
+            # g.get_attributes()["num"] = expr_to_string(post_numerator)
 
             processed_graphs.append(g)
 
