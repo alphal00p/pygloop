@@ -67,11 +67,12 @@ class amplitude_graph(object):
 
 
 class RoutedIntegrand(object):
-    def __init__(self, integrand, cut_graph, replacements, emr_integrand):
+    def __init__(self, integrand, cut_graph, replacements, emr_integrand, type):
         self.emr_integrand = emr_integrand
         self.integrand = integrand
         self.cut_graph = cut_graph
         self.replacements = replacements
+        self.approximation_type = type
 
 
 # This class is responsible for generating the CFF representation of the cut graph
@@ -119,6 +120,9 @@ class EMRIntegrandConstructor(object):
         graph_for_cff = deepcopy(graph)
         self.canonicalize_ports_for_cff(graph_for_cff)
 
+        # print("THIS GRAPH HERE")
+        # print(graph_for_cff)
+
         cff_structure = self.gl_worker.generate_cff_as_json_string(
             dot_string=graph_for_cff.to_string(),
             subgraph_nodes=subgraph_as_nodes,
@@ -161,6 +165,7 @@ class EMRIntegrandConstructor(object):
             dst_node, _ = parse_endpoint(e.get_destination())
             node_labels.append(src_node)
             node_labels.append(dst_node)
+            e.get_attributes().pop("lmb_id", None)
 
         unique_labels = list(dict.fromkeys(node_labels))
         node_map = {old: str(i) for i, old in enumerate(unique_labels)}
@@ -592,6 +597,79 @@ class EMRIntegrandConstructor(object):
         return cut_graph_cff
 
 
+class Approximator(object):
+    def __init__(self):
+        self.sp3D = S("sp3D", is_linear=True, is_symmetric=True)
+
+    def collinear_approximation(self, integrand, momentum, k_id, direction):
+
+        # kperp_sq = E(f"sp3D(k_perp({k_id[0]}),k_perp({k_id[0]}))")
+        # coll_en = x * E("sp3D(p(1),p(1))^(1/2)") + lam**2 * kperp_sq / (
+        #    2 * x * E("sp3D(p(1),p(1))^(1/2)")
+        # )
+        # a_coll_en = (1 - x) * E("sp3D(p(1),p(1))^(1/2)") + lam**2 * kperp_sq / (
+        #    2 * (1 - x) * E("sp3D(p(1),p(1))^(1/2)")
+        # )
+
+        x = S("x", is_scalar=True, is_positive=True)
+        lam = S("λ", is_scalar=True)
+
+        # Let s*q(i) be the vector that should become collinear to p(1). s encodes the cut orientation. We
+        # write s*q(i)=s*(q(i)-a*k(j))+a*s*k(j)= x*p(1)+lam*k_perp(j) and solve in k(j), giving
+        # k(j)=a*s*x*p(1)+a*s*lam*k_perp(j)-a*(q(i)-a*k(j)). Now s=momentum[1] and a=k_id[1] and j=k_id[0].
+
+        repl = k_id[1] * (
+            momentum[1] * x * direction
+            - (momentum[0] - k_id[1] * E(f"k({k_id[0]})"))
+            + lam * E(f"k_perp({k_id[0]})")
+        )
+
+        print("parametrised limit")
+        print(repl)
+
+        integrand = integrand.replace(E(f"k({k_id[0]})"), repl)
+        integrand = integrand.replace(
+            self.sp3D(E(f"k_perp({k_id[0]})"), E("p(x_)")), E("0")
+        )
+
+        # Only consider leading-virtuality contribution
+
+        integrand = integrand.series(lam, 0, -1).to_expression().replace(lam, 1)
+
+        # Invert back the collinear parametrisation. Since s*q(i)= x*p(1)+lam*k_perp(j), we have
+        # x=s*q(i).p(1)/p(1).p(1)
+
+        repl_x = (
+            momentum[1]
+            * self.sp3D(momentum[0], direction)
+            / self.sp3D(direction, direction)
+        )
+
+        repl_kperp = E(f"k({k_id[0]},1)^2+k({k_id[0]},2)^2")
+
+        integrand = integrand.replace(E("x"), repl_x)
+        integrand = integrand.replace(
+            self.sp3D(E(f"k_perp({k_id[0]})"), E(f"k_perp({k_id[0]})")), repl_kperp
+        )
+
+        return integrand, repl, repl_x
+
+    def soft_approximation(self, integrand, momentum, k_id):
+        lam = S("λ", is_scalar=True)
+
+        repl = k_id[1] * (-(momentum[0] - k_id[1] * E(f"k({k_id[0]})"))) + k_id[
+            1
+        ] * lam * E("qsoft")
+
+        integrand = integrand.replace(E(f"k({k_id[0]})"), repl)
+
+        integrand = integrand.series(lam, 0, -3).to_expression().replace(lam, 1)
+
+        integrand = integrand.replace(E("qsoft"), momentum[0])
+
+        return integrand, repl
+
+
 class LoopIntegrandConstructor(object):
     def __init__(self, params, name, L):
         self.L = L
@@ -599,6 +677,7 @@ class LoopIntegrandConstructor(object):
         self.name = name
         self.emr_processor = EMRIntegrandConstructor(params, name, L)
         self.sp3D = S("sp3D", is_linear=True, is_symmetric=True)
+        self.approximator = Approximator()
 
     # Replaces energies by their expression in terms of the emr momenta and particle masses
 
@@ -804,22 +883,60 @@ class LoopIntegrandConstructor(object):
 
         return graph
 
+    def canonicalise_energies(self, integrand, cut_graph):
+
+        rep = E("0")
+
+        f_cut_set = set(cut_graph.final_cut)
+        i_cut_set = set(cut_graph.initial_cut)
+        cut_union = f_cut_set.union(i_cut_set)
+        cut_intersection = f_cut_set.intersection(i_cut_set)
+
+        first_f = True
+        patt = None
+
+        e_to_sub = next(iter(f_cut_set - i_cut_set))
+
+        rep = E("0")
+
+        for e in cut_graph.initial_cut:
+            e_atts = e.get_attributes()
+            rep += E(f"E({e_atts['id']})")
+
+        for e in cut_graph.final_cut:
+            e_atts = e.get_attributes()
+            rep -= E(f"E({e_atts['id']})")
+
+        e_to_sub_atts = e_to_sub.get_attributes()
+        patt = E(f"E({e_to_sub_atts['id']})")
+        rep = rep + E(f"E({e_to_sub_atts['id']})")
+
+        integrand = integrand.replace(patt, rep)
+
+        return integrand
+
     # Approximates the integrand at leading virtuality. For parton model diagrams, it simply replaces the
     # energies and routes the integrand, giving an expression in terms of loop momenta. No approximation is
     # performed. For partitions of the type [i_1]_[i_2,i_3,...], takes the limit p2sq->0 by setting i_2,i_3,...
     # collinear to p2 and expanding for small transverse momenta around this collinear configuration. Same for
     # [i_2,i_3,...]_[i_1] with p2sq substituted with p1sq.
 
-    def approximator(self, integrand, cut_graph, raised_cut):
+    def leading_virtuality_expansion(self, integrand, cut_graph, raised_cut):
         emr_integrand = integrand
         partition = cut_graph.partition
+
+        routed_integrands = []
 
         if len(partition[0]) == 1 and len(partition[1]) == 1:
             integrand = self.replace_energies(integrand, cut_graph)
             integrand = integrand.replace(E("p1sq"), E("0"))
             integrand = integrand.replace(E("p2sq"), E("0"))
             integrand = self.route_integrand(integrand, cut_graph)
-            return RoutedIntegrand(integrand, cut_graph, [], emr_integrand)
+            routed_integrand = RoutedIntegrand(
+                integrand, cut_graph, [], emr_integrand, "PM"
+            )
+            routed_integrands.append(routed_integrand)
+            return routed_integrands
 
         elif len(partition[0]) > 1 and len(partition[1]) == 1:
             x = S("x", is_scalar=True, is_positive=True)
@@ -839,10 +956,12 @@ class LoopIntegrandConstructor(object):
                     if e_atts["id"] == id:
                         k_keys = ["routing_k" + str(i) for i in range(0, self.L)]
                         loop_coeff = [E(e_atts[rout]) for rout in k_keys]
-                        k_id = next(
-                            (i, c) for i, c in enumerate(loop_coeff) if str(c) != "0"
-                        )
                         if first:
+                            k_id = next(
+                                (i, c)
+                                for i, c in enumerate(loop_coeff)
+                                if str(c) != "0"
+                            )
                             momentum = [
                                 (
                                     sum(
@@ -856,42 +975,16 @@ class LoopIntegrandConstructor(object):
                             ]
                             first = False
 
-            kperp_sq = E(f"sp3D(k_perp({k_id[0]}),k_perp({k_id[0]}))")
-            coll_en = x * E("sp3D(p(1),p(1))^(1/2)") + lam**2 * kperp_sq / (
-                2 * x * E("sp3D(p(1),p(1))^(1/2)")
-            )
-            a_coll_en = (1 - x) * E("sp3D(p(1),p(1))^(1/2)") + lam**2 * kperp_sq / (
-                2 * (1 - x) * E("sp3D(p(1),p(1))^(1/2)")
-            )
-
             # In order to make the collinear replacement always work, replace a final-state energy
             # by energy conservation.
 
-            rep = E("0")
+            integrand = self.canonicalise_energies(integrand, cut_graph)
 
-            f_cut_set = set(cut_graph.final_cut)
-            i_cut_set = set(cut_graph.initial_cut)
-            cut_union = f_cut_set.union(i_cut_set)
-            cut_intersection = f_cut_set.intersection(i_cut_set)
+            # integrand = integrand.replace(E(f"E({coll_moms[0]})"), coll_en)
+            # integrand = integrand.replace(E(f"E({coll_moms[1]})"), a_coll_en)
 
-            first_f = True
-            patt = None
-            for e in cut_union - cut_intersection:
-                e_atts = e.get_attributes()
-                if first_f and e in f_cut_set:
-                    patt = E(f"E({e_atts['id']})")
-                    first_f = False
-                elif e in f_cut_set:
-                    rep -= E(f"E({e_atts['id']})")
-                else:
-                    rep += E(f"E({e_atts['id']})")
-            if patt is None:
-                raise ValueError("Could not identify a final-cut energy to replace.")
-
-            integrand = integrand.replace(patt, rep)
-
-            integrand = integrand.replace(E(f"E({coll_moms[0]})"), coll_en)
-            integrand = integrand.replace(E(f"E({coll_moms[1]})"), a_coll_en)
+            print("emr")
+            print(integrand)
 
             integrand = self.replace_energies(integrand, cut_graph)
 
@@ -903,50 +996,25 @@ class LoopIntegrandConstructor(object):
 
             integrand = self.route_integrand(integrand, cut_graph)
 
-            # Let s*q(i) be the vector that should become collinear to p(1). s encodes the cut orientation. We
-            # write s*q(i)=s*(q(i)-a*k(j))+a*s*k(j)= x*p(1)+lam*k_perp(j) and solve in k(j), giving
-            # k(j)=a*s*x*p(1)+a*s*lam*k_perp(j)-a*(q(i)-a*k(j)). Now s=momentum[1] and a=k_id[1] and j=k_id[0].
+            print("before approximatiooooon")
+            print(integrand)
 
-            repl = k_id[1] * (
-                momentum[1] * x * E("p(1)")
-                - (momentum[0] - k_id[1] * E(f"k({k_id[0]})"))
-                + lam * E(f"k_perp({k_id[0]})")
-            )
-            integrand = integrand.replace(E(f"k({k_id[0]})"), repl)
-            integrand = integrand.replace(
-                self.sp3D(E(f"k_perp({k_id[0]})"), E("p(x_)")), E("0")
+            print("approximation parameters")
+            print(momentum)
+            print(k_id)
+
+            integrand, repl, repl_x = self.approximator.collinear_approximation(
+                integrand, momentum, k_id, E("p(1)")
             )
 
-            # Only consider leading-virtuality contribution
-
-            # if integrand.series(lam, 0, -4).to_expression() != 0:
-            #    raise ValueError(
-            #        "Found super-logarithmic singularity in p1sq... not possible"
-            #    )
-
-            integrand = integrand.series(lam, 0, -1).to_expression().replace(lam, 1)
-
-            # Invert back the collinear parametrisation. Since s*q(i)= x*p(1)+lam*k_perp(j), we have
-            # x=s*q(i).p(1)/p(1).p(1)
-
-            repl_x = (
-                momentum[1]
-                * self.sp3D(momentum[0], E("p(1)"))
-                / self.sp3D(E("p(1)"), E("p(1)"))
-            )
-
-            repl_kperp = E(f"k({k_id[0]},1)^2+k({k_id[0]},2)^2")
-
-            integrand = integrand.replace(E("x"), repl_x)
-            integrand = integrand.replace(
-                self.sp3D(E("k_perp(0)"), E("k_perp(0)")), repl_kperp
-            )
+            print("approximatiooooon")
+            print(integrand)
 
             # multiply theta functions in
 
             integrand = integrand * E(f"Θ({repl_x})") * E(f"Θ(1-{repl_x})")
 
-            return RoutedIntegrand(
+            routed_integrand = RoutedIntegrand(
                 integrand,
                 cut_graph,
                 [
@@ -954,7 +1022,12 @@ class LoopIntegrandConstructor(object):
                     repl.replace(x, repl_x).series(lam, 0, 0).to_expression(),
                 ],
                 emr_integrand,
+                "collinear",
             )
+            routed_integrands.append(routed_integrand)
+
+            return routed_integrands
+
         elif len(partition[0]) == 1 and len(partition[1]) > 1:
             x = S("x", is_scalar=True, is_positive=True)
             lam = S("λ", is_scalar=True)
@@ -974,10 +1047,12 @@ class LoopIntegrandConstructor(object):
                     if e_atts["id"] == id:
                         k_keys = ["routing_k" + str(i) for i in range(0, self.L)]
                         loop_coeff = [E(e_atts[rout]) for rout in k_keys]
-                        k_id = next(
-                            (i, c) for i, c in enumerate(loop_coeff) if str(c) != "0"
-                        )
                         if first:
+                            k_id = next(
+                                (i, c)
+                                for i, c in enumerate(loop_coeff)
+                                if str(c) != "0"
+                            )
                             momentum = [
                                 (
                                     sum(
@@ -991,42 +1066,13 @@ class LoopIntegrandConstructor(object):
                             ]
                             first = False
 
-            kperp_sq = E(f"sp3D(k_perp({k_id[0]}),k_perp({k_id[0]}))")
-            coll_en = x * E("sp3D(p(2),p(2))^(1/2)") + lam**2 * kperp_sq / (
-                2 * x * E("sp3D(p(2),p(2))^(1/2)")
-            )
-            a_coll_en = (1 - x) * E("sp3D(p(2),p(2))^(1/2)") + lam**2 * kperp_sq / (
-                2 * (1 - x) * E("sp3D(p(2),p(2))^(1/2)")
-            )
-
             # In order to make the collinear replacement always work, replace a final-state energy
             # by energy conservation.
 
-            rep = E("0")
+            integrand = self.canonicalise_energies(integrand, cut_graph)
 
-            f_cut_set = set(cut_graph.final_cut)
-            i_cut_set = set(cut_graph.initial_cut)
-            cut_union = f_cut_set.union(i_cut_set)
-            cut_intersection = f_cut_set.intersection(i_cut_set)
-
-            first_f = True
-            patt = None
-            for e in cut_union - cut_intersection:
-                e_atts = e.get_attributes()
-                if first_f and e in f_cut_set:
-                    patt = E(f"E({e_atts['id']})")
-                    first_f = False
-                elif e in f_cut_set:
-                    rep -= E(f"E({e_atts['id']})")
-                else:
-                    rep += E(f"E({e_atts['id']})")
-            if patt is None:
-                raise ValueError("Could not identify a final-cut energy to replace.")
-
-            integrand = integrand.replace(patt, rep)
-
-            integrand = integrand.replace(E(f"E({coll_moms[0]})"), coll_en)
-            integrand = integrand.replace(E(f"E({coll_moms[1]})"), a_coll_en)
+            # integrand = integrand.replace(E(f"E({coll_moms[0]})"), coll_en)
+            # integrand = integrand.replace(E(f"E({coll_moms[1]})"), a_coll_en)
 
             integrand = self.replace_energies(integrand, cut_graph)
 
@@ -1038,50 +1084,15 @@ class LoopIntegrandConstructor(object):
 
             integrand = self.route_integrand(integrand, cut_graph)
 
-            # Let s*q(i) be the vector that should become collinear to p(2). s encodes the cut orientation. We
-            # write s*q(i)=s*(q(i)-a*k(j))+a*s*k(j)= x*p(2)+lam*k_perp(j) and solve in k(j), giving
-            # k(j)=a*s*x*p(2)+a*s*lam*k_perp(j)-a*(q(i)-a*k(j)). Now s=momentum[1] and a=k_id[1] and j=k_id[0].
-
-            repl = k_id[1] * (
-                momentum[1] * x * E("p(2)")
-                - (momentum[0] - k_id[1] * E(f"k({k_id[0]})"))
-                + lam * E(f"k_perp({k_id[0]})")
-            )
-            integrand = integrand.replace(E(f"k({k_id[0]})"), repl)
-            integrand = integrand.replace(
-                self.sp3D(E(f"k_perp({k_id[0]})"), E("p(x_)")), E("0")
-            )
-
-            # Only consider leading-virtuality contribution
-
-            # if integrand.series(lam, 0, -4).to_expression() != 0:
-            #    raise ValueError(
-            #        "Found super-logarithmic singularity in p2sq... not possible"
-            #    )
-
-            integrand = integrand.series(lam, 0, -1).to_expression().replace(lam, 1)
-
-            # Invert back the collinear parametrisation. Since s*q(i)= x*p(2)+lam*k_perp(j), we have
-            # x=s*q(i).p(2)/p(2).p(2)
-
-            repl_x = (
-                momentum[1]
-                * self.sp3D(momentum[0], E("p(2)"))
-                / self.sp3D(E("p(2)"), E("p(2)"))
-            )
-
-            repl_kperp = E(f"k({k_id[0]},1)^2+k({k_id[0]},2)^2")
-
-            integrand = integrand.replace(E("x"), repl_x)
-            integrand = integrand.replace(
-                self.sp3D(E("k_perp(0)"), E("k_perp(0)")), repl_kperp
+            integrand, repl, repl_x = self.approximator.collinear_approximation(
+                integrand, momentum, k_id, E("p(2)")
             )
 
             # multiply theta functions in
 
             integrand = integrand * E(f"Θ({repl_x})") * E(f"Θ(1-{repl_x})")
 
-            return RoutedIntegrand(
+            routed_integrand = RoutedIntegrand(
                 integrand,
                 cut_graph,
                 [
@@ -1089,10 +1100,123 @@ class LoopIntegrandConstructor(object):
                     repl.replace(x, repl_x).series(lam, 0, 0).to_expression(),
                 ],
                 emr_integrand,
+                "anti-collinear",
+            )
+            routed_integrands.append(routed_integrand)
+
+            return routed_integrands
+
+        elif len(partition[0]) > 1 and len(partition[1]) > 1:
+            lam = S("λ", is_scalar=True)
+            x = S("x", is_scalar=True, is_positive=True)
+
+            soft_edge = list(set(partition[0]).intersection(partition[1]))
+
+            if len(soft_edge) != 1:
+                raise ValueError(
+                    "Big problem with soft approximation!!! (or your desires are too demanding for this poor, little code)"
+                )
+
+            id = soft_edge[0].get_attributes()["id"]
+            momentum = []
+            for e in cut_graph.graph.get_edges():
+                e_atts = e.get_attributes()
+                if e_atts["id"] == id:
+                    k_keys = ["routing_k" + str(i) for i in range(0, self.L)]
+                    loop_coeff = [E(e_atts[rout]) for rout in k_keys]
+                    k_id = next(
+                        (i, c) for i, c in enumerate(loop_coeff) if str(c) != "0"
+                    )
+                    momentum = [
+                        (
+                            sum(loop_coeff[i] * E(f"k({i})") for i in range(0, self.L))
+                            + E(e_atts["routing_p1"]) * E("p(1)")
+                            + E(e_atts["routing_p2"]) * E("p(2)")
+                        ),
+                        e_atts["is_cut_DY"],
+                    ]
+
+            # integrand = E("(-(E(0)+E(2)+E(3))+E(0)+E(5))^-1*E(2)^(-2)")
+
+            integrand = self.canonicalise_energies(integrand, cut_graph)
+
+            integrand = self.replace_energies(integrand, cut_graph)
+            integrand = integrand.replace(E("p1sq"), E("0"))
+            integrand = integrand.replace(E("p2sq"), E("0"))
+            integrand = self.route_integrand(integrand, cut_graph)
+
+            soft_integrand, repl_s = self.approximator.soft_approximation(
+                deepcopy(integrand), deepcopy(momentum), deepcopy(k_id)
             )
 
+            soft_collinear_integrand1, repl1, repl1_x = (
+                self.approximator.collinear_approximation(
+                    deepcopy(soft_integrand),
+                    momentum,
+                    k_id,
+                    E("p(1)"),
+                )
+            )
+
+            soft_collinear_integrand2, repl2, repl2_x = (
+                self.approximator.collinear_approximation(
+                    deepcopy(soft_integrand),
+                    momentum,
+                    k_id,
+                    E("p(2)"),
+                )
+            )
+
+            # TODO: Lambdasq theta functions
+
+            integrand = (
+                soft_integrand + soft_collinear_integrand1 + soft_collinear_integrand2
+            )  # * E(f"Θ({repl_x})") * E(f"Θ(1-{repl_x})")
+
+            print("replacements")
+            print(repl_s)
+            print(repl1)
+
+            routed_integrand_soft = RoutedIntegrand(
+                soft_integrand,
+                cut_graph,
+                [
+                    E(f"k({k_id[0]})"),
+                    repl_s.series(lam, 0, 0).to_expression(),
+                ],
+                emr_integrand,
+                "soft",
+            )
+            routed_integrands.append(routed_integrand_soft)
+            routed_integrand_collinear1 = RoutedIntegrand(
+                soft_collinear_integrand1 * E(f"Θ({repl1_x})") * E(f"Θ(1-{repl1_x})"),
+                cut_graph,
+                [
+                    E(f"k({k_id[0]})"),
+                    repl_s.series(lam, 0, 0).to_expression(),
+                    # repl1.replace(x, repl1_x).series(lam, 0, 0).to_expression(),
+                ],
+                emr_integrand,
+                "soft-collinear",
+            )
+            routed_integrands.append(routed_integrand_collinear1)
+            routed_integrand_collinear2 = RoutedIntegrand(
+                soft_collinear_integrand2 * E(f"Θ({repl2_x})") * E(f"Θ(1-{repl2_x})"),
+                cut_graph,
+                [
+                    E(f"k({k_id[0]})"),
+                    repl_s.series(lam, 0, 0).to_expression(),
+                    # repl2.replace(x, repl2_x).series(lam, 0, 0).to_expression(),
+                ],
+                emr_integrand,
+                "soft-anti-collinear",
+            )
+            routed_integrands.append(routed_integrand_collinear2)
+
+            return routed_integrands
+
         else:
-            raise ValueError("reached not implemented part")
+            raise ValueError("Big problem if you get here :( ")
 
     # Eliminates raised propagators by multiplying the relevant diagrams by the raised denominator
 
@@ -1142,11 +1266,16 @@ class LoopIntegrandConstructor(object):
                     lmb_choice.append(e_atts["id"])
             cut_graph.graph = self.change_routing(cut_graph.graph, lmb_choice)
 
+        print("correctly routed GGGGGraph")
+        print(cut_graph.graph)
+
         loop_integrand, raised_cut = self.eliminate_raised_cuts(
             emr_integrand, cut_graph
         )
 
-        loop_integrand = self.approximator(loop_integrand, cut_graph, raised_cut)
+        loop_integrand = self.leading_virtuality_expansion(
+            loop_integrand, cut_graph, raised_cut
+        )
 
         return loop_integrand
 
@@ -1173,6 +1302,12 @@ class evaluate_integrand(object):
         integrand = integrand.replace(
             E("k(x___,y___)"),
             t * E("k(x___,y___)"),
+        )
+
+        ## NEW: rescale z
+        integrand = integrand.replace(
+            E("z"),
+            t**2 * E("z"),
         )
 
         return integrand
@@ -1227,7 +1362,14 @@ class evaluate_integrand(object):
         e_surface = self.concretise_scalar_products(e_surface)
         e_surface = self.impose_rest_frame(e_surface)
 
-        return e_surface.replace(E("k(0,x_)"), E("t*k(0,x_)"))
+        rescaled_e_surface = e_surface.replace(E("k(0,x_)"), E("t*k(0,x_)"))
+
+        ## NEW: RESCALE z
+        rescaled_e_surface = rescaled_e_surface.replace(E("z"), E("t^2*z"))
+
+        # print(rescaled_e_surface)
+
+        return rescaled_e_surface
 
     def __init__(self, L, process, routed_integrand):
         self.L = L
@@ -1285,13 +1427,24 @@ class evaluate_integrand(object):
 
         self.e_surface = self.set_e_surface()
 
+        # self.is_rescaling_necessary = True
+        # if self.e_surface.derivative(E("t")) == E("0"):
+        #    self.is_rescaling_necessary = False
+        #    self.routed_integrand.integrand = self.routed_integrand.integrand.replace(
+        #        E("z"), E("1")
+        #    )
+
     def set_t_value(self, k, p1, p2, z):
 
         if self.process == "DY":
-            if len(self.routed_integrand.cut_graph.final_cut) > 1:
+            if (
+                len(self.routed_integrand.cut_graph.final_cut) > 1
+                # and self.is_rescaling_necessary
+            ):
                 s = 4 * p1[2] ** 2
 
                 e_surface = self.e_surface
+                print(e_surface)
 
                 for j in range(0, self.L):
                     for i in range(0, 3):
@@ -1378,6 +1531,7 @@ class evaluate_integrand(object):
         print(input)
         print(energies)
         print(masses)
+        # print(self.routed_integrand.integrand)
         emr_int = self.routed_integrand.emr_integrand
         # print(emr_int)
 
