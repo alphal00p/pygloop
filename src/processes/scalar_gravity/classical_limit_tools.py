@@ -736,7 +736,7 @@ class ClassicalLimitProcessor:
         return expr.expand()
 
     def evaluate_numerator_spenso_numeric(
-        self, numerator, loop_momenta, external_momenta, elaps
+        self, numerator, loop_momenta, external_momenta
     ):
 
         numerator = copy.deepcopy(numerator)
@@ -767,19 +767,17 @@ class ClassicalLimitProcessor:
             ki = LibraryTensor.dense(ki_structure, k)
             hep_lib_with_momenta.register(ki)
 
-        # tn_numerical = TensorNetwork(cook_indices(numerator), hep_lib_with_momenta)
-        # tn_numerical_to_execute = tn_numerical.copy()
         tn_numerical_to_execute = TensorNetwork(
             cook_indices(numerator), hep_lib_with_momenta
         )
 
-        start_time = time.perf_counter()
+        #start_time = time.perf_counter()
 
         tn_numerical_to_execute.execute(hep_lib_with_momenta)
 
-        elapsed_time = time.perf_counter() - start_time
+        #elapsed_time = time.perf_counter() - start_time
 
-        elaps.append(elapsed_time)
+        #elaps.append(elapsed_time)
 
         numerical_evaluation = tn_numerical_to_execute.result_scalar()
 
@@ -790,51 +788,13 @@ class ClassicalLimitProcessor:
 
         for group_id, g_input in enumerate(graphs):
             g: DotGraph = copy.deepcopy(g_input)
-            """
-            for v in g.dot.get_nodes():
-                int_id = v.get_attributes().get("int_id", "").strip().strip('"')
-                if int_id.startswith("V_S1S1") or int_id.startswith("V_S2S2"):
-                    v_num = Es(copy.deepcopy(v.get_attributes()["num"])).expand()
-                    v.get_attributes()["num"] = expr_to_string(v_num[0])
-                elif int_id.startswith("V_Gr"):
-                    v.get_attributes()["num"] = (
-                        "(a*Q(5,spenso::mink(4,hedge(10)))*Q(5,spenso::mink(4,hedge(7,1)))-b*Q(6,spenso::mink(4,hedge(10)))*Q(7,spenso::mink(4,hedge(7,1)))+c*Q(6,spenso::mink(4,hedge(10)))*Q(6,spenso::mink(4,hedge(7,1))))*spenso::g(spenso::mink(4,hedge(10,1)),spenso::mink(4,hedge(9)))*spenso::g(spenso::mink(4,hedge(7)),spenso::mink(4,hedge(9,1)))"
-                    )
 
-            for e in g.dot.get_edges():
-                e_part = e.get_attributes()["particle"]
-                if e_part == "graviton":
-                    e_num = Es(copy.deepcopy(e.get_attributes()["num"])).expand()
-                    e.get_attributes()["num"] = expr_to_string(e_num[0])
-            """
+            # print(g)
 
-            print(g)
-
-            # Add the main graph
+            # Take the classical limit
             self.set_group_id(g, group_id, is_master=True)
             self.classical_limit_in_numerator(g)
             self.adjust_projectors(g)
-            # self.delocalize_numerators(g)
-            print("hiiiiiiiiiiiiiiiii")
-
-            """
-            g_copy2 = copy.deepcopy(g)
-
-            print("zzzzzzzzzzzzzzzzzzzzzzzzzz")
-            print(g_copy2.dot)
-
-            reso = self.arrange_power_energies(g_copy2)
-
-            print("zzzzzzzzzzzzzzzzzzzzzzzzzz")
-            print(reso)
-
-            reso = self.delocalize_numerators(g_copy2)
-
-            print("zzzzzzzzzzzzzzzzzzzzzzzzzz")
-            print(sum(r[0][1] for r in reso))
-
-            # num_split = self.arrange_power_energies(g)
-            """
 
             ## Kinematics
 
@@ -852,33 +812,44 @@ class ClassicalLimitProcessor:
                 p4,
             ]
 
-            #            k0 = [E("k0"), 0.0, 0.0, 0.0]
-            #            ks = [k0]
-            #            p1 = np.array([E("p10"), 0, 0, 0])
-            #            p2 = np.array([0, 0, 0, 0])
-            #            p3 = -np.array([-E("p10"), 0, 0, 0])
-            #            p4 = -np.array([-0, 0.0, -0, 0])
-            #            ps = [
-            #                p1,
-            #                p2,
-            #                p3,
-            #                p4,
-            #            ]
-
             print("momentum conservation??")
             print(p1 + p2 - p3 - p4)
 
-            ## TEST1
+            ## TEST1: raised numerator treatment
 
             g_copy2 = copy.deepcopy(g)
-
             reso = self.delocalize_numerators(g_copy2)
-
             post_num = self.re_multiply_numerator(
                 copy.deepcopy(g_copy2), copy.deepcopy(reso)
             )
-
             post_num = self.prepare_numerator(post_num, copy.deepcopy(g_copy2))
+
+            # print evaluation
+
+            print(
+               self.evaluate_numerator_spenso_numeric(
+                   post_num,
+                   ks,
+                   ps,
+               )
+            )
+
+
+            # TEST2: no raised numerator treatment
+
+            g_copy = copy.deepcopy(g)
+            pre_num = self.get_numerator(g_copy)
+            pre_num = self.prepare_numerator(pre_num, g_copy)
+
+            # print evaluation
+
+            print(
+               self.evaluate_numerator_spenso_numeric(
+                   pre_num,
+                   ks,
+                   ps,
+               )
+            )
 
             # print(
             #    self.evaluate_numerator_spenso_numeric(
@@ -888,56 +859,27 @@ class ClassicalLimitProcessor:
             #    )
             # )
 
-            import random as rn
-            # import time
-
-            elaps = []
-            # start_time = time.perf_counter()
-            for i in range(100):
-                k0 = [rn.random(), rn.random(), rn.random(), rn.random()]
-                k1 = [rn.random(), rn.random(), rn.random(), rn.random()]
-                ks = [k0, k1]
-                self.evaluate_numerator_spenso_numeric(post_num, ks, ps, elaps)
-            # elapsed_time = time.perf_counter() - start_time
-            print(elaps)
-            print(sum(deltat for deltat in elaps) / 100)
-
-            ## TEST2
-
-            g_copy = copy.deepcopy(g)
-
-            # print(g_copy.dot)
-
-            pre_num = self.get_numerator(g_copy)
-
-            # print(pre_num)
-
-            pre_num = self.prepare_numerator(pre_num, g_copy)
-
-            # print(
-            #    self.evaluate_numerator_spenso_numeric(
-            #        pre_num,
-            #        ks,
-            #        ps,
-            #    )
-            # )
-
-            # post_numerator = E(
-            #    expr_to_string(to_dots(simplify_metrics(simplify_gamma(post_num))))
-            # ).replace(Es("UFO::dim"), E("4"), repeat=True)
-
-            # print("hereeee")
-            # print(expr_to_string(post_numerator))
-
-            # g.get_attributes()["num"] = expr_to_string(post_numerator)
+#            import random as rn
+#            # import time
+#
+#            elaps = []
+#            # start_time = time.perf_counter()
+#            for i in range(100):
+#                k0 = [rn.random(), rn.random(), rn.random(), rn.random()]
+#                k1 = [rn.random(), rn.random(), rn.random(), rn.random()]
+#                ks = [k0, k1]
+#                self.evaluate_numerator_spenso_numeric(post_num, ks, ps, elaps)
+#            # elapsed_time = time.perf_counter() - start_time
+#            print(elaps)
+#            print(sum(deltat for deltat in elaps) / 100)
 
             processed_graphs.append(g)
 
             # As an example, add a fake UV equal to the original graph
             # processed_graphs.extend(self.generate_UV_CTs(g, group_id))
 
-        # Want it to crash
-        # return processed_graphs
+
+        return processed_graphs
 
     def remove_raised_power(self, graph: DotGraph):
         return graph
