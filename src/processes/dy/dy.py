@@ -13,6 +13,8 @@ from itertools import product  # noqa: F401
 from pprint import pformat, pprint  # noqa: F401
 from typing import Any, Callable
 
+from copy import deepcopy
+
 import progressbar  # pyright: ignore
 import vegas  # type: ignore
 
@@ -29,8 +31,10 @@ from symbolica.community.idenso import (  # noqa: F401 # pyright: ignore
 from symbolica.community.spenso import *  # noqa: F403 # type: ignore
 
 from processes.dy.dy_classes import DYDotGraphs, VacuumDotGraph  # noqa: F401
+from processes.dy.dy_infrared_test import infrared_test
 from processes.dy.dy_integrand import (
-    IntegrandConstructor,
+    EMRIntegrandConstructor,
+    LoopIntegrandConstructor,
     evaluate_integrand,
     routed_cut_graph,
 )
@@ -273,7 +277,8 @@ class DY(object):
         filtered_graphs = DYDotGraphs()
         filtered_graphs.extend(copy.deepcopy(graphs.filter_particle_definition(["a"])))
 
-        processor = IntegrandConstructor([], "DY", 1)
+        processor = EMRIntegrandConstructor([], "DY", 1)
+        loop_processor = LoopIntegrandConstructor([], "DY", 1)
 
         for graph in filtered_graphs:
             g = copy.deepcopy(graph)
@@ -282,20 +287,23 @@ class DY(object):
             routed_graphs = vacuum_g.cut_graphs_with_routing_leading_virtuality(
                 [], ["a"]
             )
+            routed_integrands = []
             for gg in routed_graphs:
+                # print(gg[3])
                 processed_graphs.append(gg[3])
-                cut_graph = routed_cut_graph(gg[3], gg[0], gg[1], gg[2])
-                if len(gg[2][0]) == 2 and len(gg[2][1]) == 1:
-                    integrand = processor.get_integrand(cut_graph)
-                    my_evaluator = evaluate_integrand(1, integrand, "DY")
-                    print(gg[3])
-                    print(
-                        my_evaluator.eval(
-                            [[0.1, 0.2, 0.3]], [0.0, 0.0, 1], [0.0, 0.0, -1], 0.0
-                        )
-                    )
-            # print("n cuts:", len(cuts))
-            # print("n routed:", len(processed_graphs))
+                cut_graph = deepcopy(routed_cut_graph(gg[3], gg[0], gg[1], gg[2]))
+                # if len(gg[2][0]) > 1 and len(gg[2][1]) == 1:
+                print(cut_graph.graph.get_name())
+                print(cut_graph.graph)
+                routed_integrands = routed_integrands + loop_processor.get_integrand(
+                    cut_graph
+                )
+
+            ir_test = infrared_test(1, "DY", routed_integrands)
+            print("##################")
+            ir_test.approach_limits(1)
+
+        print("n routed:", len(processed_graphs))
         return processed_graphs
 
     def process_2L_generated_graphs(self, graphs: DYDotGraphs) -> DYDotGraphs:
@@ -326,15 +334,13 @@ class DY(object):
         match self.n_loops:
             case 1:
                 logger.info("Generating one-loop graphs ...")
-                # self.gl_worker.run(
-                #    f"generate amp d d~ > d d~ | d d~ g a QED==2 [{{1}}] --only-diagrams --numerator-grouping only_detect_zeroes --select-graphs GL07 -p {base_name} -i {graphs_process_name}"
-                # )
-                # self.gl_worker.run(
-                #    f"generate amp d d~ > d d~ | d d~ g a QED==2 [{{1}}] --only-diagrams --numerator-grouping only_detect_zeroes --symmetrize-left-right-states true -p {base_name} -i {graphs_process_name}"
-                # )
-                self.gl_worker.run(
-                    f"generate amp d g > d g | d d~ g a QED==2 [{{1}}] --only-diagrams --numerator-grouping only_detect_zeroes --select-graphs GL10 -p {base_name} -i {graphs_process_name}"  #
+                self.gl_worker.run(  # GL09
+                    f"generate amp d d~ > d d~ | d d~ g a QED==2 [{{1}}] --only-diagrams --numerator-grouping only_detect_zeroes --select-graphs GL02 -p {base_name} -i {graphs_process_name}"
                 )
+
+                # self.gl_worker.run(  ## GL04
+                #    f"generate amp d g > d g | d d~ g a QED==2 [{{1}}] --only-diagrams --numerator-grouping only_detect_zeroes --select-graphs GL04 -p {base_name} -i {graphs_process_name}"  #
+                # )
                 self.gl_worker.run("save state -o")
                 DY_1L_dot_files = self.gl_worker.get_dot_files(
                     process_id=None, integrand_name=graphs_process_name

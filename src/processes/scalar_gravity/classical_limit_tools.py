@@ -2,25 +2,29 @@ from __future__ import annotations
 
 import copy
 import re
+import time
 from collections import Counter, deque
-from typing import TYPE_CHECKING, List, Optional, Tuple
+from typing import TYPE_CHECKING
 
 import numpy as np
 import pydot
 
-from symbolica import E, Evaluator, Expression, Replacement, S  # isort: skip # noqa: F401 # type: ignore
+from symbolica import E, Evaluator, Expression, Replacement, S, N  # isort: skip # noqa: F401 # type: ignore
 import itertools
 
 from symbolica.community.idenso import (  # type: ignore
-    cook_indices,  # noqa: F401
-    simplify_color,  # noqa: F401
-    simplify_gamma,  # noqa: F401
-    simplify_metrics,  # noqa: F401
-    to_dots,  # noqa: F401
-)  # isort: skip # noqa: F401
-from symbolica.community.spenso import (  # noqa: F401 # type: ignore
+    cook_indices,
+    simplify_color,
+    simplify_gamma,
+    simplify_metrics,
+    to_dots,
+)  # isort: skip
+from symbolica.community.spenso import (  # type: ignore
+    LibraryTensor,
+    Representation,
     TensorLibrary,
     TensorNetwork,
+    TensorStructure,
 )
 from ufo_model_loader.commands import Model  # noqa: F401 # type: ignore
 
@@ -67,7 +71,7 @@ def _is_ext_edge(e) -> bool:
     return _is_ext(e.get_source()) or _is_ext(e.get_destination())
 
 
-def _node_key(endpoint: str, collapse_ports: bool = True) -> str:
+def _node_key(endpoint, collapse_ports: bool = True):
     ep = _strip_quotes(endpoint)
     if collapse_ports and ":" in ep:
         return ep.split(":", 1)[0]
@@ -75,7 +79,7 @@ def _node_key(endpoint: str, collapse_ports: bool = True) -> str:
 
 
 # pydot vertices are in the form "v:port", where port is an int; returns (v,port)
-def _parse_port_endpoint(endpoint: str) -> Optional[Tuple[str, int]]:
+def _parse_port_endpoint(endpoint: str):
     ep = _strip_quotes(endpoint)
     m = re.fullmatch(r"([^:]+):(\d+)", ep)
     if not m:
@@ -121,7 +125,7 @@ def is_connected(graph, node_subset_input) -> bool:
     return len(visited) == len(subset)
 
 
-def _base_node(endpoint: str) -> str:
+def _base_node(endpoint) -> str:
     ep = _strip_quotes(endpoint)
     parsed = _parse_port_endpoint(ep)
     return parsed[0] if parsed else ep
@@ -132,7 +136,7 @@ def _ext_idx(node: str) -> int | None:
     return int(m.group(1)) if m else None
 
 
-def boundary_edges(graph: pydot.Dot, S: set[str]) -> List[pydot.Edge]:
+def boundary_edges(graph: pydot.Dot, S: set[str]):
     out = []
     edges = graph.get_edges()
     nodes = set()
@@ -149,7 +153,7 @@ def boundary_edges(graph: pydot.Dot, S: set[str]) -> List[pydot.Edge]:
     return out
 
 
-class ClassicalLimitProcessor(object):
+class ClassicalLimitProcessor:
     def __init__(self, process: ScalarGravity):
         self.process = process
 
@@ -211,10 +215,7 @@ class ClassicalLimitProcessor(object):
         e_source = _node_key(edge.get_source())
         e_destination = _node_key(edge.get_destination())
 
-        if vertex_order.index(e_source) < vertex_order.index(e_destination):
-            return True
-        else:
-            return False
+        return vertex_order.index(e_source) < vertex_order.index(e_destination)
 
     def classical_limit_in_numerator(self, graph: DotGraph) -> None:
 
@@ -243,7 +244,7 @@ class ClassicalLimitProcessor(object):
                         ])
 
             # check signs orientation
-            if int_id.startswith("V_S1S1") or int_id.startswith("V_S2S2"):
+            if int_id.startswith("V_S1S1") or int_id.startswith("V_S2S2"):  # noqa: PIE810
                 num = E(v.get_attributes()["num"].strip().strip('"'))
 
                 for rep in v_replacements:
@@ -257,7 +258,6 @@ class ClassicalLimitProcessor(object):
         attrs["projector"] = (
             f'"{expr_to_string(g.get_projector() * self.get_color_projector())}"'
         )
-        return
 
     def set_group_id(self, g: DotGraph, group_id: int, is_master: bool = False) -> None:
         attrs = g.get_attributes()
@@ -283,14 +283,12 @@ class ClassicalLimitProcessor(object):
     # if we represented powers of momenta as dots on edges, the resulting expression for the numerator would
     # have at most two dots per edge.
 
-    def arrange_power_energies(
-        self, g: DotGraph
-    ) -> List[List[Tuple[Tuple[int], Expression]]]:
-        graviton_edges = set([
+    def arrange_power_energies(self, g: DotGraph):
+        graviton_edges = {
             e
             for e in g.dot.get_edges()
             if e.get_attributes()["particle"].strip('"') == "graviton"
-        ])
+        }
 
         selected_edges = []
 
@@ -352,7 +350,7 @@ class ClassicalLimitProcessor(object):
 
             # print(num)
 
-            index_set = set([id[S("x_")] for id in num.match(E("Q(x_,y___)"))])
+            index_set = {id[S("x_")] for id in num.match(E("Q(x_,y___)"))}
 
             # Group the terms in each vertex by edge_index: in other words, for a numerator Q(8)*Q(8)+Q(8)*Q(7)+Q(7)*Q(7),
             # write it as [[(8,8),Q(8)*Q(8)],[(8,7),Q(8)*Q(7)],[(7,7),Q(7)*Q(7)]] (of course terms are many more dure to index)
@@ -360,7 +358,7 @@ class ClassicalLimitProcessor(object):
 
             subsets = list(
                 itertools.combinations_with_replacement(
-                    sorted(index_set), len(index_set)
+                    sorted(index_set, key=str), len(index_set)
                 )
             )  # type: ignore
 
@@ -373,11 +371,8 @@ class ClassicalLimitProcessor(object):
                 # print("------")
                 # print(term)
                 ids = term.match(E("Q(x_,y___)"))
-                term_ids = []
-                for mat in ids:
-                    # print(mat)
-                    term_ids.append(mat[S("x_")])
-                for i, sub in zip(range(0, len(subsets)), subsets):
+                term_ids = [mat[S("x_")] for mat in ids]
+                for i, sub in zip(range(len(subsets)), subsets):
                     # print(tuple(term_ids))
                     # print(tuple(sub))
                     if Counter(term_ids) == Counter(sub):
@@ -415,11 +410,11 @@ class ClassicalLimitProcessor(object):
     ):
         chosen_e = reduced_graph_edges_deg2[-1]
 
-        nodes = set([
+        nodes = {
             v.get_name()
             for v in g.dot.get_nodes()
             if not v.get_name().startswith("ext")
-        ])
+        }
         v_s = _node_key(chosen_e.get_source())
         v_d = _node_key(chosen_e.get_destination())
         cuts_1 = self.subsets_containing_S1_not_S2(g.dot, nodes, {v_s}, {v_d})
@@ -456,7 +451,7 @@ class ClassicalLimitProcessor(object):
                         )
                         == 0
                     ):
-                        es_previous_cuts = set([
+                        es_previous_cuts = {
                             e
                             for previous_cut in previous_cuts
                             for e in [
@@ -464,7 +459,7 @@ class ClassicalLimitProcessor(object):
                                 for ep in boundary_edges(g.dot, previous_cut[1])
                                 if not _is_ext_edge(ep)
                             ]
-                        ])
+                        }
                         if len(bry_cut.intersection(es_previous_cuts)) == 0:
                             copy_cut = copy.deepcopy(previous_cuts)
                             copy_cut.append([chosen_e, cut])
@@ -490,9 +485,9 @@ class ClassicalLimitProcessor(object):
             if flattened_weights.count(int(e.get_attributes()["id"])) == 1
         ]
 
-        reduced_graph_vertices = set([
+        reduced_graph_vertices = {
             _node_key(e.get_source()) for e in reduced_graph_edges_deg2
-        ]).union([_node_key(e.get_destination()) for e in reduced_graph_edges_deg2])
+        }.union([_node_key(e.get_destination()) for e in reduced_graph_edges_deg2])
         reduced_loops = len(reduced_graph_edges_deg2) - len(reduced_graph_vertices) + 1
 
         if reduced_loops <= 0:
@@ -634,13 +629,11 @@ class ClassicalLimitProcessor(object):
                 summand *= factor[1]
             sum += summand
 
-        # print(sum)
-
         # Multiply in numerator for other vertices
 
         for v in graph.dot.get_nodes():
             int_id = v.get_attributes().get("int_id", "").strip().strip('"')
-            if int_id.startswith("V_S1S1") or int_id.startswith("V_S2S2"):
+            if int_id.startswith(("V_S1S1", "V_S2S2")):
                 sum *= Es(v.get_attributes()["num"])
             v.get_attributes()["num"] = "1"
 
@@ -662,9 +655,10 @@ class ClassicalLimitProcessor(object):
             E("gammalooprs::Q(x_,y_)"),
         )
 
-        return sum
+        return sum  # noqa: RET504
 
-    def evaluate_numerator(self, numerator, graph, loop_momenta, external_momenta):
+    def prepare_numerator(self, numerator, graph):
+
         eval_numerator = copy.deepcopy(numerator)
         for e in graph.dot.get_edges():
             e_atts = e.get_attributes()
@@ -674,15 +668,19 @@ class ClassicalLimitProcessor(object):
                 E(f"gammalooprs::Q({e_id},a___)"), E(lmb_rep)
             )
 
-        #        eval_numerator = eval_numerator.replace(E("UFO::TTT"), E("1/2"))
-        #        eval_numerator = eval_numerator.replace(E("UFO::SSTmpart2"), E("1/3"))
-        #        eval_numerator = eval_numerator.replace(E("UFO::SSTmpart1"), E("1/4"))
-        #        eval_numerator = eval_numerator.replace(E("UFO::SST"), E("1/5"))
-        #        eval_numerator = eval_numerator.replace(E("UFO::SSTTmpart2"), E("1/6"))
         eval_numerator = eval_numerator.replace(Es("UFO::dim"), E("4"), repeat=True)
+        eval_numerator = eval_numerator.replace(E("UFO::TTT"), E("1/2"))
+        eval_numerator = eval_numerator.replace(E("UFO::SSTmpart2"), E("1/3"))
+        eval_numerator = eval_numerator.replace(E("UFO::SSTmpart1"), E("1/4"))
+        eval_numerator = eval_numerator.replace(E("UFO::SST"), E("1/5"))
+        eval_numerator = eval_numerator.replace(E("UFO::SSTTmpart2"), E("1/6"))
+
+        return eval_numerator  # noqa: RET504
+
+    def evaluate_numerator(self, numerator, loop_momenta, external_momenta):
 
         eval_numerator = E(
-            expr_to_string(to_dots(simplify_metrics(simplify_gamma(eval_numerator))))
+            expr_to_string(to_dots(simplify_metrics(simplify_gamma(numerator))))
         )
 
         eval_numerator = eval_numerator.replace(
@@ -693,18 +691,101 @@ class ClassicalLimitProcessor(object):
         )
 
         for i, k in enumerate(loop_momenta):
-            for j in range(0, 4):
+            for j in range(4):
                 eval_numerator = eval_numerator.replace(E(f"K({i},{j})"), E(str(k[j])))
 
         for i, p in enumerate(external_momenta):
-            for j in range(0, 4):
+            for j in range(4):
                 eval_numerator = eval_numerator.replace(E(f"P({i},{j})"), E(str(p[j])))
 
         return eval_numerator
 
         # comp_num=numerator.replace(E("spenso::dot(x_,gammalooprs::Q(i_),gammalooprs::Q(j_))"),E())
 
-    def process_graphs(self, graphs: DotGraphs) -> DotGraphs:
+    def evaluate_numerator_spenso(self, numerator, loop_momenta, external_momenta):
+
+        # print(symbolica.__version__)
+        expr = simplify_color(numerator)
+        hep_lib = TensorLibrary.hep_lib_atom()
+        hep_lib.register(cook_indices(expr))  # pyright: ignore
+        print("hey1")
+        tn = TensorNetwork(cook_indices(expr), hep_lib)
+        print("hey2")
+        tn.execute(hep_lib)
+        print("hey3")
+        expr = tn.result_scalar()
+
+        # Normalize wrapped indices generated by spenso contractions.
+        expr = expr.replace(E("spenso::cind(x_)"), E("x_"), repeat=True)
+        expr = expr.replace(E("cind(x_)"), E("x_"), repeat=True)
+
+        # Plug numeric K and P (both namespaced and non-namespaced heads).
+        for i, k in enumerate(loop_momenta):
+            for j in range(4):
+                expr = expr.replace(E(f"K({i},{j})"), E(str(k[j])), repeat=True)
+                expr = expr.replace(
+                    E(f"gammalooprs::K({i},{j})"), E(str(k[j])), repeat=True
+                )
+        for i, p in enumerate(external_momenta):
+            for j in range(4):
+                expr = expr.replace(E(f"P({i},{j})"), E(str(p[j])), repeat=True)
+                expr = expr.replace(
+                    E(f"gammalooprs::P({i},{j})"), E(str(p[j])), repeat=True
+                )
+
+        return expr.expand()
+
+    def evaluate_numerator_spenso_numeric(
+        self, numerator, loop_momenta, external_momenta, elaps
+    ):
+
+        numerator = copy.deepcopy(numerator)
+
+        hep_lib_with_momenta = TensorLibrary.hep_lib()
+        mink_rep = Representation.mink(4)
+
+        # External momenta
+        vector_name_p = S("P")
+        p1_structure = TensorStructure(mink_rep, N(0), name=vector_name_p)  # pyright: ignore
+        p2_structure = TensorStructure(mink_rep, N(1), name=vector_name_p)  # pyright: ignore
+        p3_structure = TensorStructure(mink_rep, N(2), name=vector_name_p)  # pyright: ignore
+        p4_structure = TensorStructure(mink_rep, N(3), name=vector_name_p)  # pyright: ignore
+        p1 = LibraryTensor.dense(p1_structure, external_momenta[0])
+        p2 = LibraryTensor.dense(p2_structure, external_momenta[1])
+        p3 = LibraryTensor.dense(p3_structure, external_momenta[2])
+        p4 = LibraryTensor.dense(p4_structure, external_momenta[3])
+
+        hep_lib_with_momenta.register(p1)
+        hep_lib_with_momenta.register(p2)
+        hep_lib_with_momenta.register(p3)
+        hep_lib_with_momenta.register(p4)
+
+        # Loop momenta
+        vector_name_k = S("K")
+        for i, k in enumerate(loop_momenta):
+            ki_structure = TensorStructure(mink_rep, N(i), name=vector_name_k)  # pyright: ignore
+            ki = LibraryTensor.dense(ki_structure, k)
+            hep_lib_with_momenta.register(ki)
+
+        # tn_numerical = TensorNetwork(cook_indices(numerator), hep_lib_with_momenta)
+        # tn_numerical_to_execute = tn_numerical.copy()
+        tn_numerical_to_execute = TensorNetwork(
+            cook_indices(numerator), hep_lib_with_momenta
+        )
+
+        start_time = time.perf_counter()
+
+        tn_numerical_to_execute.execute(hep_lib_with_momenta)
+
+        elapsed_time = time.perf_counter() - start_time
+
+        elaps.append(elapsed_time)
+
+        numerical_evaluation = tn_numerical_to_execute.result_scalar()
+
+        return numerical_evaluation.expand()
+
+    def process_graphs(self, graphs: DotGraphs):
         processed_graphs = DotGraphs()
 
         for group_id, g_input in enumerate(graphs):
@@ -797,29 +878,49 @@ class ClassicalLimitProcessor(object):
                 copy.deepcopy(g_copy2), copy.deepcopy(reso)
             )
 
-            print(
-                self.evaluate_numerator(
-                    post_num,
-                    copy.deepcopy(g_copy2),
-                    ks,
-                    ps,
-                )
-            )
+            post_num = self.prepare_numerator(post_num, copy.deepcopy(g_copy2))
+
+            # print(
+            #    self.evaluate_numerator_spenso_numeric(
+            #        post_num,
+            #        ks,
+            #        ps,
+            #    )
+            # )
+
+            import random as rn
+            # import time
+
+            elaps = []
+            # start_time = time.perf_counter()
+            for i in range(100):
+                k0 = [rn.random(), rn.random(), rn.random(), rn.random()]
+                k1 = [rn.random(), rn.random(), rn.random(), rn.random()]
+                ks = [k0, k1]
+                self.evaluate_numerator_spenso_numeric(post_num, ks, ps, elaps)
+            # elapsed_time = time.perf_counter() - start_time
+            print(elaps)
+            print(sum(deltat for deltat in elaps) / 100)
 
             ## TEST2
 
             g_copy = copy.deepcopy(g)
 
+            # print(g_copy.dot)
+
             pre_num = self.get_numerator(g_copy)
 
-            print(
-                self.evaluate_numerator(
-                    pre_num,
-                    copy.deepcopy(g_copy),
-                    ks,
-                    ps,
-                )
-            )
+            # print(pre_num)
+
+            pre_num = self.prepare_numerator(pre_num, g_copy)
+
+            # print(
+            #    self.evaluate_numerator_spenso_numeric(
+            #        pre_num,
+            #        ks,
+            #        ps,
+            #    )
+            # )
 
             # post_numerator = E(
             #    expr_to_string(to_dots(simplify_metrics(simplify_gamma(post_num))))
@@ -835,7 +936,8 @@ class ClassicalLimitProcessor(object):
             # As an example, add a fake UV equal to the original graph
             # processed_graphs.extend(self.generate_UV_CTs(g, group_id))
 
-        return processed_graphs
+        # Want it to crash
+        # return processed_graphs
 
     def remove_raised_power(self, graph: DotGraph):
         return graph

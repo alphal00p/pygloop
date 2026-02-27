@@ -67,12 +67,15 @@ class amplitude_graph(object):
 
 
 class RoutedIntegrand(object):
-    def __init__(self, integrand, cut_graph, replacements, emr_integrand, type):
+    def __init__(
+        self, integrand, cut_graph, replacements, emr_integrand, type, ir_limit
+    ):
         self.emr_integrand = emr_integrand
         self.integrand = integrand
         self.cut_graph = cut_graph
         self.replacements = replacements
         self.approximation_type = type
+        self.ir_limit = ir_limit
 
 
 # This class is responsible for generating the CFF representation of the cut graph
@@ -597,6 +600,12 @@ class EMRIntegrandConstructor(object):
         return cut_graph_cff
 
 
+class UltraVioletSubtraction(object):
+    def __init__(self, integrand, amplitude_graph):
+        self.cut_graph = cut_graph
+        self.integrand = integrand
+
+
 class Approximator(object):
     def __init__(self):
         self.sp3D = S("sp3D", is_linear=True, is_symmetric=True)
@@ -662,6 +671,8 @@ class Approximator(object):
         ] * lam * E("qsoft")
 
         integrand = integrand.replace(E(f"k({k_id[0]})"), repl)
+
+        print(integrand)
 
         integrand = integrand.series(lam, 0, -3).to_expression().replace(lam, 1)
 
@@ -933,7 +944,7 @@ class LoopIntegrandConstructor(object):
             integrand = integrand.replace(E("p2sq"), E("0"))
             integrand = self.route_integrand(integrand, cut_graph)
             routed_integrand = RoutedIntegrand(
-                integrand, cut_graph, [], emr_integrand, "PM"
+                integrand, cut_graph, [], emr_integrand, "PM", []
             )
             routed_integrands.append(routed_integrand)
             return routed_integrands
@@ -1023,6 +1034,10 @@ class LoopIntegrandConstructor(object):
                 ],
                 emr_integrand,
                 "collinear",
+                [
+                    E(f"k({k_id[0]})"),
+                    repl.replace(x, repl_x).series(lam, 0, 0).to_expression(),
+                ],
             )
             routed_integrands.append(routed_integrand)
 
@@ -1101,6 +1116,10 @@ class LoopIntegrandConstructor(object):
                 ],
                 emr_integrand,
                 "anti-collinear",
+                [
+                    E(f"k({k_id[0]})"),
+                    repl.replace(x, repl_x).series(lam, 0, 0).to_expression(),
+                ],
             )
             routed_integrands.append(routed_integrand)
 
@@ -1186,6 +1205,10 @@ class LoopIntegrandConstructor(object):
                 ],
                 emr_integrand,
                 "soft",
+                [
+                    E(f"k({k_id[0]})"),
+                    repl_s.series(lam, 0, 0).to_expression(),
+                ],
             )
             routed_integrands.append(routed_integrand_soft)
             routed_integrand_collinear1 = RoutedIntegrand(
@@ -1198,6 +1221,10 @@ class LoopIntegrandConstructor(object):
                 ],
                 emr_integrand,
                 "soft-collinear",
+                [
+                    E(f"k({k_id[0]})"),
+                    repl1.replace(x, repl1_x).series(lam, 0, 0).to_expression(),
+                ],
             )
             routed_integrands.append(routed_integrand_collinear1)
             routed_integrand_collinear2 = RoutedIntegrand(
@@ -1210,6 +1237,10 @@ class LoopIntegrandConstructor(object):
                 ],
                 emr_integrand,
                 "soft-anti-collinear",
+                [
+                    E(f"k({k_id[0]})"),
+                    repl2.replace(x, repl2_x).series(lam, 0, 0).to_expression(),
+                ],
             )
             routed_integrands.append(routed_integrand_collinear2)
 
@@ -1559,7 +1590,7 @@ class evaluate_integrand(object):
 
         theta = 1
         for th in self.theta_val:
-            # print("x,1-x: ", th.evaluate(param_list)[0][0])
+            print("x,1-x: ", th.evaluate(param_list)[0][0])
             theta *= heaviside_theta(th.evaluate(param_list)[0][0])
 
         self.debug_printout(k, p1, p2, z)
