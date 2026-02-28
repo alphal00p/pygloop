@@ -2,7 +2,6 @@ import json
 import os
 import re
 from copy import deepcopy
-from fractions import Fraction
 from itertools import product
 
 import pydot
@@ -23,6 +22,8 @@ from processes.dy.dy_graph_utils import (
     _node_key,
     _strip_quotes,
     get_LR_components,
+    get_simple_cycles,
+    change_routing,
 )
 from utils.cff import CFFStructure
 from utils.utils import PYGLOOP_FOLDER
@@ -601,9 +602,138 @@ class EMRIntegrandConstructor(object):
 
 
 class UltraVioletSubtraction(object):
-    def __init__(self, integrand, amplitude_graph):
+    def __init__(self, emr_integrand, cut_graph):
         self.cut_graph = cut_graph
-        self.integrand = integrand
+        self.emr_integrand = emr_integrand
+
+    # Focuses on cycles, and not unions of cycles. Specialised to NLO
+    def enumerate_spinneys(self):
+
+        cycles = get_simple_cycles(self.cut_graph.graph)
+
+        cut_edges = set(self.cut_graph.initial_cut).union(set(self.cut_graph.final_cut))
+        visited_nodes = set()
+        divergent_cycles = []
+        for cycle in cycles:
+            cut_cycle_edges = set(cycle).intersection(cut_edges)
+            if len(cut_cycle_edges) == 0:  ## FIX: SHOULD BE == 0
+                dod = 0
+
+                for e in cycle:
+                    e_atts = e.get_attributes()
+                    e_src = e.get_source()
+                    e_dest = e.get_destination()
+                    dod += int(_strip_quotes(str(e_atts["dod"])))
+                    visited_nodes.add(e_src)
+                    visited_nodes.add(e_dest)
+
+                for v in self.cut_graph.graph.get_nodes():
+                    v_atts = v.get_attributes()
+                    if v in visited_nodes:
+                        dod += int(_strip_quotes(str(v_atts["dod"])))
+
+                if dod + 4 >= 0:
+                    divergent_cycles.append([cycle, dod + 4])
+
+        return divergent_cycles
+
+    def replace_energies(self, integrand, cut_graph):
+
+        for e in cut_graph.graph.get_edges():
+            e_atts = e.get_attributes()
+            eid_raw = e_atts["id"]
+            eid = _strip_quotes(eid_raw) if isinstance(eid_raw, str) else eid_raw
+            target = E(f"E({eid})")
+            particle = _strip_quotes(str(e_atts["particle"]))
+            replacement = (
+                self.sp3D(E(f"q({eid})"), E(f"q({eid})")) + E(f"m({eid})") ** 2
+            ) ** E("1/2")
+            integrand = integrand.replace(target, replacement)
+
+        return integrand
+
+    def route_integrand(self, integrand, cut_graph):
+
+        for e in cut_graph.graph.get_edges():
+            e_atts = e.get_attributes()
+            routing_items = E("0")
+            for i in range(self.L + 1):
+                key = f"routing_k{i}"
+                if key in e_atts:
+                    routing_items += E(f"{e_atts[key]}*k[{i}]")
+            for i in range(0, 2):
+                key = f"routing_p{i + 1}"
+                if key in e_atts:
+                    routing_items += E(f"{e_atts[key]}*p[{i + 1}]")
+            integrand = integrand.replace(E(f"q({e_atts['id']})"), routing_items)
+
+        integrand = integrand.replace(
+            E("sp3(x___,y___)"), self.sp3D(S("x___"), S("y___"))
+        )
+        return integrand
+
+    # For now we construct the counter-term associated to a cycle. This ignores loop-induced.
+    def construct_counter_term(self, cycle, dod):
+
+        lam = S("λ", is_scalar=True)
+        mUV = S("mUV", is_scalar=True)
+
+        uv_loop_momentum = next(iter(cycle))
+        lmb = [uv_loop_momentum] + self.cut_graph.final_cut[:-1]
+
+        uv_graph = change_routing(deepcopy(self.cut_graph.graph), lmb)
+
+        routed_integrand = self.replace_energies(self.emr_integrand, uv_graph)
+        routed_integrand = self.route_integrand(routed_integrand, uv_graph)
+
+        parametrised_integrand = routed_integrand.replace(E("k(0)"), E("k(0)") / lam)
+
+        for e in cycle:
+            e_atts = e.get_attributes()
+            parametrised_integrand = lam**4 * parametrised_integrand.replace(
+                E(f"m({e_atts['id']})") ** 2,
+                muV**2 + 1 / lam * (E(f"m({e_atts['id']})") ** 2 - mUV**2),
+            )
+
+        expanded_integrand = (
+            parametrised_integrand
+            .series(lam, 0, dod)
+            .to_expression()
+            .replace(lam, E("1"))
+        )
+
+        uv_limit
+
+        # Go back to previous basis
+        for i, e in enumerate(lmb):
+            routing_items = E("0")
+            for i in range(self.L + 1):
+                key = f"routing_k{i}"
+                if key in e_atts:
+                    routing_items += E(f"{e_atts[key]}*k[{i}]")
+            for i in range(0, 2):
+                key = f"routing_p{i + 1}"
+                if key in e_atts:
+                    routing_items += E(f"{e_atts[key]}*p[{i + 1}]")
+
+            expanded_integrand = expanded_integrand.replace(E(f"k({i})"), routing_items)
+
+        return expanded_integrand
+
+    def construct_uv_counter_terms(self):
+        spinneys = self.enumerate_spinneys()
+        counterms = []
+
+        print(spinneys)
+
+        for cycle in spinneys:
+            uv_ct = self.construct_counter_term(cycle[0], cycle[1])
+            routed_uv_ct = RoutedIntegrand(
+                uv_ct, self.cut_graph, [], self.emr_integrand, "uv", "uv"
+            )
+            counterms.append(routed_uv_ct)
+
+        return counterms
 
 
 class Approximator(object):
@@ -671,8 +801,6 @@ class Approximator(object):
         ] * lam * E("qsoft")
 
         integrand = integrand.replace(E(f"k({k_id[0]})"), repl)
-
-        print(integrand)
 
         integrand = integrand.series(lam, 0, -3).to_expression().replace(lam, 1)
 
@@ -770,129 +898,6 @@ class LoopIntegrandConstructor(object):
         return same or opp
 
     # Changes the routing of a graph based on an input lmb choice.
-
-    def change_routing(self, graph, lmb_choice):
-        edges = list(graph.get_edges())
-        if len(edges) == 0:
-            return graph
-
-        # Collect routing key sets from graph.
-        routing_keys = set()
-        for e in edges:
-            routing_keys.update(
-                k for k in e.get_attributes().keys() if k.startswith("routing_")
-            )
-        k_keys = sorted(
-            [k for k in routing_keys if k.startswith("routing_k")],
-            key=lambda x: int(x.replace("routing_k", "")),
-        )
-        p_keys = sorted([k for k in routing_keys if k.startswith("routing_p")])
-        n_loops = len(k_keys)
-
-        if n_loops == 0:
-            return graph
-
-        if len(lmb_choice) != n_loops:
-            raise ValueError(
-                f"Invalid lmb_choice length: expected {n_loops}, got {len(lmb_choice)}"
-            )
-
-        def _to_frac(v):
-            if isinstance(v, Fraction):
-                return v
-            return Fraction(str(v))
-
-        def _frac_to_str(v: Fraction | int) -> str:
-            v = Fraction(v)
-            return str(v.numerator) if v.denominator == 1 else str(v)
-
-        def _mat_inv(m):
-            n = len(m)
-            aug = [
-                [Fraction(m[i][j]) for j in range(n)]
-                + [Fraction(1 if i == j else 0) for j in range(n)]
-                for i in range(n)
-            ]
-            for col in range(n):
-                piv = None
-                for row in range(col, n):
-                    if aug[row][col] != 0:
-                        piv = row
-                        break
-                if piv is None:
-                    raise ValueError(
-                        "Invalid lmb_choice: loop routing matrix is singular"
-                    )
-                if piv != col:
-                    aug[col], aug[piv] = aug[piv], aug[col]
-
-                pivot = aug[col][col]
-                aug[col] = [x / pivot for x in aug[col]]
-
-                for row in range(n):
-                    if row == col:
-                        continue
-                    fac = aug[row][col]
-                    if fac != 0:
-                        aug[row] = [
-                            aug[row][j] - fac * aug[col][j] for j in range(2 * n)
-                        ]
-
-            return [row[n:] for row in aug]
-
-        def _norm_id(v):
-            if isinstance(v, str):
-                return _strip_quotes(v)
-            return str(v)
-
-        # Map ids to edge objects (ids can be quoted or unquoted in attrs).
-        by_id = {}
-        for e in edges:
-            eid = _norm_id(e.get_attributes().get("id", ""))
-            by_id[eid] = e
-
-        lmb_edges = []
-        for sel in lmb_choice:
-            sid = _norm_id(sel)
-            if sid not in by_id:
-                raise ValueError(f"Edge id {sel} in lmb_choice not found in graph")
-            lmb_edges.append(by_id[sid])
-
-        # Build C and P from selected lambda edges:
-        # l = C k + P p  =>  k = C^{-1} l - C^{-1} P p
-        C = []
-        P = []
-        for e in lmb_edges:
-            atts = e.get_attributes()
-            C.append([_to_frac(atts.get(k, "0")) for k in k_keys])
-            P.append([_to_frac(atts.get(p, "0")) for p in p_keys])
-
-        C_inv = _mat_inv(C)
-
-        # For every edge r = c k + p  =>  r = (c C^{-1}) l + (p - c C^{-1}P) p
-        for e in edges:
-            atts = e.get_attributes()
-            c = [_to_frac(atts.get(k, "0")) for k in k_keys]
-            p = [_to_frac(atts.get(pk, "0")) for pk in p_keys]
-
-            new_k = [
-                sum(c[a] * C_inv[a][j] for a in range(n_loops)) for j in range(n_loops)
-            ]
-            if len(p_keys) > 0:
-                cCinvP = [
-                    sum(new_k[a] * P[a][j] for a in range(n_loops))
-                    for j in range(len(p_keys))
-                ]
-                new_p = [p[j] - cCinvP[j] for j in range(len(p_keys))]
-            else:
-                new_p = []
-
-            for j, key in enumerate(k_keys):
-                e.set(key, _frac_to_str(new_k[j]))
-            for j, key in enumerate(p_keys):
-                e.set(key, _frac_to_str(new_p[j]))
-
-        return graph
 
     def canonicalise_energies(self, integrand, cut_graph):
 
@@ -1295,10 +1300,12 @@ class LoopIntegrandConstructor(object):
                 e_atts = e.get_attributes()
                 if _strip_quotes(str(e_atts["particle"])) == "a":
                     lmb_choice.append(e_atts["id"])
-            cut_graph.graph = self.change_routing(cut_graph.graph, lmb_choice)
+            cut_graph.graph = change_routing(cut_graph.graph, lmb_choice)
 
         print("correctly routed GGGGGraph")
         print(cut_graph.graph)
+        uv_approximator = UltraVioletSubtraction(emr_integrand, cut_graph)
+        uv_ct = uv_approximator.construct_uv_counter_terms()
 
         loop_integrand, raised_cut = self.eliminate_raised_cuts(
             emr_integrand, cut_graph
@@ -1307,6 +1314,8 @@ class LoopIntegrandConstructor(object):
         loop_integrand = self.leading_virtuality_expansion(
             loop_integrand, cut_graph, raised_cut
         )
+
+        loop_integrand = loop_integrand + uv_ct
 
         return loop_integrand
 

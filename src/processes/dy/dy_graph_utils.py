@@ -3,7 +3,7 @@ import re
 from collections import deque
 from itertools import product
 from typing import Any, Generator, List, Optional, Set, Tuple
-
+from fractions import Fraction
 import pydot
 
 # == Parsing ===================================================================
@@ -492,3 +492,123 @@ def all_pairs(V: List[pydot.Edge]) -> Generator[Any, Any, Any]:
         seen.add(sig)
 
         yield V1, V2
+
+
+def change_routing(graph, lmb_choice):
+    edges = list(graph.get_edges())
+    if len(edges) == 0:
+        return graph
+
+    # Collect routing key sets from graph.
+    routing_keys = set()
+    for e in edges:
+        routing_keys.update(
+            k for k in e.get_attributes().keys() if k.startswith("routing_")
+        )
+    k_keys = sorted(
+        [k for k in routing_keys if k.startswith("routing_k")],
+        key=lambda x: int(x.replace("routing_k", "")),
+    )
+    p_keys = sorted([k for k in routing_keys if k.startswith("routing_p")])
+    n_loops = len(k_keys)
+
+    if n_loops == 0:
+        return graph
+
+    if len(lmb_choice) != n_loops:
+        raise ValueError(
+            f"Invalid lmb_choice length: expected {n_loops}, got {len(lmb_choice)}"
+        )
+
+    def _to_frac(v):
+        if isinstance(v, Fraction):
+            return v
+        return Fraction(str(v))
+
+    def _frac_to_str(v: Fraction | int) -> str:
+        v = Fraction(v)
+        return str(v.numerator) if v.denominator == 1 else str(v)
+
+    def _mat_inv(m):
+        n = len(m)
+        aug = [
+            [Fraction(m[i][j]) for j in range(n)]
+            + [Fraction(1 if i == j else 0) for j in range(n)]
+            for i in range(n)
+        ]
+        for col in range(n):
+            piv = None
+            for row in range(col, n):
+                if aug[row][col] != 0:
+                    piv = row
+                    break
+            if piv is None:
+                raise ValueError("Invalid lmb_choice: loop routing matrix is singular")
+            if piv != col:
+                aug[col], aug[piv] = aug[piv], aug[col]
+
+            pivot = aug[col][col]
+            aug[col] = [x / pivot for x in aug[col]]
+
+            for row in range(n):
+                if row == col:
+                    continue
+                fac = aug[row][col]
+                if fac != 0:
+                    aug[row] = [aug[row][j] - fac * aug[col][j] for j in range(2 * n)]
+
+        return [row[n:] for row in aug]
+
+    def _norm_id(v):
+        if isinstance(v, str):
+            return _strip_quotes(v)
+        return str(v)
+
+    # Map ids to edge objects (ids can be quoted or unquoted in attrs).
+    by_id = {}
+    for e in edges:
+        eid = _norm_id(e.get_attributes().get("id", ""))
+        by_id[eid] = e
+
+    lmb_edges = []
+    for sel in lmb_choice:
+        sid = _norm_id(sel)
+        if sid not in by_id:
+            raise ValueError(f"Edge id {sel} in lmb_choice not found in graph")
+        lmb_edges.append(by_id[sid])
+
+    # Build C and P from selected lambda edges:
+    # l = C k + P p  =>  k = C^{-1} l - C^{-1} P p
+    C = []
+    P = []
+    for e in lmb_edges:
+        atts = e.get_attributes()
+        C.append([_to_frac(atts.get(k, "0")) for k in k_keys])
+        P.append([_to_frac(atts.get(p, "0")) for p in p_keys])
+
+    C_inv = _mat_inv(C)
+
+    # For every edge r = c k + p  =>  r = (c C^{-1}) l + (p - c C^{-1}P) p
+    for e in edges:
+        atts = e.get_attributes()
+        c = [_to_frac(atts.get(k, "0")) for k in k_keys]
+        p = [_to_frac(atts.get(pk, "0")) for pk in p_keys]
+
+        new_k = [
+            sum(c[a] * C_inv[a][j] for a in range(n_loops)) for j in range(n_loops)
+        ]
+        if len(p_keys) > 0:
+            cCinvP = [
+                sum(new_k[a] * P[a][j] for a in range(n_loops))
+                for j in range(len(p_keys))
+            ]
+            new_p = [p[j] - cCinvP[j] for j in range(len(p_keys))]
+        else:
+            new_p = []
+
+        for j, key in enumerate(k_keys):
+            e.set(key, _frac_to_str(new_k[j]))
+        for j, key in enumerate(p_keys):
+            e.set(key, _frac_to_str(new_p[j]))
+
+    return graph
