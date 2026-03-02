@@ -4,6 +4,7 @@ import re
 from copy import deepcopy
 from itertools import product
 
+from numpy.ma.core import make_mask_descr
 import pydot
 from gammaloop import (  # iso\rt: skip # type: ignore # noqa: F401
     GammaLoopAPI,
@@ -415,7 +416,9 @@ class EMRIntegrandConstructor(object):
     # the inverse energies for all edges in the initial and final state cuts (members of cut_graph)
     # and by the s-channel propagators (in the rest freme) contained in s_channel_edges
 
-    def get_cff(self, cut_graph, s_split_graphs, s_channel_edges, num):
+    def get_cff(
+        self, cut_graph, s_split_graphs, s_channel_edges, num, get_residues=False
+    ):
 
         numerator = num.replace(
             E("sp(x_,y_)"), E("sigma(x_)*sigma(y_)*E(x_)*E(y_)-sp3(q(x_),q(y_))")
@@ -443,9 +446,11 @@ class EMRIntegrandConstructor(object):
         # by deleting s-channel edges and cut edges. Also reverses sign of external edges that
         # are cut and have negative energy flow.
 
+        e_surfaces = {}
+
         previous_cff = numerator
 
-        for g in split_graphs_gt2_non_ext:
+        for n_graph, g in enumerate(split_graphs_gt2_non_ext):
             cff_g = self.get_CFF(g.graph, [], [])
             new_cff = E("0")
             g_rep = g.replacements
@@ -473,6 +478,14 @@ class EMRIntegrandConstructor(object):
                     for rep in g.replacements:
                         eta = eta.replace(E(f"pygloop::E({rep[0]})"), E(f"E({rep[1]})"))
                     cff_term = cff_term.replace(E(f"pygloop::η({etas.id})"), eta)
+
+                    if get_residues:
+                        residue_eta = deepcopy(eta)
+                        for id in set(edges_to_reverse):
+                            residue_eta = residue_eta.replace(
+                                E(f"E({id})"), -E(f"E({id})")
+                            )
+                        e_surfaces.append(residue_eta)
 
                 for id in set(edges_to_reverse):
                     cff_term = cff_term.replace(E(f"E({id})"), -E(f"E({id})"))
@@ -540,11 +553,35 @@ class EMRIntegrandConstructor(object):
                     cut_val,
                 )
 
-        return previous_cff * energies
+        total_cff = previous_cff * energies
+
+        if get_residues:
+            delta = E("δ")
+            residues = []
+            for eta in e_surfaces:
+                energies = list(eta) if eta.is_type(AtomType.Add) else [eta]
+                eN = eta.replace(E("E(x___)"), E("1"))
+                if len(energies) > 1 and eN < len(energies):
+                    patt = energies[0]
+                    repl = sum(en for en in energies[1:]) + delta
+                    res_i = deepcopy(total_cff)
+                    res_i = (
+                        res_i
+                        .replace(patt, repl)
+                        .series(delta, 0, -1)
+                        .to_expression()
+                        .replace(delta, E("1"))
+                    )
+                    residues.append((eta, res_i))
+                elif eN > len(energies):
+                    raise ValueError("really weird stuff happening with e surfaces")
+            return residues
+
+        return total_cff
 
     # Use all the previous functions to get the cff for the cut graph
 
-    def get_integrand(self, cut_graph: routed_cut_graph):
+    def get_integrand(self, cut_graph: routed_cut_graph, get_residues=False):
 
         # Derives numerator, eliminates useless labels, get left and right graphs and further
         # splits them if they have s-channel propagators.
@@ -558,36 +595,6 @@ class EMRIntegrandConstructor(object):
         s_split_graphs_L, s_channel_edges_L = self.split_s_channels(graph_L)
         s_split_graphs_R, s_channel_edges_R = self.split_s_channels(graph_R)
 
-        if debug:
-            print(num)
-            print("L graph")
-            print(graph_L.graph)
-            print(graph_L.replacements)
-            print("R graph")
-            print(graph_R.graph)
-            print(graph_R.replacements)
-
-            print("s-channel splitting for L graph")
-            print("length: ", len(s_split_graphs_L))
-            for g in s_split_graphs_L:
-                print(g.graph)
-                print(g.replacements)
-
-            print("s-channel splitting for R graph")
-            print("length: ", len(s_split_graphs_R))
-            for g in s_split_graphs_R:
-                print(g.graph)
-                print(g.replacements)
-
-            print(
-                self.get_cff(
-                    cut_graph,
-                    s_split_graphs_L + s_split_graphs_R,
-                    s_channel_edges_L + s_channel_edges_R,
-                    num,
-                )
-            )
-
         ## DEBUG: set numerator to 1
         # num = E("1")
 
@@ -596,6 +603,7 @@ class EMRIntegrandConstructor(object):
             s_split_graphs_L + s_split_graphs_R,
             s_channel_edges_L + s_channel_edges_R,
             num,
+            get_residues,
         )
 
         return cut_graph_cff
@@ -770,6 +778,230 @@ class UltraVioletSubtraction(object):
             print(routed_uv_ct.integrand)
 
         return counterms
+
+
+class ThresholdSubtractor(object):
+    def __init__(self, routed_cut_graph, params, name, L):
+        self.routed_cut_graph = routed_cut_graph
+        self.emr_processor = EMRIntegrandConstructor(params, name, L)
+        self.sp3D = S("sp3D", is_linear=True, is_symmetric=True)
+        self.residues = self.emr_processor.get_integrand(routed_cut_graph, True)
+        self.L = L
+
+    # Here we can do something that is sort of process-specific...
+    def filter_e_surfaces(self):
+        filtered_e_surf = []
+        for esurf, residue in self.residues:
+            if not esurf.is_type(AtomType.Add):
+                raise ValueError(
+                    "problem: single energy e-surface in threshold approximator"
+                )
+            energy_ids = list(esurf)
+            for en in energy_ids:
+                en.replace(E("rest__*E(x___)"), E("x___"))
+            for e in self.routed_cut_graph.graph:
+                e_atts = e.get_attributes()
+                external_momentum = [0, 0]
+                if e_atts["id"] in energy_ids:
+                    external_momentum[0] += e_atts["routing_p1"]
+                    external_momentum[1] += e_atts["routing_p2"]
+
+            if (
+                external_momentum[0] * external_momentum[1] == 1
+                and external_momentum[0] == external_momentum[1]
+            ):
+                filtered_e_surf.append((e_surf, residue))
+
+        return filtered_e_surf
+
+    def replace_energies(self, integrand, cut_graph):
+
+        for e in cut_graph.graph.get_edges():
+            e_atts = e.get_attributes()
+            eid_raw = e_atts["id"]
+            eid = _strip_quotes(eid_raw) if isinstance(eid_raw, str) else eid_raw
+            target = E(f"E({eid})")
+            particle = _strip_quotes(str(e_atts["particle"]))
+            if particle not in ["d", "d~", "g"]:
+                replacement = (
+                    self.sp3D(E(f"q({eid})"), E(f"q({eid})")) + E(f"m({particle})") ** 2
+                ) ** E("1/2")
+            else:
+                # new stuff
+                k_keys = [f"routing_k{i}" for i in range(0, self.L)]
+                zero_routing = all(e_atts[kk] == "0" for kk in k_keys)
+                mass = E("0")
+                if (
+                    zero_routing
+                    and e_atts["routing_p1"] == "0"
+                    and e_atts["routing_p2"] != "0"
+                ):
+                    mass = E("0")
+                if (
+                    zero_routing
+                    and e_atts["routing_p1"] != "0"
+                    and e_atts["routing_p2"] == "0"
+                ):
+                    mass = E("0")
+                #
+                replacement = (self.sp3D(E(f"q({eid})"), E(f"q({eid})")) + mass) ** E(
+                    "1/2"
+                )
+
+            integrand = integrand.replace(target, replacement)
+
+        return integrand
+
+    # Substituted the emr momenta by their linear decomposition in terms of
+    # loop variables and external momenta (p1 and p2)
+
+    def route_integrand(self, integrand, cut_graph):
+
+        for e in cut_graph.graph.get_edges():
+            e_atts = e.get_attributes()
+            routing_items = E("0")
+            for i in range(self.L + 1):
+                key = f"routing_k{i}"
+                if key in e_atts:
+                    routing_items += E(f"{e_atts[key]}*k[{i}]")
+            for i in range(0, 2):
+                key = f"routing_p{i + 1}"
+                if key in e_atts:
+                    routing_items += E(f"{e_atts[key]}*p[{i + 1}]")
+            integrand = integrand.replace(E(f"q({e_atts['id']})"), routing_items)
+
+        integrand = integrand.replace(
+            E("sp3(x___,y___)"), self.sp3D(S("x___"), S("y___"))
+        )
+        return integrand
+
+    def construct_threshold_counter_term(
+        self, emr_residue_integrand, threshold_graph, threshold_ids
+    ):
+
+        r = S("r")
+        khat = S("khat")
+
+        threshold_integrand = self.replace_energies(
+            emr_residue_integrand, threshold_graph
+        )
+        threshold_integrand = self.route_integrand(threshold_integrand, threshold_graph)
+
+        patt = E("k(0)")
+        rep = r.exp() * khat
+
+        threshold_integrand = threshold_integrand.replace(patt, rep)
+
+        shifts = []
+        masses
+        # only positive threshold ids?
+
+        for id in threshold_ids:
+            shift = E("0")
+            for e in threshold_graph.get_edges():
+                e_atts = e.get_attributes()
+                if e_atts["id"] == id:
+                    routing_items = E("0")
+                    for i in range(1, self.L + 1):
+                        key = f"routing_k{i}"
+                        if key in e_atts:
+                            routing_items += E(f"{e_atts[key]}*k[{i}]")
+                    for i in range(0, 2):
+                        key = f"routing_p{i + 1}"
+                        if key in e_atts:
+                            routing_items += E(f"{e_atts[key]}*p[{i + 1}]")
+                    shift = routing_items
+                    mass = E("0")
+                    e_particle = _strip_quotes(str(e_atts["particle"]))
+                    if e_particle in ["d", "d~", "g"]:
+                        mass = E("0")
+                    else:
+                        mass = E(f"m({e_particle})")
+            shifts.append(shift)
+            masses.append(mass)
+
+        # dot products
+        kp1 = self.sp3D(E("k(0)"), shifts[0])
+        kp2 = self.sp3D(E("k(0)"), shifts[1])
+        kk = self.sp3D(E("k(0)"), E("k(0)"))
+        p1p1 = self.sp3D(shifts[0], shifts[0])
+        p2p2 = self.sp3D(shifts[1], shifts[1])
+        m1sq = masses[0] ** 2
+        m2sq = masses[1] ** 2
+
+        A = 4 * (sqrts**2) * kk - kp1**2 + 2 * kp1 * kp2 - kp2**2
+
+        B = (
+            -2 * m1sq * kp1
+            + 2 * m2sq * kp1
+            + 2 * (sqrts**2) * kp1
+            + 2 * m1sq * kp2
+            - 2 * m2sq * kp2
+            + 2 * (sqrts**2) * kp2
+            - 2 * kp1 * p1p1
+            + 2 * kp2 * p1p1
+            + 2 * kp1 * p2p2
+            - 2 * kp2 * p2p2
+        )
+
+        C = (
+            -(m1sq**2)
+            + 2 * m1sq * m2sq
+            - m2sq**2
+            + 2 * m1sq * (sqrts**2)
+            + 2 * m2sq * (sqrts**2)
+            - (sqrts**4)
+            - 2 * m1sq * p1p1
+            + 2 * m2sq * p1p1
+            + 2 * (sqrts**2) * p1p1
+            - (p1p1**2)
+            + 2 * m1sq * p2p2
+            - 2 * m2sq * p2p2
+            + 2 * (sqrts**2) * p2p2
+            + 2 * p1p1 * p2p2
+            - (p2p2**2)
+        )
+
+        rstar = (-B + math.sqrt(B**2 - 4 * A * C)) / (2 * A)
+
+        derivative = (2 * t * kk + kp1) / (
+            2 * math.sqrt(m1sq + (t**2) * kk + t * kp1 + p1p1)
+        ) + (2 * t * kk + kp2) / (2 * math.sqrt(m2sq + (t**2) * kk + t * kp2 + p2p2))
+
+        threshold_integrand = (
+            (threshold_integrand.replace(r, rstar)) * (r - rstar) / derivative
+        )
+
+        return threshold_integrand
+
+    def construct_threshold_counter_terms(self):
+
+        filtered_e_surfs = self.filter_e_surfaces()
+        threshold_cts = []
+
+        for e_surf, residue in filtered_e_surfs:
+            ## are these ids the positive ones only?
+            thresh_ids = [id for (id, esurf, residue) in filtered_e_surfs]
+
+            if len(thresh_ids) > 2:
+                raise ValueError("not ready for two-loop threshold subtraction yet...")
+
+            lmb = thresh_ids[:-1] + self.cut_graph.final_cut[:-1]
+
+            lmb_id = []
+            for e in lmb:
+                e_atts = e.get_attributes()
+                lmb_id.append(e_atts["id"])
+
+            threshold_graph = change_routing(deepcopy(self.cut_graph.graph), lmb_id)
+
+            threshold_cts.append(
+                self.construct_threshold_counter_term(
+                    residue, threshold_graph, thresh_ids
+                )
+            )
+
+        return threshold_cts
 
 
 class Approximator(object):
@@ -1328,6 +1560,7 @@ class LoopIntegrandConstructor(object):
     # derive the approximated representation.
 
     def get_integrand(self, cut_graph):
+
         emr_integrand = self.emr_processor.get_integrand(cut_graph)
 
         if len(cut_graph.final_cut) > 1 and self.name == "DY":
