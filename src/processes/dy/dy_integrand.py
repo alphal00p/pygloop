@@ -602,9 +602,11 @@ class EMRIntegrandConstructor(object):
 
 
 class UltraVioletSubtraction(object):
-    def __init__(self, emr_integrand, cut_graph):
+    def __init__(self, emr_integrand, cut_graph, L):
         self.cut_graph = cut_graph
         self.emr_integrand = emr_integrand
+        self.sp3D = S("sp3D", is_linear=True, is_symmetric=True)
+        self.L = L
 
     # Focuses on cycles, and not unions of cycles. Specialised to NLO
     def enumerate_spinneys(self):
@@ -614,9 +616,17 @@ class UltraVioletSubtraction(object):
         cut_edges = set(self.cut_graph.initial_cut).union(set(self.cut_graph.final_cut))
         visited_nodes = set()
         divergent_cycles = []
+        print("here")
         for cycle in cycles:
             cut_cycle_edges = set(cycle).intersection(cut_edges)
+            print(len(cut_cycle_edges))
             if len(cut_cycle_edges) == 0:  ## FIX: SHOULD BE == 0
+                print("entered")
+
+                print("cycle edges")
+                for e in cycle:
+                    print(e.get_attributes()["id"])
+
                 dod = 0
 
                 for e in cycle:
@@ -632,14 +642,17 @@ class UltraVioletSubtraction(object):
                     if v in visited_nodes:
                         dod += int(_strip_quotes(str(v_atts["dod"])))
 
+                print("dod")
+                print(dod)
+
                 if dod + 4 >= 0:
                     divergent_cycles.append([cycle, dod + 4])
 
         return divergent_cycles
 
-    def replace_energies(self, integrand, cut_graph):
+    def replace_energies(self, integrand, graph):
 
-        for e in cut_graph.graph.get_edges():
+        for e in graph.get_edges():
             e_atts = e.get_attributes()
             eid_raw = e_atts["id"]
             eid = _strip_quotes(eid_raw) if isinstance(eid_raw, str) else eid_raw
@@ -652,9 +665,9 @@ class UltraVioletSubtraction(object):
 
         return integrand
 
-    def route_integrand(self, integrand, cut_graph):
+    def route_integrand(self, integrand, graph):
 
-        for e in cut_graph.graph.get_edges():
+        for e in graph.get_edges():
             e_atts = e.get_attributes()
             routing_items = E("0")
             for i in range(self.L + 1):
@@ -681,7 +694,12 @@ class UltraVioletSubtraction(object):
         uv_loop_momentum = next(iter(cycle))
         lmb = [uv_loop_momentum] + self.cut_graph.final_cut[:-1]
 
-        uv_graph = change_routing(deepcopy(self.cut_graph.graph), lmb)
+        lmb_id = []
+        for e in lmb:
+            e_atts = e.get_attributes()
+            lmb_id.append(e_atts["id"])
+
+        uv_graph = change_routing(deepcopy(self.cut_graph.graph), lmb_id)
 
         routed_integrand = self.replace_energies(self.emr_integrand, uv_graph)
         routed_integrand = self.route_integrand(routed_integrand, uv_graph)
@@ -690,19 +708,35 @@ class UltraVioletSubtraction(object):
 
         for e in cycle:
             e_atts = e.get_attributes()
-            parametrised_integrand = lam**4 * parametrised_integrand.replace(
+            # This mass substitution also acts on the numerator, which might be dangerous
+            # On a second thought this might be needed to reproduce the 4D version of the UV ct
+            parametrised_integrand = parametrised_integrand.replace(
                 E(f"m({e_atts['id']})") ** 2,
-                muV**2 + 1 / lam * (E(f"m({e_atts['id']})") ** 2 - mUV**2),
+                1 / lam**2 * mUV**2 + (E(f"m({e_atts['id']})") ** 2 - mUV**2),
             )
 
-        expanded_integrand = (
-            parametrised_integrand
-            .series(lam, 0, dod)
-            .to_expression()
-            .replace(lam, E("1"))
-        )
+        print("parametrised")
+        print(parametrised_integrand)
 
-        uv_limit
+        for e in self.cut_graph.graph.get_edges():
+            e_atts = e.get_attributes()
+            e_id = e_atts["id"]
+            e_particle = _strip_quotes(str(e_atts["particle"]))
+            if e_particle in ["d", "d~", "g"]:
+                mass = E("0")
+            else:
+                mass = E(f"m({e_particle})")
+            parametrised_integrand = parametrised_integrand.replace(
+                E(f"m({e_atts['id']})"), mass
+            )
+
+        print("dod")
+        print(dod)
+
+        expanded_integrand = (
+            (1 / lam**3 * parametrised_integrand).series(lam, 0, dod).to_expression()
+            # .replace(lam, E("1"))
+        )
 
         # Go back to previous basis
         for i, e in enumerate(lmb):
@@ -726,12 +760,14 @@ class UltraVioletSubtraction(object):
 
         print(spinneys)
 
+        # check copies and deepcopies
         for cycle in spinneys:
             uv_ct = self.construct_counter_term(cycle[0], cycle[1])
             routed_uv_ct = RoutedIntegrand(
                 uv_ct, self.cut_graph, [], self.emr_integrand, "uv", "uv"
             )
             counterms.append(routed_uv_ct)
+            print(routed_uv_ct.integrand)
 
         return counterms
 
@@ -1304,7 +1340,7 @@ class LoopIntegrandConstructor(object):
 
         print("correctly routed GGGGGraph")
         print(cut_graph.graph)
-        uv_approximator = UltraVioletSubtraction(emr_integrand, cut_graph)
+        uv_approximator = UltraVioletSubtraction(emr_integrand, cut_graph, self.L)
         uv_ct = uv_approximator.construct_uv_counter_terms()
 
         loop_integrand, raised_cut = self.eliminate_raised_cuts(
@@ -1428,6 +1464,8 @@ class evaluate_integrand(object):
             self.symbols.append(E("z"))
 
         self.symbols.append(E("t"))
+        # MUV
+        self.symbols.append(E("mUV"))
 
         self.routed_integrand.integrand = self.concretise_scalar_products(
             self.routed_integrand.integrand
@@ -1586,6 +1624,9 @@ class evaluate_integrand(object):
             param_list.append(p2[j])
         if self.process == "DY":
             param_list.append(z)
+
+        # MUV
+        param_list.append(1)
 
         t_sol = self.set_t_value(k, p1, p2, z)
 

@@ -2,6 +2,7 @@ import math
 import random as rndm
 from copy import deepcopy
 from typing import List
+import numpy as np
 
 from symbolica import E  # pyright: ignore
 
@@ -9,6 +10,39 @@ from processes.dy.dy_integrand import (
     RoutedIntegrand,  # ruff: ignore
     evaluate_integrand,
 )
+
+
+class ultraviolet_test(object):
+    def __init__(self, L, process, routed_integrands: List[RoutedIntegrand]):
+        self.routed_integrands = routed_integrands
+        self.L = L
+        self.process = process
+        self.evaluators = [
+            evaluate_integrand(L, process, deepcopy(rout)) for rout in routed_integrands
+        ]
+
+    def approach_limits(self, sqrts_s):
+        kc_comps = []
+        vp = np.array([1 / math.sqrt(2), 1 / math.sqrt(2), 0])
+        ks = []
+        for j in range(0, self.L):
+            ks.append([rndm.uniform(-sqrts_s, sqrts_s) for rr in range(0, 3)])
+
+        for i in range(0, 4):
+            print("i-------------------------------")
+            ks = [np.array([0.1, 0.2, -0.3]) + pow(10, i) * vp]
+            p1 = [0, 0, 1]
+            p2 = [0, 0, -1]
+            z = 0.6
+
+            for cut_graph, cut_graph_evaluator in zip(
+                self.routed_integrands, self.evaluators
+            ):
+                print("------------------------------")
+                print(ks)
+                print(
+                    f"\033[32m{cut_graph.cut_graph.graph.get_name()}, {cut_graph.approximation_type} : {pow(10, 3 * i) * cut_graph_evaluator.eval(ks, p1, p2, z)}\033[0m"
+                )
 
 
 class infrared_test(object):

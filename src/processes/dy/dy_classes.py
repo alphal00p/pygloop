@@ -678,8 +678,6 @@ class DYDotGraph(DotGraph):
         attrs = dict(e1.get_attributes() or {})
         attrs["is_cut"] = "1"
 
-        print(e1)
-
         ee = remove_edge_attr(pydot.Edge(u, v, **attrs), "lmb_rep")
 
         if _edge_particle(ee) == "d":
@@ -687,16 +685,20 @@ class DYDotGraph(DotGraph):
                 "num",
                 f"Q({edge_id_int(ee)},mink(4,mu))*spenso::gamma(spenso::bis(4,hedge({_parse_port(ee.get_source())})),spenso::bis(4,hedge({_parse_port(ee.get_destination())})),spenso::mink(4,mu))*spenso::g(spenso::dind(spenso::cof(3,hedge({_parse_port(ee.get_source())}))),spenso::cof(3,hedge({_parse_port(ee.get_destination())})))",
             )
+            ee.set("dod", "-1")
         if _edge_particle(ee) == "d~":
             ee.set(
                 "num",
                 f"Q({edge_id_int(ee)},mink(4,mu))*spenso::gamma(spenso::bis(4,hedge({_parse_port(ee.get_destination())})),spenso::bis(4,hedge({_parse_port(ee.get_source())})),spenso::mink(4,mu))*spenso::g(spenso::dind(spenso::cof(3,hedge({_parse_port(ee.get_destination())}))),spenso::cof(3,hedge({_parse_port(ee.get_source())})))",
             )
+            ee.set("dod", "-1")
         if _edge_particle(ee) == "g":
             ee.set(
                 "num",
                 f"-spenso::g(spenso::mink(4,hedge({_parse_port(ee.get_source())})),spenso::mink(4,hedge({_parse_port(ee.get_destination())})))*spenso::g(spenso::coad(8,hedge({_parse_port(ee.get_destination())})),spenso::coad(8,hedge({_parse_port(ee.get_source())})))",
             )
+            ee.set("dod", "-2")
+
         return ee
 
     # Glues the end of the FS diagram (really an amplitude diagram) into a vacuum diagram
@@ -747,9 +749,6 @@ class DYDotGraph(DotGraph):
         for e, i in zip(
             vacuum_graph.get_edges(), range(0, len(vacuum_graph.get_edges()))
         ):
-            print(e.get("id"))
-            print(i)
-            print("----")
             pattern = E(f"Q({e.get('id')},y___)", default_namespace="gammalooprs")
             substitution = E(f"Q({i},y___)", default_namespace="gammalooprs")
             substitutions.append((i, pattern, substitution))
