@@ -905,7 +905,7 @@ class ThresholdSubtractor(object):
         print(emr_residue_integrand)
         print(threshold_ids)
 
-        r = S("r")
+        r = S("r", is_scalar=True)
         khat = S("khat")
         sqrts = S("s") ** E("1/2")
 
@@ -915,9 +915,9 @@ class ThresholdSubtractor(object):
         threshold_integrand = self.route_integrand(threshold_integrand, threshold_graph)
 
         patt = E("k(0)")
-        rep = r.exp() * khat
+        rep = r * khat
 
-        threshold_integrand = threshold_integrand.replace(patt, rep)
+        threshold_integrand = threshold_integrand.replace(patt, rep).replace(r, r.exp())
 
         shifts = []
         masses = []
@@ -1002,16 +1002,28 @@ class ThresholdSubtractor(object):
         )
 
         threshold_integrand = (
-            (threshold_integrand.replace(r, rstar)) * (r - rstar) / derivative
+            (threshold_integrand.replace(r, rstar)) / (r - rstar) / derivative
         )
 
-        threshold_integrand = threshold_integrand.replace(
-            r, self.sp3D(E("k(0)"), E("k(0)")) ** E("1/2")
-        ).replace(khat, E("k(0)") / self.sp3D(E("k(0)"), E("k(0)")) ** E("1/2"))
+        inv_knorm = S("knorm", is_scalar=True)
+        threshold_integrand = (
+            threshold_integrand
+            .replace(r, self.sp3D(E("k(0)"), E("k(0)")) ** E("1/2"))
+            .replace(khat, E("k(0)") * inv_knorm)
+            .replace(inv_knorm, 1 / self.sp3D(E("k(0)"), E("k(0)")) ** E("1/2"))
+        )
 
-        # print(threshold_integrand)
+        threshold_integrand = threshold_integrand.replace(E("s"), 4 * E("p(1,3)") ** 2)
+        print(threshold_integrand)
 
-        return threshold_integrand
+        return RoutedIntegrand(
+            threshold_integrand,
+            self.routed_cut_graph,
+            [],
+            E("0"),
+            "threshold",
+            "threshold",
+        )
 
     def construct_threshold_counter_terms(self):
 

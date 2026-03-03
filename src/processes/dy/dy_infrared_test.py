@@ -2,14 +2,40 @@ import math
 import random as rndm
 from copy import deepcopy
 from typing import List
-import numpy as np
 
+import numpy as np
 from symbolica import E  # pyright: ignore
 
 from processes.dy.dy_integrand import (
     RoutedIntegrand,  # ruff: ignore
     evaluate_integrand,
 )
+
+
+class approach_point(object):
+    def __init__(self, L, process, routed_integrands: List[RoutedIntegrand]):
+        self.routed_integrands = routed_integrands
+        self.L = L
+        self.process = process
+        self.evaluators = [
+            evaluate_integrand(L, process, deepcopy(rout)) for rout in routed_integrands
+        ]
+
+    def approach(self, ks, p1, p2, z, vp):
+        kc_comps = []
+
+        for i in range(2, 4):
+            print("i-------------------------------")
+            ks = [k + pow(10, -i) * vp for k in ks]
+
+            for cut_graph, cut_graph_evaluator in zip(
+                self.routed_integrands, self.evaluators
+            ):
+                print("------------------------------")
+                print(ks)
+                print(
+                    f"\033[32m{cut_graph.cut_graph.graph.get_name()}, {cut_graph.approximation_type} : {cut_graph_evaluator.eval(ks, p1, p2, z)}\033[0m"
+                )
 
 
 class ultraviolet_test(object):
