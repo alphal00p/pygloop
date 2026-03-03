@@ -668,12 +668,12 @@ class ClassicalLimitProcessor:
                 E(f"gammalooprs::Q({e_id},a___)"), E(lmb_rep)
             )
 
-        eval_numerator = eval_numerator.replace(Es("UFO::dim"), E("4"), repeat=True)
-        eval_numerator = eval_numerator.replace(E("UFO::TTT"), E("1/2"))
-        eval_numerator = eval_numerator.replace(E("UFO::SSTmpart2"), E("1/3"))
-        eval_numerator = eval_numerator.replace(E("UFO::SSTmpart1"), E("1/4"))
-        eval_numerator = eval_numerator.replace(E("UFO::SST"), E("1/5"))
-        eval_numerator = eval_numerator.replace(E("UFO::SSTTmpart2"), E("1/6"))
+        #        eval_numerator = eval_numerator.replace(Es("UFO::dim"), E("4"), repeat=True)
+        #        eval_numerator = eval_numerator.replace(E("UFO::TTT"), E("1/2"))
+        #        eval_numerator = eval_numerator.replace(E("UFO::SSTmpart2"), E("1/3"))
+        #        eval_numerator = eval_numerator.replace(E("UFO::SSTmpart1"), E("1/4"))
+        #        eval_numerator = eval_numerator.replace(E("UFO::SST"), E("1/5"))
+        #        eval_numerator = eval_numerator.replace(E("UFO::SSTTmpart2"), E("1/6"))
 
         return eval_numerator  # noqa: RET504
 
@@ -771,13 +771,13 @@ class ClassicalLimitProcessor:
             cook_indices(numerator), hep_lib_with_momenta
         )
 
-        #start_time = time.perf_counter()
+        # start_time = time.perf_counter()
 
         tn_numerical_to_execute.execute(hep_lib_with_momenta)
 
-        #elapsed_time = time.perf_counter() - start_time
+        # elapsed_time = time.perf_counter() - start_time
 
-        #elaps.append(elapsed_time)
+        # elaps.append(elapsed_time)
 
         numerical_evaluation = tn_numerical_to_execute.result_scalar()
 
@@ -826,14 +826,17 @@ class ClassicalLimitProcessor:
 
             # print evaluation
 
-            print(
-               self.evaluate_numerator_spenso_numeric(
-                   post_num,
-                   ks,
-                   ps,
-               )
-            )
+            from pathlib import Path
 
+            Path("expr_hhh.txt").write_text(expr_to_string(post_num), encoding="utf-8")
+
+            #            print(
+            #               self.evaluate_numerator_spenso_numeric(
+            #                   post_num,
+            #                   ks,
+            #                   ps,
+            #               )
+            #            )
 
             # TEST2: no raised numerator treatment
 
@@ -843,13 +846,13 @@ class ClassicalLimitProcessor:
 
             # print evaluation
 
-            print(
-               self.evaluate_numerator_spenso_numeric(
-                   pre_num,
-                   ks,
-                   ps,
-               )
-            )
+            #            print(
+            #               self.evaluate_numerator_spenso_numeric(
+            #                   pre_num,
+            #                   ks,
+            #                   ps,
+            #               )
+            #            )
 
             # print(
             #    self.evaluate_numerator_spenso_numeric(
@@ -859,27 +862,26 @@ class ClassicalLimitProcessor:
             #    )
             # )
 
-#            import random as rn
-#            # import time
-#
-#            elaps = []
-#            # start_time = time.perf_counter()
-#            for i in range(100):
-#                k0 = [rn.random(), rn.random(), rn.random(), rn.random()]
-#                k1 = [rn.random(), rn.random(), rn.random(), rn.random()]
-#                ks = [k0, k1]
-#                self.evaluate_numerator_spenso_numeric(post_num, ks, ps, elaps)
-#            # elapsed_time = time.perf_counter() - start_time
-#            print(elaps)
-#            print(sum(deltat for deltat in elaps) / 100)
+            #            import random as rn
+            #            # import time
+            #
+            #            elaps = []
+            #            # start_time = time.perf_counter()
+            #            for i in range(100):
+            #                k0 = [rn.random(), rn.random(), rn.random(), rn.random()]
+            #                k1 = [rn.random(), rn.random(), rn.random(), rn.random()]
+            #                ks = [k0, k1]
+            #                self.evaluate_numerator_spenso_numeric(post_num, ks, ps, elaps)
+            #            # elapsed_time = time.perf_counter() - start_time
+            #            print(elaps)
+            #            print(sum(deltat for deltat in elaps) / 100)
 
             processed_graphs.append(g)
 
             # As an example, add a fake UV equal to the original graph
             # processed_graphs.extend(self.generate_UV_CTs(g, group_id))
 
-
-        return processed_graphs
+        # return processed_graphs
 
     def remove_raised_power(self, graph: DotGraph):
         return graph

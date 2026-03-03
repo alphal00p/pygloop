@@ -446,6 +446,76 @@ class ScalarGravity(object):
                 dot_files_2L_processed.save_to_file(
                     pjoin(DOTS_FOLDER, self.name, f"{integrand_name}.dot")
                 )
+            case 3:
+                logger.info("Importing three-loop graphs ...")
+                input_dot_graphs = pjoin(
+                    RESOURCES_FOLDER, self.name_for_resources, "3L_graphs.dot"
+                )
+                # print(f"{input_dot_graphs} -p {base_name} -i {graphs_process_name}")
+                self.gl_worker.run(
+                    f"import graphs {input_dot_graphs}"  # -p {base_name} -i {graphs_process_name}"
+                )
+                self.gl_worker.run("save state -o")
+                dot_files_3L = self.gl_worker.get_dot_files(
+                    process_id=None,
+                    integrand_name="default",  # graphs_process_name,
+                )
+                write_text_with_dirs(
+                    pjoin(DOTS_FOLDER, self.name, f"{graphs_process_name}.dot"),
+                    dot_files_3L,
+                )
+                self.gl_worker.run("save dot")
+                dot_files_3L = DotGraphs(dot_str=dot_files_3L)
+                if self.diagrams is not None:
+                    n_diag_start = len(dot_files_3L)
+                    dot_files_3L.select_graphs_by_names(self.diagrams)
+                    logger.info(
+                        "Selected %d diagrams out of %d available. Graph names selected: %s",
+                        len(dot_files_3L),
+                        n_diag_start,
+                        ",".join(dot_files_3L.get_graph_names()),
+                    )
+                dot_files_3L_processed = classical_limit_processor.process_graphs(
+                    dot_files_3L
+                )
+                dot_files_3L_processed.save_to_file(
+                    pjoin(DOTS_FOLDER, self.name, f"{integrand_name}.dot")
+                )
+            case 4:
+                logger.info("Importing four-loop graphs ...")
+                input_dot_graphs = pjoin(
+                    RESOURCES_FOLDER, self.name_for_resources, "4L_graphs.dot"
+                )
+                # print(f"{input_dot_graphs} -p {base_name} -i {graphs_process_name}")
+                self.gl_worker.run(
+                    f"import graphs {input_dot_graphs}"  # -p {base_name} -i {graphs_process_name}"
+                )
+                self.gl_worker.run("save state -o")
+                dot_files_4L = self.gl_worker.get_dot_files(
+                    process_id=None,
+                    integrand_name="default",  # graphs_process_name,
+                )
+                write_text_with_dirs(
+                    pjoin(DOTS_FOLDER, self.name, f"{graphs_process_name}.dot"),
+                    dot_files_4L,
+                )
+                self.gl_worker.run("save dot")
+                dot_files_4L = DotGraphs(dot_str=dot_files_4L)
+                if self.diagrams is not None:
+                    n_diag_start = len(dot_files_4L)
+                    dot_files_4L.select_graphs_by_names(self.diagrams)
+                    logger.info(
+                        "Selected %d diagrams out of %d available. Graph names selected: %s",
+                        len(dot_files_4L),
+                        n_diag_start,
+                        ",".join(dot_files_4L.get_graph_names()),
+                    )
+                dot_files_4L_processed = classical_limit_processor.process_graphs(
+                    dot_files_4L
+                )
+                dot_files_4L_processed.save_to_file(
+                    pjoin(DOTS_FOLDER, self.name, f"{integrand_name}.dot")
+                )
             case _:
                 raise pygloopException(f"Number of loops {self.n_loops} not supported.")
 
@@ -1644,7 +1714,7 @@ class ScalarGravity(object):
 
     def get_integrand_name(self, suffix="_processed"):
         match self.n_loops:
-            case 1 | 2 | 3:
+            case 1 | 2 | 3 | 4:
                 return f"{self.name}_{self.n_loops}L{suffix}"
             case _:
                 raise pygloopException(f"Number of loops {self.n_loops} not supported.")

@@ -1,0 +1,36 @@
+digraph hhh_diagram {
+  num = "1";
+  overall_factor = "1";
+  overall_factor_evaluated = "1";
+
+  edge [dod = "-100"];
+  node [dod = "-100"];
+
+  ext0   [style=invis];
+  ext1   [style=invis];
+  ext2   [style=invis];
+  ext3   [style=invis];
+
+  ext0	-> 0:0	 [id=0 particle="scalar_1"];
+  ext1	-> 3:1	 [id=1 particle="scalar_2"];
+  2:2	-> ext2	 [id=2 particle="scalar_1"];
+  5:3	-> ext3	 [id=3 particle="scalar_2"];
+
+  0	-> 1	 [id=4 particle="scalar_1"];
+  1	-> 2	 [id=5 particle="scalar_1"];
+  3	-> 4	 [id=6 particle="scalar_2"];
+  4	-> 5	 [id=7 particle="scalar_2"];
+
+
+  6	-> 7	 [id=8 particle="graviton"];
+  7	-> 8	 [id=9 particle="graviton"];
+  8	-> 9	 [id=10 particle="graviton"];
+
+  0 -> 6	 [id=11 particle="graviton" lmb_id=0];
+  3 -> 6	 [id=12 particle="graviton" lmb_id=1];
+
+  1	-> 7	 [id=13 particle="graviton" lmb_id=2];
+  8	-> 4	 [id=14 particle="graviton" lmb_id=3];
+  9	-> 2	 [id=15 particle="graviton"];
+  9	-> 5	 [id=16 particle="graviton"];
+}
