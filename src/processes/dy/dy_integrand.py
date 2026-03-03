@@ -572,6 +572,8 @@ class EMRIntegrandConstructor(object):
         if get_residues:
             delta = E("δ")
             residues = []
+            print("cff orig")
+            print(total_cff)
             for eta in e_surfaces:
                 energies = (
                     list(eta.expand()) if eta.expand().is_type(AtomType.Add) else [eta]
@@ -591,6 +593,8 @@ class EMRIntegrandConstructor(object):
                     residues.append((eta, res_i))
                 elif eN > len(energies):
                     raise ValueError("really weird stuff happening with e surfaces")
+            print("residues")
+            print(residues)
             return residues
 
         return total_cff
@@ -752,7 +756,7 @@ class UltraVioletSubtraction(object):
         )
 
         # Go back to previous basis
-        for i, e in enumerate(lmb):
+        for j, e in enumerate(lmb):
             routing_items = E("0")
             for i in range(self.L + 1):
                 key = f"routing_k{i}"
@@ -763,7 +767,7 @@ class UltraVioletSubtraction(object):
                 if key in e_atts:
                     routing_items += E(f"{e_atts[key]}*p[{i + 1}]")
 
-            expanded_integrand = expanded_integrand.replace(E(f"k({i})"), routing_items)
+            expanded_integrand = expanded_integrand.replace(E(f"k({j})"), routing_items)
 
         return expanded_integrand
 
@@ -887,7 +891,7 @@ class ThresholdSubtractor(object):
                 key = f"routing_k{i}"
                 if key in e_atts:
                     routing_items += E(f"{e_atts[key]}*k[{i}]")
-            for i in range(0, 2):
+            for i in range(2):
                 key = f"routing_p{i + 1}"
                 if key in e_atts:
                     routing_items += E(f"{e_atts[key]}*p[{i + 1}]")
@@ -905,19 +909,36 @@ class ThresholdSubtractor(object):
         print(emr_residue_integrand)
         print(threshold_ids)
 
+        lmb_ids = threshold_ids[:-1] + [
+            e.get_attributes()["id"] for e in threshold_graph.final_cut[:-1]
+        ]
+
+        threshold_graph_routed = change_routing(
+            deepcopy(threshold_graph.graph), lmb_ids
+        )
+
         r = S("r", is_scalar=True)
         khat = S("khat")
         sqrts = S("s") ** E("1/2")
 
+        print("residue integrand")
+        print(threshold_graph_routed.get_name())
+        print(threshold_graph_routed)
+        print(emr_residue_integrand)
+
         threshold_integrand = self.replace_energies(
-            emr_residue_integrand, threshold_graph
+            emr_residue_integrand, threshold_graph_routed
         )
-        threshold_integrand = self.route_integrand(threshold_integrand, threshold_graph)
+        threshold_integrand = self.route_integrand(
+            threshold_integrand, threshold_graph_routed
+        )
 
         patt = E("k(0)")
         rep = r * khat
 
-        threshold_integrand = threshold_integrand.replace(patt, rep).replace(r, r.exp())
+        threshold_integrand = threshold_integrand.replace(
+            patt, rep
+        )  # .replace(r, r.exp())
 
         shifts = []
         masses = []
@@ -925,7 +946,7 @@ class ThresholdSubtractor(object):
 
         for id in threshold_ids:
             shift = E("0")
-            for e in threshold_graph.get_edges():
+            for e in threshold_graph_routed.get_edges():
                 e_atts = e.get_attributes()
                 if e_atts["id"] == id:
                     routing_items = E("0")
@@ -933,7 +954,7 @@ class ThresholdSubtractor(object):
                         key = f"routing_k{i}"
                         if key in e_atts:
                             routing_items += E(f"{e_atts[key]}*k[{i}]")
-                    for i in range(0, 2):
+                    for i in range(2):
                         key = f"routing_p{i + 1}"
                         if key in e_atts:
                             routing_items += E(f"{e_atts[key]}*p[{i + 1}]")
@@ -1014,11 +1035,32 @@ class ThresholdSubtractor(object):
         )
 
         threshold_integrand = threshold_integrand.replace(E("s"), 4 * E("p(1,3)") ** 2)
-        print(threshold_integrand)
+        # print(threshold_integrand)
+
+        # Go back to previous basis
+        for j, id in enumerate(lmb_ids):
+            for e in threshold_graph.graph.get_edges():
+                e_atts = e.get_attributes()
+                if e_atts["id"] == id:
+                    routing_items = E("0")
+                    for i in range(self.L + 1):
+                        key = f"routing_k{i}"
+                        if key in e_atts:
+                            routing_items += E(f"{e_atts[key]}*k[{i}]")
+                    for i in range(2):
+                        key = f"routing_p{i + 1}"
+                        if key in e_atts:
+                            routing_items += E(f"{e_atts[key]}*p[{i + 1}]")
+            print("substituting back")
+            print(E(f"k({j})"))
+            print(routing_items)
+            threshold_integrand = threshold_integrand.replace(
+                E(f"k({j})"), routing_items
+            )
 
         return RoutedIntegrand(
             threshold_integrand,
-            self.routed_cut_graph,
+            threshold_graph,
             [],
             E("0"),
             "threshold",
@@ -1037,17 +1079,9 @@ class ThresholdSubtractor(object):
             if len(thresh_ids) > 2:
                 raise ValueError("not ready for two-loop threshold subtraction yet...")
 
-            lmb_ids = thresh_ids[:-1] + [
-                e.get_attributes()["id"] for e in self.routed_cut_graph.final_cut[:-1]
-            ]
-
-            threshold_graph = change_routing(
-                deepcopy(self.routed_cut_graph.graph), lmb_ids
-            )
-
             threshold_cts.append(
                 self.construct_threshold_counter_term(
-                    residue, threshold_graph, thresh_ids
+                    residue, deepcopy(self.routed_cut_graph), thresh_ids
                 )
             )
 
@@ -1617,6 +1651,9 @@ class LoopIntegrandConstructor(object):
 
         emr_integrand = self.emr_processor.get_integrand(cut_graph)
 
+        print("............this emr")
+        print(emr_integrand)
+
         if len(cut_graph.final_cut) > 1 and self.name == "DY":
             lmb_choice = []
             for e in cut_graph.final_cut:
@@ -1811,29 +1848,28 @@ class evaluate_integrand(object):
     def set_t_value(self, k, p1, p2, z):
 
         if self.process == "DY":
-            if (
-                len(self.routed_integrand.cut_graph.final_cut) > 1
-                # and self.is_rescaling_necessary
-            ):
-                s = 4 * p1[2] ** 2
+            # if (
+            #    len(self.routed_integrand.cut_graph.final_cut) > 1
+            # ):
+            s = 4 * p1[2] ** 2
 
-                e_surface = self.e_surface
-                print(e_surface)
+            e_surface = self.e_surface
+            print(e_surface)
 
-                for j in range(0, self.L):
-                    for i in range(0, 3):
-                        e_surface = e_surface.replace(E(f"k({j},{i + 1})"), k[j][i])
+            for j in range(0, self.L):
                 for i in range(0, 3):
-                    e_surface = e_surface.replace(E(f"p(1,{i + 1})"), p1[i])
-                for i in range(0, 3):
-                    e_surface = e_surface.replace(E(f"p(2,{i + 1})"), p2[i])
-                e_surface = e_surface.replace(E("s"), s)
-                e_surface = e_surface.replace(E("z"), z)
+                    e_surface = e_surface.replace(E(f"k({j},{i + 1})"), k[j][i])
+            for i in range(0, 3):
+                e_surface = e_surface.replace(E(f"p(1,{i + 1})"), p1[i])
+            for i in range(0, 3):
+                e_surface = e_surface.replace(E(f"p(2,{i + 1})"), p2[i])
+            e_surface = e_surface.replace(E("s"), s)
+            e_surface = e_surface.replace(E("z"), z)
 
-                t_sol = e_surface.nsolve(E("t"), 1.0)
-                return t_sol
-            else:
-                return 1
+            t_sol = e_surface.nsolve(E("t"), 1.0)
+            return t_sol
+            # else:
+            #    return 1
 
         return 1
 
@@ -1862,7 +1898,7 @@ class evaluate_integrand(object):
             mass_sq = (
                 E("0")
                 if _strip_quotes(str(e_atts["particle"])) != "a"
-                else E("4*z*p(1,3)^2")
+                else E("4*z*t^2*p(1,3)^2")
             )
             mom = (
                 sum(loop_coeff[i] * E(f"k({i})") for i in range(0, self.L))
@@ -1906,8 +1942,8 @@ class evaluate_integrand(object):
         print(energies)
         print(masses)
         # print(self.routed_integrand.integrand)
-        emr_int = deepcopy(self.routed_integrand.emr_integrand).expand()
-        # print(emr_int)
+        emr_int = deepcopy(self.routed_integrand.emr_integrand)
+        print(emr_int)
 
         # for key, val in energies.items():
         #    emr_int = emr_int.replace(key, val)
