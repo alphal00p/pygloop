@@ -9,12 +9,12 @@ import os
 import random
 import shutil
 import time
+from copy import deepcopy
 from itertools import product  # noqa: F401
 from pprint import pformat, pprint  # noqa: F401
 from typing import Any, Callable
 
-from copy import deepcopy
-
+import numpy as np
 import progressbar  # pyright: ignore
 import vegas  # type: ignore
 
@@ -31,11 +31,20 @@ from symbolica.community.idenso import (  # noqa: F401 # pyright: ignore
 from symbolica.community.spenso import *  # noqa: F403 # type: ignore
 
 from processes.dy.dy_classes import DYDotGraphs, VacuumDotGraph  # noqa: F401
-from processes.dy.dy_infrared_test import infrared_test
+from processes.dy.dy_evaluators import (
+    DYCompiledBundle,
+    compile_integrands,
+    evaluate_integrand,
+)
+from processes.dy.dy_infrared_test import (
+    approach_point,
+    # evaluate_integrand,
+    infrared_test,
+    ultraviolet_test,
+)
 from processes.dy.dy_integrand import (
     EMRIntegrandConstructor,
     LoopIntegrandConstructor,
-    evaluate_integrand,
     routed_cut_graph,
 )
 from utils.utils import (
@@ -173,6 +182,21 @@ class DY(object):
         # Cache some quantities for performance
         self.cache: dict[str, Any] = {}
 
+        self.compiled_bundle: DYCompiledBundle | None = None
+        integrand_name = self.get_integrand_name()
+        bundle_dir = pjoin(EVALUATORS_FOLDER, self.name, integrand_name)
+        bundle_metadata = pjoin(bundle_dir, DYCompiledBundle.METADATA_FILE)
+        if os.path.exists(bundle_metadata):
+            try:
+                self.compiled_bundle = DYCompiledBundle.load(self.name, integrand_name)
+                logger.info(
+                    f"Loaded compiled DY bundle from {Colour.GREEN}{bundle_dir}{Colour.END}"
+                )
+            except Exception as e:
+                logger.warning(
+                    f"Failed loading compiled DY bundle from {bundle_dir}: {e}"
+                )
+
         logger.setLevel(start_logger_level)
 
     def __deepcopy__(self, _memo) -> DY:
@@ -282,26 +306,59 @@ class DY(object):
 
         for graph in filtered_graphs:
             g = copy.deepcopy(graph)
+            print("generator graph")
+            print(g.dot)
             vacuum_g = g.get_vacuum_graph()
+            print("vacuum graph")
+            print(vacuum_g.dot)
             _cuts = vacuum_g.get_cutkosky_cuts()
             routed_graphs = vacuum_g.cut_graphs_with_routing_leading_virtuality(
                 [], ["a"]
             )
             routed_integrands = []
+            evaluators = []
             for gg in routed_graphs:
                 # print(gg[3])
                 processed_graphs.append(gg[3])
                 cut_graph = deepcopy(routed_cut_graph(gg[3], gg[0], gg[1], gg[2]))
-                # if len(gg[2][0]) > 1 and len(gg[2][1]) == 1:
-                print(cut_graph.graph.get_name())
-                print(cut_graph.graph)
-                routed_integrands = routed_integrands + loop_processor.get_integrand(
-                    cut_graph
-                )
+                if len(gg[2][1]) == 1 and len(gg[2][0]) == 1:
+                    print(cut_graph.graph.get_name())
+                    print(cut_graph.graph)
+                    term_integrands = loop_processor.get_integrand(deepcopy(cut_graph))
 
-            ir_test = infrared_test(1, "DY", routed_integrands)
+                    # Keep full routed list for approach/IR/UV tests
+                    routed_integrands.extend(deepcopy(term_integrands))
+
+                    # Build one evaluator per routed term
+                    evaluators.extend(
+                        evaluate_integrand(1, "DY", deepcopy(term_integrand))
+                        for term_integrand in term_integrands
+                    )
+
+            approach_limit = approach_point(1, "DY", routed_integrands)
             print("##################")
-            ir_test.approach_limits(1)
+            z = 0.6
+            ks = [math.sqrt(z) * np.array([0, 1 / math.sqrt(2), 1 / math.sqrt(2)])]
+            ks = [
+                math.sqrt(z)
+                * np.array([1 / math.sqrt(3), 1 / math.sqrt(3), 1 / math.sqrt(3)])
+            ]
+            vp = np.array([0.3, -0.2, 0.11])
+            p1 = np.array([0, 0, 1])
+            p2 = np.array([0, 0, -1])
+
+            approach_limit.approach(ks, p1, p2, z, vp)
+
+            # ir_test = infrared_test(1, "DY", routed_integrands)
+            # print("##################")
+            # ir_test.approach_limits(1)
+
+            # uv_test = ultraviolet_test(1, "DY", routed_integrands)
+            # print("##################")
+            # uv_test.approach_limits(1)
+
+            my_compiler = compile_integrands(1, "DY", g.dot.get_name(), "z", evaluators)
+            my_compiler.save_compiled_integrand()
 
         print("n routed:", len(processed_graphs))
         return processed_graphs
@@ -339,7 +396,7 @@ class DY(object):
                 )
 
                 # self.gl_worker.run(  ## GL04
-                #    f"generate amp d g > d g | d d~ g a QED==2 [{{1}}] --only-diagrams --numerator-grouping only_detect_zeroes --select-graphs GL04 -p {base_name} -i {graphs_process_name}"  #
+                #    f"generate amp d g > d g | d d~ g a QED==2 [{{1}}] --only-diagrams --numerator-grouping only_detect_zeroes --select-graphs GL10 -p {base_name} -i {graphs_process_name}"  #
                 # )
                 self.gl_worker.run("save state -o")
                 DY_1L_dot_files = self.gl_worker.get_dot_files(
