@@ -2,7 +2,10 @@
 from __future__ import annotations
 
 import json
+import math
 import os
+import shutil
+import time
 from copy import deepcopy
 from dataclasses import dataclass
 
@@ -12,6 +15,7 @@ from utils.utils import (
     EVALUATORS_FOLDER,
     ParamBuilder,
     PygloopEvaluator,
+    expr_to_string,
     pygloopException,
 )
 from utils.vectors import Vector
@@ -26,6 +30,13 @@ from processes.dy.dy_graph_utils import (
 from processes.dy.dy_integrand import (
     RoutedIntegrand,  # ruff: ignore
 )
+
+
+def heaviside_theta(x):
+    if x > 0:
+        return 1
+    else:
+        return 0
 
 
 class evaluate_integrand(object):
@@ -62,7 +73,9 @@ class evaluate_integrand(object):
 
     def set_e_surface(self):
         final_moms = []
-        e_surface = E("-s^(1/2)")
+        e_surface = E(
+            "-(4*p(1,3)^2)^(1/2)"
+        )  # -E("s^(1/2)")  # E("-4*p(1,3)^2")  # check
 
         for ep in self.routed_integrand.cut_graph.final_cut:
             ep_atts = ep.get_attributes()
@@ -119,7 +132,15 @@ class evaluate_integrand(object):
 
         return rescaled_e_surface
 
-    def __init__(self, L, process, routed_integrand):
+    def __init__(
+        self,
+        L,
+        process,
+        routed_integrand,
+        n_hornerscheme_iterations,  #: int | None = None,
+        n_cpe_iterations,  #: int | None = None,
+        observable_params,
+    ):
         self.L = L
         self.process = process
         self.routed_integrand = routed_integrand
@@ -159,6 +180,8 @@ class evaluate_integrand(object):
             E("GC_1"), E("1")
         )
 
+        self.observable_params = observable_params
+
         theta_x = self.routed_integrand.integrand.match(E("Θ(x_)"))
         self.theta_expressions: list[Expression] = []
         self.theta_val = []
@@ -169,15 +192,39 @@ class evaluate_integrand(object):
                 self.theta_expressions.append(theta_expr)
                 self.theta_val.append(theta_expr.evaluator({}, {}, self.symbols))
 
+        theta_zmin_expr = E("t^2*z") - E(str(observable_params["zmin"]))
+        self.theta_expressions.append(theta_zmin_expr)
+        self.theta_val.append(theta_zmin_expr.evaluator({}, {}, self.symbols))
+
+        theta_zmax_expr = E(str(observable_params["zmax"])) - E("t^2*z")
+        self.theta_expressions.append(theta_zmax_expr)
+        self.theta_val.append(theta_zmax_expr.evaluator({}, {}, self.symbols))
+
         self.routed_integrand.integrand = self.routed_integrand.integrand.replace(
             E("Θ(x_)"), E("1")
         )
 
-        self.evaluator = self.routed_integrand.integrand.evaluator({}, {}, self.symbols)
-
         self.sp3D = S("sp3D", is_linear=True, is_symmetric=True)
 
         self.e_surface = self.set_e_surface()
+
+        ht_prefactor = 2.0 / math.sqrt(math.pi)
+        ht = (-(E("t") ** 2)).exp() * E(f"{ht_prefactor:.16e}")
+        jacobian = E("t") ** 5 / self.e_surface.derivative(E("t"))
+
+        self.routed_integrand.integrand = (
+            self.routed_integrand.integrand * ht * jacobian
+        )
+
+        ## ADD THETA OF t^2 z
+
+        self.evaluator = self.routed_integrand.integrand.evaluator(
+            {},
+            {},
+            self.symbols,
+            iterations=n_hornerscheme_iterations,
+            cpe_iterations=n_cpe_iterations,
+        )
 
         # self.is_rescaling_necessary = True
         # if self.e_surface.derivative(E("t")) == E("0"):
@@ -371,6 +418,15 @@ class DYCompiledBundle:
             pb.np[i] = 0.0
         return pb
 
+    # src/processes/dy/dy_evaluators.py
+
+    @staticmethod
+    def _normalize_symbol_key(key: str) -> str:
+        # drop namespace prefix if present, keep tail symbol form
+        if "::" in key:
+            key = key.split("::")[-1]
+        return key
+
     @classmethod
     def create_from_evaluators(
         cls,
@@ -386,6 +442,8 @@ class DYCompiledBundle:
             )
 
         out_dir = cls._bundle_dir(process, integrand_name)
+        if os.path.isdir(out_dir):
+            shutil.rmtree(out_dir)
         os.makedirs(out_dir, exist_ok=True)
 
         loaded_evaluators: dict[str, PygloopEvaluator] = {}
@@ -408,7 +466,12 @@ class DYCompiledBundle:
                 },
                 complexified=False,
             )
-            pe.compile(out_dir)
+            pe.compile(
+                out_dir,
+                optimization_level=3,  # max in your current setup
+                native=True,
+                inline_asm="default",
+            )
             pe.save(out_dir)
 
             loaded_evaluators[evaluator_name] = PygloopEvaluator.load(
@@ -479,8 +542,14 @@ class DYCompiledBundle:
         )
 
     @staticmethod
+    def _strip_python_namespace(expr: Expression) -> Expression:
+        # Avoid constructing namespaced symbols with potentially wrong attributes.
+        canon = expr.to_canonical_string().replace("python::{}::", "")
+        return E(canon)
+
+    @staticmethod
     def _replace_values(expr: Expression, values: dict[str, float]) -> Expression:
-        out = expr
+        out = DYCompiledBundle._strip_python_namespace(expr)
         for k, v in values.items():
             out = out.replace(E(k), E(f"{v:.16e}"))
         return out
@@ -488,10 +557,12 @@ class DYCompiledBundle:
     @staticmethod
     def _set_inputs(pe: PygloopEvaluator, values: dict[str, float]) -> None:
         for head in pe.param_builder.order:
-            key = head[0].to_canonical_string()
+            raw_key = head[0].to_canonical_string()
+            key = DYCompiledBundle._normalize_symbol_key(raw_key)
+
             if key not in values:
                 raise pygloopException(
-                    f"Missing value for symbol '{key}' in compiled evaluator '{pe.name}'."
+                    f"Missing value for symbol '{raw_key}' (normalized '{key}') in compiled evaluator '{pe.name}'."
                 )
             pe.param_builder.set_parameter_values(head, [values[key]])
 
@@ -503,6 +574,9 @@ class DYCompiledBundle:
         z: float,
         m_uv: float = 1.0,
     ) -> complex:
+
+        t0 = time.perf_counter()
+
         vals: dict[str, float] = {}
         for i, k in enumerate(loop_momenta):
             kx, ky, kz = k.to_list()
@@ -521,25 +595,82 @@ class DYCompiledBundle:
         vals["z"] = float(z)
         vals["mUV"] = float(m_uv)
 
+        eq_vals = deepcopy(dict(vals))
+        # eq_vals["s"] = 4.0 * float(p1.to_list()[2]) ** 2
+
         total = 0.0 + 0.0j
+        # before loop over terms
+        total = 0.0 + 0.0j
+
+        t1 = time.perf_counter()
+
+        print("input building time: ", t1 - t0)
+
+        # Sum over all cut graphs
         for term in self.terms:
-            eq = self._replace_values(term.e_surface, vals)
-            t_sol = float(str(eq.nsolve(self.t_symbol, term.t_initial_guess)))
+            t3 = time.perf_counter()
+
+            eq = self._replace_values(term.e_surface, eq_vals)
+
+            try:
+                t_sol = float(str(eq.nsolve(self.t_symbol, 1.0)))
+                if not math.isfinite(t_sol):
+                    continue
+            except Exception as e:
+                # Treat failed t-solve as zero contribution at this sample
+                raise ValueError("error in t solving: ", e)
+
+            t4 = time.perf_counter()
+
+            print("t solving time: ", t4 - t3)
+
             vals_with_t = dict(vals)
             vals_with_t["t"] = t_sol
+            eq_vals_with_t = dict(eq_vals)
+            eq_vals_with_t["t"] = t_sol
 
             theta = 1
             for th in term.theta_expressions:
-                th_val = self._replace_values(th, vals_with_t)
-                if float(str(th_val)) <= 0.0:
+                try:
+                    th_str = th.to_canonical_string()
+                    th_args = {k: v for k, v in eq_vals_with_t.items() if k in th_str}
+                    th_val = self._replace_values(th, eq_vals_with_t)
+                    print("theta expr:", th_str)
+                    print("theta args:", th_args)
+                    print("theta value:", th_val)
+
+                    # th_val = self._replace_values(th, eq_vals_with_t)
+                    if float(str(th_val)) <= 0.0:
+                        theta = 0
+                        break
+                except Exception:
                     theta = 0
                     break
             if theta == 0:
                 continue
 
+            t44 = time.perf_counter()
+
+            print("theta adding time: ", t44 - t4)
+
             pe = self.evaluators[term.evaluator_name]
-            self._set_inputs(pe, vals_with_t)
-            total += complex(pe.evaluate(eager=False)[0])
+            try:
+                self._set_inputs(pe, vals_with_t)
+                total += complex(pe.evaluate(eager=False)[0])
+
+            except Exception:
+                continue
+
+            t5 = time.perf_counter()
+            print("integrand evaluation time: ", t5 - t4)
+
+        print("total")
+        print(loop_momenta[0])
+        print(p1)
+        print(p2)
+        print(z)
+        print(t_sol)
+        print(total)
 
         return total
 

@@ -72,7 +72,7 @@ pjoin = os.path.join
 
 TOLERANCE: float = 1e-10
 
-RESCALING: float = 10.0
+RESCALING: float = 1.0
 
 
 class DY(object):
@@ -87,6 +87,7 @@ class DY(object):
         n_loops: int = 1,
         toml_config_path: str | None = None,
         runtime_toml_config_path: str | None = None,
+        skip_ps_validation: bool = False,
         clean=True,
         logger_level: int | None = None,
         **opts,
@@ -103,7 +104,9 @@ class DY(object):
         self.helicities = helicities
         self.n_loops = n_loops
 
-        self.valide_ps_point()
+        self.skip_ps_validation = bool(skip_ps_validation)
+        if not self.skip_ps_validation:
+            self.valide_ps_point()
 
         self.e_cm = math.sqrt(abs((self.ps_point[0] + self.ps_point[1]).squared()))
 
@@ -210,6 +213,7 @@ class DY(object):
             self.runtime_toml_config_path,
             clean=False,
             logger_level=logging.CRITICAL,
+            skip_ps_validation=self.skip_ps_validation,
         )
         return copied_self
 
@@ -222,6 +226,7 @@ class DY(object):
             self.n_loops,
             self.toml_config_path,
             self.runtime_toml_config_path,
+            self.skip_ps_validation,
         )
 
     def set_log_level(self, level) -> None:
@@ -329,9 +334,18 @@ class DY(object):
                     # Keep full routed list for approach/IR/UV tests
                     routed_integrands.extend(deepcopy(term_integrands))
 
+                    observable_params = {"zmin": 0.0, "zmax": 1.0}
+
                     # Build one evaluator per routed term
                     evaluators.extend(
-                        evaluate_integrand(1, "DY", deepcopy(term_integrand))
+                        evaluate_integrand(
+                            1,
+                            "DY",
+                            deepcopy(term_integrand),
+                            n_hornerscheme_iterations=1000,  # increase
+                            n_cpe_iterations=10000,
+                            observable_params=observable_params,
+                        )
                         for term_integrand in term_integrands
                     )
 
@@ -346,7 +360,7 @@ class DY(object):
             vp = np.array([0.3, -0.2, 0.11])
             p1 = np.array([0, 0, 1])
             p2 = np.array([0, 0, -1])
-
+            #
             approach_limit.approach(ks, p1, p2, z, vp)
 
             # ir_test = infrared_test(1, "DY", routed_integrands)
@@ -357,7 +371,9 @@ class DY(object):
             # print("##################")
             # uv_test.approach_limits(1)
 
-            my_compiler = compile_integrands(1, "DY", g.dot.get_name(), "z", evaluators)
+            my_compiler = compile_integrands(
+                1, "DY", self.get_integrand_name(), "z", evaluators
+            )
             my_compiler.save_compiled_integrand()
 
         print("n routed:", len(processed_graphs))
@@ -391,13 +407,13 @@ class DY(object):
         match self.n_loops:
             case 1:
                 logger.info("Generating one-loop graphs ...")
-                self.gl_worker.run(  # GL09
-                    f"generate amp d d~ > d d~ | d d~ g a QED==2 [{{1}}] --only-diagrams --numerator-grouping only_detect_zeroes --select-graphs GL02 -p {base_name} -i {graphs_process_name}"
-                )
-
-                # self.gl_worker.run(  ## GL04
-                #    f"generate amp d g > d g | d d~ g a QED==2 [{{1}}] --only-diagrams --numerator-grouping only_detect_zeroes --select-graphs GL10 -p {base_name} -i {graphs_process_name}"  #
+                # self.gl_worker.run(  # GL09
+                #    f"generate amp d d~ > d d~ | d d~ g a QED==2 [{{1}}] --only-diagrams --numerator-grouping only_detect_zeroes --select-graphs GL02 -p {base_name} -i {graphs_process_name}"
                 # )
+
+                self.gl_worker.run(  ## GL04
+                    f"generate amp d g > d g | d d~ g a QED==2 [{{1}}] --only-diagrams --numerator-grouping only_detect_zeroes --select-graphs GL11 -p {base_name} -i {graphs_process_name}"  #
+                )
                 self.gl_worker.run("save state -o")
                 DY_1L_dot_files = self.gl_worker.get_dot_files(
                     process_id=None, integrand_name=graphs_process_name
@@ -462,42 +478,6 @@ class DY(object):
     def generate_gammaloop_code(self) -> None:
         logger.info(f"Generating GammaLoop code not applicable for process {self.name}")
         return
-        amplitudes, _cross_sections = self.gl_worker.list_outputs()
-        integrand_name = self.get_integrand_name()
-        process_graphs_name = self.get_integrand_name(suffix="_generated_graphs")
-        if process_graphs_name not in amplitudes:
-            raise pygloopException(
-                f"Amplitude with named integrand {process_graphs_name} not found in GammaLoop state. Generate graphs first."
-            )
-        if integrand_name in amplitudes:
-            logger.info(f"Amplitude {integrand_name} already generated and recycled.")
-            return
-        if not os.path.isfile(pjoin(DOTS_FOLDER, "DY", f"{integrand_name}.dot")):
-            raise pygloopException(
-                f"Processed dot file not found at {pjoin(DOTS_FOLDER, 'DY', f'{integrand_name}.dot')}. Generate graphs first."
-            )
-
-        self.gl_worker.run(
-            f"import graphs {pjoin(DOTS_FOLDER, 'DY', f'{integrand_name}.dot')} -p {amplitudes[process_graphs_name]} -i {integrand_name}"
-        )
-        self.gl_worker.run(
-            f"generate existing -p {amplitudes[process_graphs_name]} -i {integrand_name}"
-        )
-        # match self.n_loops:
-        #     case 1:
-        #         self.gl_worker.run(
-        #             f"import graphs {pjoin(DOTS_FOLDER, 'DY', f'{integrand_name}.dot')} -p {amplitudes[process_graphs_name]} -i {integrand_name}"
-        #         )
-        #         self.gl_worker.run(f"generate existing -p {amplitudes[process_graphs_name]} -i {process_graphs_name}")
-        #     case 2:
-        #         self.gl_worker.run(
-        #             f"import graphs {pjoin(DOTS_FOLDER, 'DY', f'{integrand_name}.dot')} -p {amplitudes[process_graphs_name]} -i {integrand_name}"
-        #         )
-        #         self.gl_worker.run(f"generate existing -p {amplitudes[process_graphs_name]} -i {process_graphs_name}")
-        #     case _:
-        #         raise pygloopException(f"Number of loops {self.n_loops} not supported.")
-
-        self.save_state()
 
     def valide_ps_point(self) -> None:
         # Only perform sanity checks if in the physical region
@@ -600,19 +580,23 @@ class DY(object):
     def spherical_parameterize(
         self, xs: list[float], origin: Vector | None = None
     ) -> tuple[Vector, float]:
-        rx, costhetax, phix = xs
-        scale = self.e_cm * RESCALING
-        r = rx / (1 - rx) * scale
-        costheta = (0.5 - costhetax) * 2
-        sintheta = math.sqrt(1 - costheta**2)
-        phi = phix * 2 * math.pi
+        rx, thetax, phix = xs
+        ecm = self.e_cm
+        r = rx / (1 - rx) * ecm
+        th = 2 * math.pi * thetax
+        ph = math.pi * phix
         v = Vector(
-            r * sintheta * math.cos(phi), r * sintheta * math.sin(phi), r * costheta
+            r * math.cos(th) * math.sin(ph),
+            r * math.sin(th) * math.sin(ph),
+            r * math.cos(ph),
         )
         if origin is not None:
             v = v + origin
-        jac = 2 * (2 * math.pi) * (r**2 * scale / (1 - rx) ** 2)
+        # k-space Jacobian only; z Jacobian is applied separately in integrand_xspace.
+        jac = r**2 * math.sin(ph) * 2 * math.pi**2 * ecm / (1 - rx) ** 2
         return (v, jac)
+
+    # dy.py: replace integrand_xspace(...) with this version
 
     def integrand_xspace(
         self,
@@ -622,69 +606,70 @@ class DY(object):
         phase: str,
         multi_channeling: bool | int = True,
     ) -> float:
+        integrand_implementation = self._normalize_integrand_implementation(
+            integrand_implementation
+        )
         try:
-            if multi_channeling is False:
-                k, jac = self.parameterize(xs, parameterization)
-                wgt = self.integrand([k], integrand_implementation)
-                if phase == "real":
-                    wgt = wgt.real
-                else:
-                    wgt = wgt.imag
-                final_wgt = wgt * jac
-            else:
-                if self.n_loops != 1:
+            t0 = time.perf_counter()
+
+            impl = dict(integrand_implementation)
+            expects_z = impl.get("integrand_type") == "zenos"
+            jac_z = 1
+            if expects_z:
+                if len(xs) != 4:
                     raise pygloopException(
-                        "Multi-channeling only implemented for one-loop processes."
+                        f"Integrand '{impl['integrand_type']}' expects 4 variables [xk0,xk1,xk2,xz], got {len(xs)}."
                     )
-                final_wgt = 0.0
-                multi_channeling_power = 3
-                q_offsets = [
-                    Vector(0.0, 0.0, 0.0),
-                    self.ps_point[1].spatial(),
-                    (self.ps_point[1] - self.ps_point[2]).spatial(),
-                    (
-                        self.ps_point[1] - self.ps_point[2] - self.ps_point[3]
-                    ).spatial(),  # nopep8
-                    (
-                        self.ps_point[1]
-                        - self.ps_point[2]
-                        - self.ps_point[3]
-                        - self.ps_point[4]
-                    ).spatial(),  # nopep8
-                ]
-                for i_channel in range(5):
-                    if multi_channeling is True or multi_channeling == i_channel:
-                        k, jac = self.parameterize(
-                            xs, parameterization, q_offsets[i_channel] * -1
-                        )
-                        inv_oses = [
-                            1.0
-                            / math.sqrt(
-                                (k + q_offsets[i_prop]).squared() + self.m_top**2
-                            )
-                            for i_prop in range(5)  # nopep8
-                        ]
-                        wgt = self.integrand([k], integrand_implementation)
-                        if phase == "real":
-                            wgt = wgt.real
-                        else:
-                            wgt = wgt.imag
-                        final_wgt += (
-                            jac
-                            * inv_oses[i_channel] ** multi_channeling_power
-                            * wgt
-                            / sum(t**multi_channeling_power for t in inv_oses)
-                        )
+                k_xs = xs[:3]
+                x_z = xs[3]
+
+                z_min = float(impl.get("z_min", 0.0))
+                z_max = float(impl.get("z_max", 1.0))
+                if not (0.0 <= z_min < z_max <= 1.0):
+                    raise pygloopException(f"Invalid z range [{z_min}, {z_max}]")
+
+                z_sample = x_z / (1 - x_z)
+                jac_z = 1 / (1 - x_z) ** 2
+
+                impl["z"] = z_sample
+            else:
+                if len(xs) != 3:
+                    raise pygloopException(
+                        f"Integrand '{impl['integrand_type']}' expects 3 variables [xk0,xk1,xk2], got {len(xs)}."
+                    )
+                k_xs = xs
+                z_sample = None
+
+            k, jac_k = self.parameterize(k_xs, parameterization)
+
+            t1 = time.perf_counter()
+
+            print("-" * 15)
+            print("parametrisation time:", t1 - t0)
+
+            wgt = self.integrand([k], impl)
+
+            t2 = time.perf_counter()
+
+            print("overall integrand time:", t2 - t1)
+
+            wgt = wgt.real if phase == "real" else wgt.imag
+            final_wgt = wgt * jac_k * jac_z
+
+            print("res")
+            print(xs)
+            print(final_wgt)
 
             if math.isnan(final_wgt):
                 logger.debug(
                     f"Integrand evaluated to NaN at xs = [{Colour.BLUE}{', '.join(f'{xi:+.16e}' for xi in xs)}{Colour.END}]. Setting it to zero"
-                )  # nopep8
+                )
                 final_wgt = 0.0
+
         except ZeroDivisionError:
             logger.debug(
                 f"Integrand divided by zero at xs = [{Colour.BLUE}{', '.join(f'{xi:+.16e}' for xi in xs)}{Colour.END}]. Setting it to zero"
-            )  # nopep8
+            )
             final_wgt = 0.0
 
         return final_wgt
@@ -692,10 +677,15 @@ class DY(object):
     def integrand(
         self, loop_momenta: list[Vector], integrand_implementation: dict[str, Any]
     ) -> complex:
+        integrand_implementation = self._normalize_integrand_implementation(
+            integrand_implementation
+        )
         try:
             match integrand_implementation["integrand_type"]:
                 case "spenso":
                     return self.spenso_integrand(loop_momenta)
+                case "zenos":
+                    return self.zenos_integrand(loop_momenta, integrand_implementation)
                 case "gammaloop":
                     return self.gammaloop_integrand(loop_momenta)
                 case _:
@@ -743,8 +733,39 @@ class DY(object):
         )
         return res
 
-    def spenso_integrand(self, loop_momentum: list[Vector]) -> complex:
-        raise NotImplementedError("Implement spenso integrand.")
+    def spenso_integrand(
+        self,
+        loop_momentum: list[Vector],
+        integrand_implementation: dict[str, Any] | None = None,
+    ) -> complex:
+        raise ValueError("spenso integrand not implemented")
+
+    def zenos_integrand(
+        self,
+        loop_momentum: list[Vector],
+        integrand_implementation: dict[str, Any] | None = None,
+    ) -> complex:
+        if self.compiled_bundle is None:
+            raise pygloopException(
+                f"No compiled DY bundle loaded for integrand '{self.get_integrand_name()}'."
+            )
+
+        p1 = self.ps_point[0].spatial()
+        p2 = self.ps_point[1].spatial()
+        z = 1.0
+        m_uv = 1.0
+        if integrand_implementation is not None:
+            z = float(integrand_implementation.get("z", z))
+            m_uv = float(integrand_implementation.get("mUV", m_uv))
+
+        return self.compiled_bundle.evaluate(loop_momentum, p1, p2, z, m_uv)
+
+    def _normalize_integrand_implementation(
+        self, integrand_implementation: dict[str, Any] | str
+    ) -> dict[str, Any]:
+        if isinstance(integrand_implementation, str):
+            return {"integrand_type": integrand_implementation}
+        return integrand_implementation
 
     def integrate(
         self,
@@ -755,6 +776,9 @@ class DY(object):
         toml_config_path: str | None = None,
         **opts,
     ) -> IntegrationResult:
+        integrand_implementation = self._normalize_integrand_implementation(
+            integrand_implementation
+        )
         match integrator:
             case "naive":
                 return self.naive_integrator(
@@ -878,8 +902,9 @@ class DY(object):
         )  # type: ignore
         this_result = IntegrationResult(0.0, 0.0)
         t_start = time.time()
+        n_dim = 4 if call_args[1].get("integrand_type") == "zenos" else 3
         for _ in range(n_points):
-            xs = [random.random() for _ in range(3)]
+            xs = [random.random() for _ in range(n_dim)]
             weight = process_instance.integrand_xspace(xs, *call_args)
             if this_result.max_wgt is None or abs(weight) > abs(this_result.max_wgt):
                 this_result.max_wgt = weight
@@ -1017,7 +1042,8 @@ class DY(object):
     ) -> IntegrationResult:
         integration_result = IntegrationResult(0.0, 0.0)
 
-        integrator = vegas.Integrator( 3 * [ [0, 1], ])  # fmt: off
+        n_dim = 4 if integrand_implementation.get("integrand_type") == "zenos" else 3
+        integrator = vegas.Integrator(n_dim * [[0, 1]])  # fmt: off
 
         local_worker = DY.vegas_functor(
             self,
@@ -1133,16 +1159,18 @@ class DY(object):
     ) -> IntegrationResult:
         integration_result = IntegrationResult(0.0, 0.0)
 
+        n_dim = 4 if integrand_implementation.get("integrand_type") == "zenos" else 3
+
         if opts["multi_channeling"]:
             integrator = NumericalIntegrator.discrete([
-                NumericalIntegrator.continuous(3),
-                NumericalIntegrator.continuous(3),
-                NumericalIntegrator.continuous(3),
-                NumericalIntegrator.continuous(3),
-                NumericalIntegrator.continuous(3),
+                NumericalIntegrator.continuous(n_dim),
+                NumericalIntegrator.continuous(n_dim),
+                NumericalIntegrator.continuous(n_dim),
+                NumericalIntegrator.continuous(n_dim),
+                NumericalIntegrator.continuous(n_dim),
             ])
         else:
-            integrator = NumericalIntegrator.continuous(3)
+            integrator = NumericalIntegrator.continuous(n_dim)
 
         rng = integrator.rng(seed=opts["seed"], stream_id=0)
 
@@ -1172,6 +1200,46 @@ class DY(object):
             )
 
         return integration_result
+
+    def benchmark_integrand_evaluation(
+        self,
+        integrand_implementation: dict[str, Any],
+        n_evals: int = 1000,
+        parameterisation: str = "cartesian",
+        phase: str = "real",
+        multi_channeling: bool | int = False,
+        seed: int = 1337,
+    ) -> dict[str, float]:
+        """
+        Benchmark integrand evaluation cost over n_evals random x-space points.
+        Returns timing summary in seconds / microseconds.
+        """
+        random.seed(seed)
+
+        # zenos uses 4 integration vars (x0,x1,x2,xz), others use 3
+        n_dim = 4 if integrand_implementation.get("integrand_type") == "zenos" else 3
+
+        t0 = time.perf_counter()
+        acc = 0.0
+        for _ in range(n_evals):
+            xs = [random.random() for _ in range(n_dim)]
+            w = self.integrand_xspace(
+                xs,
+                parameterisation,
+                integrand_implementation,
+                phase,
+                multi_channeling,
+            )
+            acc += abs(w)  # prevent potential optimization/elision
+        elapsed = time.perf_counter() - t0
+
+        return {
+            "n_evals": float(n_evals),
+            "elapsed_s": elapsed,
+            "per_eval_us": 1.0e6 * elapsed / n_evals,
+            "evals_per_s": n_evals / elapsed if elapsed > 0 else float("inf"),
+            "checksum": acc,
+        }
 
     @set_gammaloop_level(logging.ERROR, logging.INFO)
     def plot(self, **opts):

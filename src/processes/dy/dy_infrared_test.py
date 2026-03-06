@@ -6,9 +6,10 @@ from typing import List
 import numpy as np
 from symbolica import E  # pyright: ignore
 
+from processes.dy.dy_evaluators import evaluate_integrand
 from processes.dy.dy_integrand import (
     RoutedIntegrand,  # ruff: ignore
-    evaluate_integrand,
+    #    evaluate_integrand,
 )
 
 
@@ -18,24 +19,35 @@ class approach_point(object):
         self.L = L
         self.process = process
         self.evaluators = [
-            evaluate_integrand(L, process, deepcopy(rout)) for rout in routed_integrands
+            evaluate_integrand(
+                L, process, deepcopy(rout), 800, 400, {"zmin": 0.0, "zmax": 1.0}
+            )
+            for rout in routed_integrands
         ]
 
-    def approach(self, ks, p1, p2, z, vp):
+    def approach(self, kcc, p1, p2, z, vp):
         kc_comps = []
 
-        for i in range(2, 4):
-            print("i-------------------------------")
-            ks = [k + pow(10, -i) * vp for k in ks]
+        for i in range(5, 6):
+            print("####################################################")
+            print("####################################################")
+            ks = [k + pow(10, -i) * vp for k in kcc]
+            print(ks)
+            print(pow(10, -i) * vp)
 
             for cut_graph, cut_graph_evaluator in zip(
                 self.routed_integrands, self.evaluators
             ):
-                print("------------------------------")
-                print(ks)
-                print(
-                    f"\033[32m{cut_graph.cut_graph.graph.get_name()}, {cut_graph.approximation_type} : {cut_graph_evaluator.eval(ks, p1, p2, z)}\033[0m"
-                )
+                if (
+                    cut_graph.approximation_type == "PM"
+                    or cut_graph.approximation_type == "threshold"
+                ):
+                    print("------------------------------")
+                    print(ks)
+
+                    print(
+                        f"\033[32m{cut_graph.cut_graph.graph.get_name()}, {cut_graph.approximation_type} : {cut_graph_evaluator.eval(ks, p1, p2, z)}\033[0m"
+                    )
 
 
 class ultraviolet_test(object):
@@ -44,7 +56,10 @@ class ultraviolet_test(object):
         self.L = L
         self.process = process
         self.evaluators = [
-            evaluate_integrand(L, process, deepcopy(rout)) for rout in routed_integrands
+            evaluate_integrand(
+                L, process, deepcopy(rout), 400, 800, {"zmin": 0.0, "zmax": 1.0}
+            )
+            for rout in routed_integrands
         ]
 
     def approach_limits(self, sqrts_s):
@@ -77,7 +92,10 @@ class infrared_test(object):
         self.L = L
         self.process = process
         self.evaluators = [
-            evaluate_integrand(L, process, deepcopy(rout)) for rout in routed_integrands
+            evaluate_integrand(
+                L, process, deepcopy(rout), 400, 800, {"zmin": 0.0, "zmax": 1.0}
+            )
+            for rout in routed_integrands
         ]
 
     def concretise_scalar_products(self, integrand):

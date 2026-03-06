@@ -12,25 +12,30 @@ import sys
 import time
 from pprint import pformat
 
+DY = None
+GGHHH = None
+ScalarGravity = None
+TemplateProcess = None
+
 try:
     from processes.dy.dy import DY
-except ImportError:
-    print("Warning: DY process not available.", file=sys.stderr)
+except Exception as exc:
+    print(f"Warning: DY process not available ({exc}).", file=sys.stderr)
 
 try:
     from processes.gghhh.gghhh import GGHHH
-except ImportError:
-    print("Warning: GGHHH process not available.", file=sys.stderr)
+except Exception as exc:
+    print(f"Warning: GGHHH process not available ({exc}).", file=sys.stderr)
 
 try:
     from processes.scalar_gravity.scalar_gravity import ScalarGravity
-except ImportError:
-    print("Warning: ScalarGravity process not available.", file=sys.stderr)
+except Exception as exc:
+    print(f"Warning: ScalarGravity process not available ({exc}).", file=sys.stderr)
 
 try:
     from processes.template_process import TemplateProcess
-except ImportError:
-    print("Warning: TemplateProcess not available.", file=sys.stderr)
+except Exception as exc:
+    print(f"Warning: TemplateProcess not available ({exc}).", file=sys.stderr)
 
 from utils.utils import (
     SRC_DIR,
@@ -46,12 +51,23 @@ if SRC_DIR not in sys.path:
     sys.path.insert(0, SRC_DIR)
 
 
+def _require_process_class(process_name: str, process_class: type | None) -> type:
+    if process_class is None:
+        raise pygloopException(
+            f"Process '{process_name}' is not available in this environment. "
+            f"Install its dependencies or pick another process with --process."
+        )
+    return process_class
+
+
 def main(argv: list[str] | None = None) -> dict[str, object] | int:
     # create the top-level parser
     class FloatArgParser(argparse.ArgumentParser):
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
-            self._negative_number_matcher = re.compile(r"^-?\d+(\.\d*)?([eE][-+]?\d+)?$")  # type: ignore
+            self._negative_number_matcher = re.compile(
+                r"^-?\d+(\.\d*)?([eE][-+]?\d+)?$"
+            )  # type: ignore
 
     parser = FloatArgParser(prog="pygloop")
 
@@ -78,6 +94,12 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
     parser.add_argument("--parameterisation", "-param", type=str, choices=["cartesian", "spherical"], default="spherical",
         help="Parameterisation to employ.",
     )  # fmt: off
+    parser.add_argument(
+        "--dy-skip-ps-validation",
+        action="store_true",
+        default=False,
+        help="DY only: skip phase-space momentum-conservation validation.",
+    )
 
     parser.add_argument("--gammaloop-configuration", "-f", default=None,
         help="Specify a toml file containing the gammaloop configuration desired. Default = ./configs/<PROCESS_NAME>/generate.toml",
@@ -113,23 +135,31 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
     parser.add_argument("--helicities", type=int, nargs=5, default=[+1, +1, +0, +0, +0],
         help="Helicities of the particles in the process. Default = %(default)s",
     )  # fmt: off
-    parser.add_argument("--n_loops", type=int, choices=[1, 2, 3], default=1,
+    parser.add_argument("--n_loops", type=int, choices=[1, 2, 3, 4], default=1,
         help="Number of loops in the process. Default = %(default)s",
     )  # fmt: off
     parser.add_argument("--clean", "-c", action="store_true", default=False,
         help="Clean existing generated states before generating new ones. Default = %(default)s",
     )  # fmt: off
 
-    parser.add_argument("--integrand-implementation", "-ii", type=str, default="gammaloop", choices=["gammaloop", "spenso_parametric", "spenso_summed"],
+    parser.add_argument("--integrand-implementation", "-ii", type=str, default="gammaloop", choices=["gammaloop", "zenos", "spenso_parametric", "spenso_summed"],
         help="Integrand implementation to employ. Default = %(default)s",
     )  # fmt: off
     parser.add_argument("--integrand-evaluator-compiler", "-iec", type=str, default="symbolica_only", choices=["symbolica_only", "symjit"],
         help="Compiler to use for the spenso integrand evaluator. Default = %(default)s",
     )  # fmt: off
-    parser.add_argument("--multi_channeling", "-mc", action="store_true", default=False, help="Consider a multi-channeled integrand.")
+    parser.add_argument(
+        "--multi_channeling",
+        "-mc",
+        action="store_true",
+        default=False,
+        help="Consider a multi-channeled integrand.",
+    )
 
     # Add subcommands and their options
-    subparsers = parser.add_subparsers(title="commands", dest="command", help="Various commands available")
+    subparsers = parser.add_subparsers(
+        title="commands", dest="command", help="Various commands available"
+    )
 
     # create the parser for the "generate" command
     parser_generate = subparsers.add_parser("generate", help="Generate the process.")
@@ -152,7 +182,9 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
     )  # fmt: off
 
     # create the parser for the "inspect" command
-    parser_inspect = subparsers.add_parser("inspect", help="Inspect evaluation of a sample point of the integration space.")
+    parser_inspect = subparsers.add_parser(
+        "inspect", help="Inspect evaluation of a sample point of the integration space."
+    )
     parser_inspect.add_argument("--point", "-p", type=float, nargs="*",
         help="Sample point to inspect",
     )  # fmt: off
@@ -164,7 +196,9 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
     )  # fmt: off
 
     # create the parser for the "integrate" command
-    parser_integrate = subparsers.add_parser("integrate", help="Integrate the loop amplitude.")
+    parser_integrate = subparsers.add_parser(
+        "integrate", help="Integrate the loop amplitude."
+    )
     parser_integrate.add_argument("--n_iterations", "-n", type=int, default=10,
         help="Number of iterations to perform. Default = %(default)s",
     )  # fmt: off
@@ -239,7 +273,13 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
         case "critical":
             logger.setLevel(logging.CRITICAL)
 
-    ps_point_is_default = args.pg1 is None or args.pg2 is None or args.ph1 is None or args.ph2 is None or args.ph3 is None
+    ps_point_is_default = (
+        args.pg1 is None
+        or args.pg2 is None
+        or args.ph1 is None
+        or args.ph2 is None
+        or args.ph3 is None
+    )
     match args.process:
         case "scalar_gravity":
             if args.m_top is None:
@@ -260,6 +300,45 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
                     LorentzVector(args.ph1[0], args.ph1[1], args.ph1[2], args.ph1[3]),
                     LorentzVector(args.ph2[0], args.ph2[1], args.ph2[2], args.ph2[3]),
                 ]
+        case "dy":
+            if args.m_top is None:
+                args.m_top = 173.0
+            if args.m_higgs is None:
+                args.m_higgs = 125.0
+            default_pg1 = [500.0, 0.0, 0.0, 500.0]
+            default_pg2 = [500.0, 0.0, 0.0, -500.0]
+            default_ph1 = [
+                438.5555662246945,
+                155.3322001835378,
+                348.0160396513587,
+                -177.3773615718412,
+            ]
+            default_ph2 = [
+                356.3696374921922,
+                -16.80238900851100,
+                -318.7291102436005,
+                97.48719163688098,
+            ]
+            default_ph3 = [
+                205.0747962831133,
+                -138.5298111750267,
+                -29.28692940775817,
+                79.89016993496030,
+            ]
+
+            pg1 = args.pg1 if args.pg1 is not None else default_pg1
+            pg2 = args.pg2 if args.pg2 is not None else default_pg2
+            ph1 = args.ph1 if args.ph1 is not None else default_ph1
+            ph2 = args.ph2 if args.ph2 is not None else default_ph2
+            ph3 = args.ph3 if args.ph3 is not None else default_ph3
+
+            ps_point = [
+                LorentzVector(pg1[0], pg1[1], pg1[2], pg1[3]),
+                LorentzVector(pg2[0], pg2[1], pg2[2], pg2[3]),
+                LorentzVector(ph1[0], ph1[1], ph1[2], ph1[3]),
+                LorentzVector(ph2[0], ph2[1], ph2[2], ph2[3]),
+                LorentzVector(ph3[0], ph3[1], ph3[2], ph3[3]),
+            ]
         case _:
             if args.m_top is None:
                 args.m_top = 173.0
@@ -269,9 +348,24 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
                 ps_point = [
                     LorentzVector(500.0, 0.0, 0.0, 500.0),
                     LorentzVector(500.0, 0.0, 0.0, -500.0),
-                    LorentzVector(438.5555662246945, 155.3322001835378, 348.0160396513587, -177.3773615718412),
-                    LorentzVector(356.3696374921922, -16.80238900851100, -318.7291102436005, 97.48719163688098),
-                    LorentzVector(205.0747962831133, -138.5298111750267, -29.28692940775817, 79.89016993496030),
+                    LorentzVector(
+                        438.5555662246945,
+                        155.3322001835378,
+                        348.0160396513587,
+                        -177.3773615718412,
+                    ),
+                    LorentzVector(
+                        356.3696374921922,
+                        -16.80238900851100,
+                        -318.7291102436005,
+                        97.48719163688098,
+                    ),
+                    LorentzVector(
+                        205.0747962831133,
+                        -138.5298111750267,
+                        -29.28692940775817,
+                        79.89016993496030,
+                    ),
                 ]
             else:
                 ps_point = [
@@ -284,17 +378,21 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
 
     match args.process:
         case "gghhh":
-            process_class = GGHHH  # type: ignore
+            process_class = _require_process_class("gghhh", GGHHH)
         case "template_process":
-            process_class = TemplateProcess  # type: ignore
+            process_class = _require_process_class("template_process", TemplateProcess)
         case "scalar_gravity":
-            process_class = ScalarGravity  # type: ignore
+            process_class = _require_process_class("scalar_gravity", ScalarGravity)
         case "dy":
-            process_class = DY  # type: ignore
+            process_class = _require_process_class("dy", DY)
         case _:
             raise pygloopException(f"Process {args.process} not implemented.")
 
-    result: dict[str, object] = {"command": args.command, "process": args.process, "exit_code": 0}
+    result: dict[str, object] = {
+        "command": args.command,
+        "process": args.process,
+        "exit_code": 0,
+    }
 
     if args.overwrite_process_basename is not None:
         process_class.name = args.overwrite_process_basename  # type: ignore
@@ -306,14 +404,18 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
             try:
                 key, value = setting.split("=", 1)
             except ValueError as e:
-                raise pygloopException(f"Could not parse general setting '{setting}'. Expected format: key=value") from e
+                raise pygloopException(
+                    f"Could not parse general setting '{setting}'. Expected format: key=value"
+                ) from e
             try:
                 parsed_value = ast.literal_eval(value)
             except Exception:
                 parsed_value = value
             setattr(target_class, key, parsed_value)
             applied_settings[key] = parsed_value
-        logger.info(f"Applied general settings to process {process_class.name}: {applied_settings}")
+        logger.info(
+            f"Applied general settings to process {process_class.name}: {applied_settings}"
+        )
         result["general_settings"] = applied_settings
 
     match args.process:
@@ -364,6 +466,7 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
                 runtime_toml_config_path=args.runtime_configuration,
                 clean=args.clean,
                 gammaloop_settings=args.gammaloop_settings,
+                skip_ps_validation=args.dy_skip_ps_validation,
             )
         case _:
             raise pygloopException(f"Process {args.process} not implemented.")
@@ -402,12 +505,15 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
                     args.multi_channeling,
                 )
                 logger.info(
-                    f"Full integrand evaluated at xs = [{Colour.BLUE}{', '.join(f'{xi:+.16e}' for xi in args.point)}{Colour.END}] : {Colour.GREEN}{
-                        res:+.16e}{Colour.END}"
+                    f"Full integrand evaluated at xs = [{Colour.BLUE}{
+                        ', '.join(f'{xi:+.16e}' for xi in args.point)
+                    }{Colour.END}] : {Colour.GREEN}{res:+.16e}{Colour.END}"
                 )
             else:
                 if len(args.point) % 3 != 0:
-                    raise pygloopException("Expected a multiple of 3 values for --point.")
+                    raise pygloopException(
+                        "Expected a multiple of 3 values for --point."
+                    )
                 point = [args.point[i : i + 3] for i in range(0, len(args.point), 3)]
                 k_to_inspect = []
                 jacobian = 1.0
@@ -421,7 +527,10 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
                         k_to_inspect.append(Vector(*p))
                 res = process.integrand(k_to_inspect, integrand_implementation)
                 report = f"Integrand evaluated at loop momentum ks = [{Colour.BLUE}{
-                    ','.join('[' + ', '.join(f'{ki:+.16e}' for ki in k.to_list()) + ']' for k in k_to_inspect)
+                    ','.join(
+                        '[' + ', '.join(f'{ki:+.16e}' for ki in k.to_list()) + ']'
+                        for k in k_to_inspect
+                    )
                 }{Colour.END}] : {Colour.GREEN}{res:+.16e}{Colour.END}"
                 if args.x_space:
                     report += f" (excl. jacobian = {jacobian:+.16e})"
@@ -433,7 +542,9 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
             if args.seed is not None:
                 random.seed(args.seed)
                 if args.integrator == "naive" and args.n_cores != 1:
-                    logger.info("Note that setting the random seed only ensure reproducible results with the naive integrator and a single core.")
+                    logger.info(
+                        "Note that setting the random seed only ensure reproducible results with the naive integrator and a single core."
+                    )
 
             if args.n_cores > multiprocessing.cpu_count():
                 raise pygloopException(
@@ -477,19 +588,36 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
                 disk_size = None
 
             if disk_size is None:
-                logger.info(f"{Colour.BLUE}Size on disk [MB]: {Colour.END}{Colour.RED}N/A{Colour.END}")
+                logger.info(
+                    f"{Colour.BLUE}Size on disk [MB]: {Colour.END}{Colour.RED}N/A{Colour.END}"
+                )
             else:
-                logger.info(f"{Colour.BLUE}Size on disk [MB]: {Colour.END}{Colour.GREEN}{disk_size / 1_000_000.0:.2f}{Colour.END}")
+                logger.info(
+                    f"{Colour.BLUE}Size on disk [MB]: {Colour.END}{Colour.GREEN}{disk_size / 1_000_000.0:.2f}{Colour.END}"
+                )
 
             def f():
-                k_to_inspect = [Vector(*[random.random() for _ in range(3)]) for _ in range(args.n_loops)]
+                k_to_inspect = [
+                    Vector(*[random.random() for _ in range(3)])
+                    for _ in range(args.n_loops)
+                ]
                 process.integrand(k_to_inspect, integrand_implementation)
 
-            res, st = time_function(f, repeats=args.repeat, target_time=args.target_time, number=args.n_evals, warmup_evals=2)
+            res, st = time_function(
+                f,
+                repeats=args.repeat,
+                target_time=args.target_time,
+                number=args.n_evals,
+                warmup_evals=2,
+            )
             # logger.info("Last eval result:", res)
             logger.info(f"{Colour.BLUE}calls / run      : {Colour.END}{st['number']}")
-            logger.info(f"{Colour.BLUE}median (µs)      : {Colour.END}{Colour.GREEN}{st['median_s'] * 1e6:.1f}{Colour.END}")
-            logger.info(f"{Colour.BLUE}min    (µs)      : {Colour.END}{Colour.GREEN}{st['min_s'] * 1e6:.1f}{Colour.END}")
+            logger.info(
+                f"{Colour.BLUE}median (µs)      : {Colour.END}{Colour.GREEN}{st['median_s'] * 1e6:.1f}{Colour.END}"
+            )
+            logger.info(
+                f"{Colour.BLUE}min    (µs)      : {Colour.END}{Colour.GREEN}{st['min_s'] * 1e6:.1f}{Colour.END}"
+            )
             result["bench_result"] = res
             result["bench_stats"] = st
             result["disk_size"] = disk_size
@@ -498,7 +626,9 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
 
     cmd_runtime = time.time() - t_start
     result["cmd_runtime"] = cmd_runtime
-    logger.info(f"Command '{args.command}' completed in {Colour.GREEN}{cmd_runtime:.2f}s{Colour.END}.")
+    logger.info(
+        f"Command '{args.command}' completed in {Colour.GREEN}{cmd_runtime:.2f}s{Colour.END}."
+    )
 
     return result
 
