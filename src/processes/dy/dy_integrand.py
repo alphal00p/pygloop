@@ -1370,23 +1370,18 @@ class LoopIntegrandConstructor(object):
 
             integrand = self.route_integrand(integrand, cut_graph)
 
-            print("before approximatiooooon")
-            print(integrand)
-
-            print("approximation parameters")
-            print(momentum)
-            print(k_id)
-
             integrand, repl, repl_x = self.approximator.collinear_approximation(
                 integrand, momentum, k_id, E("p(1)")
             )
 
-            print("approximatiooooon")
-            print(integrand)
-
             # multiply theta functions in
 
-            integrand = integrand * E(f"Θ({repl_x})") * E(f"Θ(1-{repl_x})")
+            thetaLambdasq = E(
+                f"Θ(Lambdasq-(k({k_id[0]},1)^2+k({k_id[0]},2)^2)/({repl_x}*(1-{repl_x})))"
+            )
+            integrand = (
+                integrand * E(f"Θ({repl_x})") * E(f"Θ(1-{repl_x})") * thetaLambdasq
+            )
 
             routed_integrand = RoutedIntegrand(
                 integrand,
@@ -1468,7 +1463,12 @@ class LoopIntegrandConstructor(object):
 
             # multiply theta functions in
 
-            integrand = integrand * E(f"Θ({repl_x})") * E(f"Θ(1-{repl_x})")
+            thetaLambdasq = E(
+                f"Θ(Lambdasq-(k({k_id[0]},1)^2+k({k_id[0]},2)^2)/({repl_x}*(1-{repl_x})))"
+            )
+            integrand = (
+                integrand * E(f"Θ({repl_x})") * E(f"Θ(1-{repl_x})") * thetaLambdasq
+            )
 
             routed_integrand = RoutedIntegrand(
                 integrand,

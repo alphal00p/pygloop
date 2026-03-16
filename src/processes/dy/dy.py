@@ -326,28 +326,28 @@ class DY(object):
                 # print(gg[3])
                 processed_graphs.append(gg[3])
                 cut_graph = deepcopy(routed_cut_graph(gg[3], gg[0], gg[1], gg[2]))
-                if len(gg[2][1]) == 1 and len(gg[2][0]) == 1:
-                    print(cut_graph.graph.get_name())
-                    print(cut_graph.graph)
-                    term_integrands = loop_processor.get_integrand(deepcopy(cut_graph))
+                # if len(gg[2][1]) == 1 and len(gg[2][0]) == 1:
+                print(cut_graph.graph.get_name())
+                print(cut_graph.graph)
+                term_integrands = loop_processor.get_integrand(deepcopy(cut_graph))
 
-                    # Keep full routed list for approach/IR/UV tests
-                    routed_integrands.extend(deepcopy(term_integrands))
+                # Keep full routed list for approach/IR/UV tests
+                routed_integrands.extend(deepcopy(term_integrands))
 
-                    observable_params = {"zmin": 0.0, "zmax": 1.0}
+                observable_params = {"zmin": 0.0, "zmax": 1.0, "Lambdasq": 0.5}
 
-                    # Build one evaluator per routed term
-                    evaluators.extend(
-                        evaluate_integrand(
-                            1,
-                            "DY",
-                            deepcopy(term_integrand),
-                            n_hornerscheme_iterations=1000,  # increase
-                            n_cpe_iterations=10000,
-                            observable_params=observable_params,
-                        )
-                        for term_integrand in term_integrands
+                # Build one evaluator per routed term
+                evaluators.extend(
+                    evaluate_integrand(
+                        1,
+                        "DY",
+                        deepcopy(term_integrand),
+                        n_hornerscheme_iterations=1000,  # increase
+                        n_cpe_iterations=10000,
+                        observable_params=observable_params,
                     )
+                    for term_integrand in term_integrands
+                )
 
             approach_limit = approach_point(1, "DY", routed_integrands)
             print("##################")
@@ -363,9 +363,9 @@ class DY(object):
             #
             approach_limit.approach(ks, p1, p2, z, vp)
 
-            # ir_test = infrared_test(1, "DY", routed_integrands)
-            # print("##################")
-            # ir_test.approach_limits(1)
+            #            ir_test = infrared_test(1, "DY", routed_integrands)
+            #            print("##################")
+            #            ir_test.approach_limits(1)
 
             # uv_test = ultraviolet_test(1, "DY", routed_integrands)
             # print("##################")
@@ -412,7 +412,7 @@ class DY(object):
                 # )
 
                 self.gl_worker.run(  ## GL04
-                    f"generate amp d g > d g | d d~ g a QED==2 [{{1}}] --only-diagrams --numerator-grouping only_detect_zeroes --select-graphs GL11 -p {base_name} -i {graphs_process_name}"  #
+                    f"generate amp d g > d g | d d~ g a QED==2 [{{1}}] --only-diagrams --numerator-grouping only_detect_zeroes --select-graphs GL10 -p {base_name} -i {graphs_process_name}"  #
                 )
                 self.gl_worker.run("save state -o")
                 DY_1L_dot_files = self.gl_worker.get_dot_files(
@@ -610,7 +610,7 @@ class DY(object):
             integrand_implementation
         )
         try:
-            t0 = time.perf_counter()
+            # t0 = time.perf_counter()
 
             impl = dict(integrand_implementation)
             expects_z = impl.get("integrand_type") == "zenos"
@@ -642,23 +642,23 @@ class DY(object):
 
             k, jac_k = self.parameterize(k_xs, parameterization)
 
-            t1 = time.perf_counter()
+            # t1 = time.perf_counter()
 
-            print("-" * 15)
-            print("parametrisation time:", t1 - t0)
+            # print("-" * 15)
+            # print("parametrisation time:", t1 - t0)
 
             wgt = self.integrand([k], impl)
 
-            t2 = time.perf_counter()
+            # t2 = time.perf_counter()
 
-            print("overall integrand time:", t2 - t1)
+            # print("overall integrand time:", t2 - t1)
 
             wgt = wgt.real if phase == "real" else wgt.imag
             final_wgt = wgt * jac_k * jac_z
 
-            print("res")
-            print(xs)
-            print(final_wgt)
+            # print("res")
+            # print(xs)
+            # print(final_wgt)
 
             if math.isnan(final_wgt):
                 logger.debug(

@@ -20,7 +20,12 @@ class approach_point(object):
         self.process = process
         self.evaluators = [
             evaluate_integrand(
-                L, process, deepcopy(rout), 800, 400, {"zmin": 0.0, "zmax": 1.0}
+                L,
+                process,
+                deepcopy(rout),
+                800,
+                400,
+                {"zmin": 0.0, "zmax": 1.0, "Lambdasq": 1000},
             )
             for rout in routed_integrands
         ]
@@ -38,16 +43,16 @@ class approach_point(object):
             for cut_graph, cut_graph_evaluator in zip(
                 self.routed_integrands, self.evaluators
             ):
-                if (
-                    cut_graph.approximation_type == "PM"
-                    or cut_graph.approximation_type == "threshold"
-                ):
-                    print("------------------------------")
-                    print(ks)
+                #                if (
+                #                    cut_graph.approximation_type == "PM"
+                #                    or cut_graph.approximation_type == "threshold"
+                #                ):
+                print("------------------------------")
+                print(ks)
 
-                    print(
-                        f"\033[32m{cut_graph.cut_graph.graph.get_name()}, {cut_graph.approximation_type} : {cut_graph_evaluator.eval(ks, p1, p2, z)}\033[0m"
-                    )
+                print(
+                    f"\033[32m{cut_graph.cut_graph.graph.get_name()}, {cut_graph.approximation_type} : {cut_graph_evaluator.eval(ks, p1, p2, z)}\033[0m"
+                )
 
 
 class ultraviolet_test(object):
@@ -57,7 +62,12 @@ class ultraviolet_test(object):
         self.process = process
         self.evaluators = [
             evaluate_integrand(
-                L, process, deepcopy(rout), 400, 800, {"zmin": 0.0, "zmax": 1.0}
+                L,
+                process,
+                deepcopy(rout),
+                400,
+                800,
+                {"zmin": 0.0, "zmax": 1.0, "Lambdasq": 0.5},
             )
             for rout in routed_integrands
         ]
@@ -93,7 +103,12 @@ class infrared_test(object):
         self.process = process
         self.evaluators = [
             evaluate_integrand(
-                L, process, deepcopy(rout), 400, 800, {"zmin": 0.0, "zmax": 1.0}
+                L,
+                process,
+                deepcopy(rout),
+                400,
+                800,
+                {"zmin": 0.0, "zmax": 1.0, "Lambdasq": 0.5},
             )
             for rout in routed_integrands
         ]
