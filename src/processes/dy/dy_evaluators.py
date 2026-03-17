@@ -67,7 +67,7 @@ class evaluate_integrand:
     def set_e_surface(self):
         final_moms = []
         e_surface = E(
-            "-(4*p(1,3)^2)^(1/2)"
+            "-(4*(p(1,1)^2+p(1,2)^2+p(1,3)^2))^(1/2)"
         )  # -E("s^(1/2)")  # E("-4*p(1,3)^2")  # check
 
         for ep in self.routed_integrand.cut_graph.final_cut:
@@ -97,24 +97,31 @@ class evaluate_integrand:
 
         e_surface = self.concretise_scalar_products(e_surface)
         if len(self.routed_integrand.replacements) > 0:
-            patts = [
-                self.concretise_scalar_products(
-                    self.routed_integrand.replacements[0]
-                ).replace(E("x_(y_)"), E(f"x_(y_,{i})"))
-                for i in range(1, 4)
+            # Do a simultaneous component substitution. Sequential component
+            # replacement rewrites inside already-substituted expressions and
+            # breaks rotational covariance for the collinear terms.
+            patt = self.concretise_scalar_products(
+                self.routed_integrand.replacements[0]
+            )
+            repl = self.concretise_scalar_products(
+                self.routed_integrand.replacements[1]
+            )
+
+            tmp_keys = [E(f"__tmp_kcomp_{i}") for i in range(1, 4)]
+            patt_comps = [
+                patt.replace(E("x_(y_)"), E(f"x_(y_,{i})")) for i in range(1, 4)
             ]
-            repls = [
-                self.concretise_scalar_products(
-                    self.routed_integrand.replacements[1]
-                ).replace(E("x_(y_)"), E(f"x_(y_,{i})"))
-                for i in range(1, 4)
+            repl_comps = [
+                repl.replace(E("x_(y_)"), E(f"x_(y_,{i})")) for i in range(1, 4)
             ]
+
             for i in range(3):
-                e_surface = e_surface.replace(patts[i], repls[i])
+                e_surface = e_surface.replace(patt_comps[i], tmp_keys[i])
+            for i in range(3):
+                e_surface = e_surface.replace(tmp_keys[i], repl_comps[i])
 
         e_surface = self.concretise_scalar_products(e_surface)
-        e_surface = self.concretise_scalar_products(e_surface)
-        e_surface = self.impose_rest_frame(e_surface)
+        # e_surface = self.impose_rest_frame(e_surface)
 
         rescaled_e_surface = e_surface.replace(E("k(0,x_)"), E("t*k(0,x_)"))
 
@@ -151,9 +158,9 @@ class evaluate_integrand:
         self.routed_integrand.integrand = self.concretise_scalar_products(
             self.routed_integrand.integrand
         )
-        self.routed_integrand.integrand = self.impose_rest_frame(
-            self.routed_integrand.integrand
-        )
+        # self.routed_integrand.integrand = self.impose_rest_frame(
+        #    self.routed_integrand.integrand
+        # )
         self.routed_integrand.integrand = self.t_parametrise(
             self.routed_integrand.integrand
         )
@@ -173,18 +180,15 @@ class evaluate_integrand:
 
         self.observable_params = observable_params
 
-        theta_x = self.routed_integrand.integrand.match(E("Θ(x_)"))
+        theta_x = self.routed_integrand.integrand.match(E("Θ(x___)"))
         self.theta_expressions: list[Expression] = []
         self.theta_val = []
 
-        print("THETAS")
-
         if theta_x is not None:
             for th in theta_x:
-                theta_expr = th[E("x_")]
+                theta_expr = th[E("x___")]
                 self.theta_expressions.append(theta_expr)
                 self.theta_val.append(theta_expr.evaluator({}, {}, self.symbols))
-                print(theta_expr)
 
         theta_zmin_expr = E("t^2*z") - E(str(observable_params["zmin"]))
         self.theta_expressions.append(theta_zmin_expr)
@@ -195,7 +199,7 @@ class evaluate_integrand:
         self.theta_val.append(theta_zmax_expr.evaluator({}, {}, self.symbols))
 
         self.routed_integrand.integrand = self.routed_integrand.integrand.replace(
-            E("Θ(x_)"), E("1")
+            E("Θ(x___)"), E("1")
         )
 
         self.sp3D = S("sp3D", is_linear=True, is_symmetric=True)
@@ -233,10 +237,9 @@ class evaluate_integrand:
             # if (
             #    len(self.routed_integrand.cut_graph.final_cut) > 1
             # ):
-            s = 4 * p1[2] ** 2
+            s = 4 * (p1[0] ** 2 + p1[1] ** 2 + p1[2] ** 2)
 
             e_surface = self.e_surface
-            print(e_surface)
 
             for j in range(self.L):
                 for i in range(3):
@@ -257,7 +260,6 @@ class evaluate_integrand:
 
         tstar = self.set_t_value(k, p1, p2, z)
 
-        # print(k)
         input_k = {
             E(f"k({i},{j + 1})"): k[i][j] for (i, j) in product(range(self.L), range(3))
         }
@@ -276,7 +278,7 @@ class evaluate_integrand:
             mass_sq = (
                 E("0")
                 if _strip_quotes(str(e_atts["particle"])) != "a"
-                else E("4*z*t^2*p(1,3)^2")
+                else E("4*z*t^2*(p(1,1)^2+p(1,2)^2+p(1,3)^2)")
             )
             mom = (
                 sum(loop_coeff[i] * E(f"k({i})") for i in range(self.L))
@@ -297,7 +299,6 @@ class evaluate_integrand:
 
             mom = self.concretise_scalar_products(mom)
             mom = self.t_parametrise(mom)
-            # print(mom)
             mom3d = [
                 mom.replace(E("k(x_)"), E(f"k(x_,{i})")).replace(
                     E("p(x_)"), E(f"p(x_,{i})")
@@ -643,8 +644,8 @@ class DYCompiledBundle:
         vals: dict[Expression, float],
         t_key: Expression,
         t0: float = 1.0,
-        tol_f: float = 1e-12,
-        tol_x: float = 1e-12,
+        tol_f: float = 1e-16,
+        tol_x: float = 1e-16,
         max_iter: int = 32,
         max_bracket_expands: int = 12,
         eval_map: dict[Expression, float] | None = None,
@@ -655,19 +656,19 @@ class DYCompiledBundle:
         if eval_map is None:
             eval_map = vals
 
-        def f(t: float) -> float | None:
+        def f(t: float) -> float:
             eval_map[t_key] = t
-            try:
-                y = term_e_surface.evaluate(eval_map, {})
-                return y if math.isfinite(y) else None
-            except Exception:
-                return None
+            # try:
+            #    y = term_e_surface.evaluate(eval_map, {})
+            #    return y if math.isfinite(y) else None
+            # except Exception:
+            #    return None
+            y = term_e_surface.evaluate(eval_map, {})
+            return y
 
         # Initial point
         x0 = float(t0)
         f0 = f(x0)
-        if f0 is None:
-            return None
         if abs(f0) <= tol_f:
             return x0
 
@@ -676,20 +677,18 @@ class DYCompiledBundle:
         a = max(0.0, x0 - span)
         b = max(a + 1e-14, x0 + span)
         fa, fb = f(a), f(b)
-        if fa is None or fb is None:
-            return None
 
         for _ in range(max_bracket_expands):
-            if fa * fb <= 0.0:
-                break
+            # if fa * fb <= 0.0:
+            #    break
             span *= 2.0
             a = max(0.0, x0 - span)
             b = max(a + 1e-14, x0 + span)
             fa, fb = f(a), f(b)
-            if fa is None or fb is None:
-                return None
-        else:
-            return None  # no bracket
+
+        # else:
+        #    print("hereeeeeeeee")
+        #    return None  # no bracket
 
         # Secant state (keep points inside bracket)
         x_prev, f_prev = a, fa
@@ -708,11 +707,11 @@ class DYCompiledBundle:
                 x_next = 0.5 * (a + b)
 
             f_next = f(x_next)
-            if f_next is None:
-                x_next = 0.5 * (a + b)
-                f_next = f(x_next)
-                if f_next is None:
-                    return None
+            # if f_next is None:
+            #    x_next = 0.5 * (a + b)
+            #    f_next = f(x_next)
+            #    if f_next is None:
+            #        return None
 
             # Keep bracket valid
             if fa * f_next <= 0.0:
@@ -723,7 +722,114 @@ class DYCompiledBundle:
             x_prev, f_prev = x_curr, f_curr
             x_curr, f_curr = x_next, f_next
 
-        return x_curr if math.isfinite(x_curr) else None
+        return x_curr  # if math.isfinite(x_curr) else None
+
+    def solve_t_convex_bisect(
+        self,
+        term_e_surface: Expression,
+        vals: dict[Expression, float],
+        t_key: Expression,
+        t0: float = 1.0,
+        tol_f: float = 1e-16,
+        tol_x: float = 1e-16,
+        max_iter: int = 80,
+        max_expand_rounds: int = 24,
+        probes_per_round: int = 17,
+        eval_map: dict[Expression, float] | None = None,
+    ) -> float | None:
+        """
+        Robust convex-friendly root finder for term_e_surface(t)=0.
+        Strategy:
+        1) Discover a valid sign-change bracket by sampling an expanding interval.
+        2) Refine with pure bisection.
+        Returns one root (prefers bracket closest to t0), or None if no bracket found.
+        """
+        if eval_map is None:
+            eval_map = vals
+
+        def f(t: float) -> float | None:
+            if not math.isfinite(t):
+                return None
+            eval_map[t_key] = t
+            try:
+                y = term_e_surface.evaluate(eval_map, {})
+                return y if math.isfinite(y) else None
+            except Exception:
+                return None
+
+        x0 = float(t0)
+        if not math.isfinite(x0):
+            x0 = 1.0
+
+        y0 = f(x0)
+        if y0 is not None and abs(y0) <= tol_f:
+            return x0
+
+        # Bracket discovery by sampled expanding intervals around x0.
+        # For convex functions there may be 0/1/2 roots; we choose bracket nearest x0.
+        span = max(1.0, abs(x0))
+        best_bracket: tuple[float, float, float, float] | None = None
+        for r in range(max_expand_rounds):
+            left = x0 - span
+            right = x0 + span
+            step = (right - left) / float(probes_per_round - 1)
+
+            prev_x: float | None = None
+            prev_y: float | None = None
+            for i in range(probes_per_round):
+                x = left + step * i
+                y = f(x)
+                if y is None:
+                    continue
+                if abs(y) <= tol_f:
+                    return x
+                if prev_x is not None and prev_y is not None and prev_y * y <= 0.0:
+                    # Pick bracket whose midpoint is closest to x0.
+                    mid = 0.5 * (prev_x + x)
+                    if best_bracket is None or abs(mid - x0) < abs(
+                        0.5 * (best_bracket[0] + best_bracket[1]) - x0
+                    ):
+                        best_bracket = (prev_x, x, prev_y, y)
+                prev_x, prev_y = x, y
+
+            if best_bracket is not None:
+                break
+            span *= 2.0
+
+        if best_bracket is None:
+            return None
+
+        a, b, fa, fb = best_bracket
+        if a > b:
+            a, b = b, a
+            fa, fb = fb, fa
+
+        # Pure bisection refinement.
+        for _ in range(max_iter):
+            m = 0.5 * (a + b)
+            fm = f(m)
+            if fm is None:
+                # If midpoint fails, try quarter points before giving up.
+                q1 = 0.25 * a + 0.75 * b
+                fq1 = f(q1)
+                if fq1 is not None:
+                    m, fm = q1, fq1
+                else:
+                    q2 = 0.75 * a + 0.25 * b
+                    fq2 = f(q2)
+                    if fq2 is None:
+                        return None
+                    m, fm = q2, fq2
+
+            if abs(fm) <= tol_f or abs(b - a) <= tol_x * max(1.0, abs(m)):
+                return m
+
+            if fa * fm <= 0.0:
+                b, fb = m, fm
+            else:
+                a, fa = m, fm
+
+        return 0.5 * (a + b)
 
     def evaluate(
         self,
@@ -759,22 +865,35 @@ class DYCompiledBundle:
         for term in self.terms:
             valst1 = vals.copy()
             valst1[self._t_key] = 1
-            my_t0 = abs(
+            t_sol = abs(
                 2
-                * math.sqrt(p1z**2)
-                / (term.e_surface.evaluate(valst1, {}) + 2 * math.sqrt(p1z**2))
+                * math.sqrt(p1z**2 + p1x**2 + p1y**2)
+                / (
+                    term.e_surface.evaluate(valst1, {})
+                    + 2 * math.sqrt(p1z**2 + p1x**2 + p1y**2)
+                )
             )
 
-            t_sol = self.solve_t_newton_bisect(
-                term.e_surface,
-                vals,
-                self._t_key,
-                t0=my_t0,  # fixed per-term start for benchmark-stable branch
-                eval_map=vals,
-            )
+            # t_sol = self.solve_t_newton_bisect(
+            #    term.e_surface,
+            #    vals,
+            #    self._t_key,
+            #    t0=my_t0,  # fixed per-term start for benchmark-stable branch
+            #    eval_map=vals,
+            # )
+
+            # t_sol = self.solve_t_convex_bisect(
+            #    term.e_surface,
+            #    vals,
+            #    self._t_key,
+            #    t0=my_t0,  # fixed per-term start for benchmark-stable branch
+            #    eval_map=vals,
+            # )
 
             if t_sol is None:
                 print("t solving problem")
+                print(t_sol)
+                print(vals)
                 continue
 
             vals[self._t_key] = t_sol
@@ -794,6 +913,16 @@ class DYCompiledBundle:
             self._set_inputs_fast(
                 pe, vals, self._input_index_plans[term.evaluator_name]
             )
+
+            # print("---")
+            # print("vals")
+            # print(vals)
+            # print("thetas")
+            # print(theta_exprs)
+            # print("t")
+            # print(t_sol)
+            # print("e_surface")
+            # print(term.e_surface)
 
             total += complex(pe.evaluate(eager=False)[0])
 

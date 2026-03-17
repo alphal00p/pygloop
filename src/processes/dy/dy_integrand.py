@@ -132,9 +132,6 @@ class EMRIntegrandConstructor(object):
         graph_for_cff = deepcopy(graph)
         self.canonicalize_ports_for_cff(graph_for_cff)
 
-        # print("THIS GRAPH HERE")
-        # print(graph_for_cff)
-
         cff_structure = self.gl_worker.generate_cff_as_json_string(
             dot_string=graph_for_cff.to_string(),
             subgraph_nodes=subgraph_as_nodes,
@@ -579,8 +576,6 @@ class EMRIntegrandConstructor(object):
         if get_residues:
             delta = E("δ")
             residues = []
-            print("cff orig")
-            print(total_cff)
             for eta in e_surfaces:
                 energies = (
                     list(eta.expand()) if eta.expand().is_type(AtomType.Add) else [eta]
@@ -600,8 +595,6 @@ class EMRIntegrandConstructor(object):
                     residues.append((eta, res_i))
                 elif eN > len(energies):
                     raise ValueError("really weird stuff happening with e surfaces")
-            print("residues")
-            print(residues)
             return residues
 
         return total_cff
@@ -655,9 +648,6 @@ class UltraVioletSubtraction(object):
         for cycle in cycles:
             cut_cycle_edges = set(cycle).intersection(cut_edges)
             if len(cut_cycle_edges) == 0:  ## FIX: SHOULD BE == 0
-                for e in cycle:
-                    print(e.get_attributes()["id"])
-
                 dod = 0
 
                 for e in cycle:
@@ -781,9 +771,6 @@ class UltraVioletSubtraction(object):
     def construct_uv_counter_terms(self):
         spinneys = self.enumerate_spinneys()
         counterms = []
-
-        print("spinneys")
-        print(spinneys)
 
         # check copies and deepcopies
         for cycle in spinneys:
@@ -912,9 +899,6 @@ class ThresholdSubtractor(object):
     def construct_threshold_counter_term(
         self, emr_residue_integrand, threshold_graph, threshold_ids
     ):
-        print("INPUT DATA")
-        print(emr_residue_integrand)
-        print(threshold_ids)
 
         lmb_ids = threshold_ids[:-1] + [
             e.get_attributes()["id"] for e in threshold_graph.final_cut[:-1]
@@ -927,11 +911,6 @@ class ThresholdSubtractor(object):
         r = S("r", is_scalar=True)
         khat = S("khat")
         sqrts = S("s") ** E("1/2")
-
-        print("residue integrand")
-        print(threshold_graph_routed.get_name())
-        print(threshold_graph_routed)
-        print(emr_residue_integrand)
 
         threshold_integrand = self.replace_energies(
             emr_residue_integrand, threshold_graph_routed
@@ -973,10 +952,6 @@ class ThresholdSubtractor(object):
                         mass = E(f"m({e_particle})")
             shifts.append(shift)
             masses.append(mass)
-
-        print("...e_surface_parameters...")
-        print(shifts)
-        print(masses)
 
         # dot products
         kp1 = self.sp3D(E("k(0)"), shifts[0])
@@ -1040,8 +1015,9 @@ class ThresholdSubtractor(object):
             .replace(inv_knorm, 1 / self.sp3D(E("k(0)"), E("k(0)")) ** E("1/2"))
         )
 
-        threshold_integrand = threshold_integrand.replace(E("s"), 4 * E("p(1,3)") ** 2)
-        # print(threshold_integrand)
+        threshold_integrand = threshold_integrand.replace(
+            E("s"), 4 * (E("p(1,1)") ** 2 + E("p(1,2)") ** 2 + E("p(1,3)") ** 2)
+        )
 
         # Go back to previous basis
         for j, id in enumerate(lmb_ids):
@@ -1057,9 +1033,6 @@ class ThresholdSubtractor(object):
                         key = f"routing_p{i + 1}"
                         if key in e_atts:
                             routing_items += E(f"{e_atts[key]}*p[{i + 1}]")
-            print("substituting back")
-            print(E(f"k({j})"))
-            print(routing_items)
             threshold_integrand = threshold_integrand.replace(
                 E(f"k({j})"), routing_items
             )
@@ -1077,9 +1050,6 @@ class ThresholdSubtractor(object):
 
         filtered_e_surfs = self.filter_e_surfaces()
         threshold_cts = []
-
-        print("heyyyyyyyyyyyyyyyyyyyy")
-        print(filtered_e_surfs)
 
         for thresh_ids, e_surf, residue in filtered_e_surfs:
             if len(thresh_ids) > 2:
@@ -1121,9 +1091,6 @@ class Approximator(object):
             + lam * E(f"k_perp({k_id[0]})")
         )
 
-        print("parametrised limit")
-        print(repl)
-
         integrand = integrand.replace(E(f"k({k_id[0]})"), repl)
         integrand = integrand.replace(
             self.sp3D(E(f"k_perp({k_id[0]})"), E("p(x_)")), E("0")
@@ -1142,14 +1109,21 @@ class Approximator(object):
             / self.sp3D(direction, direction)
         )
 
-        repl_kperp = E(f"k({k_id[0]},1)^2+k({k_id[0]},2)^2")
+        # repl_kperp = E(f"k({k_id[0]},1)^2+k({k_id[0]},2)^2")
 
-        integrand = integrand.replace(E("x"), repl_x)
+        # integrand = integrand.replace(E("x"), repl_x)
+        # integrand = integrand.replace(
+        #    self.sp3D(E(f"k_perp({k_id[0]})"), E(f"k_perp({k_id[0]})")), repl_kperp
+        # )
+        #
+        repl_kperp = -momentum[1] * x * direction + momentum[0]
+
         integrand = integrand.replace(
-            self.sp3D(E(f"k_perp({k_id[0]})"), E(f"k_perp({k_id[0]})")), repl_kperp
-        )
+            self.sp3D(E(f"k_perp({k_id[0]})"), E(f"k_perp({k_id[0]})")),
+            self.sp3D(repl_kperp, repl_kperp),
+        ).replace(x, repl_x)
 
-        return integrand, repl, repl_x
+        return integrand, repl, repl_x, repl_kperp
 
     def soft_approximation(self, integrand, momentum, k_id):
         lam = S("λ", is_scalar=True)
@@ -1289,6 +1263,13 @@ class LoopIntegrandConstructor(object):
 
         return integrand
 
+    def concretise_scalar_products(self, integrand):
+
+        return integrand.replace(
+            E("sp3D(w_(x_),z_(y_))"),
+            E("w_(x_,1)*z_(y_,1)+w_(x_,2)*z_(y_,2)+w_(x_,3)*z_(y_,3)"),
+        )
+
     # Approximates the integrand at leading virtuality. For parton model diagrams, it simply replaces the
     # energies and routes the integrand, giving an expression in terms of loop momenta. No approximation is
     # performed. For partitions of the type [i_1]_[i_2,i_3,...], takes the limit p2sq->0 by setting i_2,i_3,...
@@ -1340,7 +1321,7 @@ class LoopIntegrandConstructor(object):
                                 (
                                     sum(
                                         loop_coeff[i] * E(f"k({i})")
-                                        for i in range(0, self.L)
+                                        for i in range(self.L)
                                     )
                                     + E(e_atts["routing_p1"]) * E("p(1)")
                                     + E(e_atts["routing_p2"]) * E("p(2)")
@@ -1357,28 +1338,32 @@ class LoopIntegrandConstructor(object):
             # integrand = integrand.replace(E(f"E({coll_moms[0]})"), coll_en)
             # integrand = integrand.replace(E(f"E({coll_moms[1]})"), a_coll_en)
 
-            print("emr")
-            print(integrand)
-
             integrand = self.replace_energies(integrand, cut_graph)
 
             if len(raised_cut) > 0:
-                integrand = integrand.derivative(E("p1sq"))
+                integrand = E("1/2") * integrand.derivative(E("p1sq"))
 
             integrand = integrand.replace(E("p1sq"), E("0"))
             integrand = integrand.replace(E("p2sq"), E("0"))
 
             integrand = self.route_integrand(integrand, cut_graph)
 
-            integrand, repl, repl_x = self.approximator.collinear_approximation(
-                integrand, momentum, k_id, E("p(1)")
+            integrand, repl, repl_x, repl_kperp = (
+                self.approximator.collinear_approximation(
+                    integrand, momentum, k_id, E("p(1)")
+                )
             )
 
             # multiply theta functions in
+            #
+            # thetaLambdasq1 = E(
+            #    f"Θ(Lambdasq-(k({k_id[0]},1)^2+k({k_id[0]},2)^2)/({repl_x}*(1-{repl_x})))"
+            # )
 
             thetaLambdasq = E(
-                f"Θ(Lambdasq-(k({k_id[0]},1)^2+k({k_id[0]},2)^2)/({repl_x}*(1-{repl_x})))"
-            )
+                f"Θ(Lambdasq-({self.sp3D(repl_kperp, repl_kperp)})/(x*(1-x)))"
+            ).replace(x, repl_x)
+
             integrand = (
                 integrand * E(f"Θ({repl_x})") * E(f"Θ(1-{repl_x})") * thetaLambdasq
             )
@@ -1418,7 +1403,7 @@ class LoopIntegrandConstructor(object):
                 for e in cut_graph.graph.get_edges():
                     e_atts = e.get_attributes()
                     if e_atts["id"] == id:
-                        k_keys = ["routing_k" + str(i) for i in range(0, self.L)]
+                        k_keys = ["routing_k" + str(i) for i in range(self.L)]
                         loop_coeff = [E(e_atts[rout]) for rout in k_keys]
                         if first:
                             k_id = next(
@@ -1430,7 +1415,7 @@ class LoopIntegrandConstructor(object):
                                 (
                                     sum(
                                         loop_coeff[i] * E(f"k({i})")
-                                        for i in range(0, self.L)
+                                        for i in range(self.L)
                                     )
                                     + E(e_atts["routing_p1"]) * E("p(1)")
                                     + E(e_atts["routing_p2"]) * E("p(2)")
@@ -1450,22 +1435,44 @@ class LoopIntegrandConstructor(object):
             integrand = self.replace_energies(integrand, cut_graph)
 
             if len(raised_cut) > 0:
-                integrand = integrand.derivative(E("p2sq"))
+                integrand = E("1/2") * integrand.derivative(E("p2sq"))
 
             integrand = integrand.replace(E("p1sq"), E("0"))
             integrand = integrand.replace(E("p2sq"), E("0"))
 
             integrand = self.route_integrand(integrand, cut_graph)
 
-            integrand, repl, repl_x = self.approximator.collinear_approximation(
-                integrand, momentum, k_id, E("p(2)")
+            integrand, repl, repl_x, repl_kperp = (
+                self.approximator.collinear_approximation(
+                    integrand, momentum, k_id, E("p(2)")
+                )
+            )
+
+            print("THETA COMPARISON 2", "-" * 15)
+
+            print(
+                self.concretise_scalar_products(
+                    E(f"(k({k_id[0]},1)^2+k({k_id[0]},2)^2)/({repl_x}*(1-{repl_x}))")
+                )
+            )
+            print(
+                self.concretise_scalar_products(
+                    E(f"({self.sp3D(repl_kperp, repl_kperp)})/(x*(1-x))").replace(
+                        x, repl_x
+                    )
+                )
             )
 
             # multiply theta functions in
 
+            # thetaLambdasq1 = E(
+            #    f"Θ(Lambdasq-(k({k_id[0]},1)^2+k({k_id[0]},2)^2)/({repl_x}*(1-{repl_x})))"
+            # )
+
+            ## FOLLOWING BUG!!
             thetaLambdasq = E(
-                f"Θ(Lambdasq-(k({k_id[0]},1)^2+k({k_id[0]},2)^2)/({repl_x}*(1-{repl_x})))"
-            )
+                f"Θ(Lambdasq-({self.sp3D(repl_kperp, repl_kperp)})/(x*(1-x)))"
+            ).replace(x, repl_x)
             integrand = (
                 integrand * E(f"Θ({repl_x})") * E(f"Θ(1-{repl_x})") * thetaLambdasq
             )
@@ -1531,7 +1538,7 @@ class LoopIntegrandConstructor(object):
                 deepcopy(integrand), deepcopy(momentum), deepcopy(k_id)
             )
 
-            soft_collinear_integrand1, repl1, repl1_x = (
+            soft_collinear_integrand1, repl1, repl1_x, repl_kperp1 = (
                 self.approximator.collinear_approximation(
                     deepcopy(soft_integrand),
                     momentum,
@@ -1540,7 +1547,7 @@ class LoopIntegrandConstructor(object):
                 )
             )
 
-            soft_collinear_integrand2, repl2, repl2_x = (
+            soft_collinear_integrand2, repl2, repl2_x, repl_kperp2 = (
                 self.approximator.collinear_approximation(
                     deepcopy(soft_integrand),
                     momentum,
@@ -1554,10 +1561,6 @@ class LoopIntegrandConstructor(object):
             integrand = (
                 soft_integrand + soft_collinear_integrand1 + soft_collinear_integrand2
             )  # * E(f"Θ({repl_x})") * E(f"Θ(1-{repl_x})")
-
-            print("replacements")
-            print(repl_s)
-            print(repl1)
 
             routed_integrand_soft = RoutedIntegrand(
                 soft_integrand,
@@ -1618,16 +1621,23 @@ class LoopIntegrandConstructor(object):
 
         raised_cut = []
         g_edges = cut_graph.graph.get_edges()
+        init_cut_ids = [e.get_attributes()["id"] for e in cut_graph.initial_cut]
         for e, i in zip(g_edges, range(len(g_edges))):
             e_atts = e.get_attributes()
             for ep, j in zip(g_edges, range(len(g_edges))):
                 ep_atts = ep.get_attributes()
-                if j > i and self._routing_sign_match(e, ep):
-                    if (
+                if (
+                    j > i
+                    and self._routing_sign_match(e, ep)
+                    and (
                         e_atts.get("is_cut_DY", None) is not None
                         or ep_atts.get("is_cut_DY", None) is not None
-                    ):
+                    )
+                ):
+                    if e_atts["id"] not in init_cut_ids:
                         raised_cut.append([e_atts["id"], ep_atts["id"]])
+                    else:
+                        raised_cut.append([ep_atts["id"], e_atts["id"]])
 
         if len(raised_cut) > 0:
             for cut in raised_cut:
@@ -1657,9 +1667,6 @@ class LoopIntegrandConstructor(object):
 
         emr_integrand = self.emr_processor.get_integrand(cut_graph)
 
-        print("............this emr")
-        print(emr_integrand)
-
         if len(cut_graph.final_cut) > 1 and self.name == "DY":
             lmb_choice = []
             for e in cut_graph.final_cut:
@@ -1668,9 +1675,6 @@ class LoopIntegrandConstructor(object):
                     lmb_choice.append(e_atts["id"])
             cut_graph.graph = change_routing(cut_graph.graph, lmb_choice)
             orig_cut_graph.graph = change_routing(orig_cut_graph.graph, lmb_choice)
-
-        print("correctly routed GGGGGraph")
-        print(cut_graph.graph)
 
         uv_approximator = UltraVioletSubtraction(
             emr_integrand, deepcopy(cut_graph), self.L

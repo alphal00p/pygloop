@@ -107,6 +107,8 @@ class DY(object):
         self.skip_ps_validation = bool(skip_ps_validation)
         if not self.skip_ps_validation:
             self.valide_ps_point()
+        self.rotation_unstable_count: int = 0
+        self.rotation_unstable_example: list[float] | None = None
 
         self.e_cm = math.sqrt(abs((self.ps_point[0] + self.ps_point[1]).squared()))
 
@@ -355,17 +357,17 @@ class DY(object):
             ks = [math.sqrt(z) * np.array([0, 1 / math.sqrt(2), 1 / math.sqrt(2)])]
             ks = [
                 math.sqrt(z)
-                * np.array([1 / math.sqrt(3), 1 / math.sqrt(3), 1 / math.sqrt(3)])
+                * np.array([1 / math.sqrt(3), 5 / math.sqrt(3), 1 / math.sqrt(3)])
             ]
             vp = np.array([0.3, -0.2, 0.11])
             p1 = np.array([0, 0, 1])
             p2 = np.array([0, 0, -1])
-            #
+
             approach_limit.approach(ks, p1, p2, z, vp)
 
-            #            ir_test = infrared_test(1, "DY", routed_integrands)
-            #            print("##################")
-            #            ir_test.approach_limits(1)
+            # ir_test = infrared_test(1, "DY", routed_integrands)
+            # print("##################")
+            # ir_test.approach_limits(1)
 
             # uv_test = ultraviolet_test(1, "DY", routed_integrands)
             # print("##################")
@@ -412,7 +414,7 @@ class DY(object):
                 # )
 
                 self.gl_worker.run(  ## GL04
-                    f"generate amp d g > d g | d d~ g a QED==2 [{{1}}] --only-diagrams --numerator-grouping only_detect_zeroes --select-graphs GL10 -p {base_name} -i {graphs_process_name}"  #
+                    f"generate amp d g > d g | d d~ g a QED==2 [{{1}}] --only-diagrams --numerator-grouping only_detect_zeroes --select-graphs GL11 -p {base_name} -i {graphs_process_name}"  #
                 )
                 self.gl_worker.run("save state -o")
                 DY_1L_dot_files = self.gl_worker.get_dot_files(
@@ -596,6 +598,60 @@ class DY(object):
         jac = r**2 * math.sin(ph) * 2 * math.pi**2 * ecm / (1 - rx) ** 2
         return (v, jac)
 
+    @staticmethod
+    def _rotation_matrix_from_xs(xs: list[float]) -> tuple[tuple[float, ...], ...]:
+        # Deterministic SO(3) rotation from sample coordinates.
+        x0 = xs[0] if len(xs) > 0 else 0.123456789
+        x1 = xs[1] if len(xs) > 1 else 0.234567891
+        x2 = xs[2] if len(xs) > 2 else 0.345678912
+        x3 = xs[3] if len(xs) > 3 else 0.456789123
+
+        ux = math.sin(2.0 * math.pi * x0)
+        uy = math.cos(2.0 * math.pi * x1)
+        uz = math.sin(2.0 * math.pi * x2 + 0.5)
+        norm = math.sqrt(ux * ux + uy * uy + uz * uz)
+        if norm <= 1e-16:
+            return (
+                (1.0, 0.0, 0.0),
+                (0.0, 1.0, 0.0),
+                (0.0, 0.0, 1.0),
+            )
+        ux /= norm
+        uy /= norm
+        uz /= norm
+
+        theta = 2.0 * math.pi * x3
+        c = math.cos(theta)
+        s = math.sin(theta)
+        one_c = 1.0 - c
+
+        return (
+            (
+                c + ux * ux * one_c,
+                ux * uy * one_c - uz * s,
+                ux * uz * one_c + uy * s,
+            ),
+            (
+                uy * ux * one_c + uz * s,
+                c + uy * uy * one_c,
+                uy * uz * one_c - ux * s,
+            ),
+            (
+                uz * ux * one_c - uy * s,
+                uz * uy * one_c + ux * s,
+                c + uz * uz * one_c,
+            ),
+        )
+
+    @staticmethod
+    def _rotate_vec(v: Vector, rmat: tuple[tuple[float, ...], ...]) -> Vector:
+        x, y, z = v.to_list()
+        return Vector(
+            rmat[0][0] * x + rmat[0][1] * y + rmat[0][2] * z,
+            rmat[1][0] * x + rmat[1][1] * y + rmat[1][2] * z,
+            rmat[2][0] * x + rmat[2][1] * y + rmat[2][2] * z,
+        )
+
     # dy.py: replace integrand_xspace(...) with this version
 
     def integrand_xspace(
@@ -648,6 +704,28 @@ class DY(object):
             # print("parametrisation time:", t1 - t0)
 
             wgt = self.integrand([k], impl)
+
+            n_digits = impl.get("dy_rotation_check_digits")
+            if expects_z and n_digits is not None:
+                n_digits_int = int(n_digits)
+                if n_digits_int > 0:
+                    eps = float(impl.get("dy_rotation_check_eps", 1e-15))
+                    rmat = self._rotation_matrix_from_xs(xs)
+                    rk = self._rotate_vec(k, rmat)
+                    rp1 = self._rotate_vec(self.ps_point[0].spatial(), rmat)
+                    rp2 = self._rotate_vec(self.ps_point[1].spatial(), rmat)
+                    # print("-" * 30)
+                    wgt_rot = self.zenos_integrand_with_externals([rk], rp1, rp2, impl)
+                    # print("-" * 30)
+                    rel = abs(wgt - wgt_rot) / (abs(wgt) + abs(wgt_rot))  # , eps)
+                    if rel > 10.0 ** (-n_digits_int):
+                        self.rotation_unstable_count += 1
+                        # print(wgt)
+                        # print(wgt_rot)
+                        # print("*" * 100)
+                        if self.rotation_unstable_example is None:
+                            self.rotation_unstable_example = list(xs)
+                        wgt = 0.0 + 0.0j
 
             # t2 = time.perf_counter()
 
@@ -752,6 +830,22 @@ class DY(object):
 
         p1 = self.ps_point[0].spatial()
         p2 = self.ps_point[1].spatial()
+        return self.zenos_integrand_with_externals(
+            loop_momentum, p1, p2, integrand_implementation
+        )
+
+    def zenos_integrand_with_externals(
+        self,
+        loop_momentum: list[Vector],
+        p1: Vector,
+        p2: Vector,
+        integrand_implementation: dict[str, Any] | None = None,
+    ) -> complex:
+        if self.compiled_bundle is None:
+            raise pygloopException(
+                f"No compiled DY bundle loaded for integrand '{self.get_integrand_name()}'."
+            )
+
         z = 1.0
         m_uv = 1.0
         if integrand_implementation is not None:
@@ -913,6 +1007,8 @@ class DY(object):
             this_result.error += weight**2
             this_result.n_samples += 1
         this_result.elapsed_time += time.time() - t_start
+        this_result.unstable_count = process_instance.rotation_unstable_count
+        this_result.unstable_example = process_instance.rotation_unstable_example
 
         return this_result
 
@@ -999,6 +1095,8 @@ class DY(object):
             res.error += weight**2
             res.n_samples += 1
         res.elapsed_time += time.time() - t_start
+        res.unstable_count = process.rotation_unstable_count
+        res.unstable_example = process.rotation_unstable_example
 
         return (id, all_weights, res)
 
@@ -1105,6 +1203,8 @@ class DY(object):
             res.error += weight**2
             res.n_samples += 1
         res.elapsed_time += time.time() - t_start
+        res.unstable_count = process.rotation_unstable_count
+        res.unstable_example = process.rotation_unstable_example
 
         return (id, all_weights, res)
 
