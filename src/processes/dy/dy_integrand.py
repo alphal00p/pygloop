@@ -452,7 +452,14 @@ class EMRIntegrandConstructor(object):
 
         e_surfaces = set()
 
+        # previous_cff = numerator
+
         previous_cff = numerator
+
+        print("number of subgraphs")
+        print(len(split_graphs_gt2_non_ext))
+
+        edges_to_reverse = []
 
         for n_graph, g in enumerate(split_graphs_gt2_non_ext):
             cff_g = self.get_CFF(g.graph, [], [])
@@ -462,9 +469,7 @@ class EMRIntegrandConstructor(object):
             for cffterm in cff_g.expressions:
                 cff_term = previous_cff * cffterm.expression
                 edges_to_reverse = []
-                for o, i in zip(
-                    cffterm.orientation, range(0, len(cffterm.orientation))
-                ):
+                for o, i in zip(cffterm.orientation, range(len(cffterm.orientation))):
                     id_in_original_graph = g_rep[i][1]
                     this_e_atts = cut_g_edges[id_in_original_graph].get_attributes()
                     if o.is_reversed():
@@ -491,11 +496,15 @@ class EMRIntegrandConstructor(object):
                             )
                         e_surfaces.add(residue_eta)
 
-                for id in set(edges_to_reverse):
-                    cff_term = cff_term.replace(E(f"E({id})"), -E(f"E({id})"))
+                # for id in set(edges_to_reverse):
+                #    cff_term = cff_term.replace(E(f"E({id})"), -E(f"E({id})"))
 
                 new_cff += cff_term
+
             previous_cff = new_cff
+
+        for id in set(edges_to_reverse):
+            previous_cff = previous_cff.replace(E(f"E({id})"), -E(f"E({id})"))
 
         # Multiplies by non-partial-fractioned s-channel propagators and sets the s-channel particle's
         # energy in terms of other cut particles by energy conservation. The logic is weak for many s-channel
@@ -617,6 +626,9 @@ class EMRIntegrandConstructor(object):
 
         ## DEBUG: set numerator to 1
         # num = E("1")
+        #
+        print("NUMERATORRRRRRRR")
+        print(num)
 
         cut_graph_cff = self.get_cff(
             cut_graph,
@@ -864,7 +876,7 @@ class ThresholdSubtractor(object):
                     and e_atts["routing_p2"] == "0"
                 ):
                     mass = E("0")
-                #
+
                 replacement = (self.sp3D(E(f"q({eid})"), E(f"q({eid})")) + mass) ** E(
                     "1/2"
                 )
@@ -1181,7 +1193,7 @@ class LoopIntegrandConstructor(object):
                     and e_atts["routing_p2"] == "0"
                 ):
                     mass = E("p1sq")
-                #
+
                 replacement = (self.sp3D(E(f"q({eid})"), E(f"q({eid})")) + mass) ** E(
                     "1/2"
                 )
@@ -1342,6 +1354,9 @@ class LoopIntegrandConstructor(object):
 
             if len(raised_cut) > 0:
                 integrand = E("1/2") * integrand.derivative(E("p1sq"))
+                # integrand = integrand.series(E("p1sq"), 0, -1).to_expression()
+                # print("series  ")
+                # print()
 
             integrand = integrand.replace(E("p1sq"), E("0"))
             integrand = integrand.replace(E("p2sq"), E("0"))
@@ -1353,6 +1368,12 @@ class LoopIntegrandConstructor(object):
                     integrand, momentum, k_id, E("p(1)")
                 )
             )
+
+            # print("here integrand before series")
+            # test_integrand = integrand.replace(
+            #    E(f"k({k_id[0]})"), repl + lam * E("kperp")
+            # )
+            # print(integrand)
 
             # multiply theta functions in
             #
@@ -1436,6 +1457,7 @@ class LoopIntegrandConstructor(object):
 
             if len(raised_cut) > 0:
                 integrand = E("1/2") * integrand.derivative(E("p2sq"))
+                # integrand = integrand.series(E("p2sq"), 0, -1).to_expression()
 
             integrand = integrand.replace(E("p1sq"), E("0"))
             integrand = integrand.replace(E("p2sq"), E("0"))
@@ -1448,20 +1470,10 @@ class LoopIntegrandConstructor(object):
                 )
             )
 
-            print("THETA COMPARISON 2", "-" * 15)
-
-            print(
-                self.concretise_scalar_products(
-                    E(f"(k({k_id[0]},1)^2+k({k_id[0]},2)^2)/({repl_x}*(1-{repl_x}))")
-                )
-            )
-            print(
-                self.concretise_scalar_products(
-                    E(f"({self.sp3D(repl_kperp, repl_kperp)})/(x*(1-x))").replace(
-                        x, repl_x
-                    )
-                )
-            )
+            # print("here integrand before series")
+            # test_integrand = integrand.replace(
+            #    E(f"k({k_id[0]})"), repl + lam * E("kperp")
+            # )
 
             # multiply theta functions in
 
@@ -1644,7 +1656,7 @@ class LoopIntegrandConstructor(object):
                 emr_representation = (
                     emr_representation
                     * (E(f"E({cut[0]})") - E(f"E({cut[1]})"))
-                    * (2 * E(f"E({cut[0]})"))
+                    * (2)  # * E(f"E({cut[0]})"))
                 )
                 # New stuff
                 emr_representation = emr_representation.replace(
@@ -1681,19 +1693,25 @@ class LoopIntegrandConstructor(object):
         )
         uv_ct = uv_approximator.construct_uv_counter_terms()
 
-        threshold_approximator = ThresholdSubtractor(
-            deepcopy(orig_cut_graph), self.params, self.name, self.L
-        )
-        threshold_cts = threshold_approximator.construct_threshold_counter_terms()
+        # threshold_approximator = ThresholdSubtractor(
+        #    deepcopy(orig_cut_graph), self.params, self.name, self.L
+        # )
+        # threshold_cts = threshold_approximator.construct_threshold_counter_terms()
+
+        print("here before raised propagator treatment")
+        print(emr_integrand)
 
         loop_integrand, raised_cut = self.eliminate_raised_cuts(
             emr_integrand, cut_graph
         )
 
+        print("here after raised propagator treatment")
+        print(loop_integrand)
+
         loop_integrand = self.leading_virtuality_expansion(
             loop_integrand, cut_graph, raised_cut
         )
 
-        loop_integrand = loop_integrand + uv_ct + threshold_cts
+        loop_integrand = loop_integrand + uv_ct  # + threshold_cts
 
         return loop_integrand

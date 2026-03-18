@@ -644,8 +644,8 @@ class DYCompiledBundle:
         vals: dict[Expression, float],
         t_key: Expression,
         t0: float = 1.0,
-        tol_f: float = 1e-16,
-        tol_x: float = 1e-16,
+        tol_f: float = 1e-12,
+        tol_x: float = 1e-12,
         max_iter: int = 32,
         max_bracket_expands: int = 12,
         eval_map: dict[Expression, float] | None = None,
@@ -865,7 +865,7 @@ class DYCompiledBundle:
         for term in self.terms:
             valst1 = vals.copy()
             valst1[self._t_key] = 1
-            t_sol = abs(
+            my_t0 = abs(
                 2
                 * math.sqrt(p1z**2 + p1x**2 + p1y**2)
                 / (
@@ -874,20 +874,20 @@ class DYCompiledBundle:
                 )
             )
 
-            # t_sol = self.solve_t_newton_bisect(
-            #    term.e_surface,
-            #    vals,
-            #    self._t_key,
-            #    t0=my_t0,  # fixed per-term start for benchmark-stable branch
-            #    eval_map=vals,
-            # )
+            t_sol = self.solve_t_newton_bisect(
+                term.e_surface,
+                vals,
+                self._t_key,
+                t0=my_t0,  # fixed per-term start for benchmark-stable branch
+                eval_map=vals,
+            )
 
             # t_sol = self.solve_t_convex_bisect(
-            #    term.e_surface,
-            #    vals,
-            #    self._t_key,
-            #    t0=my_t0,  # fixed per-term start for benchmark-stable branch
-            #    eval_map=vals,
+            #     term.e_surface,
+            #     vals,
+            #     self._t_key,
+            #     t0=my_t0,  # fixed per-term start for benchmark-stable branch
+            #     eval_map=vals,
             # )
 
             if t_sol is None:

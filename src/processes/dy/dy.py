@@ -351,23 +351,23 @@ class DY(object):
                     for term_integrand in term_integrands
                 )
 
-            approach_limit = approach_point(1, "DY", routed_integrands)
+            #            approach_limit = approach_point(1, "DY", routed_integrands)
+            #            print("##################")
+            #            z = 0.6
+            #            ks = [math.sqrt(z) * np.array([0, 1 / math.sqrt(2), 1 / math.sqrt(2)])]
+            #            ks = [
+            #                math.sqrt(z)
+            #                * np.array([1 / math.sqrt(3), 1 / math.sqrt(3), 1 / math.sqrt(3)])
+            #            ]
+            #            vp = np.array([0.3, -0.2, 0.11])
+            #            p1 = np.array([0, 0, 1])
+            #            p2 = np.array([0, 0, -1])
+            #
+            #            approach_limit.approach(ks, p1, p2, z, vp)
+
+            ir_test = infrared_test(1, "DY", routed_integrands)
             print("##################")
-            z = 0.6
-            ks = [math.sqrt(z) * np.array([0, 1 / math.sqrt(2), 1 / math.sqrt(2)])]
-            ks = [
-                math.sqrt(z)
-                * np.array([1 / math.sqrt(3), 5 / math.sqrt(3), 1 / math.sqrt(3)])
-            ]
-            vp = np.array([0.3, -0.2, 0.11])
-            p1 = np.array([0, 0, 1])
-            p2 = np.array([0, 0, -1])
-
-            approach_limit.approach(ks, p1, p2, z, vp)
-
-            # ir_test = infrared_test(1, "DY", routed_integrands)
-            # print("##################")
-            # ir_test.approach_limits(1)
+            ir_test.approach_limits(1)
 
             # uv_test = ultraviolet_test(1, "DY", routed_integrands)
             # print("##################")
@@ -414,7 +414,7 @@ class DY(object):
                 # )
 
                 self.gl_worker.run(  ## GL04
-                    f"generate amp d g > d g | d d~ g a QED==2 [{{1}}] --only-diagrams --numerator-grouping only_detect_zeroes --select-graphs GL11 -p {base_name} -i {graphs_process_name}"  #
+                    f"generate amp d g > d g | d d~ g a QED==2 [{{1}}] --only-diagrams --numerator-grouping only_detect_zeroes --select-graphs GL04 -p {base_name} -i {graphs_process_name}"  #
                 )
                 self.gl_worker.run("save state -o")
                 DY_1L_dot_files = self.gl_worker.get_dot_files(
