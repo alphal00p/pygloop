@@ -336,7 +336,7 @@ class DY(object):
                 # Keep full routed list for approach/IR/UV tests
                 routed_integrands.extend(deepcopy(term_integrands))
 
-                observable_params = {"zmin": 0.0, "zmax": 1.0, "Lambdasq": 0.5}
+                observable_params = {"zmin": 0.2, "zmax": 1.0, "Lambdasq": 0.5}
 
                 # Build one evaluator per routed term
                 evaluators.extend(
@@ -409,13 +409,13 @@ class DY(object):
         match self.n_loops:
             case 1:
                 logger.info("Generating one-loop graphs ...")
-                # self.gl_worker.run(  # GL09
-                #    f"generate amp d d~ > d d~ | d d~ g a QED==2 [{{1}}] --only-diagrams --numerator-grouping only_detect_zeroes --select-graphs GL02 -p {base_name} -i {graphs_process_name}"
-                # )
-
-                self.gl_worker.run(  ## GL04
-                    f"generate amp d g > d g | d d~ g a QED==2 [{{1}}] --only-diagrams --numerator-grouping only_detect_zeroes --select-graphs GL04 -p {base_name} -i {graphs_process_name}"  #
+                self.gl_worker.run(  # GL09 - xbox GL02 - virtual triangle GL17 - box
+                    f"generate amp d d~ > d d~ | d d~ g a QED==2 [{{1}}] --only-diagrams --numerator-grouping only_detect_zeroes --select-graphs GL17 -p {base_name} -i {graphs_process_name}"
                 )
+
+                # self.gl_worker.run(  ## GL04 - box GL10 - triangle GL11 - bubble
+                #     f"generate amp d g > d g | d d~ g a QED==2 [{{1}}] --only-diagrams --numerator-grouping only_detect_zeroes --select-graphs GL04 -p {base_name} -i {graphs_process_name}"  #
+                # )
                 self.gl_worker.run("save state -o")
                 DY_1L_dot_files = self.gl_worker.get_dot_files(
                     process_id=None, integrand_name=graphs_process_name

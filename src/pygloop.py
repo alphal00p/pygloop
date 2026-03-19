@@ -100,6 +100,18 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
         default=False,
         help="DY only: skip phase-space momentum-conservation validation.",
     )
+    parser.add_argument(
+        "--dy-rotation-check-digits",
+        type=int,
+        default=None,
+        help="DY only: enable rotational-invariance veto with N relative-accuracy digits (disabled by default).",
+    )
+    parser.add_argument(
+        "--dy-rotation-check-eps",
+        type=float,
+        default=1e-15,
+        help="DY only: floor used in relative-difference denominator for rotation check.",
+    )
 
     parser.add_argument("--gammaloop-configuration", "-f", default=None,
         help="Specify a toml file containing the gammaloop configuration desired. Default = ./configs/<PROCESS_NAME>/generate.toml",
@@ -475,6 +487,11 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
         "integrand_type": args.integrand_implementation,
         "evaluator_compiler": args.integrand_evaluator_compiler,
     }
+    if args.process == "dy":
+        integrand_implementation["dy_rotation_check_digits"] = (
+            args.dy_rotation_check_digits
+        )
+        integrand_implementation["dy_rotation_check_eps"] = args.dy_rotation_check_eps
     t_start = time.time()
     match args.command:
         case "generate":
@@ -562,7 +579,9 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
                     args.target = direct_target
 
             t_start = time.time()
-            res = process.integrate(**vars(args))  # type: ignore
+            run_opts = vars(args).copy()
+            run_opts["integrand_implementation"] = integrand_implementation
+            res = process.integrate(**run_opts)  # type: ignore
             integration_time = time.time() - t_start
             # tabs = "\t" * 5
             new_line = "\n"

@@ -1,9 +1,10 @@
 import copy
 import re
 from collections import deque
+from fractions import Fraction
 from itertools import product
 from typing import Any, Generator, List, Optional, Set, Tuple
-from fractions import Fraction
+
 import pydot
 
 # == Parsing ===================================================================
@@ -51,8 +52,8 @@ def _base_node(endpoint: str) -> str:
 
 
 # pydot vertices are in the form "v:port"; return v (optionally collapse ports)
-def _node_key(endpoint: str, collapse_ports: bool = True) -> str:
-    ep = _strip_quotes(endpoint)
+def _node_key(endpoint: object, collapse_ports: bool = True) -> str:
+    ep = _strip_quotes(str(endpoint))
     if collapse_ports and ":" in ep:
         return ep.split(":", 1)[0]
     return ep

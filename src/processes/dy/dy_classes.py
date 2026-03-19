@@ -53,7 +53,7 @@ def write_text_with_dirs(
         handle.write(content)
 
 
-class VacuumDotGraph(object):
+class VacuumDotGraph:
     def __init__(self, dot_graph: pydot.Dot):  # , num):
         self.dot = dot_graph
         # self.num = num
@@ -61,7 +61,7 @@ class VacuumDotGraph(object):
     # Given a cut (as a set of boundary edges) and a simple directed cycle, computes how
     # many times the cycle crosses the cut
     def compute_directed_winding_from_cut(
-        self, directed_cycle: Set[pydot.Edge], cut: List[pydot.Edge]
+        self, directed_cycle: set[pydot.Edge], cut: list[pydot.Edge]
     ) -> int:
         edges = list(directed_cycle)
         if not edges:
@@ -102,7 +102,7 @@ class VacuumDotGraph(object):
 
     # Finds the set of edges that cut all cycles with non-zero winding at least once, and that are minimal
     # with respect to this property
-    def get_minimal_cuts(self) -> List[Set[pydot.Edge]]:
+    def get_minimal_cuts(self) -> list[set[pydot.Edge]]:
         cycles = self.get_nonzero_winding_cycles()
 
         if not cycles:
@@ -146,7 +146,7 @@ class VacuumDotGraph(object):
 
     # Given the minimal cuts, pads them so that they can have repeated entries, and
     # in particular have edges cut twice, but NOT three or more times (domain specific)
-    def get_cutkosky_cuts(self) -> List[List[pydot.Edge]]:
+    def get_cutkosky_cuts(self) -> list[list[pydot.Edge]]:
         cycles = get_directed_cycles(self.dot)
 
         # The filtering logic by target could be certainly substituted by a filtering logic by winding
@@ -180,7 +180,7 @@ class VacuumDotGraph(object):
         for cut in old_cutkosky_cuts:
             new_cut = list(cut)
             for e in cut:
-                candidates.append(new_cut + [e])
+                candidates.append(new_cut + [e])  # noqa:PERF401
 
         for cut in candidates:
             candidate_target = compute_targets(cut, cycles)
@@ -192,8 +192,8 @@ class VacuumDotGraph(object):
     # Given a process definition with a number of initial and final state massive final_particles
     # returns only the pairs of cutkosky cuts consistent with this definition
     def get_cutkosky_cuts_IF(
-        self, initial_massive: List[str], final_massive: List[str]
-    ) -> Tuple[List[List[pydot.Edge]], List[List[pydot.Edge]]]:
+        self, initial_massive: list[str], final_massive: list[str]
+    ) -> tuple[list[list[pydot.Edge]], list[list[pydot.Edge]]]:
         cuts = self.get_cutkosky_cuts()
 
         initial_cuts = []
@@ -273,18 +273,17 @@ class VacuumDotGraph(object):
             if components > 2:
                 return False
 
-        result = components == 2
-        return result
+        return components == 2
 
     # Given two cuts, a graph and a set of oriented cycles, establishes what sign must be assigned
     # to the edges in the cut so that the winding computed with each of these cuts matches the original once
     # for any cycle
     def set_cut_labels(
         self,
-        initial_cut: List[pydot.Edge],
-        final_cut: List[pydot.Edge],
+        initial_cut: list[pydot.Edge],
+        final_cut: list[pydot.Edge],
         graph: pydot.Dot,
-        cycles: List[Set[pydot.Edge]],
+        cycles: list[set[pydot.Edge]],
     ) -> tuple[bool, pydot.Dot]:
         new_graph = copy.deepcopy(graph)
         initial_res = []
@@ -293,7 +292,7 @@ class VacuumDotGraph(object):
         for initial_signs in product([1, -1], repeat=len(initial_cut)):
             check = True
             new_cut = copy.deepcopy(initial_cut)
-            for i in range(0, len(initial_cut)):
+            for i in range(len(initial_cut)):
                 new_cut[i].get_attributes()["is_cut"] = initial_signs[i]
             for cycle in cycles:
                 if not (self.cycle_flow(cycle, new_cut, graph)):
@@ -305,7 +304,7 @@ class VacuumDotGraph(object):
         for final_signs in product([1, -1], repeat=len(final_cut)):
             check = True
             new_cut = copy.deepcopy(final_cut)
-            for i in range(0, len(final_cut)):
+            for i in range(len(final_cut)):
                 new_cut[i].get_attributes()["is_cut"] = final_signs[i]
             for cycle in cycles:
                 if not (self.cycle_flow(cycle, new_cut, graph)):
@@ -334,7 +333,7 @@ class VacuumDotGraph(object):
 
     # Given a graph, two cuts (initial and final) and a partition, it constructs all routings consistent
     # with the simplest clustering criterion
-    def route_cut_graph(self, graph: pydot.Dot, partition: List[List[str]]):
+    def route_cut_graph(self, graph: pydot.Dot, partition: list[list[str]]):
 
         if len(partition) != 2:
             raise ValueError(
@@ -432,7 +431,7 @@ class VacuumDotGraph(object):
 
     # Checks that a certain routed graph has been routed correctly. This function is limited to Drell-Yan.
     def check_routing(
-        self, graph: pydot.Dot, partition: List[List[pydot.Edge]]
+        self, graph: pydot.Dot, partition: list[list[pydot.Edge]]
     ) -> bool:
         edges = graph.get_edges()
         nodes = []
@@ -498,11 +497,9 @@ class VacuumDotGraph(object):
 
     # Eliminates all zero-measured cuts (domain specific: no massive particles in the initial state)
     def phase_space_check(
-        self, initial_cut: List[pydot.Edge], final_cut: List[pydot.Edge]
+        self, initial_cut: list[pydot.Edge], final_cut: list[pydot.Edge]
     ) -> bool:
-        if len(set(initial_cut) - set(final_cut)) == 1:
-            return False
-        return True
+        return len(set(initial_cut) - set(final_cut)) != 1
 
     # Computes all possible cut routed diagrams given a process definition
     def cut_graphs_with_routing(
@@ -683,13 +680,13 @@ class DYDotGraph(DotGraph):
         if _edge_particle(ee) == "d":
             ee.set(
                 "num",
-                f"Q({edge_id_int(ee)},mink(4,mu))*spenso::gamma(spenso::bis(4,hedge({_parse_port(ee.get_source())})),spenso::bis(4,hedge({_parse_port(ee.get_destination())})),spenso::mink(4,mu))*spenso::g(spenso::dind(spenso::cof(3,hedge({_parse_port(ee.get_source())}))),spenso::cof(3,hedge({_parse_port(ee.get_destination())})))",
+                f"Q({edge_id_int(ee)},spenso::mink(4,mu))*spenso::gamma(spenso::bis(4,hedge({_parse_port(ee.get_source())})),spenso::bis(4,hedge({_parse_port(ee.get_destination())})),spenso::mink(4,mu))*spenso::g(spenso::dind(spenso::cof(3,hedge({_parse_port(ee.get_source())}))),spenso::cof(3,hedge({_parse_port(ee.get_destination())})))",
             )
             ee.set("dod", "-1")
         if _edge_particle(ee) == "d~":
             ee.set(
                 "num",
-                f"Q({edge_id_int(ee)},mink(4,mu))*spenso::gamma(spenso::bis(4,hedge({_parse_port(ee.get_destination())})),spenso::bis(4,hedge({_parse_port(ee.get_source())})),spenso::mink(4,mu))*spenso::g(spenso::dind(spenso::cof(3,hedge({_parse_port(ee.get_destination())}))),spenso::cof(3,hedge({_parse_port(ee.get_source())})))",
+                f"Q({edge_id_int(ee)},spenso::mink(4,rho))*spenso::gamma(spenso::bis(4,hedge({_parse_port(ee.get_destination())})),spenso::bis(4,hedge({_parse_port(ee.get_source())})),spenso::mink(4,rho))*spenso::g(spenso::dind(spenso::cof(3,hedge({_parse_port(ee.get_destination())}))),spenso::cof(3,hedge({_parse_port(ee.get_source())})))",
             )
             ee.set("dod", "-1")
         if _edge_particle(ee) == "g":

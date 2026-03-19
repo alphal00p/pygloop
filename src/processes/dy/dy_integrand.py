@@ -456,9 +456,6 @@ class EMRIntegrandConstructor(object):
 
         previous_cff = numerator
 
-        print("number of subgraphs")
-        print(len(split_graphs_gt2_non_ext))
-
         edges_to_reverse = []
 
         for n_graph, g in enumerate(split_graphs_gt2_non_ext):
@@ -626,9 +623,8 @@ class EMRIntegrandConstructor(object):
 
         ## DEBUG: set numerator to 1
         # num = E("1")
-        #
-        print("NUMERATORRRRRRRR")
-        print(num)
+        # print("NUMERATORRRRRRRR")
+        # print(num)
 
         cut_graph_cff = self.get_cff(
             cut_graph,
@@ -893,7 +889,7 @@ class ThresholdSubtractor(object):
         for e in cut_graph.get_edges():
             e_atts = e.get_attributes()
             routing_items = E("0")
-            for i in range(self.L + 1):
+            for i in range(self.L):
                 key = f"routing_k{i}"
                 if key in e_atts:
                     routing_items += E(f"{e_atts[key]}*k[{i}]")
@@ -1110,7 +1106,7 @@ class Approximator(object):
 
         # Only consider leading-virtuality contribution
 
-        integrand = integrand.series(lam, 0, -1).to_expression().replace(lam, 1)
+        integrand = integrand.series(lam, 0, -2).to_expression().replace(lam, 1)
 
         # Invert back the collinear parametrisation. Since s*q(i)= x*p(1)+lam*k_perp(j), we have
         # x=s*q(i).p(1)/p(1).p(1)
@@ -1121,13 +1117,6 @@ class Approximator(object):
             / self.sp3D(direction, direction)
         )
 
-        # repl_kperp = E(f"k({k_id[0]},1)^2+k({k_id[0]},2)^2")
-
-        # integrand = integrand.replace(E("x"), repl_x)
-        # integrand = integrand.replace(
-        #    self.sp3D(E(f"k_perp({k_id[0]})"), E(f"k_perp({k_id[0]})")), repl_kperp
-        # )
-        #
         repl_kperp = -momentum[1] * x * direction + momentum[0]
 
         integrand = integrand.replace(
@@ -1210,14 +1199,14 @@ class LoopIntegrandConstructor(object):
         for e in cut_graph.graph.get_edges():
             e_atts = e.get_attributes()
             routing_items = E("0")
-            for i in range(self.L + 1):
+            for i in range(self.L):
                 key = f"routing_k{i}"
                 if key in e_atts:
-                    routing_items += E(f"{e_atts[key]}*k[{i}]")
-            for i in range(0, 2):
+                    routing_items += E(f"{e_atts[key]}*k({i})")
+            for i in range(2):
                 key = f"routing_p{i + 1}"
                 if key in e_atts:
-                    routing_items += E(f"{e_atts[key]}*p[{i + 1}]")
+                    routing_items += E(f"{e_atts[key]}*p({i + 1})")
             integrand = integrand.replace(E(f"q({e_atts['id']})"), routing_items)
 
         integrand = integrand.replace(
@@ -1239,7 +1228,11 @@ class LoopIntegrandConstructor(object):
 
         same = all(val(a, k) == val(b, k) for k in keys)
         opp = all(val(a, k) == -val(b, k) for k in keys)
-        return same or opp
+        if same:
+            return "same"
+        if opp:
+            return "opp"
+        return None
 
     # Changes the routing of a graph based on an input lmb choice.
 
@@ -1354,9 +1347,6 @@ class LoopIntegrandConstructor(object):
 
             if len(raised_cut) > 0:
                 integrand = E("1/2") * integrand.derivative(E("p1sq"))
-                # integrand = integrand.series(E("p1sq"), 0, -1).to_expression()
-                # print("series  ")
-                # print()
 
             integrand = integrand.replace(E("p1sq"), E("0"))
             integrand = integrand.replace(E("p2sq"), E("0"))
@@ -1368,18 +1358,6 @@ class LoopIntegrandConstructor(object):
                     integrand, momentum, k_id, E("p(1)")
                 )
             )
-
-            # print("here integrand before series")
-            # test_integrand = integrand.replace(
-            #    E(f"k({k_id[0]})"), repl + lam * E("kperp")
-            # )
-            # print(integrand)
-
-            # multiply theta functions in
-            #
-            # thetaLambdasq1 = E(
-            #    f"Θ(Lambdasq-(k({k_id[0]},1)^2+k({k_id[0]},2)^2)/({repl_x}*(1-{repl_x})))"
-            # )
 
             thetaLambdasq = E(
                 f"Θ(Lambdasq-({self.sp3D(repl_kperp, repl_kperp)})/(x*(1-x)))"
@@ -1452,12 +1430,12 @@ class LoopIntegrandConstructor(object):
 
             # integrand = integrand.replace(E(f"E({coll_moms[0]})"), coll_en)
             # integrand = integrand.replace(E(f"E({coll_moms[1]})"), a_coll_en)
+            #
 
             integrand = self.replace_energies(integrand, cut_graph)
 
             if len(raised_cut) > 0:
                 integrand = E("1/2") * integrand.derivative(E("p2sq"))
-                # integrand = integrand.series(E("p2sq"), 0, -1).to_expression()
 
             integrand = integrand.replace(E("p1sq"), E("0"))
             integrand = integrand.replace(E("p2sq"), E("0"))
@@ -1470,18 +1448,6 @@ class LoopIntegrandConstructor(object):
                 )
             )
 
-            # print("here integrand before series")
-            # test_integrand = integrand.replace(
-            #    E(f"k({k_id[0]})"), repl + lam * E("kperp")
-            # )
-
-            # multiply theta functions in
-
-            # thetaLambdasq1 = E(
-            #    f"Θ(Lambdasq-(k({k_id[0]},1)^2+k({k_id[0]},2)^2)/({repl_x}*(1-{repl_x})))"
-            # )
-
-            ## FOLLOWING BUG!!
             thetaLambdasq = E(
                 f"Θ(Lambdasq-({self.sp3D(repl_kperp, repl_kperp)})/(x*(1-x)))"
             ).replace(x, repl_x)
@@ -1638,27 +1604,56 @@ class LoopIntegrandConstructor(object):
             e_atts = e.get_attributes()
             for ep, j in zip(g_edges, range(len(g_edges))):
                 ep_atts = ep.get_attributes()
+                relation = self._routing_sign_match(e, ep)
                 if (
                     j > i
-                    and self._routing_sign_match(e, ep)
+                    and relation is not None
                     and (
                         e_atts.get("is_cut_DY", None) is not None
                         or ep_atts.get("is_cut_DY", None) is not None
                     )
                 ):
                     if e_atts["id"] not in init_cut_ids:
-                        raised_cut.append([e_atts["id"], ep_atts["id"]])
+                        raised_cut.append([e_atts["id"], ep_atts["id"], relation])
                     else:
-                        raised_cut.append([ep_atts["id"], e_atts["id"]])
+                        raised_cut.append([ep_atts["id"], e_atts["id"], relation])
+
+        # compute energy conservation condition (specialised to "DY")
+        initial_cut_ids = [e.get_attributes()["id"] for e in cut_graph.initial_cut]
+        final_cut_ids = [e.get_attributes()["id"] for e in cut_graph.final_cut]
+
+        photon_id = [
+            e.get_attributes()["id"]
+            for e in cut_graph.final_cut
+            if _strip_quotes(str(e.get_attributes()["particle"])) == "a"
+        ]
+
+        if len(photon_id) != 1:
+            raise ValueError("problem with final state gamma in raised cut treatment")
+
+        repl = (
+            sum(E(f"E({id})") for id in initial_cut_ids)
+            - sum(E(f"E({id})") for id in final_cut_ids)
+            + E(f"E({photon_id[0]})")
+        ).expand()
+
+        emr_representation = emr_representation.replace(E(f"E({photon_id[0]})"), repl)
 
         if len(raised_cut) > 0:
             for cut in raised_cut:
+                if cut[2] == "opp":
+                    # minus sign is because the correct way to correct for an opposite routing of the
+                    # raised propagator would be to actually switch the sign of the energy in the
+                    # numerator only, which at this point is difficult to access.
+                    emr_representation = -emr_representation.replace(
+                        E(f"q({cut[0]})"),
+                        -E(f"q({cut[0]})"),
+                    )
                 emr_representation = (
                     emr_representation
                     * (E(f"E({cut[0]})") - E(f"E({cut[1]})"))
                     * (2)  # * E(f"E({cut[0]})"))
                 )
-                # New stuff
                 emr_representation = emr_representation.replace(
                     E(f"E({cut[0]})"), E(f"E({cut[1]})") + E("same")
                 )
@@ -1698,15 +1693,9 @@ class LoopIntegrandConstructor(object):
         # )
         # threshold_cts = threshold_approximator.construct_threshold_counter_terms()
 
-        print("here before raised propagator treatment")
-        print(emr_integrand)
-
         loop_integrand, raised_cut = self.eliminate_raised_cuts(
             emr_integrand, cut_graph
         )
-
-        print("here after raised propagator treatment")
-        print(loop_integrand)
 
         loop_integrand = self.leading_virtuality_expansion(
             loop_integrand, cut_graph, raised_cut
