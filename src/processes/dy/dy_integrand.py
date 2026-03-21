@@ -1108,6 +1108,9 @@ class Approximator(object):
 
         integrand = integrand.series(lam, 0, -2).to_expression().replace(lam, 1)
 
+        print("collinear parametrised integrand")
+        print(integrand)
+
         # Invert back the collinear parametrisation. Since s*q(i)= x*p(1)+lam*k_perp(j), we have
         # x=s*q(i).p(1)/p(1).p(1)
 
@@ -1127,11 +1130,16 @@ class Approximator(object):
         return integrand, repl, repl_x, repl_kperp
 
     def soft_approximation(self, integrand, momentum, k_id):
+
         lam = S("λ", is_scalar=True)
 
         repl = k_id[1] * (-(momentum[0] - k_id[1] * E(f"k({k_id[0]})"))) + k_id[
             1
         ] * lam * E("qsoft")
+
+        print("replacement")
+        print(momentum)
+        print(repl)
 
         integrand = integrand.replace(E(f"k({k_id[0]})"), repl)
 
@@ -1353,11 +1361,17 @@ class LoopIntegrandConstructor(object):
 
             integrand = self.route_integrand(integrand, cut_graph)
 
+            # print("integrand before")
+            # print(integrand)
+
             integrand, repl, repl_x, repl_kperp = (
                 self.approximator.collinear_approximation(
                     integrand, momentum, k_id, E("p(1)")
                 )
             )
+
+            # print("integrand after")
+            # print(integrand)
 
             thetaLambdasq = E(
                 f"Θ(Lambdasq-({self.sp3D(repl_kperp, repl_kperp)})/(x*(1-x)))"
@@ -1478,14 +1492,20 @@ class LoopIntegrandConstructor(object):
             x = S("x", is_scalar=True, is_positive=True)
 
             soft_edge = list(set(partition[0]).intersection(partition[1]))
+            hard_edge1 = [e for e in partition[0] if e not in soft_edge]
+            hard_edge2 = [e for e in partition[1] if e not in soft_edge]
 
-            if len(soft_edge) != 1:
+            if len(soft_edge) != 1 or len(hard_edge1) != 1 or len(hard_edge2) != 1:
                 raise ValueError(
                     "Big problem with soft approximation!!! (or your desires are too demanding for this poor, little code)"
                 )
 
             id = soft_edge[0].get_attributes()["id"]
+            id_hard1 = hard_edge1[0].get_attributes()["id"]
+            id_hard2 = hard_edge2[0].get_attributes()["id"]
             momentum = []
+            hard_momentum1 = []
+            hard_momentum2 = []
             for e in cut_graph.graph.get_edges():
                 e_atts = e.get_attributes()
                 if e_atts["id"] == id:
@@ -1495,6 +1515,28 @@ class LoopIntegrandConstructor(object):
                         (i, c) for i, c in enumerate(loop_coeff) if str(c) != "0"
                     )
                     momentum = [
+                        (
+                            sum(loop_coeff[i] * E(f"k({i})") for i in range(0, self.L))
+                            + E(e_atts["routing_p1"]) * E("p(1)")
+                            + E(e_atts["routing_p2"]) * E("p(2)")
+                        ),
+                        e_atts["is_cut_DY"],
+                    ]
+                if e_atts["id"] == id_hard1:
+                    k_keys = ["routing_k" + str(i) for i in range(0, self.L)]
+                    loop_coeff = [E(e_atts[rout]) for rout in k_keys]
+                    hard_momentum1 = [
+                        (
+                            sum(loop_coeff[i] * E(f"k({i})") for i in range(0, self.L))
+                            + E(e_atts["routing_p1"]) * E("p(1)")
+                            + E(e_atts["routing_p2"]) * E("p(2)")
+                        ),
+                        e_atts["is_cut_DY"],
+                    ]
+                if e_atts["id"] == id_hard2:
+                    k_keys = ["routing_k" + str(i) for i in range(0, self.L)]
+                    loop_coeff = [E(e_atts[rout]) for rout in k_keys]
+                    hard_momentum2 = [
                         (
                             sum(loop_coeff[i] * E(f"k({i})") for i in range(0, self.L))
                             + E(e_atts["routing_p1"]) * E("p(1)")
@@ -1512,9 +1554,15 @@ class LoopIntegrandConstructor(object):
             integrand = integrand.replace(E("p2sq"), E("0"))
             integrand = self.route_integrand(integrand, cut_graph)
 
+            print("unapproximated integranddddddd", ".." * 30)
+            print(integrand)
+
             soft_integrand, repl_s = self.approximator.soft_approximation(
                 deepcopy(integrand), deepcopy(momentum), deepcopy(k_id)
             )
+
+            print("soft integranddddddd", ".." * 30)
+            print(soft_integrand)
 
             soft_collinear_integrand1, repl1, repl1_x, repl_kperp1 = (
                 self.approximator.collinear_approximation(
@@ -1525,6 +1573,9 @@ class LoopIntegrandConstructor(object):
                 )
             )
 
+            print("soft-collinear 1 integranddddddd", ".." * 30)
+            print(soft_collinear_integrand1)
+
             soft_collinear_integrand2, repl2, repl2_x, repl_kperp2 = (
                 self.approximator.collinear_approximation(
                     deepcopy(soft_integrand),
@@ -1534,14 +1585,38 @@ class LoopIntegrandConstructor(object):
                 )
             )
 
+            print("soft-collinear 2  integranddddddd", ".." * 30)
+            print(soft_collinear_integrand2)
+
+            print("replacements")
+            print(repl_s)
+            print(repl1_x)
+            print(repl2_x)
+
             # TODO: Lambdasq theta functions
 
             integrand = (
                 soft_integrand + soft_collinear_integrand1 + soft_collinear_integrand2
             )  # * E(f"Θ({repl_x})") * E(f"Θ(1-{repl_x})")
 
+            # need to construct propagators
+            propsoft1 = 2 * (
+                (self.sp3D(momentum[0], momentum[0])) ** E("1/2")
+                * (self.sp3D(E("p(1)"), E("p(1)"))) ** E("1/2")
+                - momentum[1] * self.sp3D(momentum[0], E("p(1)"))
+            )
+            propsoft2 = 2 * (
+                (self.sp3D(momentum[0], momentum[0])) ** E("1/2")
+                * (self.sp3D(E("p(2)"), E("p(2)"))) ** E("1/2")
+                - momentum[1] * self.sp3D(momentum[0], E("p(2)"))
+            )
+
+            thetaSoft = E(f"Θ(Lambdasq-{propsoft1})") * E(f"Θ(Lambdasq-{propsoft2})")
+            print("soft theta function")
+            print(thetaSoft.expand())
+
             routed_integrand_soft = RoutedIntegrand(
-                soft_integrand,
+                -soft_integrand * thetaSoft,
                 cut_graph,
                 [
                     E(f"k({k_id[0]})"),
@@ -1555,8 +1630,23 @@ class LoopIntegrandConstructor(object):
                 ],
             )
             routed_integrands.append(routed_integrand_soft)
+
+            thetacollinear1 = (
+                E(f"Θ(Lambdasq-({self.sp3D(repl_kperp1, repl_kperp1)})/(x))").replace(
+                    x, repl1_x
+                )
+                * E(f"Θ(Lambdasq-4*{self.sp3D(E('p(1)'), E('p(1)'))}*x)").replace(
+                    x, repl1_x
+                )
+                * E(f"Θ({repl1_x})")
+                # * E(f"Θ(1-{repl1_x})")
+            )
+
+            print("soft collinear theta 1")
+            print(thetacollinear1)
+
             routed_integrand_collinear1 = RoutedIntegrand(
-                soft_collinear_integrand1 * E(f"Θ({repl1_x})") * E(f"Θ(1-{repl1_x})"),
+                soft_collinear_integrand1 * thetacollinear1,
                 cut_graph,
                 [
                     E(f"k({k_id[0]})"),
@@ -1571,8 +1661,23 @@ class LoopIntegrandConstructor(object):
                 ],
             )
             routed_integrands.append(routed_integrand_collinear1)
+
+            thetacollinear2 = (
+                E(f"Θ(Lambdasq-({self.sp3D(repl_kperp2, repl_kperp2)})/(x))").replace(
+                    x, repl2_x
+                )
+                * E(f"Θ(Lambdasq-4*{self.sp3D(E('p(1)'), E('p(1)'))}*(x))").replace(
+                    x, repl2_x
+                )
+                * E(f"Θ({repl2_x})")
+                # * E(f"Θ(1-{repl2_x})")
+            )
+
+            print("soft collinear theta 2")
+            print(thetacollinear2)
+
             routed_integrand_collinear2 = RoutedIntegrand(
-                soft_collinear_integrand2 * E(f"Θ({repl2_x})") * E(f"Θ(1-{repl2_x})"),
+                soft_collinear_integrand2 * thetacollinear2,
                 cut_graph,
                 [
                     E(f"k({k_id[0]})"),
@@ -1688,10 +1793,10 @@ class LoopIntegrandConstructor(object):
         )
         uv_ct = uv_approximator.construct_uv_counter_terms()
 
-        # threshold_approximator = ThresholdSubtractor(
-        #    deepcopy(orig_cut_graph), self.params, self.name, self.L
-        # )
-        # threshold_cts = threshold_approximator.construct_threshold_counter_terms()
+        threshold_approximator = ThresholdSubtractor(
+            deepcopy(orig_cut_graph), self.params, self.name, self.L
+        )
+        threshold_cts = threshold_approximator.construct_threshold_counter_terms()
 
         loop_integrand, raised_cut = self.eliminate_raised_cuts(
             emr_integrand, cut_graph
@@ -1701,6 +1806,6 @@ class LoopIntegrandConstructor(object):
             loop_integrand, cut_graph, raised_cut
         )
 
-        loop_integrand = loop_integrand + uv_ct  # + threshold_cts
+        loop_integrand = loop_integrand + uv_ct + threshold_cts
 
         return loop_integrand

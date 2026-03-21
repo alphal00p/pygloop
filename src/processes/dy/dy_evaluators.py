@@ -8,6 +8,8 @@ import shutil
 import time
 from copy import deepcopy
 from dataclasses import dataclass
+from decimal import Decimal, InvalidOperation
+from fractions import Fraction
 
 from symbolica import E, Expression, S
 
@@ -35,6 +37,17 @@ def heaviside_theta(x):
         return 0
 
 
+def _coerce_numeric_param(value):
+    if isinstance(value, (int, float)):
+        return float(value)
+
+    value_str = str(value).strip()
+    try:
+        return float(value_str)
+    except ValueError:
+        return float(Fraction(value_str))
+
+
 class evaluate_integrand:
     def impose_rest_frame(self, integrand):
         return integrand.replace(E("p(x_,1)"), E("0")).replace(E("p(x_,2)"), E("0"))
@@ -48,6 +61,22 @@ class evaluate_integrand:
             E("sp3D(w_(x_),z_(y_))"),
             E("w_(x_,1)*z_(y_,1)+w_(x_,2)*z_(y_,2)+w_(x_,3)*z_(y_,3)"),
         )
+
+    @staticmethod
+    def drop_exact_zero_sqrts(expr: Expression) -> Expression:
+        out = expr
+        while True:
+            changed = False
+            for match in list(out.match(E("x_^(1/2)"))):
+                radicand = match[E("x_")]
+                try:
+                    if radicand.expand().to_canonical_string() == "0":
+                        out = out.replace(radicand ** E("1/2"), E("0"))
+                        changed = True
+                except Exception:
+                    continue
+            if not changed:
+                return out
 
     def t_parametrise(self, integrand):
 
@@ -124,8 +153,10 @@ class evaluate_integrand:
         # e_surface = self.impose_rest_frame(e_surface)
 
         rescaled_e_surface = e_surface.replace(E("k(0,x_)"), E("t*k(0,x_)"))
-
-        return rescaled_e_surface.replace(E("z"), E("t^2*z"))
+        rescaled_e_surface = rescaled_e_surface.replace(E("z"), E("t^2*z"))
+        # Reversal note: before this cleanup pass, we returned the rescaled
+        # surface directly and left exact sqrt(0) factors unsimplified.
+        return self.drop_exact_zero_sqrts(rescaled_e_surface)
 
     def __init__(
         self,
@@ -161,6 +192,8 @@ class evaluate_integrand:
         # self.routed_integrand.integrand = self.impose_rest_frame(
         #    self.routed_integrand.integrand
         # )
+
+        #
         self.routed_integrand.integrand = self.t_parametrise(
             self.routed_integrand.integrand
         )
@@ -206,14 +239,23 @@ class evaluate_integrand:
 
         self.e_surface = self.set_e_surface()
 
+        # print("esurface for:     ", self.routed_integrand.approximation_type)
+        # print(self.e_surface)
+
         ht_prefactor = 2.0 / math.sqrt(math.pi)
         ht = (-(E("t") ** 2)).exp() * E(f"{ht_prefactor:.16e}")
+
+        ## NEW: H FUNCTION
+        ht_prefactor = (
+            1.0 / 0.1199377719680614473680365016367935162194504519102290907562408570
+        )
+        ht = (-(E("t") ** 2) - 1 / (E("t") ** 2)).exp() * E(f"{ht_prefactor:.16e}")
         jacobian = E("t") ** 5 / self.e_surface.derivative(E("t"))
 
         self.routed_integrand.integrand = (
             self.routed_integrand.integrand * ht * jacobian
         )
-
+        self.integrand_expression = self.routed_integrand.integrand
         ## ADD THETA OF t^2 z
 
         self.evaluator = self.routed_integrand.integrand.evaluator(
@@ -290,6 +332,16 @@ class evaluate_integrand:
         energies = {}
         masses = {}
         qmomenta = {}
+
+        eval_emr_int = self.routed_integrand.emr_integrand
+        eval_emr_int = eval_emr_int.replace(
+            E("sp3(x_,y_)"), self.sp3D(E("x_"), E("y_"))
+        )
+        eval_emr_int = self.concretise_scalar_products(eval_emr_int)
+        eval_emr_int = eval_emr_int.replace(E("GC_1"), E("1"))
+        eval_emr_int = eval_emr_int.replace(E("GC_11"), E("1"))
+        eval_emr_int = eval_emr_int.replace(E("TR"), E("1"))
+
         for mom, mass_sq, id in momenta:
             rep = self.routed_integrand.replacements
             if len(rep) > 0:
@@ -297,8 +349,8 @@ class evaluate_integrand:
                 repl = rep[1]
                 mom = mom.replace(patt, repl)
 
-            mom = self.concretise_scalar_products(mom)
-            mom = self.t_parametrise(mom)
+            mom_old = self.concretise_scalar_products(mom)
+            mom = self.t_parametrise(mom_old)
             mom3d = [
                 mom.replace(E("k(x_)"), E(f"k(x_,{i})")).replace(
                     E("p(x_)"), E(f"p(x_,{i})")
@@ -316,14 +368,18 @@ class evaluate_integrand:
             ) ** E("1/2")
             masses[E(f"m({id})^2")] = mass_sq
             qmomenta[E(f"q({id})")] = mom3d
+            for i in range(1, 4):
+                eval_emr_int = eval_emr_int.replace(E(f"q({id},{i})"), mom3d[i - 1])
+            # eval_emr_int = eval_emr_int.replace(E(f"E({id})"), energies[E(f"E({id})")])
 
-        print(input)
-        print(energies)
-        print(masses)
+        # print(self.routed_integrand.cut_graph.graph)
+        print("input parameters: ", input)
+        print("energies:", energies)
+        print("masses: ", masses)
         # print(self.routed_integrand.integrand)
         emr_int = deepcopy(self.routed_integrand.emr_integrand)
-        print(emr_int)
-
+        print("EMR: ", emr_int)
+        # print("Evaluated EMR: ", eval_emr_int)
         # for key, val in energies.items():
         #    emr_int = emr_int.replace(key, val)
 
@@ -350,20 +406,63 @@ class evaluate_integrand:
 
         return param_list
 
-    def eval(self, k, p1, p2, z):
+    def _evaluate_expression_arb(
+        self,
+        expr: Expression,
+        values: dict[Expression, str],
+        decimal_digit_precision: int,
+    ) -> Decimal | None:
+        try:
+            value = expr.evaluate_with_prec(values, {}, decimal_digit_precision)
+        except BaseException as exc:
+            if isinstance(exc, (KeyboardInterrupt, SystemExit)):
+                raise
+            return None
+
+        try:
+            decimal_value = DYCompiledBundle._decimal_from_number(value)
+        except (InvalidOperation, ValueError, pygloopException):
+            return None
+
+        if decimal_value.is_nan() or not decimal_value.is_finite():
+            return None
+        return decimal_value
+
+    def eval(self, k, p1, p2, z, mode="compiled", decimal_digit_precision=80):
         param_list = self.param_builder(k, p1, p2, z)
-        param_list = [float(str(v)) for v in param_list]
+        if mode == "arb":
+            string_values = {
+                symbol: repr(_coerce_numeric_param(value))
+                for symbol, value in zip(self.symbols, param_list)
+            }
+
+            for th in self.theta_expressions:
+                th_value = self._evaluate_expression_arb(
+                    th, string_values, decimal_digit_precision
+                )
+                if th_value is None or th_value <= 0:
+                    return Decimal(0)
+
+            value = self._evaluate_expression_arb(
+                self.integrand_expression, string_values, decimal_digit_precision
+            )
+            return value
+        if mode != "compiled":
+            raise pygloopException(f"Unsupported evaluate_integrand mode '{mode}'.")
+
+        param_list = [_coerce_numeric_param(v) for v in param_list]
 
         theta = 1
         for th in self.theta_val:
             print("x,1-x: ", th.evaluate(param_list)[0][0])
-            theta *= heaviside_theta(th.evaluate(param_list)[0][0])
+            theta *= heaviside_theta(th.evaluate(param_list)[0][0] + 1.0e-10)
 
-        print(param_list)
-        self.debug_printout(k, p1, p2, z)
-        # print(self.routed_integrand.integrand)
+        # self.debug_printout(k, p1, p2, z)
 
-        return self.evaluator.evaluate(param_list) * theta
+        if theta == 1:
+            return self.evaluator.evaluate(param_list) * theta
+        else:
+            return 0
 
 
 @dataclass
@@ -371,11 +470,13 @@ class DYCompiledTerm:
     evaluator_name: str
     e_surface: Expression
     theta_expressions: list[Expression]
+    integrand_expression: Expression | None
     t_initial_guess: float
 
 
 class DYCompiledBundle:
     METADATA_FILE = "bundle_metadata.json"
+    BUNDLE_FORMAT_VERSION = 2
 
     def __init__(
         self,
@@ -527,11 +628,13 @@ class DYCompiledBundle:
                     evaluator_name=evaluator_name,
                     e_surface=ev.e_surface,
                     theta_expressions=getattr(ev, "theta_expressions", []),
+                    integrand_expression=getattr(ev, "integrand_expression", None),
                     t_initial_guess=1.0,
                 )
             )
 
         metadata = {
+            "bundle_format_version": cls.BUNDLE_FORMAT_VERSION,
             "process": process,
             "integrand_name": integrand_name,
             "n_loops": n_loops,
@@ -542,6 +645,11 @@ class DYCompiledBundle:
                     "theta_expressions": [
                         th.to_canonical_string() for th in t.theta_expressions
                     ],
+                    "integrand_expression": (
+                        t.integrand_expression.to_canonical_string()
+                        if t.integrand_expression is not None
+                        else None
+                    ),
                     "t_initial_guess": t.t_initial_guess,
                 }
                 for t in terms
@@ -564,6 +672,7 @@ class DYCompiledBundle:
 
         terms: list[DYCompiledTerm] = []
         evaluators: dict[str, PygloopEvaluator] = {}
+        bundle_format_version = int(metadata.get("bundle_format_version", 1))
 
         for t in metadata["terms"]:
             name = t["evaluator_name"]
@@ -573,6 +682,12 @@ class DYCompiledBundle:
                     evaluator_name=name,
                     e_surface=E(t["e_surface"]),
                     theta_expressions=[E(x) for x in t["theta_expressions"]],
+                    integrand_expression=(
+                        E(t["integrand_expression"])
+                        if bundle_format_version >= 2
+                        and t.get("integrand_expression") is not None
+                        else None
+                    ),
                     t_initial_guess=float(t.get("t_initial_guess", 1.0)),
                 )
             )
@@ -598,6 +713,112 @@ class DYCompiledBundle:
         for k, v in values.items():
             out = out.replace(k, E(f"{v:.16e}"))
         return out
+
+    @staticmethod
+    def _decimal_from_number(value: float | Decimal | str | int) -> Decimal:
+        if isinstance(value, Decimal):
+            return value
+        if isinstance(value, int):
+            return Decimal(value)
+        if isinstance(value, float):
+            if not math.isfinite(value):
+                raise pygloopException(
+                    f"Cannot convert non-finite float '{value}' to Decimal."
+                )
+            return Decimal(repr(value))
+        return Decimal(str(value))
+
+    @staticmethod
+    def _evaluate_expression_with_prec(
+        expr: Expression,
+        values: dict[Expression, Decimal],
+        decimal_digit_precision: int,
+    ) -> Decimal | None:
+        string_values = {key: str(value) for key, value in values.items()}
+        try:
+            value = expr.evaluate_with_prec(string_values, {}, decimal_digit_precision)
+        except BaseException as exc:
+            if isinstance(exc, (KeyboardInterrupt, SystemExit)):
+                raise
+            return None
+
+        try:
+            decimal_value = DYCompiledBundle._decimal_from_number(value)
+        except (InvalidOperation, ValueError, pygloopException):
+            return None
+
+        if decimal_value.is_nan() or not decimal_value.is_finite():
+            return None
+        return decimal_value
+
+    def supports_arb(self) -> bool:
+        return all(t.integrand_expression is not None for t in self.terms)
+
+    def require_arb_supported(self) -> None:
+        if self.supports_arb():
+            return
+        raise pygloopException(
+            f"DY bundle '{self.integrand_name}' does not contain symbolic term expressions "
+            "needed for arbitrary-precision fallback. Regenerate the DY bundle with "
+            "'--clean --process dy generate'."
+        )
+
+    def _build_runtime_values(
+        self,
+        loop_momenta: list[Vector],
+        p1: Vector,
+        p2: Vector,
+        z: float,
+        m_uv: float,
+    ) -> tuple[
+        dict[Expression, float], tuple[float, float, float, float, float, float]
+    ]:
+        vals: dict[Expression, float] = {}
+        for i, k in enumerate(loop_momenta):
+            kx, ky, kz = k.to_list()
+            k1, k2, k3 = self._k_keys[i]
+            vals[k1] = float(kx)
+            vals[k2] = float(ky)
+            vals[k3] = float(kz)
+
+        p1x, p1y, p1z = p1.to_list()
+        p2x, p2y, p2z = p2.to_list()
+        vals[self._p11] = float(p1x)
+        vals[self._p12] = float(p1y)
+        vals[self._p13] = float(p1z)
+        vals[self._p21] = float(p2x)
+        vals[self._p22] = float(p2y)
+        vals[self._p23] = float(p2z)
+        vals[self._z_key] = float(z)
+        vals[self._muv_key] = float(m_uv)
+
+        return vals, (p1x, p1y, p1z, p2x, p2y, p2z)
+
+    def _initial_t_guess(
+        self,
+        term: DYCompiledTerm,
+        vals: dict[Expression, float],
+        p1x: float,
+        p1y: float,
+        p1z: float,
+    ) -> float:
+        valst1 = vals.copy()
+        valst1[self._t_key] = 1.0
+        p_norm = math.sqrt(p1x**2 + p1y**2 + p1z**2)
+        if p_norm == 0.0:
+            return 1.0
+        try:
+            denom = term.e_surface.evaluate(valst1, {}) + 2.0 * p_norm
+            if denom == 0.0 or not math.isfinite(denom):
+                return 1.0
+            guess = abs(2.0 * p_norm / denom)
+            if not math.isfinite(guess) or guess <= 0.0:
+                return 1.0
+            return guess
+        except BaseException as exc:
+            if isinstance(exc, (KeyboardInterrupt, SystemExit)):
+                raise
+            return 1.0
 
     #    @staticmethod
     #    def _set_inputs(pe: PygloopEvaluator, values: dict[str, float]) -> None:
@@ -831,6 +1052,177 @@ class DYCompiledBundle:
 
         return 0.5 * (a + b)
 
+    def solve_t_convex_bisect_prec(
+        self,
+        term_e_surface: Expression,
+        vals: dict[Expression, Decimal],
+        t_key: Expression,
+        decimal_digit_precision: int,
+        t0: float = 1.0,
+        max_iter: int = 80,
+        max_expand_rounds: int = 24,
+        probes_per_round: int = 17,
+        eval_map: dict[Expression, Decimal] | None = None,
+    ) -> Decimal | None:
+        if decimal_digit_precision <= 0:
+            raise pygloopException(
+                "Arbitrary-precision evaluation requires a positive decimal precision."
+            )
+
+        if eval_map is None:
+            eval_map = vals
+
+        tol_power = min(max(decimal_digit_precision // 2, 12), 32)
+        tol_f = Decimal(10) ** (-tol_power)
+        tol_x = Decimal(10) ** (-tol_power)
+
+        def f(t: Decimal) -> Decimal | None:
+            if t.is_nan() or t < 0:
+                return None
+            eval_map[t_key] = t
+            return self._evaluate_expression_with_prec(
+                term_e_surface, eval_map, decimal_digit_precision
+            )
+
+        try:
+            x0 = self._decimal_from_number(t0)
+        except (InvalidOperation, ValueError, pygloopException):
+            x0 = Decimal(1)
+        if not x0.is_finite():
+            x0 = Decimal(1)
+        if x0 < 0:
+            x0 = -x0
+
+        y0 = f(x0)
+        if y0 is not None and abs(y0) <= tol_f:
+            return x0
+
+        one = Decimal(1)
+        zero = Decimal(0)
+        best_bracket: tuple[Decimal, Decimal, Decimal, Decimal] | None = None
+        span = max(one, abs(x0))
+        for _ in range(max_expand_rounds):
+            left = max(zero, x0 - span)
+            right = x0 + span
+            if right <= left:
+                right = left + one
+            step = (right - left) / Decimal(probes_per_round - 1)
+
+            prev_x: Decimal | None = None
+            prev_y: Decimal | None = None
+            for i in range(probes_per_round):
+                x = left + step * Decimal(i)
+                y = f(x)
+                if y is None:
+                    continue
+                if abs(y) <= tol_f:
+                    return x
+                if prev_x is not None and prev_y is not None and prev_y * y <= 0:
+                    mid = (prev_x + x) / 2
+                    if best_bracket is None or abs(mid - x0) < abs(
+                        (best_bracket[0] + best_bracket[1]) / 2 - x0
+                    ):
+                        best_bracket = (prev_x, x, prev_y, y)
+                prev_x, prev_y = x, y
+
+            if best_bracket is not None:
+                break
+            span *= 2
+
+        if best_bracket is None:
+            return None
+
+        a, b, fa, fb = best_bracket
+        if a > b:
+            a, b = b, a
+            fa, fb = fb, fa
+
+        for _ in range(max_iter):
+            m = (a + b) / 2
+            fm = f(m)
+            if fm is None:
+                q1 = (a + 3 * b) / 4
+                fq1 = f(q1)
+                if fq1 is not None:
+                    m, fm = q1, fq1
+                else:
+                    q2 = (3 * a + b) / 4
+                    fq2 = f(q2)
+                    if fq2 is None:
+                        return None
+                    m, fm = q2, fq2
+
+            if abs(fm) <= tol_f or abs(b - a) <= tol_x * max(one, abs(m)):
+                return m
+
+            if fa * fm <= 0:
+                b, fb = m, fm
+            else:
+                a, fa = m, fm
+
+        return (a + b) / 2
+
+    def evaluate_arb(
+        self,
+        loop_momenta: list[Vector],
+        p1: Vector,
+        p2: Vector,
+        z: float,
+        m_uv: float = 1.0,
+        decimal_digit_precision: int = 80,
+        theta_tolerance: float = 1e-10,
+    ) -> Decimal:
+        self.require_arb_supported()
+
+        vals, (p1x, p1y, p1z, _p2x, _p2y, _p2z) = self._build_runtime_values(
+            loop_momenta, p1, p2, z, m_uv
+        )
+        dec_vals = {
+            key: self._decimal_from_number(value) for key, value in vals.items()
+        }
+        total = Decimal(0)
+        theta_tol = self._decimal_from_number(theta_tolerance)
+
+        for term in self.terms:
+            my_t0 = self._initial_t_guess(term, vals, p1x, p1y, p1z)
+            t_sol = self.solve_t_convex_bisect_prec(
+                term.e_surface,
+                dec_vals,
+                self._t_key,
+                decimal_digit_precision=decimal_digit_precision,
+                t0=my_t0,
+                eval_map=dec_vals,
+            )
+            if t_sol is None:
+                raise pygloopException(
+                    f"Failed to solve t in arbitrary precision for DY term '{term.evaluator_name}'."
+                )
+
+            dec_vals[self._t_key] = t_sol
+
+            theta_passes = True
+            for th in term.theta_expressions:
+                th_val = self._evaluate_expression_with_prec(
+                    th, dec_vals, decimal_digit_precision
+                )
+                if th_val is None or th_val < -theta_tol:
+                    theta_passes = False
+                    break
+            if not theta_passes:
+                continue
+
+            assert term.integrand_expression is not None
+            term_value = self._evaluate_expression_with_prec(
+                term.integrand_expression, dec_vals, decimal_digit_precision
+            )
+            if term_value is None:
+                raise pygloopException(
+                    f"Failed to evaluate DY term '{term.evaluator_name}' in arbitrary precision."
+                )
+            total += term_value
+
+        return total
+
     def evaluate(
         self,
         loop_momenta: list[Vector],
@@ -838,41 +1230,42 @@ class DYCompiledBundle:
         p2: Vector,
         z: float,
         m_uv: float = 1.0,
+        mode: str = "compiled",
+        decimal_digit_precision: int | None = None,
+        theta_tolerance: float = 1e-10,
     ) -> complex:
+        if mode == "arb":
+            if decimal_digit_precision is None:
+                decimal_digit_precision = 80
+            return complex(
+                float(
+                    self.evaluate_arb(
+                        loop_momenta,
+                        p1,
+                        p2,
+                        z,
+                        m_uv,
+                        decimal_digit_precision=decimal_digit_precision,
+                        theta_tolerance=theta_tolerance,
+                    )
+                ),
+                0.0,
+            )
+        if mode != "compiled":
+            raise pygloopException(f"Unsupported DY bundle evaluation mode '{mode}'.")
 
-        vals: dict[Expression, float] = {}
-        for i, k in enumerate(loop_momenta):
-            kx, ky, kz = k.to_list()
-            k1, k2, k3 = self._k_keys[i]
-            vals[k1] = float(kx)
-            vals[k2] = float(ky)
-            vals[k3] = float(kz)
-
-        p1x, p1y, p1z = p1.to_list()
-        p2x, p2y, p2z = p2.to_list()
-        vals[self._p11] = float(p1x)
-        vals[self._p12] = float(p1y)
-        vals[self._p13] = float(p1z)
-        vals[self._p21] = float(p2x)
-        vals[self._p22] = float(p2y)
-        vals[self._p23] = float(p2z)
-        vals[self._z_key] = float(z)
-        vals[self._muv_key] = float(m_uv)
+        if theta_tolerance is None:
+            theta_tolerance = 1e-10
+        vals, (p1x, p1y, p1z, _p2x, _p2y, _p2z) = self._build_runtime_values(
+            loop_momenta, p1, p2, z, m_uv
+        )
 
         total = 0.0 + 0.0j
+        theta_tol = float(theta_tolerance)
 
         # Sum over all cut graphs
         for term in self.terms:
-            valst1 = vals.copy()
-            valst1[self._t_key] = 1
-            my_t0 = abs(
-                2
-                * math.sqrt(p1z**2 + p1x**2 + p1y**2)
-                / (
-                    term.e_surface.evaluate(valst1, {})
-                    + 2 * math.sqrt(p1z**2 + p1x**2 + p1y**2)
-                )
-            )
+            my_t0 = self._initial_t_guess(term, vals, p1x, p1y, p1z)
 
             t_sol = self.solve_t_newton_bisect(
                 term.e_surface,
@@ -898,11 +1291,16 @@ class DYCompiledBundle:
 
             vals[self._t_key] = t_sol
 
+            # print("---------------")
             theta = 1
-            theta_exprs = term.theta_expressions
-            for th in theta_exprs:
+            for th in term.theta_expressions:
                 th_val = th.evaluate(vals, {})
-                if th_val <= 0.0:
+                # if th_val > 0:
+                #    print("-->", 1)
+                # else:
+                #    print("-->", 0)
+
+                if th_val < -theta_tol:
                     theta = 0
                     break
             if theta == 0:

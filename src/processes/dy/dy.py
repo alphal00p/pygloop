@@ -109,6 +109,20 @@ class DY(object):
             self.valide_ps_point()
         self.rotation_unstable_count: int = 0
         self.rotation_unstable_example: list[float] | None = None
+        self.rotation_unstable_example_momentum_point: str | None = None
+        self.rotation_hp_retry_count: int = 0
+        self.rotation_hp_salvaged_count: int = 0
+        self.rotation_hp_retry_example: list[float] | None = None
+        self.rotation_hp_retry_example_momentum_point: str | None = None
+        self.rotation_hp_retry_example_rel: float | None = None
+        self.max_wgt: float | None = None
+        self.max_wgt_point: list[float] | None = None
+        self.max_wgt_jacobian: float | None = None
+        self.max_wgt_momentum_point: str | None = None
+        self.max_stable_wgt: float | None = None
+        self.max_stable_wgt_point: list[float] | None = None
+        self.max_stable_wgt_jacobian: float | None = None
+        self.max_stable_wgt_momentum_point: str | None = None
 
         self.e_cm = math.sqrt(abs((self.ps_point[0] + self.ps_point[1]).squared()))
 
@@ -336,7 +350,8 @@ class DY(object):
                 # Keep full routed list for approach/IR/UV tests
                 routed_integrands.extend(deepcopy(term_integrands))
 
-                observable_params = {"zmin": 0.2, "zmax": 1.0, "Lambdasq": 0.5}
+                # SMALL VALUE
+                observable_params = {"zmin": 0.0, "zmax": 1.000001, "Lambdasq": 0.5}
 
                 # Build one evaluator per routed term
                 evaluators.extend(
@@ -351,23 +366,30 @@ class DY(object):
                     for term_integrand in term_integrands
                 )
 
-            #            approach_limit = approach_point(1, "DY", routed_integrands)
-            #            print("##################")
-            #            z = 0.6
-            #            ks = [math.sqrt(z) * np.array([0, 1 / math.sqrt(2), 1 / math.sqrt(2)])]
-            #            ks = [
-            #                math.sqrt(z)
-            #                * np.array([1 / math.sqrt(3), 1 / math.sqrt(3), 1 / math.sqrt(3)])
-            #            ]
-            #            vp = np.array([0.3, -0.2, 0.11])
-            #            p1 = np.array([0, 0, 1])
-            #            p2 = np.array([0, 0, -1])
-            #
-            #            approach_limit.approach(ks, p1, p2, z, vp)
-
-            ir_test = infrared_test(1, "DY", routed_integrands)
+            approach_limit = approach_point(1, "DY", routed_integrands)
             print("##################")
-            ir_test.approach_limits(1)
+            z = 0.6
+            ks = [math.sqrt(z) * np.array([0, 1 / math.sqrt(2), 1 / math.sqrt(2)])]
+            ks = [
+                math.sqrt(z)
+                * np.array([1 / math.sqrt(3), 1 / math.sqrt(3), 1 / math.sqrt(3)])
+            ]
+            z = 1.2394214875112748e-01
+            ks = [
+                np.array([
+                    -1.7830670799827519e-07,
+                    -5.6833447294742438e-07,
+                    1.1598821535829351e-07,
+                ])
+            ]
+            vp = np.array([0.3, -0.2, 0.11])
+            p1 = np.array([0, 0, 1])
+            p2 = np.array([0, 0, -1])
+            approach_limit.approach(ks, p1, p2, z, vp)
+
+            # ir_test = infrared_test(1, "DY", routed_integrands)
+            # print("##################")
+            # ir_test.approach_limits(1)
 
             # uv_test = ultraviolet_test(1, "DY", routed_integrands)
             # print("##################")
@@ -410,11 +432,11 @@ class DY(object):
             case 1:
                 logger.info("Generating one-loop graphs ...")
                 self.gl_worker.run(  # GL09 - xbox GL02 - virtual triangle GL17 - box
-                    f"generate amp d d~ > d d~ | d d~ g a QED==2 [{{1}}] --only-diagrams --numerator-grouping only_detect_zeroes --select-graphs GL17 -p {base_name} -i {graphs_process_name}"
+                    f"generate amp d d~ > d d~ | d d~ g a QED==2 [{{1}}] --only-diagrams --numerator-grouping only_detect_zeroes --select-graphs GL09 -p {base_name} -i {graphs_process_name}"
                 )
 
                 # self.gl_worker.run(  ## GL04 - box GL10 - triangle GL11 - bubble
-                #     f"generate amp d g > d g | d d~ g a QED==2 [{{1}}] --only-diagrams --numerator-grouping only_detect_zeroes --select-graphs GL04 -p {base_name} -i {graphs_process_name}"  #
+                #    f"generate amp d g > d g | d d~ g a QED==2 [{{1}}] --only-diagrams --numerator-grouping only_detect_zeroes --select-graphs GL04 -p {base_name} -i {graphs_process_name}"  #
                 # )
                 self.gl_worker.run("save state -o")
                 DY_1L_dot_files = self.gl_worker.get_dot_files(
@@ -676,7 +698,15 @@ class DY(object):
                     raise pygloopException(
                         f"Integrand '{impl['integrand_type']}' expects 4 variables [xk0,xk1,xk2,xz], got {len(xs)}."
                     )
-                k_xs = xs[:3]
+
+                k_xs = xs[:3].copy()
+
+                # SMALL VALUE
+                a, b = 0.0, 1.0
+                k_xs[0] = a + (b - a) * k_xs[0]
+
+                # k_xs = xs[:3]
+
                 x_z = xs[3]
 
                 z_min = float(impl.get("z_min", 0.0))
@@ -697,6 +727,10 @@ class DY(object):
                 z_sample = None
 
             k, jac_k = self.parameterize(k_xs, parameterization)
+            total_jacobian = jac_k * jac_z * (b - a)
+            momentum_point = f"k = [{'; '.join('[' + ', '.join(f'{ki:.16e}' for ki in km.to_list()) + ']' for km in [k])}]"
+            if z_sample is not None:
+                momentum_point += f", z = {z_sample:.16e}"
 
             # t1 = time.perf_counter()
 
@@ -714,25 +748,77 @@ class DY(object):
                     rk = self._rotate_vec(k, rmat)
                     rp1 = self._rotate_vec(self.ps_point[0].spatial(), rmat)
                     rp2 = self._rotate_vec(self.ps_point[1].spatial(), rmat)
-                    # print("-" * 30)
                     wgt_rot = self.zenos_integrand_with_externals([rk], rp1, rp2, impl)
-                    # print("-" * 30)
-                    rel = abs(wgt - wgt_rot) / (abs(wgt) + abs(wgt_rot))  # , eps)
+                    rel = abs(wgt - wgt_rot) / (abs(wgt) + abs(wgt_rot) + abs(eps))
                     if rel > 10.0 ** (-n_digits_int):
-                        self.rotation_unstable_count += 1
-                        # print(wgt)
-                        # print(wgt_rot)
-                        # print("*" * 100)
-                        if self.rotation_unstable_example is None:
-                            self.rotation_unstable_example = list(xs)
-                        wgt = 0.0 + 0.0j
+                        self.rotation_hp_retry_count += 1
+                        if self.rotation_hp_retry_example is None:
+                            self.rotation_hp_retry_example = list(xs)
+                            self.rotation_hp_retry_example_momentum_point = (
+                                momentum_point
+                            )
+                            self.rotation_hp_retry_example_rel = rel
+                        arb_digits = max(
+                            int(impl.get("dy_rotation_check_arb_digits", 80)),
+                            n_digits_int + 20,
+                        )
+                        arb_impl = dict(impl)
+                        arb_impl["dy_evaluation_mode"] = "arb"
+                        arb_impl["dy_rotation_check_arb_digits"] = arb_digits
+                        assert self.compiled_bundle is not None
+                        self.compiled_bundle.require_arb_supported()
+                        try:
+                            wgt_arb = self.zenos_integrand_with_externals(
+                                [k],
+                                self.ps_point[0].spatial(),
+                                self.ps_point[1].spatial(),
+                                arb_impl,
+                            )
+                            wgt_rot_arb = self.zenos_integrand_with_externals(
+                                [rk], rp1, rp2, arb_impl
+                            )
+                            rel_arb = abs(wgt_arb - wgt_rot_arb) / (
+                                abs(wgt_arb) + abs(wgt_rot_arb) + abs(eps)
+                            )
+                            if rel_arb <= 10.0 ** (-n_digits_int):
+                                self.rotation_hp_salvaged_count += 1
+                                wgt = wgt_arb
+                            else:
+                                self.rotation_unstable_count += 1
+                                if self.rotation_unstable_example is None:
+                                    self.rotation_unstable_example = list(xs)
+                                    self.rotation_unstable_example_momentum_point = (
+                                        momentum_point
+                                    )
+                                wgt = 0.0 + 0.0j
+                        except Exception:
+                            self.rotation_unstable_count += 1
+                            if self.rotation_unstable_example is None:
+                                self.rotation_unstable_example = list(xs)
+                                self.rotation_unstable_example_momentum_point = (
+                                    momentum_point
+                                )
+                            wgt = 0.0 + 0.0j
+
+            stable_wgt_abs = abs(wgt)
+            if self.max_stable_wgt is None or stable_wgt_abs > self.max_stable_wgt:
+                self.max_stable_wgt = stable_wgt_abs
+                self.max_stable_wgt_point = list(xs)
+                self.max_stable_wgt_jacobian = total_jacobian
+                self.max_stable_wgt_momentum_point = momentum_point
 
             # t2 = time.perf_counter()
 
             # print("overall integrand time:", t2 - t1)
 
             wgt = wgt.real if phase == "real" else wgt.imag
-            final_wgt = wgt * jac_k * jac_z
+            final_wgt = wgt * total_jacobian
+
+            if self.max_wgt is None or abs(final_wgt) > abs(self.max_wgt):
+                self.max_wgt = final_wgt
+                self.max_wgt_point = list(xs)
+                self.max_wgt_jacobian = total_jacobian
+                self.max_wgt_momentum_point = momentum_point
 
             # print("res")
             # print(xs)
@@ -851,8 +937,30 @@ class DY(object):
         if integrand_implementation is not None:
             z = float(integrand_implementation.get("z", z))
             m_uv = float(integrand_implementation.get("mUV", m_uv))
+        evaluation_mode = "compiled"
+        decimal_digit_precision = None
+        theta_tolerance = 1.0e-10
+        if integrand_implementation is not None:
+            evaluation_mode = str(
+                integrand_implementation.get("dy_evaluation_mode", evaluation_mode)
+            )
+            arb_digits = integrand_implementation.get("dy_rotation_check_arb_digits")
+            if arb_digits is not None:
+                decimal_digit_precision = int(arb_digits)
+            theta_tol = integrand_implementation.get("dy_theta_tol")
+            if theta_tol is not None:
+                theta_tolerance = float(theta_tol)
 
-        return self.compiled_bundle.evaluate(loop_momentum, p1, p2, z, m_uv)
+        return self.compiled_bundle.evaluate(
+            loop_momentum,
+            p1,
+            p2,
+            z,
+            m_uv,
+            mode=evaluation_mode,
+            decimal_digit_precision=decimal_digit_precision,
+            theta_tolerance=theta_tolerance,
+        )
 
     def _normalize_integrand_implementation(
         self, integrand_implementation: dict[str, Any] | str
@@ -1007,8 +1115,32 @@ class DY(object):
             this_result.error += weight**2
             this_result.n_samples += 1
         this_result.elapsed_time += time.time() - t_start
+        this_result.max_wgt = process_instance.max_wgt
+        this_result.max_wgt_point = process_instance.max_wgt_point
+        this_result.max_wgt_jacobian = process_instance.max_wgt_jacobian
+        this_result.max_wgt_momentum_point = process_instance.max_wgt_momentum_point
         this_result.unstable_count = process_instance.rotation_unstable_count
+        this_result.unstable_retry_count = process_instance.rotation_hp_retry_count
+        this_result.unstable_salvaged_count = (
+            process_instance.rotation_hp_salvaged_count
+        )
+        this_result.unstable_retry_example = process_instance.rotation_hp_retry_example
+        this_result.unstable_retry_example_momentum_point = (
+            process_instance.rotation_hp_retry_example_momentum_point
+        )
+        this_result.unstable_retry_example_rel = (
+            process_instance.rotation_hp_retry_example_rel
+        )
         this_result.unstable_example = process_instance.rotation_unstable_example
+        this_result.unstable_example_momentum_point = (
+            process_instance.rotation_unstable_example_momentum_point
+        )
+        this_result.max_stable_wgt = process_instance.max_stable_wgt
+        this_result.max_stable_wgt_point = process_instance.max_stable_wgt_point
+        this_result.max_stable_wgt_jacobian = process_instance.max_stable_wgt_jacobian
+        this_result.max_stable_wgt_momentum_point = (
+            process_instance.max_stable_wgt_momentum_point
+        )
 
         return this_result
 
@@ -1095,8 +1227,26 @@ class DY(object):
             res.error += weight**2
             res.n_samples += 1
         res.elapsed_time += time.time() - t_start
+        res.max_wgt = process.max_wgt
+        res.max_wgt_point = process.max_wgt_point
+        res.max_wgt_jacobian = process.max_wgt_jacobian
+        res.max_wgt_momentum_point = process.max_wgt_momentum_point
         res.unstable_count = process.rotation_unstable_count
+        res.unstable_retry_count = process.rotation_hp_retry_count
+        res.unstable_salvaged_count = process.rotation_hp_salvaged_count
+        res.unstable_retry_example = process.rotation_hp_retry_example
+        res.unstable_retry_example_momentum_point = (
+            process.rotation_hp_retry_example_momentum_point
+        )
+        res.unstable_retry_example_rel = process.rotation_hp_retry_example_rel
         res.unstable_example = process.rotation_unstable_example
+        res.unstable_example_momentum_point = (
+            process.rotation_unstable_example_momentum_point
+        )
+        res.max_stable_wgt = process.max_stable_wgt
+        res.max_stable_wgt_point = process.max_stable_wgt_point
+        res.max_stable_wgt_jacobian = process.max_stable_wgt_jacobian
+        res.max_stable_wgt_momentum_point = process.max_stable_wgt_momentum_point
 
         return (id, all_weights, res)
 
@@ -1203,8 +1353,26 @@ class DY(object):
             res.error += weight**2
             res.n_samples += 1
         res.elapsed_time += time.time() - t_start
+        res.max_wgt = process.max_wgt
+        res.max_wgt_point = process.max_wgt_point
+        res.max_wgt_jacobian = process.max_wgt_jacobian
+        res.max_wgt_momentum_point = process.max_wgt_momentum_point
         res.unstable_count = process.rotation_unstable_count
+        res.unstable_retry_count = process.rotation_hp_retry_count
+        res.unstable_salvaged_count = process.rotation_hp_salvaged_count
+        res.unstable_retry_example = process.rotation_hp_retry_example
+        res.unstable_retry_example_momentum_point = (
+            process.rotation_hp_retry_example_momentum_point
+        )
+        res.unstable_retry_example_rel = process.rotation_hp_retry_example_rel
         res.unstable_example = process.rotation_unstable_example
+        res.unstable_example_momentum_point = (
+            process.rotation_unstable_example_momentum_point
+        )
+        res.max_stable_wgt = process.max_stable_wgt
+        res.max_stable_wgt_point = process.max_stable_wgt_point
+        res.max_stable_wgt_jacobian = process.max_stable_wgt_jacobian
+        res.max_stable_wgt_momentum_point = process.max_stable_wgt_momentum_point
 
         return (id, all_weights, res)
 

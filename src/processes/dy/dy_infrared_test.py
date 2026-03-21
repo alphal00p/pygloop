@@ -1,6 +1,7 @@
 import math
 import random as rndm
 from copy import deepcopy
+from decimal import Decimal
 from typing import List
 
 import numpy as np
@@ -25,7 +26,7 @@ class approach_point(object):
                 deepcopy(rout),
                 800,
                 400,
-                {"zmin": 0.0, "zmax": 1.0, "Lambdasq": 1000},
+                {"zmin": 0.0, "zmax": 1.0, "Lambdasq": 0.5},
             )
             for rout in routed_integrands
         ]
@@ -33,12 +34,13 @@ class approach_point(object):
     def approach(self, kcc, p1, p2, z, vp):
         kc_comps = []
 
-        for i in range(5, 6):
+        for i in range(7, 8):
             print("####################################################")
             print("####################################################")
             ks = [k + pow(10, -i) * vp for k in kcc]
             print(ks)
             print(pow(10, -i) * vp)
+            cut_sum = 0.0 + 0.0j
 
             for cut_graph, cut_graph_evaluator in zip(
                 self.routed_integrands, self.evaluators
@@ -50,9 +52,12 @@ class approach_point(object):
                 print("------------------------------")
                 print(ks)
 
+                cut_value = cut_graph_evaluator.eval(ks, p1, p2, z)
+                cut_sum += cut_value
                 print(
-                    f"\033[32m{cut_graph.cut_graph.graph.get_name()}, {cut_graph.approximation_type} : {cut_graph_evaluator.eval(ks, p1, p2, z)}\033[0m"
+                    f"\033[32m{cut_graph.cut_graph.graph.get_name()}, {cut_graph.approximation_type} : {cut_value}\033[0m"
                 )
+            print(f"\033[36mSum over cuts : {cut_sum}\033[0m")
 
 
 class ultraviolet_test(object):
@@ -147,6 +152,7 @@ class infrared_test(object):
                 ]
                 id_c = patt.replace(E("k(x_)"), E("x_"))
                 vp = [1 / math.sqrt(2), 1 / math.sqrt(2), 0]
+                vp = [0.0, 0.1, 1.0]
                 ks = []
                 for j in range(0, self.L):
                     ks.append([rndm.uniform(-sqrts_s, sqrts_s) for rr in range(0, 3)])
@@ -178,7 +184,7 @@ class infrared_test(object):
                     f"\033[31m{r[1]}\033[0m",
                 )
 
-                for ep in range(3, 4):
+                for ep in range(1, 5):
                     print(
                         f"\033[33mep: {10 ** (-ep)} - k: {k} - p1: {p1} - p2: {p2} - z: {z}\033[0m"
                     )
@@ -189,6 +195,7 @@ class infrared_test(object):
                         f"\033[34m{r[1]}\033[0m",
                     )
 
+                    cut_sum = Decimal(0)
                     for cut_graph, cut_graph_evaluator in zip(
                         self.routed_integrands, self.evaluators
                     ):
@@ -197,11 +204,23 @@ class infrared_test(object):
                             [E(str(kij)).replace(E("ep"), ep) for kij in ki]
                             for ki in ks
                         ]
+                        cut_value = cut_graph_evaluator.eval(
+                            k,
+                            p1,
+                            p2,
+                            z,
+                            mode="arb",
+                            decimal_digit_precision=80,
+                        )
+                        cut_sum += cut_value
                         print("------------------------------")
                         print(k)
                         print(
-                            f"\033[32m{cut_graph.cut_graph.graph.get_name()} : {cut_graph_evaluator.eval(k, p1, p2, z)}\033[0m"
+                            f"\033[32m{cut_graph.cut_graph.graph.get_name()} : {cut_graph.approximation_type} : {cut_value}\033[0m"
                         )
+                    print(
+                        f"\033[36mSum over cuts for ep={10 ** (-ep)} : {cut_sum}\033[0m"
+                    )
 
         else:
             print("The diagram is infrared finite")

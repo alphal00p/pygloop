@@ -112,6 +112,18 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
         default=1e-15,
         help="DY only: floor used in relative-difference denominator for rotation check.",
     )
+    parser.add_argument(
+        "--dy-rotation-check-arb-digits",
+        type=int,
+        default=80,
+        help="DY only: decimal precision used for arbitrary-precision retry after a rotation-check failure.",
+    )
+    parser.add_argument(
+        "--dy-theta-tol",
+        type=float,
+        default=1e-10,
+        help="DY only: theta support tolerance used in compiled and arbitrary-precision DY evaluation.",
+    )
 
     parser.add_argument("--gammaloop-configuration", "-f", default=None,
         help="Specify a toml file containing the gammaloop configuration desired. Default = ./configs/<PROCESS_NAME>/generate.toml",
@@ -492,6 +504,10 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
             args.dy_rotation_check_digits
         )
         integrand_implementation["dy_rotation_check_eps"] = args.dy_rotation_check_eps
+        integrand_implementation["dy_rotation_check_arb_digits"] = (
+            args.dy_rotation_check_arb_digits
+        )
+        integrand_implementation["dy_theta_tol"] = args.dy_theta_tol
     t_start = time.time()
     match args.command:
         case "generate":
