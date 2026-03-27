@@ -351,7 +351,7 @@ class DY(object):
                 routed_integrands.extend(deepcopy(term_integrands))
 
                 # SMALL VALUE
-                observable_params = {"zmin": 0.0, "zmax": 1.000001, "Lambdasq": 0.5}
+                observable_params = {"zmin": 0.0, "zmax": 1.00000, "Lambdasq": 0.5}
 
                 # Build one evaluator per routed term
                 evaluators.extend(
@@ -377,12 +377,29 @@ class DY(object):
             z = 1.2394214875112748e-01
             ks = [
                 np.array([
-                    -1.7830670799827519e-07,
-                    -5.6833447294742438e-07,
-                    1.1598821535829351e-07,
+                    0.0,
+                    0.0,
+                    0.0,
                 ])
             ]
-            vp = np.array([0.3, -0.2, 0.11])
+            # z = 1.0
+            # ks = [
+            #    math.sqrt(z)
+            #    * np.array([
+            #        0.0,
+            #        1.0,
+            #        -1.0,
+            #    ])
+            # ]
+            z = 7.7739230800856174e-01
+            ks = [
+                np.array([
+                    0,
+                    0,
+                    0,
+                ])
+            ]
+            vp = np.array([1, 0.01, 0.001])
             p1 = np.array([0, 0, 1])
             p2 = np.array([0, 0, -1])
             approach_limit.approach(ks, p1, p2, z, vp)
@@ -390,7 +407,6 @@ class DY(object):
             # ir_test = infrared_test(1, "DY", routed_integrands)
             # print("##################")
             # ir_test.approach_limits(1)
-
             # uv_test = ultraviolet_test(1, "DY", routed_integrands)
             # print("##################")
             # uv_test.approach_limits(1)
@@ -432,7 +448,7 @@ class DY(object):
             case 1:
                 logger.info("Generating one-loop graphs ...")
                 self.gl_worker.run(  # GL09 - xbox GL02 - virtual triangle GL17 - box
-                    f"generate amp d d~ > d d~ | d d~ g a QED==2 [{{1}}] --only-diagrams --numerator-grouping only_detect_zeroes --select-graphs GL09 -p {base_name} -i {graphs_process_name}"
+                    f"generate amp d d~ > d d~ | d d~ g a QED==2 [{{1}}] --only-diagrams --numerator-grouping only_detect_zeroes --select-graphs GL02 -p {base_name} -i {graphs_process_name}"
                 )
 
                 # self.gl_worker.run(  ## GL04 - box GL10 - triangle GL11 - bubble
@@ -702,7 +718,7 @@ class DY(object):
                 k_xs = xs[:3].copy()
 
                 # SMALL VALUE
-                a, b = 0.0, 1.0
+                a, b = 0.000, 1.0
                 k_xs[0] = a + (b - a) * k_xs[0]
 
                 # k_xs = xs[:3]
@@ -959,7 +975,7 @@ class DY(object):
             m_uv,
             mode=evaluation_mode,
             decimal_digit_precision=decimal_digit_precision,
-            theta_tolerance=theta_tolerance,
+            theta_tolerance=0.0,  # theta_tolerance,
         )
 
     def _normalize_integrand_implementation(

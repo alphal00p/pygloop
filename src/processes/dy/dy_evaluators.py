@@ -224,12 +224,14 @@ class evaluate_integrand:
                 self.theta_val.append(theta_expr.evaluator({}, {}, self.symbols))
 
         theta_zmin_expr = E("t^2*z") - E(str(observable_params["zmin"]))
-        self.theta_expressions.append(theta_zmin_expr)
-        self.theta_val.append(theta_zmin_expr.evaluator({}, {}, self.symbols))
+        if len(self.routed_integrand.cut_graph.final_cut) > 1 and self.process == "DY":
+            self.theta_expressions.append(theta_zmin_expr)
+            self.theta_val.append(theta_zmin_expr.evaluator({}, {}, self.symbols))
 
         theta_zmax_expr = E(str(observable_params["zmax"])) - E("t^2*z")
-        self.theta_expressions.append(theta_zmax_expr)
-        self.theta_val.append(theta_zmax_expr.evaluator({}, {}, self.symbols))
+        if len(self.routed_integrand.cut_graph.final_cut) > 1 and self.process == "DY":
+            self.theta_expressions.append(theta_zmax_expr)
+            self.theta_val.append(theta_zmax_expr.evaluator({}, {}, self.symbols))
 
         self.routed_integrand.integrand = self.routed_integrand.integrand.replace(
             E("Θ(x___)"), E("1")
@@ -372,13 +374,29 @@ class evaluate_integrand:
                 eval_emr_int = eval_emr_int.replace(E(f"q({id},{i})"), mom3d[i - 1])
             # eval_emr_int = eval_emr_int.replace(E(f"E({id})"), energies[E(f"E({id})")])
 
-        # print(self.routed_integrand.cut_graph.graph)
+        ht_prefactor = (
+            1.0 / 0.1199377719680614473680365016367935162194504519102290907562408570
+        )
+        ht = (-(E("t") ** 2) - 1 / (E("t") ** 2)).exp() * E(f"{ht_prefactor:.16e}")
+        jacobian = self.e_surface.derivative(E("t"))
+
+        for i in range(1, 4):
+            jacobian = jacobian.replace(E(f"p(1,{i})"), p1[i - 1])
+            jacobian = jacobian.replace(E(f"p(2,{i})"), p2[i - 1])
+
+        jacobian = jacobian.replace(E("z"), z)
+
+        print(self.routed_integrand.cut_graph.graph)
         print("input parameters: ", input)
         print("energies:", energies)
         print("masses: ", masses)
         # print(self.routed_integrand.integrand)
         emr_int = deepcopy(self.routed_integrand.emr_integrand)
         print("EMR: ", emr_int)
+        print("e_surface : ", self.e_surface)
+        print("h(t): ", ht.replace(E("t"), tstar))
+        print(jacobian)
+        print("delta jacobian : ", jacobian.replace(E("t"), tstar))
         # print("Evaluated EMR: ", eval_emr_int)
         # for key, val in energies.items():
         #    emr_int = emr_int.replace(key, val)
@@ -455,7 +473,7 @@ class evaluate_integrand:
         theta = 1
         for th in self.theta_val:
             print("x,1-x: ", th.evaluate(param_list)[0][0])
-            theta *= heaviside_theta(th.evaluate(param_list)[0][0] + 1.0e-10)
+            theta *= heaviside_theta(th.evaluate(param_list)[0][0])  # th_tol + 1.0e-10)
 
         # self.debug_printout(k, p1, p2, z)
 
@@ -1170,7 +1188,7 @@ class DYCompiledBundle:
         z: float,
         m_uv: float = 1.0,
         decimal_digit_precision: int = 80,
-        theta_tolerance: float = 1e-10,
+        theta_tolerance: float = 0.0,
     ) -> Decimal:
         self.require_arb_supported()
 
@@ -1232,7 +1250,7 @@ class DYCompiledBundle:
         m_uv: float = 1.0,
         mode: str = "compiled",
         decimal_digit_precision: int | None = None,
-        theta_tolerance: float = 1e-10,
+        theta_tolerance: float = 0.0,
     ) -> complex:
         if mode == "arb":
             if decimal_digit_precision is None:
@@ -1254,8 +1272,6 @@ class DYCompiledBundle:
         if mode != "compiled":
             raise pygloopException(f"Unsupported DY bundle evaluation mode '{mode}'.")
 
-        if theta_tolerance is None:
-            theta_tolerance = 1e-10
         vals, (p1x, p1y, p1z, _p2x, _p2y, _p2z) = self._build_runtime_values(
             loop_momenta, p1, p2, z, m_uv
         )

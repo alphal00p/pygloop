@@ -458,6 +458,12 @@ class EMRIntegrandConstructor(object):
 
         edges_to_reverse = []
 
+        print("s-channel info")
+        print(len(split_graphs_gt2_non_ext))
+        print("-----")
+        for e in s_channel_edges:
+            print(e)
+
         for n_graph, g in enumerate(split_graphs_gt2_non_ext):
             cff_g = self.get_CFF(g.graph, [], [])
             new_cff = E("0")
@@ -533,7 +539,12 @@ class EMRIntegrandConstructor(object):
                                 denom -= ep_atts["is_cut_DY"] * E(
                                     f"E({g.replacements[ep_atts['id']][1]})"
                                 )
-                        previous_cff = previous_cff / denom**2
+                        # NEW: for cut s-channel propagators
+                        if e_atts.get("is_cut_DY", None) is not None:
+                            previous_cff = previous_cff / denom
+                        else:
+                            previous_cff = previous_cff / denom**2
+
                         sign = 1 if e_src.startswith("ext") else -1
 
                         if e_atts.get("is_cut_DY") is not None:
@@ -622,7 +633,7 @@ class EMRIntegrandConstructor(object):
         s_split_graphs_R, s_channel_edges_R = self.split_s_channels(graph_R)
 
         ## DEBUG: set numerator to 1
-        # num = E("1")
+        num = E("1")
         # print("NUMERATORRRRRRRR")
         # print(num)
 
@@ -715,7 +726,7 @@ class UltraVioletSubtraction(object):
     def construct_counter_term(self, cycle, dod):
 
         lam = S("λ", is_scalar=True)
-        mUV = S("mUV", is_scalar=True)
+        mUV = E("mUV")
 
         uv_loop_momentum = next(iter(cycle))
         lmb = [uv_loop_momentum] + self.cut_graph.final_cut[:-1]
@@ -804,11 +815,16 @@ class ThresholdSubtractor(object):
         filtered_e_surf = []
 
         for esurf, residue in self.residues:
+            print("~~~~~~~~~")
+            print(esurf)
+
             if not esurf.is_type(AtomType.Add):
                 raise ValueError(
                     "problem: single energy e-surface in threshold approximator"
                 )
             energy_ids = list(esurf)
+
+            print(energy_ids)
 
             energy_ids = [
                 en.replace(E("-E(x___)"), E("x___")).replace(E("E(x___)"), E("x___"))
@@ -824,10 +840,15 @@ class ThresholdSubtractor(object):
                 elif e_atts["id"] in energy_ids and e_atts.get("is_cut_DY") is None:
                     negative_ids.append(e_atts["id"])
 
+            print("pos/neg ids")
+            print(positive_ids)
+            print(negative_ids)
+
             external_momentum = [0, 0]
             for e in self.routed_cut_graph.graph.get_edges():
                 e_atts = e.get_attributes()
                 if e_atts["id"] in positive_ids:
+                    print(e)
                     external_momentum[0] += (
                         int(e_atts["routing_p1"]) * e_atts["is_cut_DY"]
                     )
@@ -838,7 +859,11 @@ class ThresholdSubtractor(object):
             if (
                 external_momentum[0] * external_momentum[1] == 1
                 and external_momentum[0] == external_momentum[1]
+                and len(negative_ids) > 1
             ):
+                print("--------------------")
+                print(external_momentum[0])
+                print(external_momentum[1])
                 filtered_e_surf.append((negative_ids, esurf, residue))
 
         return filtered_e_surf
@@ -908,6 +933,24 @@ class ThresholdSubtractor(object):
         self, emr_residue_integrand, threshold_graph, threshold_ids
     ):
 
+        print("ids")
+        print(threshold_ids)
+        print([e.get_attributes()["id"] for e in threshold_graph.final_cut[:-1]])
+
+        collinear_momentum = E("0")
+
+        for e in threshold_graph.graph.get_edges():
+            e_atts = e.get_attributes()
+            if e_atts["id"] == threshold_ids[0]:
+                collinear_momentum = (
+                    collinear_momentum
+                    + E(f"{e_atts['routing_p1']}*p(1)")
+                    + E(f"{e_atts['routing_p2']}*p(2)")
+                )
+
+        print("collinear momentum")
+        print(collinear_momentum)
+
         lmb_ids = threshold_ids[:-1] + [
             e.get_attributes()["id"] for e in threshold_graph.final_cut[:-1]
         ]
@@ -916,8 +959,6 @@ class ThresholdSubtractor(object):
             deepcopy(threshold_graph.graph), lmb_ids
         )
 
-        r = S("r", is_scalar=True)
-        khat = S("khat")
         sqrts = S("s") ** E("1/2")
 
         threshold_integrand = self.replace_energies(
@@ -925,13 +966,6 @@ class ThresholdSubtractor(object):
         )
         threshold_integrand = self.route_integrand(
             threshold_integrand, threshold_graph_routed
-        )
-
-        patt = E("k(0)")
-        rep = r * khat
-
-        threshold_integrand = threshold_integrand.replace(
-            patt, rep
         )  # .replace(r, r.exp())
 
         shifts = []
@@ -961,10 +995,19 @@ class ThresholdSubtractor(object):
             shifts.append(shift)
             masses.append(mass)
 
+        r = S("r", is_scalar=True)
+        rexp = S("rexp", is_scalar=True)
+        khat = S("khat")
+        patt = E("k(0)")
+        rep = rexp * khat
+
         # dot products
-        kp1 = self.sp3D(E("k(0)"), shifts[0])
-        kp2 = self.sp3D(E("k(0)"), shifts[1])
-        kk = self.sp3D(E("k(0)"), E("k(0)"))
+        # kp1 = self.sp3D(E("k(0)"), shifts[0])
+        # kp2 = self.sp3D(E("k(0)"), shifts[1])
+        # kk = self.sp3D(E("k(0)"), E("k(0)"))
+        kp1 = self.sp3D(khat, shifts[0])
+        kp2 = self.sp3D(khat, shifts[1])
+        kk = self.sp3D(khat, khat)
         p1p1 = self.sp3D(shifts[0], shifts[0])
         p2p2 = self.sp3D(shifts[1], shifts[1])
         m1sq = masses[0] ** 2
@@ -1003,28 +1046,98 @@ class ThresholdSubtractor(object):
             - (p2p2**2)
         )
 
-        rstar = (-B + (B**2 - 4 * A * C) ** E("1/2")) / (2 * A)
+        rstar = ((-B + (B**2 - 4 * A * C) ** E("1/2")) / (2 * A)).log()
 
-        derivative = (2 * rstar * kk + kp1) / (
-            2 * (m1sq + (rstar**2) * kk + rstar * kp1 + p1p1) ** E("1/2")
-        ) + (2 * rstar * kk + kp2) / (
-            2 * (m2sq + (rstar**2) * kk + rstar * kp2 + p2p2) ** E("1/2")
+        derivative = (2 * (2 * rstar).exp() * kk + (rstar).exp() * kp1) / (
+            2.0
+            * ((2 * rstar).exp() * kk + (rstar).exp() * kp1 + m1sq + p1p1) ** E("1/2")
+        ) + (2 * (2 * rstar).exp() * kk + (rstar).exp() * kp2) / (
+            2.0
+            * ((2 * rstar).exp() * kk + (rstar).exp() * kp2 + m2sq + p2p2) ** E("1/2")
         )
 
+        threshold_integrand = threshold_integrand.replace(patt, rep)
+
         threshold_integrand = (
-            (threshold_integrand.replace(r, rstar)) / (r - rstar) / derivative
+            (threshold_integrand.replace(rexp, r.exp()).replace(r, rstar))
+            / (r - rstar)
+            / derivative
         )
 
         inv_knorm = S("knorm", is_scalar=True)
         threshold_integrand = (
             threshold_integrand
-            .replace(r, self.sp3D(E("k(0)"), E("k(0)")) ** E("1/2"))
+            .replace(rexp, r.exp())
+            .replace(r, (self.sp3D(E("k(0)"), E("k(0)")) ** E("1/2")).log())
             .replace(khat, E("k(0)") * inv_knorm)
-            .replace(inv_knorm, 1 / self.sp3D(E("k(0)"), E("k(0)")) ** E("1/2"))
+            .replace(inv_knorm, 1 / (self.sp3D(E("k(0)"), E("k(0)")) ** E("1/2")))
         )
 
         threshold_integrand = threshold_integrand.replace(
             E("s"), 4 * (E("p(1,1)") ** 2 + E("p(1,2)") ** 2 + E("p(1,3)") ** 2)
+        )
+
+        rep_r = rexp * khat
+
+        repl_x = self.sp3D(rep_r, collinear_momentum) / self.sp3D(
+            collinear_momentum, collinear_momentum
+        )
+
+        x = S("x", is_scalar=True, is_positive=True)
+
+        repl_kperp = -x * collinear_momentum + rep_r
+
+        # 1 - theta
+
+        theta1 = (
+            E(f"Θ(({self.sp3D(repl_kperp, repl_kperp)})-(x*(1-x))*Lambdasq)")
+            .replace(x, repl_x)
+            .replace(rexp, r.exp())
+            .replace(r, (self.sp3D(E("k(0)"), E("k(0)")) ** E("1/2")).log())
+            .replace(khat, E("k(0)") * inv_knorm)
+            .replace(inv_knorm, 1 / (self.sp3D(E("k(0)"), E("k(0)")) ** E("1/2")))
+        )
+        theta2 = (
+            # E(f"Θ(({self.sp3D(repl_kperp, repl_kperp)})-(x*(1-x))*Lambdasq)")
+            E(f"Θ(({self.sp3D(repl_kperp, repl_kperp)})-(x*(1-x))*Lambdasq)")
+            .replace(x, repl_x)
+            .replace(rexp, r.exp())
+            .replace(r, 2 * rstar - r)
+            .replace(r, (self.sp3D(E("k(0)"), E("k(0)")) ** E("1/2")).log())
+            .replace(khat, E("k(0)") * inv_knorm)
+            .replace(inv_knorm, 1 / (self.sp3D(E("k(0)"), E("k(0)")) ** E("1/2")))
+            .replace(
+                E("s"), 4 * (E("p(1,1)") ** 2 + E("p(1,2)") ** 2 + E("p(1,3)") ** 2)
+            )
+        )
+
+        print(theta1)
+        print(theta2)
+
+        hr = (
+            (-((r - rstar) ** 2))
+            .exp()
+            .replace(r, (self.sp3D(E("k(0)"), E("k(0)")) ** E("1/2")).log())
+            .replace(khat, E("k(0)") * inv_knorm)
+            .replace(inv_knorm, 1 / (self.sp3D(E("k(0)"), E("k(0)")) ** E("1/2")))
+            .replace(
+                E("s"), 4 * (E("p(1,1)") ** 2 + E("p(1,2)") ** 2 + E("p(1,3)") ** 2)
+            )
+        )
+
+        jacobian_correction = (
+            (-3 * (r - rstar))
+            .exp()
+            .replace(r, (self.sp3D(E("k(0)"), E("k(0)")) ** E("1/2")).log())
+            .replace(khat, E("k(0)") * inv_knorm)
+            .replace(inv_knorm, 1 / (self.sp3D(E("k(0)"), E("k(0)")) ** E("1/2")))
+            .replace(
+                E("s"), 4 * (E("p(1,1)") ** 2 + E("p(1,2)") ** 2 + E("p(1,3)") ** 2)
+            )
+        )
+
+        threshold_integrand = (
+            jacobian_correction * threshold_integrand * theta1 * theta2 * hr
         )
 
         # Go back to previous basis
@@ -1046,7 +1159,7 @@ class ThresholdSubtractor(object):
             )
 
         return RoutedIntegrand(
-            threshold_integrand,
+            -threshold_integrand,
             threshold_graph,
             [],
             E("0"),
@@ -1058,6 +1171,9 @@ class ThresholdSubtractor(object):
 
         filtered_e_surfs = self.filter_e_surfaces()
         threshold_cts = []
+
+        print("filtered e surfs")
+        print(filtered_e_surfs)
 
         for thresh_ids, e_surf, residue in filtered_e_surfs:
             if len(thresh_ids) > 2:
@@ -1557,6 +1673,12 @@ class LoopIntegrandConstructor(object):
             print("unapproximated integranddddddd", ".." * 30)
             print(integrand)
 
+            # Factor of 1/s for soft and soft-collinear for virtual DY diagram
+
+            factor = 1
+            if self.name == "DY" and len(cut_graph.final_cut) == 1:
+                factor = 1 / (4 * self.sp3D(E("p(1)"), E("p(2)")))
+
             soft_integrand, repl_s = self.approximator.soft_approximation(
                 deepcopy(integrand), deepcopy(momentum), deepcopy(k_id)
             )
@@ -1616,7 +1738,7 @@ class LoopIntegrandConstructor(object):
             print(thetaSoft.expand())
 
             routed_integrand_soft = RoutedIntegrand(
-                -soft_integrand * thetaSoft,
+                -factor * soft_integrand * thetaSoft,
                 cut_graph,
                 [
                     E(f"k({k_id[0]})"),
@@ -1646,7 +1768,7 @@ class LoopIntegrandConstructor(object):
             print(thetacollinear1)
 
             routed_integrand_collinear1 = RoutedIntegrand(
-                soft_collinear_integrand1 * thetacollinear1,
+                factor * soft_collinear_integrand1 * thetacollinear1,
                 cut_graph,
                 [
                     E(f"k({k_id[0]})"),
@@ -1677,7 +1799,7 @@ class LoopIntegrandConstructor(object):
             print(thetacollinear2)
 
             routed_integrand_collinear2 = RoutedIntegrand(
-                soft_collinear_integrand2 * thetacollinear2,
+                factor * soft_collinear_integrand2 * thetacollinear2,
                 cut_graph,
                 [
                     E(f"k({k_id[0]})"),
@@ -1784,6 +1906,15 @@ class LoopIntegrandConstructor(object):
             for e in cut_graph.final_cut:
                 e_atts = e.get_attributes()
                 if _strip_quotes(str(e_atts["particle"])) == "a":
+                    lmb_choice.append(e_atts["id"])
+            cut_graph.graph = change_routing(cut_graph.graph, lmb_choice)
+            orig_cut_graph.graph = change_routing(orig_cut_graph.graph, lmb_choice)
+
+        if len(cut_graph.final_cut) == 1 and self.name == "DY":
+            lmb_choice = []
+            for e in cut_graph.graph.get_edges():
+                e_atts = e.get_attributes()
+                if _strip_quotes(str(e_atts["particle"])) == "g":
                     lmb_choice.append(e_atts["id"])
             cut_graph.graph = change_routing(cut_graph.graph, lmb_choice)
             orig_cut_graph.graph = change_routing(orig_cut_graph.graph, lmb_choice)

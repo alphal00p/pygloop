@@ -34,24 +34,32 @@ class approach_point(object):
     def approach(self, kcc, p1, p2, z, vp):
         kc_comps = []
 
-        for i in range(7, 8):
+        for i in range(3, 5):
             print("####################################################")
             print("####################################################")
             ks = [k + pow(10, -i) * vp for k in kcc]
             print(ks)
             print(pow(10, -i) * vp)
-            cut_sum = 0.0 + 0.0j
+            cut_sum = 0  # Decimal(0)
 
             for cut_graph, cut_graph_evaluator in zip(
                 self.routed_integrands, self.evaluators
             ):
-                #                if (
-                #                    cut_graph.approximation_type == "PM"
-                #                    or cut_graph.approximation_type == "threshold"
-                #                ):
+                # if (
+                #    cut_graph.approximation_type == "PM"
+                #    or cut_graph.approximation_type == "threshold"
+                # ):
                 print("------------------------------")
                 print(ks)
-
+                # cut_graph_evaluator.debug_printout(ks, p1, p2, z)
+                cut_value = cut_graph_evaluator.eval(
+                    ks,
+                    p1,
+                    p2,
+                    z,
+                    mode="arb",
+                    decimal_digit_precision=64,
+                )
                 cut_value = cut_graph_evaluator.eval(ks, p1, p2, z)
                 cut_sum += cut_value
                 print(
@@ -96,6 +104,7 @@ class ultraviolet_test(object):
             ):
                 print("------------------------------")
                 print(ks)
+                cut_graph_evaluator.debug_printout(ks, p1, p2, z)
                 print(
                     f"\033[32m{cut_graph.cut_graph.graph.get_name()}, {cut_graph.approximation_type} : {pow(10, 3 * i) * cut_graph_evaluator.eval(ks, p1, p2, z)}\033[0m"
                 )
@@ -139,7 +148,8 @@ class infrared_test(object):
 
         replacements = [list(t) for t in dict.fromkeys(tuple(x) for x in replacements)]
 
-        if len(replacements) > 0:
+        debug = "DEBUG"
+        if len(replacements) > 0 or debug == "DEBUG":
             for r in replacements:
                 patt = r[0]
                 kc = r[0].replace(r[0], r[1]) + E("10^(-ep)*vperp")
@@ -184,7 +194,7 @@ class infrared_test(object):
                     f"\033[31m{r[1]}\033[0m",
                 )
 
-                for ep in range(1, 5):
+                for ep in range(4, 5):
                     print(
                         f"\033[33mep: {10 ** (-ep)} - k: {k} - p1: {p1} - p2: {p2} - z: {z}\033[0m"
                     )
@@ -210,11 +220,13 @@ class infrared_test(object):
                             p2,
                             z,
                             mode="arb",
-                            decimal_digit_precision=80,
+                            decimal_digit_precision=32,
                         )
+
                         cut_sum += cut_value
                         print("------------------------------")
                         print(k)
+                        # cut_graph_evaluator.debug_printout(k, p1, p2, z)
                         print(
                             f"\033[32m{cut_graph.cut_graph.graph.get_name()} : {cut_graph.approximation_type} : {cut_value}\033[0m"
                         )
