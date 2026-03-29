@@ -115,6 +115,13 @@ class DY(object):
         self.rotation_hp_retry_example: list[float] | None = None
         self.rotation_hp_retry_example_momentum_point: str | None = None
         self.rotation_hp_retry_example_rel: float | None = None
+        self.large_weight_hp_retry_count: int = 0
+        self.large_weight_hp_salvaged_count: int = 0
+        self.large_weight_unstable_count: int = 0
+        self.large_weight_retry_example: list[float] | None = None
+        self.large_weight_retry_example_momentum_point: str | None = None
+        self.large_weight_retry_example_compiled_wgt: float | None = None
+        self.large_weight_retry_example_arb_wgt: float | None = None
         self.max_wgt: float | None = None
         self.max_wgt_point: list[float] | None = None
         self.max_wgt_jacobian: float | None = None
@@ -351,7 +358,7 @@ class DY(object):
                 routed_integrands.extend(deepcopy(term_integrands))
 
                 # SMALL VALUE
-                observable_params = {"zmin": 0.0, "zmax": 1.00000, "Lambdasq": 0.5}
+                observable_params = {"zmin": 0.0, "zmax": 1.00000, "Lambdasq": 1 / 5}
 
                 # Build one evaluator per routed term
                 evaluators.extend(
@@ -391,15 +398,17 @@ class DY(object):
             #        -1.0,
             #    ])
             # ]
-            z = 7.7739230800856174e-01
+            z = 1.8597665672940293e00
             ks = [
                 np.array([
-                    0,
-                    0,
-                    0,
+                    1.2868810592985968e-04,
+                    8.8190370958056761e-05,
+                    7.2628209786607136e-08,
                 ])
             ]
-            vp = np.array([1, 0.01, 0.001])
+            # vp = np.array([1, 0.01, 0.001])
+            # vp = np.array([0, 1, 0.001])
+            vp = np.array([0, 0, 0])
             p1 = np.array([0, 0, 1])
             p2 = np.array([0, 0, -1])
             approach_limit.approach(ks, p1, p2, z, vp)
@@ -551,6 +560,8 @@ class DY(object):
                 return self.cartesian_parameterize(xs, origin)
             case "spherical":
                 return self.spherical_parameterize(xs, origin)
+            case "log_spherical":
+                return self.log_spherical_parameterize(xs, origin)
             case _:
                 raise pygloopException(
                     f"Parameterisation {parameterisation} not implemented."
@@ -634,6 +645,27 @@ class DY(object):
             v = v + origin
         # k-space Jacobian only; z Jacobian is applied separately in integrand_xspace.
         jac = r**2 * math.sin(ph) * 2 * math.pi**2 * ecm / (1 - rx) ** 2
+        return (v, jac)
+
+    def log_spherical_parameterize(
+        self, xs: list[float], origin: Vector | None = None
+    ) -> tuple[Vector, float]:
+        rx, thetax, phix = xs
+        ecm = self.e_cm
+        rho = math.log(ecm) + math.log(rx) - math.log(1 - rx)
+        radius = math.exp(rho)
+        th = 2 * math.pi * thetax
+        ph = math.pi * phix
+        v = Vector(
+            radius * math.cos(th) * math.sin(ph),
+            radius * math.sin(th) * math.sin(ph),
+            radius * math.cos(ph),
+        )
+        if origin is not None:
+            v = v + origin
+        # k-space Jacobian only; z Jacobian is applied separately in integrand_xspace.
+        # For k = exp(rho) * khat, d^3k = exp(3 rho) sin(phi) d rho d theta d phi.
+        jac = radius**3 * math.sin(ph) * 2 * math.pi**2 * (1 / rx + 1 / (1 - rx))
         return (v, jac)
 
     @staticmethod
@@ -754,6 +786,7 @@ class DY(object):
             # print("parametrisation time:", t1 - t0)
 
             wgt = self.integrand([k], impl)
+            wgt_in_arb = str(impl.get("dy_evaluation_mode", "compiled")) == "arb"
 
             n_digits = impl.get("dy_rotation_check_digits")
             if expects_z and n_digits is not None:
@@ -790,23 +823,27 @@ class DY(object):
                                 self.ps_point[1].spatial(),
                                 arb_impl,
                             )
-                            wgt_rot_arb = self.zenos_integrand_with_externals(
-                                [rk], rp1, rp2, arb_impl
-                            )
-                            rel_arb = abs(wgt_arb - wgt_rot_arb) / (
-                                abs(wgt_arb) + abs(wgt_rot_arb) + abs(eps)
-                            )
-                            if rel_arb <= 10.0 ** (-n_digits_int):
+                            if bool(impl.get("dy_accept_all_arb_retries", False)):
                                 self.rotation_hp_salvaged_count += 1
                                 wgt = wgt_arb
+                                wgt_in_arb = True
                             else:
-                                self.rotation_unstable_count += 1
-                                if self.rotation_unstable_example is None:
-                                    self.rotation_unstable_example = list(xs)
-                                    self.rotation_unstable_example_momentum_point = (
-                                        momentum_point
-                                    )
-                                wgt = 0.0 + 0.0j
+                                wgt_rot_arb = self.zenos_integrand_with_externals(
+                                    [rk], rp1, rp2, arb_impl
+                                )
+                                rel_arb = abs(wgt_arb - wgt_rot_arb) / (
+                                    abs(wgt_arb) + abs(wgt_rot_arb) + abs(eps)
+                                )
+                                if rel_arb <= 10.0 ** (-n_digits_int):
+                                    self.rotation_hp_salvaged_count += 1
+                                    wgt = wgt_arb
+                                    wgt_in_arb = True
+                                else:
+                                    self.rotation_unstable_count += 1
+                                    if self.rotation_unstable_example is None:
+                                        self.rotation_unstable_example = list(xs)
+                                        self.rotation_unstable_example_momentum_point = momentum_point
+                                    wgt = 0.0 + 0.0j
                         except Exception:
                             self.rotation_unstable_count += 1
                             if self.rotation_unstable_example is None:
@@ -815,6 +852,56 @@ class DY(object):
                                     momentum_point
                                 )
                             wgt = 0.0 + 0.0j
+
+            large_weight_threshold = impl.get("dy_large_weight_threshold")
+            if (
+                expects_z
+                and not wgt_in_arb
+                and large_weight_threshold is not None
+                and float(large_weight_threshold) > 0.0
+            ):
+                phase_wgt = wgt.real if phase == "real" else wgt.imag
+                tentative_final_wgt = phase_wgt * total_jacobian
+                if math.isfinite(tentative_final_wgt) and abs(
+                    tentative_final_wgt
+                ) > float(large_weight_threshold):
+                    self.large_weight_hp_retry_count += 1
+                    if self.large_weight_retry_example is None:
+                        self.large_weight_retry_example = list(xs)
+                        self.large_weight_retry_example_momentum_point = momentum_point
+                        self.large_weight_retry_example_compiled_wgt = (
+                            tentative_final_wgt
+                        )
+
+                    arb_impl = dict(impl)
+                    arb_impl["dy_evaluation_mode"] = "arb"
+                    arb_impl["dy_rotation_check_arb_digits"] = int(
+                        impl.get("dy_rotation_check_arb_digits", 80)
+                    )
+                    assert self.compiled_bundle is not None
+                    self.compiled_bundle.require_arb_supported()
+                    try:
+                        wgt_arb = self.zenos_integrand_with_externals(
+                            [k],
+                            self.ps_point[0].spatial(),
+                            self.ps_point[1].spatial(),
+                            arb_impl,
+                        )
+                        phase_wgt_arb = (
+                            wgt_arb.real if phase == "real" else wgt_arb.imag
+                        )
+                        final_wgt_arb = phase_wgt_arb * total_jacobian
+                        if math.isfinite(final_wgt_arb):
+                            self.large_weight_hp_salvaged_count += 1
+                            if self.large_weight_retry_example_arb_wgt is None:
+                                self.large_weight_retry_example_arb_wgt = final_wgt_arb
+                            wgt = wgt_arb
+                        else:
+                            self.large_weight_unstable_count += 1
+                            wgt = 0.0 + 0.0j
+                    except Exception:
+                        self.large_weight_unstable_count += 1
+                        wgt = 0.0 + 0.0j
 
             stable_wgt_abs = abs(wgt)
             if self.max_stable_wgt is None or stable_wgt_abs > self.max_stable_wgt:
@@ -975,7 +1062,7 @@ class DY(object):
             m_uv,
             mode=evaluation_mode,
             decimal_digit_precision=decimal_digit_precision,
-            theta_tolerance=0.0,  # theta_tolerance,
+            theta_tolerance=theta_tolerance,
         )
 
     def _normalize_integrand_implementation(
@@ -1151,6 +1238,27 @@ class DY(object):
         this_result.unstable_example_momentum_point = (
             process_instance.rotation_unstable_example_momentum_point
         )
+        this_result.large_weight_retry_count = (
+            process_instance.large_weight_hp_retry_count
+        )
+        this_result.large_weight_salvaged_count = (
+            process_instance.large_weight_hp_salvaged_count
+        )
+        this_result.large_weight_unstable_count = (
+            process_instance.large_weight_unstable_count
+        )
+        this_result.large_weight_retry_example = (
+            process_instance.large_weight_retry_example
+        )
+        this_result.large_weight_retry_example_momentum_point = (
+            process_instance.large_weight_retry_example_momentum_point
+        )
+        this_result.large_weight_retry_example_compiled_wgt = (
+            process_instance.large_weight_retry_example_compiled_wgt
+        )
+        this_result.large_weight_retry_example_arb_wgt = (
+            process_instance.large_weight_retry_example_arb_wgt
+        )
         this_result.max_stable_wgt = process_instance.max_stable_wgt
         this_result.max_stable_wgt_point = process_instance.max_stable_wgt_point
         this_result.max_stable_wgt_jacobian = process_instance.max_stable_wgt_jacobian
@@ -1258,6 +1366,19 @@ class DY(object):
         res.unstable_example = process.rotation_unstable_example
         res.unstable_example_momentum_point = (
             process.rotation_unstable_example_momentum_point
+        )
+        res.large_weight_retry_count = process.large_weight_hp_retry_count
+        res.large_weight_salvaged_count = process.large_weight_hp_salvaged_count
+        res.large_weight_unstable_count = process.large_weight_unstable_count
+        res.large_weight_retry_example = process.large_weight_retry_example
+        res.large_weight_retry_example_momentum_point = (
+            process.large_weight_retry_example_momentum_point
+        )
+        res.large_weight_retry_example_compiled_wgt = (
+            process.large_weight_retry_example_compiled_wgt
+        )
+        res.large_weight_retry_example_arb_wgt = (
+            process.large_weight_retry_example_arb_wgt
         )
         res.max_stable_wgt = process.max_stable_wgt
         res.max_stable_wgt_point = process.max_stable_wgt_point
@@ -1385,6 +1506,19 @@ class DY(object):
         res.unstable_example_momentum_point = (
             process.rotation_unstable_example_momentum_point
         )
+        res.large_weight_retry_count = process.large_weight_hp_retry_count
+        res.large_weight_salvaged_count = process.large_weight_hp_salvaged_count
+        res.large_weight_unstable_count = process.large_weight_unstable_count
+        res.large_weight_retry_example = process.large_weight_retry_example
+        res.large_weight_retry_example_momentum_point = (
+            process.large_weight_retry_example_momentum_point
+        )
+        res.large_weight_retry_example_compiled_wgt = (
+            process.large_weight_retry_example_compiled_wgt
+        )
+        res.large_weight_retry_example_arb_wgt = (
+            process.large_weight_retry_example_arb_wgt
+        )
         res.max_stable_wgt = process.max_stable_wgt
         res.max_stable_wgt_point = process.max_stable_wgt_point
         res.max_stable_wgt_jacobian = process.max_stable_wgt_jacobian
@@ -1475,7 +1609,7 @@ class DY(object):
 
             # Learning rate is 1.5
             avg, err, _chi_sq = integrator.update(
-                continuous_learning_rate=1.5, discrete_learning_rate=1.5
+                continuous_learning_rate=0.5, discrete_learning_rate=0.5
             )  # type: ignore
             integration_result.central_value = avg
             integration_result.error = err

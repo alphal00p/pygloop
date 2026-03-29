@@ -1088,9 +1088,11 @@ class ThresholdSubtractor(object):
         repl_kperp = -x * collinear_momentum + rep_r
 
         # 1 - theta
+        #
+        # NEW: CUT THRESHOLD CUTTING REGION BY 4
 
         theta1 = (
-            E(f"Θ(({self.sp3D(repl_kperp, repl_kperp)})-(x*(1-x))*Lambdasq)")
+            E(f"Θ(({self.sp3D(repl_kperp, repl_kperp)})-(x*(1-x))*Lambdasq/4)")
             .replace(x, repl_x)
             .replace(rexp, r.exp())
             .replace(r, (self.sp3D(E("k(0)"), E("k(0)")) ** E("1/2")).log())
@@ -1099,7 +1101,7 @@ class ThresholdSubtractor(object):
         )
         theta2 = (
             # E(f"Θ(({self.sp3D(repl_kperp, repl_kperp)})-(x*(1-x))*Lambdasq)")
-            E(f"Θ(({self.sp3D(repl_kperp, repl_kperp)})-(x*(1-x))*Lambdasq)")
+            E(f"Θ(({self.sp3D(repl_kperp, repl_kperp)})-(x*(1-x))*Lambdasq/4)")
             .replace(x, repl_x)
             .replace(rexp, r.exp())
             .replace(r, 2 * rstar - r)

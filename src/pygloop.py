@@ -91,7 +91,7 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
         help="Set verbosity level",
     )  # fmt: off
 
-    parser.add_argument("--parameterisation", "-param", type=str, choices=["cartesian", "spherical"], default="spherical",
+    parser.add_argument("--parameterisation", "-param", type=str, choices=["cartesian", "spherical", "log_spherical"], default="spherical",
         help="Parameterisation to employ.",
     )  # fmt: off
     parser.add_argument(
@@ -123,6 +123,18 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
         type=float,
         default=1e-10,
         help="DY only: theta support tolerance used in compiled and arbitrary-precision DY evaluation.",
+    )
+    parser.add_argument(
+        "--dy-large-weight-threshold",
+        type=float,
+        default=None,
+        help="DY only: if |final weighted sample| exceeds this threshold, re-evaluate the point in arbitrary precision.",
+    )
+    parser.add_argument(
+        "--dy-accept-all-arb-retries",
+        action="store_true",
+        default=False,
+        help="DY only: accept the unrotated arbitrary-precision retry result without applying the rotated arb re-check.",
     )
 
     parser.add_argument("--gammaloop-configuration", "-f", default=None,
@@ -508,6 +520,12 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
             args.dy_rotation_check_arb_digits
         )
         integrand_implementation["dy_theta_tol"] = args.dy_theta_tol
+        integrand_implementation["dy_large_weight_threshold"] = (
+            args.dy_large_weight_threshold
+        )
+        integrand_implementation["dy_accept_all_arb_retries"] = (
+            args.dy_accept_all_arb_retries
+        )
     t_start = time.time()
     match args.command:
         case "generate":

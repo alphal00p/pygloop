@@ -4,6 +4,8 @@ import math
 import os
 import pickle
 import statistics
+import subprocess
+import sys
 import timeit
 from enum import StrEnum
 from functools import wraps
@@ -26,7 +28,9 @@ from symbolica import (
 
 from utils.vectors import LorentzVector, Vector  # noqa: F401
 
-PYGLOOP_FOLDER = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+PYGLOOP_FOLDER = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 SRC_DIR = os.path.join(PYGLOOP_FOLDER, "src")
 
 OUTPUTS_FOLDER = os.path.join(PYGLOOP_FOLDER, "outputs")
@@ -40,12 +44,12 @@ CONFIGS_FOLDER = os.path.join(PYGLOOP_FOLDER, "configs")
 np_cmplx_one = numpy.complex128(1.0, 0.0)
 np_cmplx_zero = numpy.complex128(0.0, 0.0)
 
-try:
-    import symjit  # noqa: F401
+# try:
+#    import symjit  # noqa: F401
 
-    SYMJIT_AVAILABLE = True
-except ImportError:
-    SYMJIT_AVAILABLE = False
+#    SYMJIT_AVAILABLE = True
+# except ImportError:
+SYMJIT_AVAILABLE = False
 
 
 def setup_logging():
@@ -108,21 +112,58 @@ class Colour(StrEnum):
 
 GAMMA_EPS_EXPANSIONS = [
     Replacement(E("dim"), E("4 - 2*ε")),
-    Replacement(E("𝚪(1-ε)"), E("1 + γₑ*ε + (1/12)*( 6*γₑ^2 + 𝜋^2)*ε^2 + ε^3*O(Gamma,eps^3)")),
-    Replacement(E("𝚪(1+ε)"), E("1 - γₑ*ε + (1/12)*( 6*γₑ^2 + 𝜋^2)*ε^2 + ε^3*O(Gamma,eps^3)")),
-    Replacement(E("𝚪(1-b_*ε)"), E("1 + γₑ*b_*ε + (1/12)*( 6*γₑ^2 + 𝜋^2)*b_^2*ε^2 + ε^3*O(Gamma,eps^3)")),
-    Replacement(E("𝚪(1+b_*ε)"), E("1 - γₑ*b_*ε + (1/12)*( 6*γₑ^2 + 𝜋^2)*b_^2*ε^2 + ε^3*O(Gamma,eps^3)")),
-    Replacement(E("𝚪(ε)"), E("1/ε - γₑ + (1/12)*( 6*γₑ^2 + 𝜋^2)*ε + ε^2*O(Gamma,eps^2)")),
-    Replacement(E("𝚪(b_*ε)"), E("1/(b_*ε) - γₑ + (1/12)*( 6*γₑ^2 + 𝜋^2)*b_*ε + ε^2*O(Gamma,eps^2)")),
-    Replacement(E("𝚪(2-ε)"), E("1 + (γₑ-1)*ε + (1/12)*( -12*γₑ + 6 * γₑ^2 + 𝜋^2)*ε^2 + ε^3*O(Gamma,eps^3)")),
-    Replacement(E("𝚪(2+ε)"), E("1 + (1-γₑ)*ε + (1/12)*( -12*γₑ + 6 * γₑ^2 + 𝜋^2)*ε^2 + ε^3*O(Gamma,eps^3)")),
-    Replacement(E("𝚪(2-b_*ε)"), E("1 + (γₑ-1)*b_*ε + (1/12)*( -12*γₑ + 6 * γₑ^2 + 𝜋^2)*b_^2*ε^2 + ε^3*O(Gamma,eps^3)")),
-    Replacement(E("𝚪(2+b_*ε)"), E("1 + (1-γₑ)*b_*ε + (1/12)*( -12*γₑ + 6 * γₑ^2 + 𝜋^2)*b_^2*ε^2 + ε^3*O(Gamma,eps^3)")),
+    Replacement(
+        E("𝚪(1-ε)"), E("1 + γₑ*ε + (1/12)*( 6*γₑ^2 + 𝜋^2)*ε^2 + ε^3*O(Gamma,eps^3)")
+    ),
+    Replacement(
+        E("𝚪(1+ε)"), E("1 - γₑ*ε + (1/12)*( 6*γₑ^2 + 𝜋^2)*ε^2 + ε^3*O(Gamma,eps^3)")
+    ),
+    Replacement(
+        E("𝚪(1-b_*ε)"),
+        E("1 + γₑ*b_*ε + (1/12)*( 6*γₑ^2 + 𝜋^2)*b_^2*ε^2 + ε^3*O(Gamma,eps^3)"),
+    ),
+    Replacement(
+        E("𝚪(1+b_*ε)"),
+        E("1 - γₑ*b_*ε + (1/12)*( 6*γₑ^2 + 𝜋^2)*b_^2*ε^2 + ε^3*O(Gamma,eps^3)"),
+    ),
+    Replacement(
+        E("𝚪(ε)"), E("1/ε - γₑ + (1/12)*( 6*γₑ^2 + 𝜋^2)*ε + ε^2*O(Gamma,eps^2)")
+    ),
+    Replacement(
+        E("𝚪(b_*ε)"),
+        E("1/(b_*ε) - γₑ + (1/12)*( 6*γₑ^2 + 𝜋^2)*b_*ε + ε^2*O(Gamma,eps^2)"),
+    ),
+    Replacement(
+        E("𝚪(2-ε)"),
+        E("1 + (γₑ-1)*ε + (1/12)*( -12*γₑ + 6 * γₑ^2 + 𝜋^2)*ε^2 + ε^3*O(Gamma,eps^3)"),
+    ),
+    Replacement(
+        E("𝚪(2+ε)"),
+        E("1 + (1-γₑ)*ε + (1/12)*( -12*γₑ + 6 * γₑ^2 + 𝜋^2)*ε^2 + ε^3*O(Gamma,eps^3)"),
+    ),
+    Replacement(
+        E("𝚪(2-b_*ε)"),
+        E(
+            "1 + (γₑ-1)*b_*ε + (1/12)*( -12*γₑ + 6 * γₑ^2 + 𝜋^2)*b_^2*ε^2 + ε^3*O(Gamma,eps^3)"
+        ),
+    ),
+    Replacement(
+        E("𝚪(2+b_*ε)"),
+        E(
+            "1 + (1-γₑ)*b_*ε + (1/12)*( -12*γₑ + 6 * γₑ^2 + 𝜋^2)*b_^2*ε^2 + ε^3*O(Gamma,eps^3)"
+        ),
+    ),
 ]
 
 
 def eps_expansion_finite(expr: Expression, coeff_index: int = -1) -> Expression:
-    expansion = expr.replace_multiple(GAMMA_EPS_EXPANSIONS).series(E("ε"), 0, 0, depth_is_absolute=True).to_expression().coefficient_list(E("ε"))
+    expansion = (
+        expr
+        .replace_multiple(GAMMA_EPS_EXPANSIONS)
+        .series(E("ε"), 0, 0, depth_is_absolute=True)
+        .to_expression()
+        .coefficient_list(E("ε"))
+    )
     if coeff_index is None:
         return expansion
     else:
@@ -168,35 +209,51 @@ class ParamBuilder(list):
         self.order.append(head)
         self.np = numpy.resize(self.np, len(self.np) + length)
 
-    def freeze_all_current_parameters_phase(self, parameters: list[tuple[Expression, ...]] | None = None):
+    def freeze_all_current_parameters_phase(
+        self, parameters: list[tuple[Expression, ...]] | None = None
+    ):
         if parameters is None:
             parameters = list(self.positions.keys())
         for param in parameters:
             if param not in self.positions:
-                raise pygloopException(f"Could not find parameter {param} in param builder.")
+                raise pygloopException(
+                    f"Could not find parameter {param} in param builder."
+                )
             min, max = self.positions[param]
             for i in range(min, max):
                 if self.np[i].imag == 0.0:
-                    if i not in self.real_valued_inputs and i not in self.forced_complex_valued_inputs:
+                    if (
+                        i not in self.real_valued_inputs
+                        and i not in self.forced_complex_valued_inputs
+                    ):
                         self.real_valued_inputs.append(i)
                 elif self.np[i].real == 0.0:
-                    if i not in self.purely_imaginary_valued_inputs and i not in self.forced_complex_valued_inputs:
+                    if (
+                        i not in self.purely_imaginary_valued_inputs
+                        and i not in self.forced_complex_valued_inputs
+                    ):
                         self.purely_imaginary_valued_inputs.append(i)
 
     def force_parameters_to_real(self, parameters: list[tuple[Expression, ...]]):
         for param in parameters:
             if param not in self.positions:
-                raise pygloopException(f"Could not find parameter {param} in param builder.")
+                raise pygloopException(
+                    f"Could not find parameter {param} in param builder."
+                )
             min, max = self.positions[param]
             for i in range(min, max):
                 if self.np[i].imag != 0.0:
-                    raise pygloopException(f"Cannot set parameter {param} to real-valued input; it has non-zero imaginary part {self.np[i].imag}.")
+                    raise pygloopException(
+                        f"Cannot set parameter {param} to real-valued input; it has non-zero imaginary part {self.np[i].imag}."
+                    )
                 self.real_valued_inputs.append(i)
 
     def force_parameters_to_imaginary(self, parameters: list[tuple[Expression, ...]]):
         for param in parameters:
             if param not in self.positions:
-                raise pygloopException(f"Could not find parameter {param} in param builder.")
+                raise pygloopException(
+                    f"Could not find parameter {param} in param builder."
+                )
             min, max = self.positions[param]
             for i in range(min, max):
                 if self.np[i].real != 0.0:
@@ -208,7 +265,9 @@ class ParamBuilder(list):
     def force_parameters_to_complex(self, parameters: list[tuple[Expression, ...]]):
         for param in parameters:
             if param not in self.positions:
-                raise pygloopException(f"Could not find parameter {param} in param builder.")
+                raise pygloopException(
+                    f"Could not find parameter {param} in param builder."
+                )
             min, max = self.positions[param]
             for i in range(min, max):
                 if i in self.real_valued_inputs:
@@ -241,30 +300,48 @@ class ParamBuilder(list):
                 phase_components.append(None)
         return phase_components
 
-    def set_parameter_values(self, head: tuple[Expression, ...], values: list[complex] | NDArray[Any], check_phase_flag_consistency=True):
+    def set_parameter_values(
+        self,
+        head: tuple[Expression, ...],
+        values: list[complex] | NDArray[Any],
+        check_phase_flag_consistency=True,
+    ):
         if head not in self.positions:
             raise pygloopException(f"Could not find parameter {head} in param builder.")
 
         min, max = self.positions[head]
         if (max - min) != len(values):
-            raise pygloopException(f"Length of parameters {head} declared as {max - min}, but {len(values)} values are provided.")
+            raise pygloopException(
+                f"Length of parameters {head} declared as {max - min}, but {len(values)} values are provided."
+            )
         if check_phase_flag_consistency:
             for i, v in enumerate(values):
                 idx = min + i
                 if idx in self.real_valued_inputs and v.imag != 0.0:
-                    raise pygloopException(f"Cannot set parameter {head} at index {idx} to complex value {v}; it is marked as real-valued input.")
+                    raise pygloopException(
+                        f"Cannot set parameter {head} at index {idx} to complex value {v}; it is marked as real-valued input."
+                    )
                 if idx in self.purely_imaginary_valued_inputs and v.real != 0.0:
                     raise pygloopException(
                         f"Cannot set parameter {head} at index {idx} to non-imaginary value {v}; it is marked as purely-imaginary input."
                     )
         self.np[min:max] = values
 
-    def set_parameter_values_within_range(self, min: int, max: int, values: list[complex] | NDArray[Any]):
+    def set_parameter_values_within_range(
+        self, min: int, max: int, values: list[complex] | NDArray[Any]
+    ):
         if (max - min) != len(values):
-            raise pygloopException(f"Range declared of ({min},{max}) of different length that the number of values ({len(values)}) provided.")
+            raise pygloopException(
+                f"Range declared of ({min},{max}) of different length that the number of values ({len(values)}) provided."
+            )
         self.np[min:max] = values
 
-    def set_parameter(self, param: tuple[Expression, ...], value: complex, check_phase_flag_consistency=True):
+    def set_parameter(
+        self,
+        param: tuple[Expression, ...],
+        value: complex,
+        check_phase_flag_consistency=True,
+    ):
         return self.set_parameter_values(param, [value,], check_phase_flag_consistency)  # fmt: off
 
     def check_phase_flag_consistency(self):
@@ -273,13 +350,17 @@ class ParamBuilder(list):
         bad = numpy.nonzero(imag_parts != 0.0)[0]
         if bad.size:
             idx = int(real_idx[bad[0]])
-            raise pygloopException(f"Parameter at index {idx} is marked as real-valued input, but has non-zero imaginary part {self.np[idx].imag}.")
+            raise pygloopException(
+                f"Parameter at index {idx} is marked as real-valued input, but has non-zero imaginary part {self.np[idx].imag}."
+            )
         imag_idx = numpy.asarray(self.purely_imaginary_valued_inputs, dtype=int)
         real_parts = self.np[imag_idx].real
         bad = numpy.nonzero(real_parts != 0.0)[0]
         if bad.size:
             idx = int(imag_idx[bad[0]])
-            raise pygloopException(f"Parameter at index {idx} is marked as purely-imaginary input, but has non-zero real part {self.np[idx].real}.")
+            raise pygloopException(
+                f"Parameter at index {idx} is marked as purely-imaginary input, but has non-zero real part {self.np[idx].real}."
+            )
 
     def get_parameters(self):
         params = []
@@ -298,7 +379,9 @@ class ParamBuilder(list):
     def get_complex_values(self) -> NDArray[numpy.complex128]:
         return self.np
 
-    def get_values(self, complexified_evaluator=False) -> NDArray[numpy.complex128] | NDArray[numpy.double]:
+    def get_values(
+        self, complexified_evaluator=False
+    ) -> NDArray[numpy.complex128] | NDArray[numpy.double]:
         if not complexified_evaluator:
             return self.np
         else:
@@ -322,9 +405,13 @@ class PygloopEvaluator(object):
         symjit_path = os.path.join(dir, f"{name}.sjb")
 
         if not os.path.isfile(param_builder_path):
-            raise pygloopException(f"Could not find parameter builder file '{param_builder_path}'.")
+            raise pygloopException(
+                f"Could not find parameter builder file '{param_builder_path}'."
+            )
         if not os.path.isfile(lib_path):
-            raise pygloopException(f"Could not find compiled evaluator library '{lib_path}'.")
+            raise pygloopException(
+                f"Could not find compiled evaluator library '{lib_path}'."
+            )
 
         with open(param_builder_path, "r", encoding="utf-8") as handle:
             data = json.load(handle)
@@ -337,18 +424,26 @@ class PygloopEvaluator(object):
         forced_complex_valued_inputs = data.get("forced_complex_valued_inputs", [])
         output_length = data.get("output_length")
         if parameters_data is None or values_data is None:
-            raise pygloopException(f"Malformed parameter builder file '{param_builder_path}'.")
+            raise pygloopException(
+                f"Malformed parameter builder file '{param_builder_path}'."
+            )
         if stored_name is None or output_length is None:
-            raise pygloopException(f"Malformed parameter builder file '{param_builder_path}'.")
+            raise pygloopException(
+                f"Malformed parameter builder file '{param_builder_path}'."
+            )
         if stored_name != name:
-            raise pygloopException(f"Loaded evaluator name '{stored_name}' does not match expected '{name}'.")
+            raise pygloopException(
+                f"Loaded evaluator name '{stored_name}' does not match expected '{name}'."
+            )
 
         param_builder = ParamBuilder()
         for param in parameters_data:
             head_data = param.get("head")
             range_data = param.get("range")
             if head_data is None or range_data is None or len(range_data) != 2:
-                raise pygloopException(f"Malformed parameter entry in '{param_builder_path}'.")
+                raise pygloopException(
+                    f"Malformed parameter entry in '{param_builder_path}'."
+                )
             head = tuple(E(expr) for expr in head_data)
             min_idx, max_idx = int(range_data[0]), int(range_data[1])
             param_builder.positions[head] = (min_idx, max_idx)
@@ -361,7 +456,9 @@ class PygloopEvaluator(object):
             elif isinstance(value, list) and len(value) == 2:
                 values.append(complex(value[0], value[1]))
             else:
-                raise pygloopException(f"Malformed parameter value entry in '{param_builder_path}'.")
+                raise pygloopException(
+                    f"Malformed parameter value entry in '{param_builder_path}'."
+                )
 
         param_builder.np = numpy.array(values, dtype=numpy.complex128)
 
@@ -371,7 +468,9 @@ class PygloopEvaluator(object):
 
         max_index = max((rng[1] for rng in param_builder.positions.values()), default=0)
         if max_index != len(param_builder.np):
-            raise pygloopException(f"Parameter value array length ({len(param_builder.np)}) does not match declared ranges (max index {max_index}).")
+            raise pygloopException(
+                f"Parameter value array length ({len(param_builder.np)}) does not match declared ranges (max index {max_index})."
+            )
 
         param_builder.check_phase_flag_consistency()
 
@@ -384,15 +483,33 @@ class PygloopEvaluator(object):
                 if isinstance(loaded_additional, dict):
                     additional_data = loaded_additional
                 else:
-                    raise pygloopException(f"Additional data in '{additional_data_path}' is not a dictionary.")
+                    raise pygloopException(
+                        f"Additional data in '{additional_data_path}' is not a dictionary."
+                    )
             except Exception as e:
-                raise pygloopException(f"Error loading additional data from '{additional_data_path}': {e}") from e
+                raise pygloopException(
+                    f"Error loading additional data from '{additional_data_path}': {e}"
+                ) from e
 
-        loaded_evaluator = PygloopEvaluator(None, param_builder, stored_name, int(output_length), additional_data=additional_data)
+        loaded_evaluator = PygloopEvaluator(
+            None,
+            param_builder,
+            stored_name,
+            int(output_length),
+            additional_data=additional_data,
+        )
         loaded_evaluator.complexified = data.get("complexified", False)
-        n_inputs = len(loaded_evaluator.param_builder.np) * (2 if loaded_evaluator.complexified else 1)
-        n_outputs = loaded_evaluator.output_length * (2 if loaded_evaluator.complexified else 1)
-        evaluator_class = CompiledRealEvaluator if loaded_evaluator.complexified else CompiledComplexEvaluator
+        n_inputs = len(loaded_evaluator.param_builder.np) * (
+            2 if loaded_evaluator.complexified else 1
+        )
+        n_outputs = loaded_evaluator.output_length * (
+            2 if loaded_evaluator.complexified else 1
+        )
+        evaluator_class = (
+            CompiledRealEvaluator
+            if loaded_evaluator.complexified
+            else CompiledComplexEvaluator
+        )
         try:
             loaded_evaluator.compiled_evaluator = evaluator_class.load(
                 lib_path,
@@ -401,41 +518,54 @@ class PygloopEvaluator(object):
                 n_outputs,
             )
         except Exception as e:
-            raise pygloopException(f"Error loading compiled evaluator from '{lib_path}': {e}") from e
+            raise pygloopException(
+                f"Error loading compiled evaluator from '{lib_path}': {e}"
+            ) from e
         if os.path.exists(symjit_path):
             if not SYMJIT_AVAILABLE:
-                raise pygloopException(f"symjit is not available but symjit evaluator file '{symjit_path}' exists.")
+                raise pygloopException(
+                    f"symjit is not available but symjit evaluator file '{symjit_path}' exists."
+                )
             try:
                 symjit_evaluator = symjit.load_func(symjit_path)
                 # // 2 because symjit counts real/imag pairs for complex inputs
                 if symjit_evaluator.complex_compiler.count_params // 2 != n_inputs:  # type: ignore
-                    raise pygloopException(f"Symjit evaluator input count mismatch: expected {n_inputs}, got {symjit_evaluator.count_params}.")  # type: ignore
+                    raise pygloopException(
+                        f"Symjit evaluator input count mismatch: expected {n_inputs}, got {symjit_evaluator.count_params}."
+                    )  # type: ignore
                 if type(symjit_evaluator) is not symjit.SymbolicaFunc:
-                    raise pygloopException("Loaded symjit evaluator is not of type SymbolicaFunc.")
+                    raise pygloopException(
+                        "Loaded symjit evaluator is not of type SymbolicaFunc."
+                    )
                 loaded_evaluator.symjit_evaluator = symjit_evaluator
             except Exception as e:
-                raise pygloopException(f"Error loading symjit evaluator from '{symjit_path}': {e}") from e
+                raise pygloopException(
+                    f"Error loading symjit evaluator from '{symjit_path}': {e}"
+                ) from e
         loaded_evaluator.eager_evaluator = None
         return loaded_evaluator
 
     def save(self, dir: str):
         lib_path = os.path.join(dir, f"{self.name}.so")
         if not os.path.isfile(lib_path):
-            raise pygloopException(f"Compiled evaluator library '{lib_path}' not found. Please compile the evaluator before saving.")
+            raise pygloopException(
+                f"Compiled evaluator library '{lib_path}' not found. Please compile the evaluator before saving."
+            )
 
         param_builder_path = os.path.join(dir, f"{self.name}_param_builder.json")
 
         parameters = []
         for head in self.param_builder.order:
             min_idx, max_idx = self.param_builder.positions[head]
-            parameters.append(
-                {
-                    "head": [expr.to_canonical_string() for expr in head],
-                    "range": [int(min_idx), int(max_idx)],
-                }
-            )
+            parameters.append({
+                "head": [expr.to_canonical_string() for expr in head],
+                "range": [int(min_idx), int(max_idx)],
+            })
 
-        values = [[float(complex(v).real), float(complex(v).imag)] for v in self.param_builder.np.tolist()]
+        values = [
+            [float(complex(v).real), float(complex(v).imag)]
+            for v in self.param_builder.np.tolist()
+        ]
 
         data = {
             "complexified": self.complexified,
@@ -466,7 +596,9 @@ class PygloopEvaluator(object):
         complexified: bool = False,
     ):
         self.eager_evaluator: Evaluator | None = evaluator
-        self.compiled_evaluator: CompiledRealEvaluator | CompiledComplexEvaluator | None = None
+        self.compiled_evaluator: (
+            CompiledRealEvaluator | CompiledComplexEvaluator | None
+        ) = None
         self.symjit_evaluator: symjit.SymbolicaFunc | None = None
         self.param_builder = param_builder
         self.name = name
@@ -475,7 +607,9 @@ class PygloopEvaluator(object):
         self.complexified = complexified
 
     @staticmethod
-    def _pairwise_to_complex(res: NDArray[Any], expected_output_len: int) -> NDArray[numpy.complex128]:
+    def _pairwise_to_complex(
+        res: NDArray[Any], expected_output_len: int
+    ) -> NDArray[numpy.complex128]:
         """
         Convert an array shaped (batch, 2*n) or (2*n,) containing real/imag pairs
         into complex numbers shaped (batch, n) / (n,). If `res` is already complex,
@@ -492,10 +626,14 @@ class PygloopEvaluator(object):
             res_arr = res_arr.reshape(1, -1)
 
         if res_arr.shape[-1] % 2 != 0:
-            raise pygloopException(f"Expected even number of entries (real/imag pairs), got {res_arr.shape[-1]}.")
+            raise pygloopException(
+                f"Expected even number of entries (real/imag pairs), got {res_arr.shape[-1]}."
+            )
 
         if expected_output_len > 0 and res_arr.shape[-1] != expected_output_len * 2:
-            raise pygloopException(f"Output length mismatch: expected {expected_output_len * 2} real/imag entries, got {res_arr.shape[-1]}.")
+            raise pygloopException(
+                f"Output length mismatch: expected {expected_output_len * 2} real/imag entries, got {res_arr.shape[-1]}."
+            )
 
         paired = res_arr.reshape(res_arr.shape[0], -1, 2)
         complex_res = paired[..., 0] + 1j * paired[..., 1]
@@ -503,7 +641,9 @@ class PygloopEvaluator(object):
 
     def freeze_input_phases(self, verbose: bool = False):
         if self.eager_evaluator is None:
-            raise pygloopException(f"Eager evaluator for '{self.name}' not available to set input phases for.")
+            raise pygloopException(
+                f"Eager evaluator for '{self.name}' not available to set input phases for."
+            )
         self.eager_evaluator.set_real_params(
             self.param_builder.get_real_components(),
             sqrt_real=True,
@@ -514,8 +654,12 @@ class PygloopEvaluator(object):
 
     def complexify(self):
         if self.eager_evaluator is None:
-            raise pygloopException(f"Eager evaluator for '{self.name}' not available to complexify.")
-        raise pygloopException("Complexification of evaluators is not supported anymore.")
+            raise pygloopException(
+                f"Eager evaluator for '{self.name}' not available to complexify."
+            )
+        raise pygloopException(
+            "Complexification of evaluators is not supported anymore."
+        )
         # self.eager_evaluator.complexify(
         #     real_components=self.param_builder.get_real_components(),
         # )
@@ -527,14 +671,22 @@ class PygloopEvaluator(object):
             raise pygloopException(f"Eager evaluator for '{self.name}' not available.")
         return self.eager_evaluator
 
-    def get_compiled_evaluator(self) -> CompiledComplexEvaluator | CompiledRealEvaluator:
+    def get_compiled_evaluator(
+        self,
+    ) -> CompiledComplexEvaluator | CompiledRealEvaluator:
         if self.compiled_evaluator is None:
-            raise pygloopException(f"Compiled evaluator for '{self.name}' not available.")
+            raise pygloopException(
+                f"Compiled evaluator for '{self.name}' not available."
+            )
         return self.compiled_evaluator
 
-    def compile(self, out_dir: str, integrand_evaluator_compiler: str = "symbolica_only", **opts):
+    def compile(
+        self, out_dir: str, integrand_evaluator_compiler: str = "symbolica_only", **opts
+    ):
         if integrand_evaluator_compiler not in ["symbolica_only", "symjit"]:
-            raise pygloopException(f"Unsupported integrand evaluator compiler '{integrand_evaluator_compiler}' for '{self.name}'.")
+            raise pygloopException(
+                f"Unsupported integrand evaluator compiler '{integrand_evaluator_compiler}' for '{self.name}'."
+            )
 
         eager_evaluator = self.get_eager_evaluator()
         if integrand_evaluator_compiler == "symjit":
@@ -545,14 +697,23 @@ class PygloopEvaluator(object):
                     raise pygloopException(
                         f"Symjit is not available to compile evaluator for '{self.name}'. Please install symjit or use 'symbolica_only' compiler."
                     )
-                with open("/Users/vjhirsch/Documents/Work/pygloop/1loop_instructions.txt", "w") as f:
+                with open(
+                    "/Users/vjhirsch/Documents/Work/pygloop/1loop_instructions.txt", "w"
+                ) as f:
                     f.write(str(eager_evaluator.get_instructions()))
-                symjit_evaluator = symjit.compile_evaluator(eager_evaluator, dtype="complex128", use_threads=False, use_simd=True)
+                symjit_evaluator = symjit.compile_evaluator(
+                    eager_evaluator,
+                    dtype="complex128",
+                    use_threads=False,
+                    use_simd=True,
+                )
                 assert type(symjit_evaluator) is symjit.SymbolicaFunc, (
                     f"Expected symjit_evaluator to be of type SymbolicaFunc, got {type(symjit_evaluator)}"
                 )
                 self.symjit_evaluator = symjit_evaluator
-                logger.info(f"Compiling symjit evaluator for '{self.name}' to '{out_dir}'.")
+                logger.info(
+                    f"Compiling symjit evaluator for '{self.name}' to '{out_dir}'."
+                )
                 self.symjit_evaluator.save(os.path.join(out_dir, f"{self.name}.sjb"))
 
         pygloop_default_options = {
@@ -561,6 +722,30 @@ class PygloopEvaluator(object):
             "native": True,
         }
         pygloop_default_options.update(opts)
+        if sys.platform == "darwin":
+            pygloop_default_options.setdefault(
+                "compiler_path", os.environ.get("CXX", "clang++")
+            )
+            compiler_flags = list(pygloop_default_options.get("compiler_flags") or [])
+            if "-stdlib=libc++" not in compiler_flags:
+                compiler_flags.append("-stdlib=libc++")
+
+            sdk_root = os.environ.get("SDKROOT")
+            if sdk_root is None:
+                try:
+                    sdk_root = subprocess.run(
+                        ["xcrun", "--show-sdk-path"],
+                        check=True,
+                        capture_output=True,
+                        text=True,
+                    ).stdout.strip()
+                except Exception:
+                    sdk_root = None
+            if sdk_root:
+                has_isysroot = any(flag == "-isysroot" for flag in compiler_flags)
+                if not has_isysroot:
+                    compiler_flags.extend(["-isysroot", sdk_root])
+            pygloop_default_options["compiler_flags"] = compiler_flags
 
         logger.info(f"Compiling symbolica evaluator for '{self.name}' to '{out_dir}'.")
         self.compiled_evaluator = eager_evaluator.compile(
@@ -571,7 +756,12 @@ class PygloopEvaluator(object):
             **pygloop_default_options,
         )
 
-    def evaluate(self, eager: bool | None = None, prefer_symjit=False, check_phase_flag_consistency=False) -> NDArray[numpy.complex128]:
+    def evaluate(
+        self,
+        eager: bool | None = None,
+        prefer_symjit=False,
+        check_phase_flag_consistency=False,
+    ) -> NDArray[numpy.complex128]:
         inputs = self.param_builder.get_values(self.complexified)[None, :]
 
         if check_phase_flag_consistency:
@@ -592,7 +782,9 @@ class PygloopEvaluator(object):
             res = self._pairwise_to_complex(res, self.output_length)
             return res[0]
         else:
-            if self.compiled_evaluator is not None or (prefer_symjit and self.symjit_evaluator is not None):
+            if self.compiled_evaluator is not None or (
+                prefer_symjit and self.symjit_evaluator is not None
+            ):
                 if prefer_symjit and self.symjit_evaluator is not None:
                     res = self.symjit_evaluator.evaluate_complex(inputs)
                 else:
@@ -625,13 +817,61 @@ class IntegrationResult(object):
         elapsed_time: float = 0.0,
         max_wgt: float | None = None,
         max_wgt_point: list[float] | None = None,
+        max_wgt_jacobian: float | None = None,
+        max_wgt_momentum_point: str | None = None,
+        max_stable_wgt: float | None = None,
+        max_stable_wgt_point: list[float] | None = None,
+        max_stable_wgt_jacobian: float | None = None,
+        max_stable_wgt_momentum_point: str | None = None,
+        unstable_count: int = 0,
+        unstable_retry_count: int = 0,
+        unstable_salvaged_count: int = 0,
+        unstable_retry_example: list[float] | None = None,
+        unstable_retry_example_momentum_point: str | None = None,
+        unstable_retry_example_rel: float | None = None,
+        unstable_example: list[float] | None = None,
+        unstable_example_momentum_point: str | None = None,
+        large_weight_retry_count: int = 0,
+        large_weight_salvaged_count: int = 0,
+        large_weight_unstable_count: int = 0,
+        large_weight_retry_example: list[float] | None = None,
+        large_weight_retry_example_momentum_point: str | None = None,
+        large_weight_retry_example_compiled_wgt: float | None = None,
+        large_weight_retry_example_arb_wgt: float | None = None,
     ):
         self.n_samples = n_samples
         self.central_value = central_value
         self.error = error
         self.max_wgt = max_wgt
         self.max_wgt_point = max_wgt_point
+        self.max_wgt_jacobian = max_wgt_jacobian
+        self.max_wgt_momentum_point = max_wgt_momentum_point
+        self.max_stable_wgt = max_stable_wgt
+        self.max_stable_wgt_point = max_stable_wgt_point
+        self.max_stable_wgt_jacobian = max_stable_wgt_jacobian
+        self.max_stable_wgt_momentum_point = max_stable_wgt_momentum_point
         self.elapsed_time = elapsed_time
+        self.unstable_count = unstable_count
+        self.unstable_retry_count = unstable_retry_count
+        self.unstable_salvaged_count = unstable_salvaged_count
+        self.unstable_retry_example = unstable_retry_example
+        self.unstable_retry_example_momentum_point = (
+            unstable_retry_example_momentum_point
+        )
+        self.unstable_retry_example_rel = unstable_retry_example_rel
+        self.unstable_example = unstable_example
+        self.unstable_example_momentum_point = unstable_example_momentum_point
+        self.large_weight_retry_count = large_weight_retry_count
+        self.large_weight_salvaged_count = large_weight_salvaged_count
+        self.large_weight_unstable_count = large_weight_unstable_count
+        self.large_weight_retry_example = large_weight_retry_example
+        self.large_weight_retry_example_momentum_point = (
+            large_weight_retry_example_momentum_point
+        )
+        self.large_weight_retry_example_compiled_wgt = (
+            large_weight_retry_example_compiled_wgt
+        )
+        self.large_weight_retry_example_arb_wgt = large_weight_retry_example_arb_wgt
 
     def combine_with(self, other):
         """Combine self statistics with all those of another IntegrationResult object."""
@@ -639,15 +879,71 @@ class IntegrationResult(object):
         self.elapsed_time += other.elapsed_time
         self.central_value += other.central_value
         self.error += other.error
+        self.unstable_count += getattr(other, "unstable_count", 0)
+        self.unstable_retry_count += getattr(other, "unstable_retry_count", 0)
+        self.unstable_salvaged_count += getattr(other, "unstable_salvaged_count", 0)
+        self.large_weight_retry_count += getattr(other, "large_weight_retry_count", 0)
+        self.large_weight_salvaged_count += getattr(
+            other, "large_weight_salvaged_count", 0
+        )
+        self.large_weight_unstable_count += getattr(
+            other, "large_weight_unstable_count", 0
+        )
+        if self.unstable_retry_example is None:
+            self.unstable_retry_example = getattr(other, "unstable_retry_example", None)
+            self.unstable_retry_example_momentum_point = getattr(
+                other, "unstable_retry_example_momentum_point", None
+            )
+            self.unstable_retry_example_rel = getattr(
+                other, "unstable_retry_example_rel", None
+            )
+        if self.unstable_example is None:
+            self.unstable_example = getattr(other, "unstable_example", None)
+            self.unstable_example_momentum_point = getattr(
+                other, "unstable_example_momentum_point", None
+            )
+        if self.large_weight_retry_example is None:
+            self.large_weight_retry_example = getattr(
+                other, "large_weight_retry_example", None
+            )
+            self.large_weight_retry_example_momentum_point = getattr(
+                other, "large_weight_retry_example_momentum_point", None
+            )
+            self.large_weight_retry_example_compiled_wgt = getattr(
+                other, "large_weight_retry_example_compiled_wgt", None
+            )
+            self.large_weight_retry_example_arb_wgt = getattr(
+                other, "large_weight_retry_example_arb_wgt", None
+            )
         if other.max_wgt is not None:
-            if self.max_wgt is None or abs(self.max_wgt) > abs(other.max_wgt):
+            if self.max_wgt is None or abs(other.max_wgt) > abs(self.max_wgt):
                 self.max_wgt = other.max_wgt
                 self.max_wgt_point = other.max_wgt_point
+                self.max_wgt_jacobian = getattr(other, "max_wgt_jacobian", None)
+                self.max_wgt_momentum_point = getattr(
+                    other, "max_wgt_momentum_point", None
+                )
+        other_max_stable_wgt = getattr(other, "max_stable_wgt", None)
+        if other_max_stable_wgt is not None:
+            if (
+                self.max_stable_wgt is None
+                or other_max_stable_wgt > self.max_stable_wgt
+            ):
+                self.max_stable_wgt = other_max_stable_wgt
+                self.max_stable_wgt_point = getattr(other, "max_stable_wgt_point", None)
+                self.max_stable_wgt_jacobian = getattr(
+                    other, "max_stable_wgt_jacobian", None
+                )
+                self.max_stable_wgt_momentum_point = getattr(
+                    other, "max_stable_wgt_momentum_point", None
+                )
 
     def normalize(self):
         """Normalize the statistics."""
         self.central_value /= self.n_samples
-        self.error = math.sqrt(abs(self.error / self.n_samples - self.central_value**2) / self.n_samples)
+        self.error = math.sqrt(
+            abs(self.error / self.n_samples - self.central_value**2) / self.n_samples
+        )
 
     def str_report(self, target: float | None = None) -> str:
         if self.central_value == 0.0 or self.n_samples == 0:
@@ -658,11 +954,85 @@ class IntegrationResult(object):
             f"Integration result after {Colour.GREEN}{self.n_samples}{Colour.END} evaluations in {Colour.GREEN}{self.elapsed_time:.2f} CPU-s{Colour.END}"  # fmt: off
         ]
         if self.elapsed_time > 0.0:
-            report[-1] += f" {Colour.BLUE}({1.0e6 * self.elapsed_time / self.n_samples:.1f} µs / eval){Colour.END}"
+            report[-1] += (
+                f" {Colour.BLUE}({1.0e6 * self.elapsed_time / self.n_samples:.1f} µs / eval){Colour.END}"
+            )
 
-        # Also indicate max weight encountered if provided
+        report.append("Extremal weights:")
         if self.max_wgt is not None and self.max_wgt_point is not None:
-            report.append(f"Max weight encountered = {self.max_wgt:.5e} at xs = [{' '.join(f'{x:.16e}' for x in self.max_wgt_point)}]")  # fmt: off
+            line = (
+                f"  with jacobian    : {self.max_wgt:.5e}"
+                f" at xs = [{' '.join(f'{x:.16e}' for x in self.max_wgt_point)}]"
+            )
+            if self.max_wgt_jacobian is not None:
+                line += f" | jacobian = {self.max_wgt_jacobian:.5e}"
+            report.append(line)
+            if self.max_wgt_momentum_point is not None:
+                report.append(f"    momentum space  : {self.max_wgt_momentum_point}")
+        if self.max_stable_wgt is not None:
+            line = f"  without jacobian : {self.max_stable_wgt:.5e}"
+            if self.max_stable_wgt_point is not None:
+                line += f" at xs = [{' '.join(f'{x:.16e}' for x in self.max_stable_wgt_point)}]"
+            if self.max_stable_wgt_jacobian is not None:
+                line += f" | jacobian = {self.max_stable_wgt_jacobian:.5e}"
+            report.append(line)
+            if self.max_stable_wgt_momentum_point is not None:
+                report.append(
+                    f"    momentum space  : {self.max_stable_wgt_momentum_point}"
+                )
+        report.append(
+            f"Unstable rotational-check points rejected = {self.unstable_count}"
+        )
+        report.append(
+            f"Rotational-check high-precision retries = {self.unstable_retry_count}"
+        )
+        report.append(
+            f"Rotational-check high-precision salvaged = {self.unstable_salvaged_count}"
+        )
+        report.append(
+            f"Large-weight high-precision retries = {self.large_weight_retry_count}"
+        )
+        report.append(
+            f"Large-weight high-precision salvaged = {self.large_weight_salvaged_count}"
+        )
+        report.append(
+            f"Large-weight high-precision rejected = {self.large_weight_unstable_count}"
+        )
+        if self.unstable_retry_example is not None:
+            line = f"Example arb-retried xs = [{' '.join(f'{x:.16e}' for x in self.unstable_retry_example)}]"
+            if self.unstable_retry_example_rel is not None:
+                line += f" | float rel = {self.unstable_retry_example_rel:.5e}"
+            report.append(line)
+            if self.unstable_retry_example_momentum_point is not None:
+                report.append(
+                    f"    momentum space  : {self.unstable_retry_example_momentum_point}"
+                )
+        if self.large_weight_retry_example is not None:
+            line = (
+                "Example large-weight arb-retried xs = ["
+                + " ".join(f"{x:.16e}" for x in self.large_weight_retry_example)
+                + "]"
+            )
+            if self.large_weight_retry_example_compiled_wgt is not None:
+                line += (
+                    f" | compiled = {self.large_weight_retry_example_compiled_wgt:.5e}"
+                )
+            if self.large_weight_retry_example_arb_wgt is not None:
+                line += f" | arb = {self.large_weight_retry_example_arb_wgt:.5e}"
+            report.append(line)
+            if self.large_weight_retry_example_momentum_point is not None:
+                report.append(
+                    "    momentum space  : "
+                    f"{self.large_weight_retry_example_momentum_point}"
+                )
+        if self.unstable_example is not None:
+            report.append(
+                f"Example unstable xs = [{' '.join(f'{x:.16e}' for x in self.unstable_example)}]"
+            )
+            if self.unstable_example_momentum_point is not None:
+                report.append(
+                    f"    momentum space  : {self.unstable_example_momentum_point}"
+                )
 
         # Finally return information about current best estimate of the central value
         report.append(f"{Colour.GREEN}Central value{Colour.END} : {self.central_value:<+25.16e} +/- {self.error:<12.2e}")  # fmt: off
@@ -690,7 +1060,9 @@ class IntegrationResult(object):
         return "\n".join(f"| > {line}" for line in report)
 
 
-def write_text_with_dirs(path: str, content: str, mode: str = "w", encoding: str = "utf-8") -> None:
+def write_text_with_dirs(
+    path: str, content: str, mode: str = "w", encoding: str = "utf-8"
+) -> None:
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, mode, encoding=encoding) as handle:
         handle.write(content)
@@ -734,7 +1106,11 @@ class DotGraph(object):
 
     def get_internal_edges(self) -> list[Edge]:
         internal_nodes = [
-            n.get_name() for n in self.dot.get_nodes() if not any(marker in n.get_name() for marker in ["graph", "ext", "edge", "node"])
+            n.get_name()
+            for n in self.dot.get_nodes()
+            if not any(
+                marker in n.get_name() for marker in ["graph", "ext", "edge", "node"]
+            )
         ]
         external_edges = []
         for edge in self.dot.get_edges():
@@ -747,7 +1123,11 @@ class DotGraph(object):
 
     def get_external_edges(self) -> list[Edge]:
         internal_nodes = [
-            n.get_name() for n in self.dot.get_nodes() if not any(marker in n.get_name() for marker in ["graph", "ext", "edge", "node"])
+            n.get_name()
+            for n in self.dot.get_nodes()
+            if not any(
+                marker in n.get_name() for marker in ["graph", "ext", "edge", "node"]
+            )
         ]
         external_edges = []
         for edge in self.dot.get_edges():
@@ -784,10 +1164,15 @@ class DotGraph(object):
 
         return projector
 
-    def get_emr_replacements(self, head="gammalooprs::Q") -> list[tuple[Expression, Expression]]:
+    def get_emr_replacements(
+        self, head="gammalooprs::Q"
+    ) -> list[tuple[Expression, Expression]]:
         replacements = []
         for edge in self.dot.get_edges():
-            replacements.append((E(f"{head}({edge.get('id')},gammalooprs::a___)"), Es(edge.get("lmb_rep"))))
+            replacements.append((
+                E(f"{head}({edge.get('id')},gammalooprs::a___)"),
+                Es(edge.get("lmb_rep")),
+            ))
         return replacements
 
     def to_string(self) -> str:
@@ -799,7 +1184,9 @@ class DotGraphs(list):
         if dot_str is None and dot_path is None:
             return
         if dot_path is not None and dot_str is not None:
-            raise pygloopException("Only one of dot_str or dot_path should be provided.")
+            raise pygloopException(
+                "Only one of dot_str or dot_path should be provided."
+            )
 
         if dot_path:
             dot_graphs = pydot.graph_from_dot_file(dot_path)
