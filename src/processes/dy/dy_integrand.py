@@ -633,7 +633,7 @@ class EMRIntegrandConstructor(object):
         s_split_graphs_R, s_channel_edges_R = self.split_s_channels(graph_R)
 
         ## DEBUG: set numerator to 1
-        num = E("1")
+        # num = E("1")
         # print("NUMERATORRRRRRRR")
         # print(num)
 
@@ -776,6 +776,7 @@ class UltraVioletSubtraction(object):
             routing_items = E("0")
             for i in range(self.L + 1):
                 key = f"routing_k{i}"
+                e_atts = e.get_attributes()
                 if key in e_atts:
                     routing_items += E(f"{e_atts[key]}*k[{i}]")
             for i in range(0, 2):
@@ -785,7 +786,7 @@ class UltraVioletSubtraction(object):
 
             expanded_integrand = expanded_integrand.replace(E(f"k({j})"), routing_items)
 
-        return expanded_integrand
+        return -expanded_integrand
 
     def construct_uv_counter_terms(self):
         spinneys = self.enumerate_spinneys()
@@ -947,9 +948,13 @@ class ThresholdSubtractor(object):
                     + E(f"{e_atts['routing_p1']}*p(1)")
                     + E(f"{e_atts['routing_p2']}*p(2)")
                 )
+                k_sign = E(f"{e_atts['routing_k0']}*k(0)")
+
+        # for ttbar: careful of k0 sign
 
         print("collinear momentum")
         print(collinear_momentum)
+        print(k_sign)
 
         lmb_ids = threshold_ids[:-1] + [
             e.get_attributes()["id"] for e in threshold_graph.final_cut[:-1]
@@ -1091,8 +1096,11 @@ class ThresholdSubtractor(object):
         #
         # NEW: CUT THRESHOLD CUTTING REGION BY 4
 
+        print("collinear momentum")
+        print(collinear_momentum)
+
         theta1 = (
-            E(f"Θ(({self.sp3D(repl_kperp, repl_kperp)})-(x*(1-x))*Lambdasq/4)")
+            E(f"Θ(({self.sp3D(repl_kperp, repl_kperp)})-(x*(1-x))*Lambdasq/16)")
             .replace(x, repl_x)
             .replace(rexp, r.exp())
             .replace(r, (self.sp3D(E("k(0)"), E("k(0)")) ** E("1/2")).log())
@@ -1101,7 +1109,7 @@ class ThresholdSubtractor(object):
         )
         theta2 = (
             # E(f"Θ(({self.sp3D(repl_kperp, repl_kperp)})-(x*(1-x))*Lambdasq)")
-            E(f"Θ(({self.sp3D(repl_kperp, repl_kperp)})-(x*(1-x))*Lambdasq/4)")
+            E(f"Θ(({self.sp3D(repl_kperp, repl_kperp)})-(x*(1-x))*Lambdasq/16)")
             .replace(x, repl_x)
             .replace(rexp, r.exp())
             .replace(r, 2 * rstar - r)
@@ -1117,6 +1125,7 @@ class ThresholdSubtractor(object):
         print(theta2)
 
         hr = (
+            # (-((r - rstar) ** 2) - 1 / r**2 + 1 / rstar**2)
             (-((r - rstar) ** 2))
             .exp()
             .replace(r, (self.sp3D(E("k(0)"), E("k(0)")) ** E("1/2")).log())

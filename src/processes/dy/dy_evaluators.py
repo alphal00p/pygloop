@@ -183,8 +183,6 @@ class evaluate_integrand:
             self.symbols.append(E("z"))
 
         self.symbols.append(E("t"))
-        # MUV
-        self.symbols.append(E("mUV"))
 
         self.routed_integrand.integrand = self.concretise_scalar_products(
             self.routed_integrand.integrand
@@ -209,6 +207,9 @@ class evaluate_integrand:
         )
         self.routed_integrand.integrand = self.routed_integrand.integrand.replace(
             E("Lambdasq"), E(str(observable_params["Lambdasq"]))
+        )
+        self.routed_integrand.integrand = self.routed_integrand.integrand.replace(
+            E("mUV"), E(str(observable_params.get("mUV", 1.0)))
         )
 
         self.observable_params = observable_params
@@ -418,9 +419,6 @@ class evaluate_integrand:
         t_sol = self.set_t_value(k, p1, p2, z)
 
         param_list.append(t_sol)
-
-        # MUV
-        param_list.append(1)
 
         return param_list
 

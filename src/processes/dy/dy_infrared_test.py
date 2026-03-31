@@ -26,7 +26,7 @@ class approach_point(object):
                 deepcopy(rout),
                 800,
                 400,
-                {"zmin": 0.0, "zmax": 1.0, "Lambdasq": 0.5},
+                {"zmin": 0.0, "zmax": 1.0, "Lambdasq": 0.5, "mUV": 1.0},
             )
             for rout in routed_integrands
         ]
@@ -34,7 +34,7 @@ class approach_point(object):
     def approach(self, kcc, p1, p2, z, vp):
         kc_comps = []
 
-        for i in range(3, 5):
+        for i in range(1, 2):
             print("####################################################")
             print("####################################################")
             ks = [k + pow(10, -i) * vp for k in kcc]
@@ -60,7 +60,7 @@ class approach_point(object):
                     mode="arb",
                     decimal_digit_precision=64,
                 )
-                cut_value = cut_graph_evaluator.eval(ks, p1, p2, z)
+                # cut_value = cut_graph_evaluator.eval(ks, p1, p2, z)
                 cut_sum += cut_value
                 print(
                     f"\033[32m{cut_graph.cut_graph.graph.get_name()}, {cut_graph.approximation_type} : {cut_value}\033[0m"
@@ -80,7 +80,7 @@ class ultraviolet_test(object):
                 deepcopy(rout),
                 400,
                 800,
-                {"zmin": 0.0, "zmax": 1.0, "Lambdasq": 0.5},
+                {"zmin": 0.0, "zmax": 1.0, "Lambdasq": 0.5, "mUV": 1.0},
             )
             for rout in routed_integrands
         ]
@@ -93,7 +93,9 @@ class ultraviolet_test(object):
             ks.append([rndm.uniform(-sqrts_s, sqrts_s) for rr in range(0, 3)])
 
         for i in range(0, 4):
+            print("#" * 30)
             print("i-------------------------------")
+            print("#" * 30)
             ks = [np.array([0.1, 0.2, -0.3]) + pow(10, i) * vp]
             p1 = [0, 0, 1]
             p2 = [0, 0, -1]
@@ -104,7 +106,7 @@ class ultraviolet_test(object):
             ):
                 print("------------------------------")
                 print(ks)
-                cut_graph_evaluator.debug_printout(ks, p1, p2, z)
+                # cut_graph_evaluator.debug_printout(ks, p1, p2, z)
                 print(
                     f"\033[32m{cut_graph.cut_graph.graph.get_name()}, {cut_graph.approximation_type} : {pow(10, 3 * i) * cut_graph_evaluator.eval(ks, p1, p2, z)}\033[0m"
                 )
@@ -122,7 +124,7 @@ class infrared_test(object):
                 deepcopy(rout),
                 400,
                 800,
-                {"zmin": 0.0, "zmax": 1.0, "Lambdasq": 0.5},
+                {"zmin": 0.0, "zmax": 1.0, "Lambdasq": 0.5, "mUV": 1.0},
             )
             for rout in routed_integrands
         ]

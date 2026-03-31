@@ -121,7 +121,7 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
     parser.add_argument(
         "--dy-theta-tol",
         type=float,
-        default=1e-10,
+        default=0.0,
         help="DY only: theta support tolerance used in compiled and arbitrary-precision DY evaluation.",
     )
     parser.add_argument(

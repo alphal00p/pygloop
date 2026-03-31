@@ -358,7 +358,12 @@ class DY(object):
                 routed_integrands.extend(deepcopy(term_integrands))
 
                 # SMALL VALUE
-                observable_params = {"zmin": 0.0, "zmax": 1.00000, "Lambdasq": 1 / 5}
+                observable_params = {
+                    "zmin": 0.0,
+                    "zmax": 1.00000,
+                    "Lambdasq": 1 / 5,
+                    "mUV": 1,
+                }
 
                 # Build one evaluator per routed term
                 evaluators.extend(
@@ -399,16 +404,10 @@ class DY(object):
             #    ])
             # ]
             z = 1.8597665672940293e00
-            ks = [
-                np.array([
-                    1.2868810592985968e-04,
-                    8.8190370958056761e-05,
-                    7.2628209786607136e-08,
-                ])
-            ]
+            ks = [np.array([0.0, 0.0, 0.0])]
             # vp = np.array([1, 0.01, 0.001])
             # vp = np.array([0, 1, 0.001])
-            vp = np.array([0, 0, 0])
+            vp = np.array([0, 1, 1])
             p1 = np.array([0, 0, 1])
             p2 = np.array([0, 0, -1])
             approach_limit.approach(ks, p1, p2, z, vp)
@@ -1042,7 +1041,7 @@ class DY(object):
             m_uv = float(integrand_implementation.get("mUV", m_uv))
         evaluation_mode = "compiled"
         decimal_digit_precision = None
-        theta_tolerance = 1.0e-10
+        theta_tolerance = 0.0
         if integrand_implementation is not None:
             evaluation_mode = str(
                 integrand_implementation.get("dy_evaluation_mode", evaluation_mode)
@@ -1609,7 +1608,7 @@ class DY(object):
 
             # Learning rate is 1.5
             avg, err, _chi_sq = integrator.update(
-                continuous_learning_rate=0.5, discrete_learning_rate=0.5
+                continuous_learning_rate=1.0, discrete_learning_rate=1.0
             )  # type: ignore
             integration_result.central_value = avg
             integration_result.error = err
