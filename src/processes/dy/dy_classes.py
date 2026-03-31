@@ -434,6 +434,15 @@ class VacuumDotGraph:
         self, graph: pydot.Dot, partition: list[list[pydot.Edge]]
     ) -> bool:
         edges = graph.get_edges()
+        routing_k_keys = sorted(
+            {
+                key
+                for edge in edges
+                for key in edge.get_attributes()
+                if key.startswith("routing_k")
+            },
+            key=lambda key: int(key.removeprefix("routing_k")),
+        )
         nodes = []
         for e in edges:
             nodes.append(_node_key(e.get_source()))
@@ -445,38 +454,44 @@ class VacuumDotGraph:
 
         for v in nodes:
             bdry = boundary_edges(graph, {v})
-            sum_mom_k = 0
+            sum_mom_k = {key: 0 for key in routing_k_keys}
             sum_mom_p1 = 0
             sum_mom_p2 = 0
             for e in bdry:
                 for ep in edges:
                     if ep.get_attributes()["id"] == e.get_attributes()["id"]:
                         sigma = 1 if _node_key(ep.get_source()) == v else -1
-                        sum_mom_k += (
-                            sp.Rational(ep.get_attributes()["routing_k0"]) * sigma
-                        )
+                        for key in routing_k_keys:
+                            sum_mom_k[key] += (
+                                sp.Rational(ep.get_attributes().get(key, "0")) * sigma
+                            )
                         sum_mom_p1 += (
                             sp.Rational(ep.get_attributes()["routing_p1"]) * sigma
                         )
                         sum_mom_p2 += (
                             sp.Rational(ep.get_attributes()["routing_p2"]) * sigma
                         )
-            if sum_mom_k != 0 or sum_mom_p1 != 0 or sum_mom_p2 != 0:
+            if (
+                any(sum_mom_k[key] != 0 for key in routing_k_keys)
+                or sum_mom_p1 != 0
+                or sum_mom_p2 != 0
+            ):
                 print(
                     f"Error at node {v}: sum_mom_k={sum_mom_k}, sum_mom_p1={sum_mom_p1}, sum_mom_p2={sum_mom_p2}"
                 )
-                return False
+                raise ValueError("error")
 
         for i in range(0, 1):
-            sum_k = 0
+            sum_k = {key: 0 for key in routing_k_keys}
             sum_p1 = 0
             sum_p2 = 0
             for e in partition[i]:
                 for ep in edges:
                     if ep.get_attributes()["id"] == e.get_attributes()["id"]:
-                        sum_k += sp.Rational(
-                            ep.get_attributes()["routing_k0"]
-                        ) * sp.Rational(ep.get_attributes()["is_cut"])
+                        for key in routing_k_keys:
+                            sum_k[key] += sp.Rational(
+                                ep.get_attributes().get(key, "0")
+                            ) * sp.Rational(ep.get_attributes()["is_cut"])
                         sum_p1 += sp.Rational(
                             ep.get_attributes()["routing_p1"]
                         ) * sp.Rational(ep.get_attributes()["is_cut"])
@@ -484,14 +499,14 @@ class VacuumDotGraph:
                             ep.get_attributes()["routing_p2"]
                         ) * sp.Rational(ep.get_attributes()["is_cut"])
             if (
-                sum_k != 0
+                any(sum_k[key] != 0 for key in routing_k_keys)
                 or sum_p1 != (1 if i == 0 else 0)
                 or sum_p2 != (1 if i == 1 else 0)
             ):
                 print(
                     f"Error at partition {i}: sum_k={sum_k}, sum_p1={sum_p1}, sum_p2={sum_p2}"
                 )
-                return False
+                raise ValueError("error")
 
         return True
 
@@ -528,6 +543,9 @@ class VacuumDotGraph:
                     and connected_components
                     and labelled_graph[0]
                 ):
+                    print("here's one **************")
+                    for e in final_cut:
+                        print(e)
                     graph = labelled_graph[1]
 
                     all_pair_list = all_pairs(initial_cut)
@@ -589,7 +607,8 @@ class VacuumDotGraph:
                     and all_loop_zero
                     # and sp.Rational(e.get_attributes()["routing_k0"]) == 0
                     and sp.Rational(e.get_attributes()["routing_p2"]) == 0
-                    and _strip_quotes(e.get_attributes().get("particle", "")) != "a"
+                    and _strip_quotes(e.get_attributes().get("particle", ""))
+                    not in {"a", "t", "t~"}
                 ):
                     count_p1 = True
                 elif (
@@ -597,7 +616,8 @@ class VacuumDotGraph:
                     and all_loop_zero
                     # and sp.Rational(e.get_attributes()["routing_k0"]) == 0
                     and sp.Rational(e.get_attributes()["routing_p1"]) == 0
-                    and _strip_quotes(e.get_attributes().get("particle", "")) != "a"
+                    and _strip_quotes(e.get_attributes().get("particle", ""))
+                    not in {"a", "t", "t~"}
                 ):
                     count_p2 = True
             if count_p1 and count_p2:
@@ -740,6 +760,8 @@ class DYDotGraph(DotGraph):
                         remove_edge_attr(self.edge_fusion(e, ep), "lmb_rep")
                     )
                     paired_up.append(ep)
+                    # BEYOND DY CHANGE
+                    break
 
         # NEW STUFF: RELABEL SO THAT IDs ARE CONSECUTIVE
         substitutions = []
@@ -882,10 +904,11 @@ class DYDotGraphs(DotGraphs):
                     if particle not in ["d", "d~", "g"]:
                         massive_in_cut.append(particle)
 
-                if massive_in_cut == final_particles:
+                # brittle if there are copies of the same particle in the final state
+                if len(set(final_particles) - set(massive_in_cut)) == 0:
                     new_graphs.append(graph)
 
-        return new_graphs
+        return list(set(new_graphs))
 
     def save_to_file(self, file_path: str):
         write_text_with_dirs(file_path, "\n\n".join([g.to_string() for g in self]))

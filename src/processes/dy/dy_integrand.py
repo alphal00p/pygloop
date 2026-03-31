@@ -661,25 +661,23 @@ class UltraVioletSubtraction(object):
         cycles = get_simple_cycles(self.cut_graph.graph)
 
         cut_edges = set(self.cut_graph.initial_cut).union(set(self.cut_graph.final_cut))
-        visited_nodes = set()
         divergent_cycles = []
 
         for cycle in cycles:
             cut_cycle_edges = set(cycle).intersection(cut_edges)
             if len(cut_cycle_edges) == 0:  ## FIX: SHOULD BE == 0
                 dod = 0
+                visited_nodes = set()
 
                 for e in cycle:
                     e_atts = e.get_attributes()
-                    e_src = e.get_source()
-                    e_dest = e.get_destination()
                     dod += int(_strip_quotes(str(e_atts["dod"])))
-                    visited_nodes.add(e_src)
-                    visited_nodes.add(e_dest)
+                    visited_nodes.add(_node_key(e.get_source()))
+                    visited_nodes.add(_node_key(e.get_destination()))
 
                 for v in self.cut_graph.graph.get_nodes():
                     v_atts = v.get_attributes()
-                    if v in visited_nodes:
+                    if _node_key(v.get_name()) in visited_nodes:
                         dod += int(_strip_quotes(str(v_atts["dod"])))
 
                 if dod + 4 >= 0:
@@ -728,7 +726,10 @@ class UltraVioletSubtraction(object):
         lam = S("λ", is_scalar=True)
         mUV = E("mUV")
 
-        uv_loop_momentum = next(iter(cycle))
+        # uv_loop_momentum = next(iter(cycle))
+        uv_loop_momentum = min(
+            cycle, key=lambda e: int(_strip_quotes(str(e.get_attributes()["id"])))
+        )
         lmb = [uv_loop_momentum] + self.cut_graph.final_cut[:-1]
 
         lmb_id = []

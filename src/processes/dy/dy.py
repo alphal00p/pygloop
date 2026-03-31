@@ -323,6 +323,50 @@ class DY(object):
             "spenso::gamma(spenso::bis(4,gammalooprs::hedge(0)),spenso::bis(4,gammalooprs::hedge(2)),spenso::mink(4,mu))*gammalooprs::Q(0,spenso::mink(4,mu))*spenso::gamma(spenso::bis(4,gammalooprs::hedge(3)),spenso::bis(4,gammalooprs::hedge(1)),spenso::mink(4,nu))*gammalooprs::Q(1,spenso::mink(4,nu))"
         )
 
+    #    def process_1L_generated_graphs(self, graphs: DYDotGraphs) -> DYDotGraphs:
+    #        processed_graphs = DYDotGraphs()
+    #
+    #        filtered_graphs = DYDotGraphs()
+    #        filtered_graphs.extend(
+    #            copy.deepcopy(graphs.filter_particle_definition(["t", "t~"]))
+    #        )
+    #        filtered_graphs.extend(
+    #            copy.deepcopy(graphs.filter_particle_definition(["t", "t"]))
+    #        )
+    #        filtered_graphs.extend(
+    #            copy.deepcopy(graphs.filter_particle_definition(["t~", "t~"]))
+    #        )
+    #
+    #        print("filtered graphs: ", len(graphs.filter_particle_definition(["t", "t~"])))
+    #
+    #        processor = EMRIntegrandConstructor([], "DY", 1)
+    #        loop_processor = LoopIntegrandConstructor([], "DY", 1)
+    #
+    #        for graph in filtered_graphs:
+    #            g = copy.deepcopy(graph)
+    #            print("generator graph")
+    #            print(g.dot)
+    #            vacuum_g = g.get_vacuum_graph()
+    #            print("vacuum graph")
+    #            print(vacuum_g.dot)
+    #            _cuts = vacuum_g.get_cutkosky_cuts()
+    #            routed_graphs = vacuum_g.cut_graphs_with_routing_leading_virtuality(
+    #                [], ["t", "t~"]
+    #            )
+    #            routed_graphs.extend(
+    #                vacuum_g.cut_graphs_with_routing_leading_virtuality([], ["t", "t"])
+    #            )
+    #            routed_graphs.extend(
+    #                vacuum_g.cut_graphs_with_routing_leading_virtuality([], ["t~", "t~"])
+    #            )
+    #
+    #            for gg in routed_graphs:
+    #                # print(gg[3])
+    #                processed_graphs.append(gg[3])
+    #
+    #        print("n routed:", len(processed_graphs))
+    #        return processed_graphs
+
     def process_1L_generated_graphs(self, graphs: DYDotGraphs) -> DYDotGraphs:
         processed_graphs = DYDotGraphs()
 
@@ -345,6 +389,7 @@ class DY(object):
             )
             routed_integrands = []
             evaluators = []
+
             for gg in routed_graphs:
                 # print(gg[3])
                 processed_graphs.append(gg[3])
@@ -361,7 +406,7 @@ class DY(object):
                 observable_params = {
                     "zmin": 0.0,
                     "zmax": 1.00000,
-                    "Lambdasq": 1 / 5,
+                    "Lambdasq": 2,
                     "mUV": 1,
                 }
 
@@ -380,20 +425,15 @@ class DY(object):
 
             approach_limit = approach_point(1, "DY", routed_integrands)
             print("##################")
-            z = 0.6
-            ks = [math.sqrt(z) * np.array([0, 1 / math.sqrt(2), 1 / math.sqrt(2)])]
-            ks = [
-                math.sqrt(z)
-                * np.array([1 / math.sqrt(3), 1 / math.sqrt(3), 1 / math.sqrt(3)])
-            ]
-            z = 1.2394214875112748e-01
-            ks = [
-                np.array([
-                    0.0,
-                    0.0,
-                    0.0,
-                ])
-            ]
+            # ks = [math.sqrt(z) * np.array([0, 1 / math.sqrt(2), 1 / math.sqrt(2)])]
+            # z = 1.2394214875112748e-01
+            # ks = [
+            #    np.array([
+            #        0.0,
+            #        0.0,
+            #        0.0,
+            #    ])
+            # ]
             # z = 1.0
             # ks = [
             #    math.sqrt(z)
@@ -403,11 +443,16 @@ class DY(object):
             #        -1.0,
             #    ])
             # ]
-            z = 1.8597665672940293e00
-            ks = [np.array([0.0, 0.0, 0.0])]
+            # z = 1.8597665672940293e00
+            # ks = [np.array([0.0, 0.0, 0.0])]
             # vp = np.array([1, 0.01, 0.001])
             # vp = np.array([0, 1, 0.001])
-            vp = np.array([0, 1, 1])
+            z = 0.6
+            ks = [
+                math.sqrt(z)
+                * np.array([1 / math.sqrt(3), 1 / math.sqrt(3), -1 / math.sqrt(3)])
+            ]
+            vp = 0 * np.array([0, 1, 1])
             p1 = np.array([0, 0, 1])
             p2 = np.array([0, 0, -1])
             approach_limit.approach(ks, p1, p2, z, vp)
@@ -459,8 +504,20 @@ class DY(object):
                     f"generate amp d d~ > d d~ | d d~ g a QED==2 [{{1}}] --only-diagrams --numerator-grouping only_detect_zeroes --select-graphs GL02 -p {base_name} -i {graphs_process_name}"
                 )
 
+                # self.gl_worker.run(  # GL09 - xbox GL02 - virtual triangle GL17 - box
+                #    f"generate xs d d~ > a | d d~ g a QED^2==2 [{{1}} QCD=1] --only-diagrams --numerator-grouping only_detect_zeroes -p {base_name} -i {graphs_process_name}"
+                # )
+
                 # self.gl_worker.run(  ## GL04 - box GL10 - triangle GL11 - bubble
                 #    f"generate amp d g > d g | d d~ g a QED==2 [{{1}}] --only-diagrams --numerator-grouping only_detect_zeroes --select-graphs GL04 -p {base_name} -i {graphs_process_name}"  #
+                # )
+
+                # self.gl_worker.run(
+                #    f"generate amp g g > g g | g t t~ QED==0 [{{1}}] --only-diagrams --numerator-grouping only_detect_zeroes -p {base_name} -i {graphs_process_name}"  #
+                # )
+
+                # self.gl_worker.run(
+                #    f"generate amp g g > g g | g t t~ QED==0 [{{2}}] --only-diagrams --numerator-grouping only_detect_zeroes -p {base_name} -i {graphs_process_name}"  #
                 # )
                 self.gl_worker.run("save state -o")
                 DY_1L_dot_files = self.gl_worker.get_dot_files(
