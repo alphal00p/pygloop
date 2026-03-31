@@ -6,12 +6,20 @@ from itertools import product
 
 import numpy as np
 import pydot
-from gammaloop import (  # iso\rt: skip # type: ignore # noqa: F401
+
+from gammaloop import (  # isort: skip # type: ignore # noqa: F401
     GammaLoopAPI,
     LogLevel,
     evaluate_graph_overall_factor,
-    git_version,
 )
+
+try:
+    from gammaloop import git_version  # isort: skip # type: ignore # noqa: F401
+except ImportError:
+    try:
+        from gammaloop import __version__ as git_version  # isort: skip # type: ignore # noqa: F401
+    except ImportError:
+        git_version = "unknown"
 from numpy.ma.core import make_mask_descr
 from symbolica import AtomType, E, Expression, S  # pyright: ignore
 from symbolica.community.idenso import (  # pyright: ignore

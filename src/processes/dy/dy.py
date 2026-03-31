@@ -18,9 +18,19 @@ import numpy as np
 import progressbar  # pyright: ignore
 import vegas  # type: ignore
 
-# fmt: off
-from gammaloop import ( GammaLoopAPI, LogLevel, evaluate_graph_overall_factor, git_version )  # isort: skip # type: ignore # noqa: F401
-# fmt: on
+from gammaloop import (  # isort: skip # type: ignore # noqa: F401
+    GammaLoopAPI,
+    LogLevel,
+    evaluate_graph_overall_factor,
+)
+
+try:
+    from gammaloop import git_version  # isort: skip # type: ignore # noqa: F401
+except ImportError:
+    try:
+        from gammaloop import __version__ as git_version  # isort: skip # type: ignore # noqa: F401
+    except ImportError:
+        git_version = "unknown"
 from matplotlib.typing import CapStyleType, ColorType  # noqa: F401 # pyright: ignore
 from symbolica import E, Expression, NumericalIntegrator, Sample  # pyright: ignore
 from symbolica.community.idenso import (  # noqa: F401 # pyright: ignore
