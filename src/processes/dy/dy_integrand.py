@@ -105,8 +105,8 @@ class EMRIntegrandConstructor(object):
         self.name = name
         self.gl_worker = GammaLoopAPI(
             pjoin(PYGLOOP_FOLDER, "outputs", "gammaloop_states", self.name),
-            log_file_name=self.name,
-            log_level=gl_log_level,
+            # log_file_name=self.name,
+            # log_level=gl_log_level,
         )
         # GAMMALOOP_STATE_FOLDER
         self.gl_worker.run("import model sm-default.json")
@@ -115,6 +115,7 @@ class EMRIntegrandConstructor(object):
 
     def get_numerator(self, graph) -> Expression:
         num = E("1")
+        symmetry_factor = Es(graph.get("overall_factor_evaluated"))
         for node in graph.get_nodes():
             if node.get_name() not in ["edge", "node"]:
                 n_num = node.get("num")
@@ -129,7 +130,7 @@ class EMRIntegrandConstructor(object):
             E("Q(y_,mink(4,x_))") * E("Q(z_,mink(4,x_))"), E("sp(y_,z_)"), repeat=True
         )
 
-        return out
+        return symmetry_factor * out
 
     # Get cff of a graph; the dependence on subgraph_as_nodes and reversed_edge_flows_ids
     # is explicit but is not used for the rest of the code. All graphs are amplitude graphs now.
@@ -241,7 +242,7 @@ class EMRIntegrandConstructor(object):
             e_atts.pop("dir_in_cycle", None)
 
     # The following function takes a cut graph and gives out the two amplitude graphs which, glued together
-    # give back the original cut graph. In order to do so it has to check if edges of the cut_graph are contained
+    # give back the origi   q   nal cut graph. In order to do so it has to check if edges of the cut_graph are contained
     # in one or the other graph, if they are "externals", or if they are spectators.
     # Edge ids are normalised to that they go from 0,...,M
 
@@ -276,9 +277,9 @@ class EMRIntegrandConstructor(object):
                 src_key = _node_key(e.get_source())
                 dest_key = _node_key(e.get_destination())
                 if src_key not in comps[i] and dest_key not in comps[i]:
-                    new_graphs[i].del_edge(src, dest, e_atts["id"])
+                    new_graphs[i].del_edge(src, dest, int(e_atts["id"]))
                 elif src_key in comps[i] and dest_key not in comps[i]:
-                    new_graphs[i].del_edge(src, dest, e_atts["id"])
+                    new_graphs[i].del_edge(src, dest, int(e_atts["id"]))
                     new_atts = deepcopy(e_atts)
                     new_atts["id"] = tot_e + counter - 1
                     new_graphs[i].add_edge(
@@ -294,7 +295,7 @@ class EMRIntegrandConstructor(object):
 
                     counter += 1
                 elif dest_key in comps[i] and src_key not in comps[i]:
-                    new_graphs[i].del_edge(src, dest, e_atts["id"])
+                    new_graphs[i].del_edge(src, dest, int(e_atts["id"]))
                     new_atts = deepcopy(e_atts)
                     new_atts["id"] = tot_e + counter - 1
                     new_graphs[i].add_edge(
@@ -314,7 +315,7 @@ class EMRIntegrandConstructor(object):
                     and e_atts.get("is_cut_DY", None) is not None
                     and not (dest_key.startswith("ext") or src_key.startswith("ext"))
                 ):
-                    new_graphs[i].del_edge(src, dest, e_atts["id"])
+                    new_graphs[i].del_edge(src, dest, int(e_atts["id"]))
                     new_atts1 = deepcopy(e_atts)
                     new_atts1["id"] = tot_e + counter - 1
                     new_graphs[i].add_edge(
@@ -342,7 +343,7 @@ class EMRIntegrandConstructor(object):
                     ])
                     counter += 1
                 else:
-                    new_graphs[i].del_edge(src, dest, e_atts["id"])
+                    new_graphs[i].del_edge(src, dest, int(e_atts["id"]))
                     new_atts1 = deepcopy(e_atts)
                     new_atts1["id"] = tot_e + counter - 1
                     new_graphs[i].add_edge(pydot.Edge(src, dest, **new_atts1))
@@ -466,12 +467,6 @@ class EMRIntegrandConstructor(object):
 
         edges_to_reverse = []
 
-        print("s-channel info")
-        print(len(split_graphs_gt2_non_ext))
-        print("-----")
-        for e in s_channel_edges:
-            print(e)
-
         for n_graph, g in enumerate(split_graphs_gt2_non_ext):
             cff_g = self.get_CFF(g.graph, [], [])
             new_cff = E("0")
@@ -482,7 +477,9 @@ class EMRIntegrandConstructor(object):
                 edges_to_reverse = []
                 for o, i in zip(cffterm.orientation, range(len(cffterm.orientation))):
                     id_in_original_graph = g_rep[i][1]
-                    this_e_atts = cut_g_edges[id_in_original_graph].get_attributes()
+                    this_e_atts = cut_g_edges[
+                        int(id_in_original_graph)
+                    ].get_attributes()
                     if o.is_reversed():
                         cff_term = cff_term.replace(
                             E(f"sigma({id_in_original_graph})"), E("-1")
@@ -626,12 +623,27 @@ class EMRIntegrandConstructor(object):
 
     # Use all the previous functions to get the cff for the cut graph
 
+    def _normalise_global_i(self, num: Expression):
+        num = E(str(num.expand()))
+        if "𝑖" not in num.format_plain():
+            return num
+
+        candidate = E(str((num / E("1i")).expand()))
+        if "𝑖" not in candidate.format_plain():
+            return candidate
+
+        return num
+
     def get_integrand(self, cut_graph: routed_cut_graph, get_residues=False):
 
         # Derives numerator, eliminates useless labels, get left and right graphs and further
         # splits them if they have s-channel propagators.
 
         num = self.get_numerator(cut_graph.graph)
+
+        # num = self._normalise_global_i(num)
+
+        num = num.replace(E("Q(x_,y_)^2"), E("sp(x_,x_)"))  # * E("1i")
 
         self.normalise_graph(cut_graph.graph)
 
@@ -642,8 +654,8 @@ class EMRIntegrandConstructor(object):
 
         ## DEBUG: set numerator to 1
         # num = E("1")
-        # print("NUMERATORRRRRRRR")
-        # print(num)
+        print("NUMERATORRRRRRRR")
+        print(num)
 
         cut_graph_cff = self.get_cff(
             cut_graph,
@@ -825,16 +837,11 @@ class ThresholdSubtractor(object):
         filtered_e_surf = []
 
         for esurf, residue in self.residues:
-            print("~~~~~~~~~")
-            print(esurf)
-
             if not esurf.is_type(AtomType.Add):
                 raise ValueError(
                     "problem: single energy e-surface in threshold approximator"
                 )
             energy_ids = list(esurf)
-
-            print(energy_ids)
 
             energy_ids = [
                 en.replace(E("-E(x___)"), E("x___")).replace(E("E(x___)"), E("x___"))
@@ -845,20 +852,20 @@ class ThresholdSubtractor(object):
             negative_ids = []
             for e in self.routed_cut_graph.graph.get_edges():
                 e_atts = e.get_attributes()
-                if e_atts["id"] in energy_ids and e_atts.get("is_cut_DY") is not None:
+                if (
+                    int(e_atts["id"]) in energy_ids
+                    and e_atts.get("is_cut_DY") is not None
+                ):
                     positive_ids.append(e_atts["id"])
-                elif e_atts["id"] in energy_ids and e_atts.get("is_cut_DY") is None:
+                elif (
+                    int(e_atts["id"]) in energy_ids and e_atts.get("is_cut_DY") is None
+                ):
                     negative_ids.append(e_atts["id"])
-
-            print("pos/neg ids")
-            print(positive_ids)
-            print(negative_ids)
 
             external_momentum = [0, 0]
             for e in self.routed_cut_graph.graph.get_edges():
                 e_atts = e.get_attributes()
                 if e_atts["id"] in positive_ids:
-                    print(e)
                     external_momentum[0] += (
                         int(e_atts["routing_p1"]) * e_atts["is_cut_DY"]
                     )
@@ -871,9 +878,6 @@ class ThresholdSubtractor(object):
                 and external_momentum[0] == external_momentum[1]
                 and len(negative_ids) > 1
             ):
-                print("--------------------")
-                print(external_momentum[0])
-                print(external_momentum[1])
                 filtered_e_surf.append((negative_ids, esurf, residue))
 
         return filtered_e_surf
@@ -943,10 +947,6 @@ class ThresholdSubtractor(object):
         self, emr_residue_integrand, threshold_graph, threshold_ids
     ):
 
-        print("ids")
-        print(threshold_ids)
-        print([e.get_attributes()["id"] for e in threshold_graph.final_cut[:-1]])
-
         collinear_momentum = E("0")
 
         for e in threshold_graph.graph.get_edges():
@@ -960,10 +960,6 @@ class ThresholdSubtractor(object):
                 k_sign = E(f"{e_atts['routing_k0']}*k(0)")
 
         # for ttbar: careful of k0 sign
-
-        print("collinear momentum")
-        print(collinear_momentum)
-        print(k_sign)
 
         lmb_ids = threshold_ids[:-1] + [
             e.get_attributes()["id"] for e in threshold_graph.final_cut[:-1]
@@ -1105,9 +1101,6 @@ class ThresholdSubtractor(object):
         #
         # NEW: CUT THRESHOLD CUTTING REGION BY 4
 
-        print("collinear momentum")
-        print(collinear_momentum)
-
         theta1 = (
             E(f"Θ(({self.sp3D(repl_kperp, repl_kperp)})-(x*(1-x))*Lambdasq/16)")
             .replace(x, repl_x)
@@ -1129,9 +1122,6 @@ class ThresholdSubtractor(object):
                 E("s"), 4 * (E("p(1,1)") ** 2 + E("p(1,2)") ** 2 + E("p(1,3)") ** 2)
             )
         )
-
-        print(theta1)
-        print(theta2)
 
         hr = (
             # (-((r - rstar) ** 2) - 1 / r**2 + 1 / rstar**2)
@@ -1192,9 +1182,6 @@ class ThresholdSubtractor(object):
         filtered_e_surfs = self.filter_e_surfaces()
         threshold_cts = []
 
-        print("filtered e surfs")
-        print(filtered_e_surfs)
-
         for thresh_ids, e_surf, residue in filtered_e_surfs:
             if len(thresh_ids) > 2:
                 raise ValueError("not ready for two-loop threshold subtraction yet...")
@@ -1244,9 +1231,6 @@ class Approximator(object):
 
         integrand = integrand.series(lam, 0, -2).to_expression().replace(lam, 1)
 
-        print("collinear parametrised integrand")
-        print(integrand)
-
         # Invert back the collinear parametrisation. Since s*q(i)= x*p(1)+lam*k_perp(j), we have
         # x=s*q(i).p(1)/p(1).p(1)
 
@@ -1272,10 +1256,6 @@ class Approximator(object):
         repl = k_id[1] * (-(momentum[0] - k_id[1] * E(f"k({k_id[0]})"))) + k_id[
             1
         ] * lam * E("qsoft")
-
-        print("replacement")
-        print(momentum)
-        print(repl)
 
         integrand = integrand.replace(E(f"k({k_id[0]})"), repl)
 
@@ -1497,17 +1477,11 @@ class LoopIntegrandConstructor(object):
 
             integrand = self.route_integrand(integrand, cut_graph)
 
-            # print("integrand before")
-            # print(integrand)
-
             integrand, repl, repl_x, repl_kperp = (
                 self.approximator.collinear_approximation(
                     integrand, momentum, k_id, E("p(1)")
                 )
             )
-
-            # print("integrand after")
-            # print(integrand)
 
             thetaLambdasq = E(
                 f"Θ(Lambdasq-({self.sp3D(repl_kperp, repl_kperp)})/(x*(1-x)))"
@@ -1690,9 +1664,6 @@ class LoopIntegrandConstructor(object):
             integrand = integrand.replace(E("p2sq"), E("0"))
             integrand = self.route_integrand(integrand, cut_graph)
 
-            print("unapproximated integranddddddd", ".." * 30)
-            print(integrand)
-
             # Factor of 1/s for soft and soft-collinear for virtual DY diagram
 
             factor = 1
@@ -1703,9 +1674,6 @@ class LoopIntegrandConstructor(object):
                 deepcopy(integrand), deepcopy(momentum), deepcopy(k_id)
             )
 
-            print("soft integranddddddd", ".." * 30)
-            print(soft_integrand)
-
             soft_collinear_integrand1, repl1, repl1_x, repl_kperp1 = (
                 self.approximator.collinear_approximation(
                     deepcopy(soft_integrand),
@@ -1715,9 +1683,6 @@ class LoopIntegrandConstructor(object):
                 )
             )
 
-            print("soft-collinear 1 integranddddddd", ".." * 30)
-            print(soft_collinear_integrand1)
-
             soft_collinear_integrand2, repl2, repl2_x, repl_kperp2 = (
                 self.approximator.collinear_approximation(
                     deepcopy(soft_integrand),
@@ -1726,14 +1691,6 @@ class LoopIntegrandConstructor(object):
                     E("p(2)"),
                 )
             )
-
-            print("soft-collinear 2  integranddddddd", ".." * 30)
-            print(soft_collinear_integrand2)
-
-            print("replacements")
-            print(repl_s)
-            print(repl1_x)
-            print(repl2_x)
 
             # TODO: Lambdasq theta functions
 
@@ -1754,8 +1711,6 @@ class LoopIntegrandConstructor(object):
             )
 
             thetaSoft = E(f"Θ(Lambdasq-{propsoft1})") * E(f"Θ(Lambdasq-{propsoft2})")
-            print("soft theta function")
-            print(thetaSoft.expand())
 
             routed_integrand_soft = RoutedIntegrand(
                 -factor * soft_integrand * thetaSoft,
@@ -1784,9 +1739,6 @@ class LoopIntegrandConstructor(object):
                 # * E(f"Θ(1-{repl1_x})")
             )
 
-            print("soft collinear theta 1")
-            print(thetacollinear1)
-
             routed_integrand_collinear1 = RoutedIntegrand(
                 factor * soft_collinear_integrand1 * thetacollinear1,
                 cut_graph,
@@ -1814,9 +1766,6 @@ class LoopIntegrandConstructor(object):
                 * E(f"Θ({repl2_x})")
                 # * E(f"Θ(1-{repl2_x})")
             )
-
-            print("soft collinear theta 2")
-            print(thetacollinear2)
 
             routed_integrand_collinear2 = RoutedIntegrand(
                 factor * soft_collinear_integrand2 * thetacollinear2,
@@ -1869,22 +1818,46 @@ class LoopIntegrandConstructor(object):
         initial_cut_ids = [e.get_attributes()["id"] for e in cut_graph.initial_cut]
         final_cut_ids = [e.get_attributes()["id"] for e in cut_graph.final_cut]
 
-        photon_id = [
-            e.get_attributes()["id"]
-            for e in cut_graph.final_cut
-            if _strip_quotes(str(e.get_attributes()["particle"])) == "a"
-        ]
+        if self.name == "DY":
+            photon_id = [
+                e.get_attributes()["id"]
+                for e in cut_graph.final_cut
+                if _strip_quotes(str(e.get_attributes()["particle"])) == "a"
+            ]
 
-        if len(photon_id) != 1:
-            raise ValueError("problem with final state gamma in raised cut treatment")
+            if len(photon_id) != 1:
+                raise ValueError(
+                    "problem with final state gamma in raised cut treatment"
+                )
 
-        repl = (
-            sum(E(f"E({id})") for id in initial_cut_ids)
-            - sum(E(f"E({id})") for id in final_cut_ids)
-            + E(f"E({photon_id[0]})")
-        ).expand()
+            repl = (
+                sum(E(f"E({id})") for id in initial_cut_ids)
+                - sum(E(f"E({id})") for id in final_cut_ids)
+                + E(f"E({photon_id[0]})")
+            ).expand()
 
-        emr_representation = emr_representation.replace(E(f"E({photon_id[0]})"), repl)
+            emr_representation = emr_representation.replace(
+                E(f"E({photon_id[0]})"), repl
+            )
+
+        if self.name == "tt~":
+            tt_id = [
+                e.get_attributes()["id"]
+                for e in cut_graph.final_cut
+                if _strip_quotes(str(e.get_attributes()["particle"])) == "t"
+                or _strip_quotes(str(e.get_attributes()["particle"])) == "t~"
+            ]
+
+            if len(tt_id) != 2:
+                raise ValueError("problem with final state tt in raised cut treatment")
+
+            repl = (
+                sum(E(f"E({id})") for id in initial_cut_ids)
+                - sum(E(f"E({id})") for id in final_cut_ids)
+                + E(f"E({tt_id[0]})")
+            ).expand()
+
+            emr_representation = emr_representation.replace(E(f"E({tt_id[0]})"), repl)
 
         if len(raised_cut) > 0:
             for cut in raised_cut:
@@ -1936,6 +1909,15 @@ class LoopIntegrandConstructor(object):
                 e_atts = e.get_attributes()
                 if _strip_quotes(str(e_atts["particle"])) == "g":
                     lmb_choice.append(e_atts["id"])
+            cut_graph.graph = change_routing(cut_graph.graph, lmb_choice)
+            orig_cut_graph.graph = change_routing(orig_cut_graph.graph, lmb_choice)
+
+        if self.name == "tt~":
+            lmb_choice = []
+
+            if self.L == 1:
+                lmb_choice = [3]
+
             cut_graph.graph = change_routing(cut_graph.graph, lmb_choice)
             orig_cut_graph.graph = change_routing(orig_cut_graph.graph, lmb_choice)
 

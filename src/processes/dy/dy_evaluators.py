@@ -10,6 +10,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from fractions import Fraction
+from functools import lru_cache
 
 from symbolica import E, Expression, S
 
@@ -28,6 +29,11 @@ from itertools import product
 from processes.dy.dy_graph_utils import (
     _strip_quotes,
 )
+
+MT = 0.69200000000000000000000000000000  # s=500
+MT = 0.46133333333333333333333333333333  # s=750
+MT = 0.346  # s=1000
+# MT = 0.173  # s=2000
 
 
 def heaviside_theta(x):
@@ -48,7 +54,79 @@ def _coerce_numeric_param(value):
         return float(Fraction(value_str))
 
 
+def _is_ttbar_process(process: str) -> bool:
+    return process in {"tt~", "ttbar"}
+
+
+def _format_float_expr(value: float) -> str:
+    return f"{value:.17g}"
+
+
+def _complex_to_symbolica_expr(value: complex) -> Expression:
+    value = complex(value)
+    real = 0.0 if abs(value.real) < 1.0e-15 else value.real
+    imag = 0.0 if abs(value.imag) < 1.0e-15 else value.imag
+
+    if real == 0.0 and imag == 0.0:
+        return E("0")
+
+    if imag == 0.0:
+        return E(_format_float_expr(real))
+
+    imag_coeff = E(_format_float_expr(abs(imag)))
+    imag_expr = imag_coeff * E("1i")
+    if imag < 0.0:
+        imag_expr = -imag_expr
+
+    if real == 0.0:
+        return imag_expr
+
+    return E(_format_float_expr(real)) + imag_expr
+
+
+@lru_cache(maxsize=1)
+def _sm_ttbar_couplings() -> dict[str, Expression]:
+    from ufo_model_loader.commands import load_model
+
+    model, _ = load_model(
+        "sm",
+        None,
+        simplify_model=True,
+        wrap_indices_in_lorentz_structures=False,
+    )
+
+    coupling_names = {"GC_1", "GC_10", "GC_11"}
+    couplings: dict[str, Expression] = {}
+    for coupling in model.couplings:
+        if coupling.name in coupling_names:
+            couplings[coupling.name] = _complex_to_symbolica_expr(coupling.value)
+
+    missing = coupling_names.difference(couplings)
+    if missing:
+        raise pygloopException(
+            "Missing SM ttbar couplings in UFO model load: "
+            + ", ".join(sorted(missing))
+        )
+
+    return couplings
+
+
 class evaluate_integrand:
+    def _replace_couplings(self, expr: Expression, include_tr: bool) -> Expression:
+        if include_tr:
+            expr = expr.replace(E("TR"), E("1/2"))
+
+        if _is_ttbar_process(self.process):
+            couplings = _sm_ttbar_couplings()
+            for coupling_name, coupling_value in couplings.items():
+                expr = expr.replace(E(coupling_name), coupling_value)
+            return expr
+
+        expr = expr.replace(E("GC_11"), E("1"))
+        expr = expr.replace(E("GC_1"), E("1"))
+        expr = expr.replace(E("GC_10"), E("1"))
+        return expr
+
     def impose_rest_frame(self, integrand):
         return integrand.replace(E("p(x_,1)"), E("0")).replace(E("p(x_,2)"), E("0"))
 
@@ -56,6 +134,9 @@ class evaluate_integrand:
 
         if self.process == "DY":
             integrand = integrand.replace(E("m(a)^2"), E("4*z*sp3D(p(1),p(1))"))
+
+        if self.process == "tt~":
+            integrand = integrand.replace(E("m(t)"), E(str(MT)))
 
         return integrand.replace(
             E("sp3D(w_(x_),z_(y_))"),
@@ -86,12 +167,13 @@ class evaluate_integrand:
             t * E("k(x___,y___)"),
         )
 
-        ## NEW: rescale z
+        if self.process == "DY":
+            integrand = integrand.replace(
+                E("z"),
+                t**2 * E("z"),
+            )
 
-        return integrand.replace(
-            E("z"),
-            t**2 * E("z"),
-        )
+        return integrand
 
     def set_e_surface(self):
         final_moms = []
@@ -108,10 +190,11 @@ class evaluate_integrand:
                 if e_atts["id"] == id:
                     k_keys = ["routing_k" + str(i) for i in range(self.L)]
                     loop_coeff = [E(e_atts[rout]) for rout in k_keys]
+                    particle_type = _strip_quotes(str(e_atts["particle"]))
                     mass = (
                         E("0")
-                        if _strip_quotes(str(e_atts["particle"])) != "a"
-                        else E("m(a)")
+                        if particle_type in ["d", "d~", "g"]
+                        else E(f"m({particle_type})")
                     )
                     final_mom = (
                         sum(loop_coeff[i] * E(f"k({i})") for i in range(self.L))
@@ -152,8 +235,13 @@ class evaluate_integrand:
         e_surface = self.concretise_scalar_products(e_surface)
         # e_surface = self.impose_rest_frame(e_surface)
 
-        rescaled_e_surface = e_surface.replace(E("k(0,x_)"), E("t*k(0,x_)"))
-        rescaled_e_surface = rescaled_e_surface.replace(E("z"), E("t^2*z"))
+        rescaled_e_surface = e_surface
+        for i_loop in range(self.L):
+            rescaled_e_surface = rescaled_e_surface.replace(
+                E(f"k({i_loop},x_)"), E(f"t*k({i_loop},x_)")
+            )
+        if self.process == "DY":
+            rescaled_e_surface = rescaled_e_surface.replace(E("z"), E("t^2*z"))
         # Reversal note: before this cleanup pass, we returned the rescaled
         # surface directly and left exact sqrt(0) factors unsimplified.
         return self.drop_exact_zero_sqrts(rescaled_e_surface)
@@ -190,20 +278,20 @@ class evaluate_integrand:
         # self.routed_integrand.integrand = self.impose_rest_frame(
         #    self.routed_integrand.integrand
         # )
-
         #
         self.routed_integrand.integrand = self.t_parametrise(
             self.routed_integrand.integrand
         )
 
-        self.routed_integrand.integrand = self.routed_integrand.integrand.replace(
-            E("TR"), E("1/2")
+        self.routed_integrand.integrand = self._replace_couplings(
+            self.routed_integrand.integrand,
+            include_tr=True,
         )
         self.routed_integrand.integrand = self.routed_integrand.integrand.replace(
-            E("GC_11"), E("1")
+            E("m(t)"), E(str(MT))
         )
         self.routed_integrand.integrand = self.routed_integrand.integrand.replace(
-            E("GC_1"), E("1")
+            E("MT"), E(str(MT))
         )
         self.routed_integrand.integrand = self.routed_integrand.integrand.replace(
             E("Lambdasq"), E(str(observable_params["Lambdasq"]))
@@ -224,13 +312,13 @@ class evaluate_integrand:
                 self.theta_expressions.append(theta_expr)
                 self.theta_val.append(theta_expr.evaluator({}, {}, self.symbols))
 
-        theta_zmin_expr = E("t^2*z") - E(str(observable_params["zmin"]))
         if len(self.routed_integrand.cut_graph.final_cut) > 1 and self.process == "DY":
+            theta_zmin_expr = E("t^2*z") - E(str(observable_params["zmin"]))
             self.theta_expressions.append(theta_zmin_expr)
             self.theta_val.append(theta_zmin_expr.evaluator({}, {}, self.symbols))
 
-        theta_zmax_expr = E(str(observable_params["zmax"])) - E("t^2*z")
         if len(self.routed_integrand.cut_graph.final_cut) > 1 and self.process == "DY":
+            theta_zmax_expr = E(str(observable_params["zmax"])) - E("t^2*z")
             self.theta_expressions.append(theta_zmax_expr)
             self.theta_val.append(theta_zmax_expr.evaluator({}, {}, self.symbols))
 
@@ -253,7 +341,10 @@ class evaluate_integrand:
             1.0 / 0.1199377719680614473680365016367935162194504519102290907562408570
         )
         ht = (-(E("t") ** 2) - 1 / (E("t") ** 2)).exp() * E(f"{ht_prefactor:.16e}")
-        jacobian = E("t") ** 5 / self.e_surface.derivative(E("t"))
+        if self.process == "DY":
+            jacobian = E("t") ** 5 / self.e_surface.derivative(E("t"))
+        if self.process == "tt~":
+            jacobian = E("t") ** (3 * self.L) / self.e_surface.derivative(E("t"))
 
         self.routed_integrand.integrand = (
             self.routed_integrand.integrand * ht * jacobian
@@ -278,27 +369,22 @@ class evaluate_integrand:
 
     def set_t_value(self, k, p1, p2, z):
 
+        s = 4 * (p1[0] ** 2 + p1[1] ** 2 + p1[2] ** 2)
+
+        e_surface = self.e_surface
+
+        for j in range(self.L):
+            for i in range(3):
+                e_surface = e_surface.replace(E(f"k({j},{i + 1})"), k[j][i])
+        for i in range(3):
+            e_surface = e_surface.replace(E(f"p(1,{i + 1})"), p1[i])
+        for i in range(3):
+            e_surface = e_surface.replace(E(f"p(2,{i + 1})"), p2[i])
+        e_surface = e_surface.replace(E("s"), s)
         if self.process == "DY":
-            # if (
-            #    len(self.routed_integrand.cut_graph.final_cut) > 1
-            # ):
-            s = 4 * (p1[0] ** 2 + p1[1] ** 2 + p1[2] ** 2)
-
-            e_surface = self.e_surface
-
-            for j in range(self.L):
-                for i in range(3):
-                    e_surface = e_surface.replace(E(f"k({j},{i + 1})"), k[j][i])
-            for i in range(3):
-                e_surface = e_surface.replace(E(f"p(1,{i + 1})"), p1[i])
-            for i in range(3):
-                e_surface = e_surface.replace(E(f"p(2,{i + 1})"), p2[i])
-            e_surface = e_surface.replace(E("s"), s)
             e_surface = e_surface.replace(E("z"), z)
 
-            return e_surface.nsolve(E("t"), 1.0)
-
-        return 1
+        return e_surface.nsolve(E("t"), 1.0)
 
     def debug_printout(self, k, p1, p2, z):
         momenta = []
@@ -319,12 +405,15 @@ class evaluate_integrand:
 
             k_keys = ["routing_k" + str(i) for i in range(self.L)]
             loop_coeff = [E(e_atts[rout]) for rout in k_keys]
+            particle_type = _strip_quotes(str(e_atts["particle"]))
+            mass_sq = E("0")
 
-            mass_sq = (
-                E("0")
-                if _strip_quotes(str(e_atts["particle"])) != "a"
-                else E("4*z*t^2*(p(1,1)^2+p(1,2)^2+p(1,3)^2)")
-            )
+            if particle_type == "a":
+                mass_sq = E("t") ** 2 * E(f"m({particle_type})") ** 2
+
+            if particle_type == "t":
+                mass_sq = E(f"m({particle_type})") ** 2
+
             mom = (
                 sum(loop_coeff[i] * E(f"k({i})") for i in range(self.L))
                 + E(e_atts["routing_p1"]) * E("p(1)")
@@ -341,8 +430,7 @@ class evaluate_integrand:
             E("sp3(x_,y_)"), self.sp3D(E("x_"), E("y_"))
         )
         eval_emr_int = self.concretise_scalar_products(eval_emr_int)
-        eval_emr_int = eval_emr_int.replace(E("GC_1"), E("1"))
-        eval_emr_int = eval_emr_int.replace(E("GC_11"), E("1"))
+        eval_emr_int = self._replace_couplings(eval_emr_int, include_tr=False)
         eval_emr_int = eval_emr_int.replace(E("TR"), E("1"))
 
         for mom, mass_sq, id in momenta:
@@ -364,7 +452,7 @@ class evaluate_integrand:
             for key, val in input.items():
                 for i in range(3):
                     mom3d[i] = mom3d[i].replace(key, val)
-                    mass_sq = mass_sq.replace(key, val)
+                    mass_sq = mass_sq.replace(E("m(t)"), E(str(MT))).replace(key, val)
 
             energies[E(f"E({id})")] = (
                 mom3d[0] ** 2 + mom3d[1] ** 2 + mom3d[2] ** 2 + mass_sq
@@ -373,7 +461,8 @@ class evaluate_integrand:
             qmomenta[E(f"q({id})")] = mom3d
             for i in range(1, 4):
                 eval_emr_int = eval_emr_int.replace(E(f"q({id},{i})"), mom3d[i - 1])
-            # eval_emr_int = eval_emr_int.replace(E(f"E({id})"), energies[E(f"E({id})")])
+            eval_emr_int = eval_emr_int.replace(E(f"E({id})"), energies[E(f"E({id})")])
+            eval_emr_int = eval_emr_int.replace(E("MT"), E(str(MT)))
 
         ht_prefactor = (
             1.0 / 0.1199377719680614473680365016367935162194504519102290907562408570
@@ -391,6 +480,7 @@ class evaluate_integrand:
         print("input parameters: ", input)
         print("energies:", energies)
         print("masses: ", masses)
+        print("momenta: ", qmomenta)
         # print(self.routed_integrand.integrand)
         emr_int = deepcopy(self.routed_integrand.emr_integrand)
         print("EMR: ", emr_int)
@@ -398,11 +488,11 @@ class evaluate_integrand:
         print("h(t): ", ht.replace(E("t"), tstar))
         print(jacobian)
         print("delta jacobian : ", jacobian.replace(E("t"), tstar))
-        # print("Evaluated EMR: ", eval_emr_int)
+        print("Evaluated EMR: ", eval_emr_int)
         # for key, val in energies.items():
         #    emr_int = emr_int.replace(key, val)
 
-        # print(emr_int)
+        # print("Evaluated EMR: ", emr_int)
 
     def param_builder(self, k, p1, p2, z):
         param_list = []
@@ -488,6 +578,7 @@ class DYCompiledTerm:
     theta_expressions: list[Expression]
     integrand_expression: Expression | None
     t_initial_guess: float
+    graph_group_name: str | None = None
 
 
 class DYCompiledBundle:
@@ -561,6 +652,17 @@ class DYCompiledBundle:
         self._t_guess_by_term = {
             t.evaluator_name: float(t.t_initial_guess) for t in self.terms
         }
+        graph_group_terms: dict[str, list[DYCompiledTerm]] = {}
+        for term in self.terms:
+            group_name = term.graph_group_name or self._graph_group_name_from_term(term)
+            graph_group_terms.setdefault(group_name, []).append(term)
+        self._graph_group_names = sorted(
+            graph_group_terms.keys(), key=self._graph_group_sort_key
+        )
+        self._graph_group_terms = {
+            group_name: graph_group_terms[group_name]
+            for group_name in self._graph_group_names
+        }
 
     @staticmethod
     def _bundle_dir(process: str, integrand_name: str) -> str:
@@ -588,6 +690,56 @@ class DYCompiledBundle:
             key = key.split("::")[-1]
         return key
 
+    @staticmethod
+    def _graph_group_name_from_evaluator_name(evaluator_name: str) -> str | None:
+        if not evaluator_name.startswith("graph_"):
+            return None
+        graph_prefix, separator, _rest = evaluator_name.partition("_cut_")
+        if separator == "":
+            return None
+        return graph_prefix
+
+    @staticmethod
+    def _graph_group_sort_key(group_name: str) -> tuple[int, int | str]:
+        if group_name.startswith("graph_"):
+            suffix = group_name.removeprefix("graph_")
+            if suffix.isdigit():
+                return (0, int(suffix))
+        return (1, group_name)
+
+    def _graph_group_name_from_term(self, term: DYCompiledTerm) -> str:
+        evaluator = self.evaluators.get(term.evaluator_name)
+        if evaluator is not None:
+            group_name = evaluator.additional_data.get("graph_group_name")
+            if group_name is not None:
+                return str(group_name)
+        parsed_group_name = self._graph_group_name_from_evaluator_name(
+            term.evaluator_name
+        )
+        if parsed_group_name is not None:
+            return parsed_group_name
+        if evaluator is not None:
+            source_graph_name = evaluator.additional_data.get("source_graph_name")
+            if source_graph_name is not None:
+                return str(source_graph_name)
+        return term.evaluator_name
+
+    def graph_channel_names(self) -> list[str]:
+        return list(self._graph_group_names)
+
+    def graph_channel_count(self) -> int:
+        return len(self._graph_group_names)
+
+    def terms_for_channel(self, channel_selector: int | None) -> list[DYCompiledTerm]:
+        if channel_selector is None:
+            return self.terms
+        if channel_selector < 0 or channel_selector >= self.graph_channel_count():
+            raise pygloopException(
+                f"DY graph channel {channel_selector} out of range for bundle "
+                f"'{self.integrand_name}' with {self.graph_channel_count()} channels."
+            )
+        return self._graph_group_terms[self._graph_group_names[channel_selector]]
+
     @classmethod
     def create_from_evaluators(
         cls,
@@ -611,20 +763,34 @@ class DYCompiledBundle:
         terms: list[DYCompiledTerm] = []
 
         for i, ev in enumerate(evaluators):
-            evaluator_name = f"term_{i}_integrand"
+            evaluator_name = getattr(ev, "compiled_name", f"term_{i}_integrand")
+            if evaluator_name in loaded_evaluators:
+                raise pygloopException(
+                    f"Duplicate compiled evaluator name '{evaluator_name}'."
+                )
             pb = cls._build_param_builder(ev.symbols)
+            graph_group_name = cls._graph_group_name_from_evaluator_name(evaluator_name)
+            additional_data = {
+                "process": process,
+                "integrand_name": integrand_name,
+                "observable": observable,
+                "term_id": i,
+            }
+            if graph_group_name is not None:
+                additional_data["graph_group_name"] = graph_group_name
+            source_graph_name = getattr(ev, "source_graph_name", None)
+            if source_graph_name is not None:
+                additional_data["source_graph_name"] = source_graph_name
+            routed_graph_name = getattr(ev, "routed_graph_name", None)
+            if routed_graph_name is not None:
+                additional_data["routed_graph_name"] = routed_graph_name
 
             pe = PygloopEvaluator(
                 evaluator=ev.evaluator,
                 param_builder=pb,
                 name=evaluator_name,
                 output_length=1,
-                additional_data={
-                    "process": process,
-                    "integrand_name": integrand_name,
-                    "observable": observable,
-                    "term_id": i,
-                },
+                additional_data=additional_data,
                 complexified=False,
             )
             pe.compile(
@@ -646,6 +812,7 @@ class DYCompiledBundle:
                     theta_expressions=getattr(ev, "theta_expressions", []),
                     integrand_expression=getattr(ev, "integrand_expression", None),
                     t_initial_guess=1.0,
+                    graph_group_name=graph_group_name,
                 )
             )
 
@@ -667,6 +834,7 @@ class DYCompiledBundle:
                         else None
                     ),
                     "t_initial_guess": t.t_initial_guess,
+                    "graph_group_name": t.graph_group_name,
                 }
                 for t in terms
             ],
@@ -693,6 +861,9 @@ class DYCompiledBundle:
         for t in metadata["terms"]:
             name = t["evaluator_name"]
             evaluators[name] = PygloopEvaluator.load(out_dir, name)
+            graph_group_name = t.get("graph_group_name")
+            if graph_group_name is None:
+                graph_group_name = cls._graph_group_name_from_evaluator_name(name)
             terms.append(
                 DYCompiledTerm(
                     evaluator_name=name,
@@ -705,6 +876,7 @@ class DYCompiledBundle:
                         else None
                     ),
                     t_initial_guess=float(t.get("t_initial_guess", 1.0)),
+                    graph_group_name=graph_group_name,
                 )
             )
 
@@ -1187,6 +1359,7 @@ class DYCompiledBundle:
         m_uv: float = 1.0,
         decimal_digit_precision: int = 80,
         theta_tolerance: float = 0.0,
+        channel_selector: int | None = None,
     ) -> Decimal:
         self.require_arb_supported()
 
@@ -1199,7 +1372,7 @@ class DYCompiledBundle:
         total = Decimal(0)
         theta_tol = self._decimal_from_number(theta_tolerance)
 
-        for term in self.terms:
+        for term in self.terms_for_channel(channel_selector):
             my_t0 = self._initial_t_guess(term, vals, p1x, p1y, p1z)
             t_sol = self.solve_t_convex_bisect_prec(
                 term.e_surface,
@@ -1249,6 +1422,7 @@ class DYCompiledBundle:
         mode: str = "compiled",
         decimal_digit_precision: int | None = None,
         theta_tolerance: float = 0.0,
+        channel_selector: int | None = None,
     ) -> complex:
         if mode == "arb":
             if decimal_digit_precision is None:
@@ -1263,6 +1437,7 @@ class DYCompiledBundle:
                         m_uv,
                         decimal_digit_precision=decimal_digit_precision,
                         theta_tolerance=theta_tolerance,
+                        channel_selector=channel_selector,
                     )
                 ),
                 0.0,
@@ -1278,7 +1453,7 @@ class DYCompiledBundle:
         theta_tol = float(theta_tolerance)
 
         # Sum over all cut graphs
-        for term in self.terms:
+        for term in self.terms_for_channel(channel_selector):
             my_t0 = self._initial_t_guess(term, vals, p1x, p1y, p1z)
 
             t_sol = self.solve_t_newton_bisect(

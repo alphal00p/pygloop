@@ -40,7 +40,11 @@ from symbolica.community.idenso import (  # noqa: F401 # pyright: ignore
 )
 from symbolica.community.spenso import *  # noqa: F403 # type: ignore
 
-from processes.dy.dy_classes import DYDotGraphs, VacuumDotGraph  # noqa: F401
+from processes.dy.dy_classes import (  # noqa: F401
+    DYDotGraphs,
+    VacuumDotGraph,
+    canonicalise_vacuum_graph,
+)
 from processes.dy.dy_evaluators import (
     DYCompiledBundle,
     compile_integrands,
@@ -97,6 +101,8 @@ class DY(object):
         n_loops: int = 1,
         toml_config_path: str | None = None,
         runtime_toml_config_path: str | None = None,
+        final_state: list[str] | None = None,
+        process_name: str | None = None,
         skip_ps_validation: bool = False,
         clean=True,
         logger_level: int | None = None,
@@ -113,6 +119,10 @@ class DY(object):
             helicities = [1, 1, 0, 0, 0]
         self.helicities = helicities
         self.n_loops = n_loops
+        self.final_state = (
+            copy.deepcopy(final_state) if final_state is not None else ["a"]
+        )
+        self.process_name = process_name if process_name is not None else "DY"
 
         self.skip_ps_validation = bool(skip_ps_validation)
         if not self.skip_ps_validation:
@@ -173,8 +183,8 @@ class DY(object):
         )  # nopep8
         self.gl_worker = GammaLoopAPI(
             pjoin(PYGLOOP_FOLDER, "outputs", "gammaloop_states", self.name),
-            log_file_name=self.name,
-            log_level=gl_log_level,
+            # log_file_name=self.name,
+            # log_level=gl_log_level,
         )
         self.set_log_level(logger_level)
 
@@ -220,14 +230,22 @@ class DY(object):
 
         self.compiled_bundle: DYCompiledBundle | None = None
         integrand_name = self.get_integrand_name()
-        bundle_dir = pjoin(EVALUATORS_FOLDER, self.name, integrand_name)
-        bundle_metadata = pjoin(bundle_dir, DYCompiledBundle.METADATA_FILE)
-        if os.path.exists(bundle_metadata):
+        bundle_processes = [self.process_name]
+        if self.name not in bundle_processes:
+            bundle_processes.append(self.name)
+        for bundle_process in bundle_processes:
+            bundle_dir = pjoin(EVALUATORS_FOLDER, bundle_process, integrand_name)
+            bundle_metadata = pjoin(bundle_dir, DYCompiledBundle.METADATA_FILE)
+            if not os.path.exists(bundle_metadata):
+                continue
             try:
-                self.compiled_bundle = DYCompiledBundle.load(self.name, integrand_name)
+                self.compiled_bundle = DYCompiledBundle.load(
+                    bundle_process, integrand_name
+                )
                 logger.info(
                     f"Loaded compiled DY bundle from {Colour.GREEN}{bundle_dir}{Colour.END}"
                 )
+                break
             except Exception as e:
                 logger.warning(
                     f"Failed loading compiled DY bundle from {bundle_dir}: {e}"
@@ -244,6 +262,8 @@ class DY(object):
             self.n_loops,
             self.toml_config_path,
             self.runtime_toml_config_path,
+            copy.deepcopy(self.final_state, _memo),
+            self.process_name,
             clean=False,
             logger_level=logging.CRITICAL,
             skip_ps_validation=self.skip_ps_validation,
@@ -259,8 +279,162 @@ class DY(object):
             self.n_loops,
             self.toml_config_path,
             self.runtime_toml_config_path,
+            copy.deepcopy(self.final_state),
+            self.process_name,
             self.skip_ps_validation,
         )
+
+    def process_uses_z(self) -> bool:
+        return self.process_name.lower() == "dy"
+
+    def sampled_uses_z(self, integrand_implementation: dict[str, Any] | str) -> bool:
+        integrand_implementation = self._normalize_integrand_implementation(
+            integrand_implementation
+        )
+        return (
+            self.process_uses_z()
+            and integrand_implementation.get("integrand_type") == "zenos"
+        )
+
+    def integration_dimension(
+        self, integrand_implementation: dict[str, Any] | str
+    ) -> int:
+        return 3 * self.n_loops + int(self.sampled_uses_z(integrand_implementation))
+
+    @staticmethod
+    def _channel_selector_from_multi_channeling(
+        multi_channeling: bool | int,
+    ) -> int | None:
+        if isinstance(multi_channeling, bool):
+            return None
+        return int(multi_channeling)
+
+    def graph_channel_names(
+        self, integrand_implementation: dict[str, Any] | str
+    ) -> list[str]:
+        integrand_implementation = self._normalize_integrand_implementation(
+            integrand_implementation
+        )
+        if integrand_implementation.get("integrand_type") != "zenos":
+            return []
+        if self.compiled_bundle is None:
+            return []
+        return self.compiled_bundle.graph_channel_names()
+
+    @staticmethod
+    def _build_symbolica_discrete_integrator(
+        n_dim: int, n_channels: int
+    ) -> NumericalIntegrator:
+        return NumericalIntegrator.discrete([
+            NumericalIntegrator.continuous(n_dim) for _ in range(n_channels)
+        ])
+
+    @staticmethod
+    def _symbolica_sample_weight(sample: Sample) -> float:
+        total_weight = 1.0
+        for sample_weight in sample.weights:
+            total_weight *= float(sample_weight)
+        return total_weight
+
+    def _symbolica_graph_channel_batch_estimates(
+        self,
+        graph_channel_names: list[str],
+        samples: list[Sample],
+        sample_values: list[float],
+    ) -> list[float]:
+        if len(samples) == 0:
+            return [0.0 for _graph_channel_name in graph_channel_names]
+
+        channel_totals = [0.0 for _graph_channel_name in graph_channel_names]
+        for sample, sample_value in zip(samples, sample_values, strict=True):
+            channel_index = int(sample.d[0])
+            if channel_index < 0 or channel_index >= len(graph_channel_names):
+                raise pygloopException(
+                    f"Sample discrete channel {channel_index} out of range for "
+                    f"{len(graph_channel_names)} graph channels."
+                )
+            channel_totals[channel_index] += float(
+                sample_value
+            ) * self._symbolica_sample_weight(sample)
+
+        normalization = float(len(samples))
+        return [channel_total / normalization for channel_total in channel_totals]
+
+    def _symbolica_graph_channel_raw_estimates(
+        self,
+        integrator: NumericalIntegrator,
+        n_dim: int,
+        graph_channel_names: list[str],
+        samples: list[Sample],
+        sample_values: list[float],
+        continuous_learning_rate: float,
+        discrete_learning_rate: float,
+    ) -> list[float]:
+        if len(graph_channel_names) == 0:
+            return []
+
+        grid_state = integrator.export_grid(False)
+        raw_channel_estimates: list[float] = []
+        for channel_index, _graph_channel_name in enumerate(graph_channel_names):
+            shadow_integrator = self._build_symbolica_discrete_integrator(
+                n_dim, len(graph_channel_names)
+            )
+            shadow_integrator.import_grid(grid_state)
+            shadow_values = [
+                sample_value if int(sample.d[0]) == channel_index else 0.0
+                for sample, sample_value in zip(samples, sample_values, strict=True)
+            ]
+            shadow_integrator.add_training_samples(samples, shadow_values)
+            channel_avg, _channel_err, _channel_chi_sq = shadow_integrator.update(
+                continuous_learning_rate=continuous_learning_rate,
+                discrete_learning_rate=discrete_learning_rate,
+            )
+            raw_channel_estimates.append(float(channel_avg))
+
+        return raw_channel_estimates
+
+    def _symbolica_graph_channel_contributions(
+        self,
+        graph_channel_names: list[str],
+        raw_channel_estimates: list[float],
+        samples: list[Sample],
+        sample_values: list[float],
+        total_avg: float,
+    ) -> list[tuple[str, float]]:
+        raw_total = sum(raw_channel_estimates)
+        if math.isclose(raw_total, 0.0, abs_tol=TOLERANCE):
+            raw_channel_estimates = self._symbolica_graph_channel_batch_estimates(
+                graph_channel_names, samples, sample_values
+            )
+            raw_total = sum(raw_channel_estimates)
+
+        if math.isclose(raw_total, 0.0, abs_tol=TOLERANCE):
+            return [
+                (graph_channel_name, 0.0) for graph_channel_name in graph_channel_names
+            ]
+
+        normalization = float(total_avg) / raw_total
+        return [
+            (graph_channel_name, raw_channel_estimate * normalization)
+            for graph_channel_name, raw_channel_estimate in zip(
+                graph_channel_names, raw_channel_estimates, strict=True
+            )
+        ]
+
+    @staticmethod
+    def _symbolica_graph_channel_report(
+        graph_channel_contributions: list[tuple[str, float]],
+        total_avg: float,
+    ) -> str:
+        lines = ["| > Graph-channel rolling contributions:"]
+        for graph_channel_name, contribution in graph_channel_contributions:
+            lines.append(f"| >   {graph_channel_name:<12}: {contribution:.16e}")
+        lines.append(
+            f"| >   {'sum':<12}: "
+            f"{sum(contribution for _name, contribution in graph_channel_contributions):.16e}"
+        )
+        lines.append(f"| >   {'total':<12}: {float(total_avg):.16e}")
+        return "\n".join(lines)
 
     def set_log_level(self, level) -> None:
         if level <= logging.DEBUG:
@@ -303,15 +477,15 @@ class DY(object):
 
         kinematics_set_command = f'set {card} kv kinematics.externals={{"type":"constant","data":{{"momenta":{momenta_str},"helicities":{helicities_str}}}}}'  # fmt: off
         logger.debug("Setting kinematic point with:\n%s", kinematics_set_command)
-        self.gl_worker.run(kinematics_set_command)
+        # self.gl_worker.run(kinematics_set_command)
 
     def set_model(self) -> None:
         self.gl_worker.run("import model sm-default.json")
-        self.gl_worker.run("set model MT={{re:{:.16f},im:0.0}}".format(self.m_top))
-        self.gl_worker.run("set model MH={{re:{:.16f},im:0.0}}".format(self.m_higgs))
-        self.gl_worker.run("set model WT={re:0.0,im:0.0}")
-        self.gl_worker.run("set model WH={re:0.0,im:0.0}")
-        self.gl_worker.run("set model ymt={{re:{:.16f},im:0.0}}".format(self.m_top))
+        # self.gl_worker.run("set model MT={{re:{:.16f},im:0.0}}".format(self.m_top))
+        # self.gl_worker.run("set model MH={{re:{:.16f},im:0.0}}".format(self.m_higgs))
+        # self.gl_worker.run("set model WT={re:0.0,im:0.0}")
+        # self.gl_worker.run("set model WH={re:0.0,im:0.0}")
+        # self.gl_worker.run("set model ymt={{re:{:.16f},im:0.0}}".format(self.m_top))
 
     def setup_gl_worker(self) -> None:
         self.set_model()
@@ -378,41 +552,54 @@ class DY(object):
     #        return processed_graphs
 
     def process_1L_generated_graphs(self, graphs: DYDotGraphs) -> DYDotGraphs:
+        final_state = copy.deepcopy(self.final_state)
+        process_name = self.process_name
+        n_loops = self.n_loops
+
         processed_graphs = DYDotGraphs()
 
         filtered_graphs = DYDotGraphs()
-        filtered_graphs.extend(copy.deepcopy(graphs.filter_particle_definition(["a"])))
+        # filtered_graphs.extend(
+        #    copy.deepcopy(graphs.filter_particle_definition(final_state))
+        # )
+        filtered_graphs.extend(copy.deepcopy(graphs))
 
-        processor = EMRIntegrandConstructor([], "DY", 1)
-        loop_processor = LoopIntegrandConstructor([], "DY", 1)
+        print("############################")
+        print("Filtered graphs: ", len(filtered_graphs))
+        print("############################")
 
-        for graph in filtered_graphs:
-            g = copy.deepcopy(graph)
-            print("generator graph")
-            print(g.dot)
-            vacuum_g = g.get_vacuum_graph()
-            print("vacuum graph")
-            print(vacuum_g.dot)
-            _cuts = vacuum_g.get_cutkosky_cuts()
+        processor = EMRIntegrandConstructor([], process_name, n_loops)
+        loop_processor = LoopIntegrandConstructor([], process_name, n_loops)
+
+        all_routed_integrands = []
+        all_evaluators = []
+
+        for graph_index, graph in enumerate(filtered_graphs):
+            vac_g = canonicalise_vacuum_graph(copy.deepcopy(graph))
+
+            vacuum_g = VacuumDotGraph(copy.deepcopy(vac_g.dot))
+
+            # _cuts = vacuum_g.get_cutkosky_cuts()
             routed_graphs = vacuum_g.cut_graphs_with_routing_leading_virtuality(
-                [], ["a"]
+                [], final_state
             )
+
+            print("############################")
+            print("Routed graphs: ", len(routed_graphs))
+            print("############################")
+
             routed_integrands = []
             evaluators = []
 
-            for gg in routed_graphs:
-                # print(gg[3])
+            for routed_graph_index, gg in enumerate(routed_graphs):
                 processed_graphs.append(gg[3])
                 cut_graph = deepcopy(routed_cut_graph(gg[3], gg[0], gg[1], gg[2]))
-                # if len(gg[2][1]) == 1 and len(gg[2][0]) == 1:
-                print(cut_graph.graph.get_name())
+                # print(cut_graph.graph.get_name())
                 print(cut_graph.graph)
                 term_integrands = loop_processor.get_integrand(deepcopy(cut_graph))
 
-                # Keep full routed list for approach/IR/UV tests
                 routed_integrands.extend(deepcopy(term_integrands))
 
-                # SMALL VALUE
                 observable_params = {
                     "zmin": 0.0,
                     "zmax": 1.00000,
@@ -420,62 +607,52 @@ class DY(object):
                     "mUV": 1,
                 }
 
-                # Build one evaluator per routed term
-                evaluators.extend(
-                    evaluate_integrand(
-                        1,
-                        "DY",
+                for term_index, term_integrand in enumerate(term_integrands):
+                    evaluator = evaluate_integrand(
+                        n_loops,
+                        process_name,
                         deepcopy(term_integrand),
-                        n_hornerscheme_iterations=1000,  # increase
+                        n_hornerscheme_iterations=1000,
                         n_cpe_iterations=10000,
                         observable_params=observable_params,
                     )
-                    for term_integrand in term_integrands
-                )
+                    evaluator.compiled_name = (
+                        f"graph_{graph_index}_cut_{routed_graph_index}"
+                        f"_term_{term_index}_integrand"
+                    )
+                    evaluator.source_graph_name = str(graph.dot.get_name()).strip('"')
+                    evaluator.routed_graph_name = str(gg[3].get_name()).strip('"')
+                    evaluators.append(evaluator)
 
-            approach_limit = approach_point(1, "DY", routed_integrands)
+            all_routed_integrands.extend(routed_integrands)
+            all_evaluators.extend(evaluators)
+
+        if all_routed_integrands:
+            approach_limit = approach_point(
+                n_loops, process_name, all_routed_integrands
+            )
             print("##################")
-            # ks = [math.sqrt(z) * np.array([0, 1 / math.sqrt(2), 1 / math.sqrt(2)])]
-            # z = 1.2394214875112748e-01
-            # ks = [
-            #    np.array([
-            #        0.0,
-            #        0.0,
-            #        0.0,
-            #    ])
-            # ]
-            # z = 1.0
+            z = 0.6
             # ks = [
             #    math.sqrt(z)
-            #    * np.array([
-            #        0.0,
-            #        1.0,
-            #        -1.0,
-            #    ])
+            #    * np.array([1 / math.sqrt(3), 1 / math.sqrt(3), 1 / math.sqrt(3)])
             # ]
-            # z = 1.8597665672940293e00
-            # ks = [np.array([0.0, 0.0, 0.0])]
-            # vp = np.array([1, 0.01, 0.001])
-            # vp = np.array([0, 1, 0.001])
-            z = 0.6
             ks = [
-                math.sqrt(z)
-                * np.array([1 / math.sqrt(3), 1 / math.sqrt(3), -1 / math.sqrt(3)])
+                # math.sqrt(z)
+                np.array([1 / math.sqrt(3), 1 / math.sqrt(3), 1 / math.sqrt(3)])
             ]
             vp = 0 * np.array([0, 1, 1])
             p1 = np.array([0, 0, 1])
             p2 = np.array([0, 0, -1])
             approach_limit.approach(ks, p1, p2, z, vp)
 
-            # ir_test = infrared_test(1, "DY", routed_integrands)
-            # print("##################")
-            # ir_test.approach_limits(1)
-            # uv_test = ultraviolet_test(1, "DY", routed_integrands)
-            # print("##################")
-            # uv_test.approach_limits(1)
-
+        if all_evaluators:
             my_compiler = compile_integrands(
-                1, "DY", self.get_integrand_name(), "z", evaluators
+                n_loops,
+                process_name,
+                self.get_integrand_name(),
+                "z",
+                all_evaluators,
             )
             my_compiler.save_compiled_integrand()
 
@@ -510,25 +687,29 @@ class DY(object):
         match self.n_loops:
             case 1:
                 logger.info("Generating one-loop graphs ...")
-                self.gl_worker.run(  # GL09 - xbox GL02 - virtual triangle GL17 - box
-                    f"generate amp d d~ > d d~ | d d~ g a QED==2 [{{1}}] --only-diagrams --numerator-grouping only_detect_zeroes --select-graphs GL02 -p {base_name} -i {graphs_process_name}"
-                )
 
-                # self.gl_worker.run(  # GL09 - xbox GL02 - virtual triangle GL17 - box
-                #    f"generate xs d d~ > a | d d~ g a QED^2==2 [{{1}} QCD=1] --only-diagrams --numerator-grouping only_detect_zeroes -p {base_name} -i {graphs_process_name}"
-                # )
+                if self.process_name == "dy":
+                    self.gl_worker.run(
+                        f"generate xs d d~ > a | d d~ g a QED^2==2 [{{{{1}}}} QCD=1] --only-diagrams --numerator-grouping only_detect_zeroes -p {base_name} -i {graphs_process_name} --max-multiplicity-for-fast-cut-filter 99"
+                    )
 
-                # self.gl_worker.run(  ## GL04 - box GL10 - triangle GL11 - bubble
-                #    f"generate amp d g > d g | d d~ g a QED==2 [{{1}}] --only-diagrams --numerator-grouping only_detect_zeroes --select-graphs GL04 -p {base_name} -i {graphs_process_name}"  #
-                # )
+                    self.gl_worker.run(
+                        f"generate xs d g > a | d d~ g a QED^2==2 [{{{{1}}}} QCD=1] --only-diagrams --numerator-grouping only_detect_zeroes -p {base_name} -i {graphs_process_name} --max-multiplicity-for-fast-cut-filter 99"
+                    )
 
                 # self.gl_worker.run(
-                #    f"generate amp g g > g g | g t t~ QED==0 [{{1}}] --only-diagrams --numerator-grouping only_detect_zeroes -p {base_name} -i {graphs_process_name}"  #
+                #    f"generate xs g g > t t~ | d d~ g t t~ [{{{{2}}}} QCD=1] --only-diagrams --numerator-grouping group_identical_graphs_up_to_scalar_rescaling --symmetrize-left-right-states true --symmetrize-initial-states true -p {base_name} -i {graphs_process_name} --max-multiplicity-for-fast-cut-filter 99"
                 # )
 
-                # self.gl_worker.run(
-                #    f"generate amp g g > g g | g t t~ QED==0 [{{2}}] --only-diagrams --numerator-grouping only_detect_zeroes -p {base_name} -i {graphs_process_name}"  #
-                # )
+                # --select-graphs GL02
+                if self.process_name == "tt~":
+                    # self.gl_worker.run(
+                    #    f"generate xs d d~ > t t~ | d d~ g t t~ [{{{{1}}}} QCD=1] --only-diagrams --numerator-grouping group_identical_graphs_up_to_scalar_rescaling --symmetrize-left-right-states true --symmetrize-initial-states true -p {base_name} -i {graphs_process_name} --max-multiplicity-for-fast-cut-filter 99"
+                    # )
+                    self.gl_worker.run(
+                        f"generate xs g g > t t~ | d d~ g t t~ [{{{{1}}}} QCD=1] --only-diagrams --numerator-grouping group_identical_graphs_up_to_scalar_rescaling --symmetrize-left-right-states true --symmetrize-initial-states true -p {base_name} -i {graphs_process_name} --max-multiplicity-for-fast-cut-filter 99"
+                    )
+
                 self.gl_worker.run("save state -o")
                 DY_1L_dot_files = self.gl_worker.get_dot_files(
                     process_id=None, integrand_name=graphs_process_name
@@ -805,23 +986,29 @@ class DY(object):
             # t0 = time.perf_counter()
 
             impl = dict(integrand_implementation)
-            expects_z = impl.get("integrand_type") == "zenos"
+            channel_selector = self._channel_selector_from_multi_channeling(
+                multi_channeling
+            )
+            expects_z = self.sampled_uses_z(impl)
+            n_k_vars = 3 * self.n_loops
+            expected_dim = n_k_vars + int(expects_z)
+            k_rescaling = 1.0
             jac_z = 1
             if expects_z:
-                if len(xs) != 4:
+                if len(xs) != expected_dim:
                     raise pygloopException(
-                        f"Integrand '{impl['integrand_type']}' expects 4 variables [xk0,xk1,xk2,xz], got {len(xs)}."
+                        f"Integrand '{impl['integrand_type']}' expects {expected_dim} variables "
+                        f"({n_k_vars} loop-momentum variables plus xz), got {len(xs)}."
                     )
 
-                k_xs = xs[:3].copy()
+                k_xs = xs[:n_k_vars].copy()
 
                 # SMALL VALUE
                 a, b = 0.000, 1.0
                 k_xs[0] = a + (b - a) * k_xs[0]
+                k_rescaling = b - a
 
-                # k_xs = xs[:3]
-
-                x_z = xs[3]
+                x_z = xs[n_k_vars]
 
                 z_min = float(impl.get("z_min", 0.0))
                 z_max = float(impl.get("z_max", 1.0))
@@ -833,16 +1020,25 @@ class DY(object):
 
                 impl["z"] = z_sample
             else:
-                if len(xs) != 3:
+                if len(xs) != expected_dim:
                     raise pygloopException(
-                        f"Integrand '{impl['integrand_type']}' expects 3 variables [xk0,xk1,xk2], got {len(xs)}."
+                        f"Integrand '{impl['integrand_type']}' expects {expected_dim} loop-momentum variables, got {len(xs)}."
                     )
                 k_xs = xs
                 z_sample = None
+                impl["z"] = 1.0
 
-            k, jac_k = self.parameterize(k_xs, parameterization)
-            total_jacobian = jac_k * jac_z * (b - a)
-            momentum_point = f"k = [{'; '.join('[' + ', '.join(f'{ki:.16e}' for ki in km.to_list()) + ']' for km in [k])}]"
+            loop_momenta = []
+            jac_k = 1.0
+            for i_loop in range(self.n_loops):
+                k_loop, jac_loop = self.parameterize(
+                    k_xs[3 * i_loop : 3 * (i_loop + 1)], parameterization
+                )
+                loop_momenta.append(k_loop)
+                jac_k *= jac_loop
+
+            total_jacobian = jac_k * jac_z * k_rescaling
+            momentum_point = f"k = [{'; '.join('[' + ', '.join(f'{ki:.16e}' for ki in km.to_list()) + ']' for km in loop_momenta)}]"
             if z_sample is not None:
                 momentum_point += f", z = {z_sample:.16e}"
 
@@ -851,7 +1047,7 @@ class DY(object):
             # print("-" * 15)
             # print("parametrisation time:", t1 - t0)
 
-            wgt = self.integrand([k], impl)
+            wgt = self.integrand(loop_momenta, impl, channel_selector=channel_selector)
             wgt_in_arb = str(impl.get("dy_evaluation_mode", "compiled")) == "arb"
 
             n_digits = impl.get("dy_rotation_check_digits")
@@ -860,10 +1056,12 @@ class DY(object):
                 if n_digits_int > 0:
                     eps = float(impl.get("dy_rotation_check_eps", 1e-15))
                     rmat = self._rotation_matrix_from_xs(xs)
-                    rk = self._rotate_vec(k, rmat)
+                    rk = [self._rotate_vec(k_loop, rmat) for k_loop in loop_momenta]
                     rp1 = self._rotate_vec(self.ps_point[0].spatial(), rmat)
                     rp2 = self._rotate_vec(self.ps_point[1].spatial(), rmat)
-                    wgt_rot = self.zenos_integrand_with_externals([rk], rp1, rp2, impl)
+                    wgt_rot = self.zenos_integrand_with_externals(
+                        rk, rp1, rp2, impl, channel_selector=channel_selector
+                    )
                     rel = abs(wgt - wgt_rot) / (abs(wgt) + abs(wgt_rot) + abs(eps))
                     if rel > 10.0 ** (-n_digits_int):
                         self.rotation_hp_retry_count += 1
@@ -884,10 +1082,11 @@ class DY(object):
                         self.compiled_bundle.require_arb_supported()
                         try:
                             wgt_arb = self.zenos_integrand_with_externals(
-                                [k],
+                                loop_momenta,
                                 self.ps_point[0].spatial(),
                                 self.ps_point[1].spatial(),
                                 arb_impl,
+                                channel_selector=channel_selector,
                             )
                             if bool(impl.get("dy_accept_all_arb_retries", False)):
                                 self.rotation_hp_salvaged_count += 1
@@ -895,7 +1094,11 @@ class DY(object):
                                 wgt_in_arb = True
                             else:
                                 wgt_rot_arb = self.zenos_integrand_with_externals(
-                                    [rk], rp1, rp2, arb_impl
+                                    rk,
+                                    rp1,
+                                    rp2,
+                                    arb_impl,
+                                    channel_selector=channel_selector,
                                 )
                                 rel_arb = abs(wgt_arb - wgt_rot_arb) / (
                                     abs(wgt_arb) + abs(wgt_rot_arb) + abs(eps)
@@ -948,10 +1151,11 @@ class DY(object):
                     self.compiled_bundle.require_arb_supported()
                     try:
                         wgt_arb = self.zenos_integrand_with_externals(
-                            [k],
+                            loop_momenta,
                             self.ps_point[0].spatial(),
                             self.ps_point[1].spatial(),
                             arb_impl,
+                            channel_selector=channel_selector,
                         )
                         phase_wgt_arb = (
                             wgt_arb.real if phase == "real" else wgt_arb.imag
@@ -1008,7 +1212,10 @@ class DY(object):
         return final_wgt
 
     def integrand(
-        self, loop_momenta: list[Vector], integrand_implementation: dict[str, Any]
+        self,
+        loop_momenta: list[Vector],
+        integrand_implementation: dict[str, Any],
+        channel_selector: int | None = None,
     ) -> complex:
         integrand_implementation = self._normalize_integrand_implementation(
             integrand_implementation
@@ -1018,7 +1225,11 @@ class DY(object):
                 case "spenso":
                     return self.spenso_integrand(loop_momenta)
                 case "zenos":
-                    return self.zenos_integrand(loop_momenta, integrand_implementation)
+                    return self.zenos_integrand(
+                        loop_momenta,
+                        integrand_implementation,
+                        channel_selector=channel_selector,
+                    )
                 case "gammaloop":
                     return self.gammaloop_integrand(loop_momenta)
                 case _:
@@ -1077,6 +1288,7 @@ class DY(object):
         self,
         loop_momentum: list[Vector],
         integrand_implementation: dict[str, Any] | None = None,
+        channel_selector: int | None = None,
     ) -> complex:
         if self.compiled_bundle is None:
             raise pygloopException(
@@ -1086,7 +1298,11 @@ class DY(object):
         p1 = self.ps_point[0].spatial()
         p2 = self.ps_point[1].spatial()
         return self.zenos_integrand_with_externals(
-            loop_momentum, p1, p2, integrand_implementation
+            loop_momentum,
+            p1,
+            p2,
+            integrand_implementation,
+            channel_selector=channel_selector,
         )
 
     def zenos_integrand_with_externals(
@@ -1095,6 +1311,7 @@ class DY(object):
         p1: Vector,
         p2: Vector,
         integrand_implementation: dict[str, Any] | None = None,
+        channel_selector: int | None = None,
     ) -> complex:
         if self.compiled_bundle is None:
             raise pygloopException(
@@ -1104,8 +1321,9 @@ class DY(object):
         z = 1.0
         m_uv = 1.0
         if integrand_implementation is not None:
-            z = float(integrand_implementation.get("z", z))
             m_uv = float(integrand_implementation.get("mUV", m_uv))
+            if self.process_uses_z():
+                z = float(integrand_implementation.get("z", z))
         evaluation_mode = "compiled"
         decimal_digit_precision = None
         theta_tolerance = 0.0
@@ -1129,6 +1347,7 @@ class DY(object):
             mode=evaluation_mode,
             decimal_digit_precision=decimal_digit_precision,
             theta_tolerance=theta_tolerance,
+            channel_selector=channel_selector,
         )
 
     def _normalize_integrand_implementation(
@@ -1273,7 +1492,7 @@ class DY(object):
         )  # type: ignore
         this_result = IntegrationResult(0.0, 0.0)
         t_start = time.time()
-        n_dim = 4 if call_args[1].get("integrand_type") == "zenos" else 3
+        n_dim = process_instance.integration_dimension(call_args[1])
         for _ in range(n_points):
             xs = [random.random() for _ in range(n_dim)]
             weight = process_instance.integrand_xspace(xs, *call_args)
@@ -1493,7 +1712,7 @@ class DY(object):
     ) -> IntegrationResult:
         integration_result = IntegrationResult(0.0, 0.0)
 
-        n_dim = 4 if integrand_implementation.get("integrand_type") == "zenos" else 3
+        n_dim = self.integration_dimension(integrand_implementation)
         integrator = vegas.Integrator(n_dim * [[0, 1]])  # fmt: off
 
         local_worker = DY.vegas_functor(
@@ -1642,18 +1861,27 @@ class DY(object):
         **opts,
     ) -> IntegrationResult:
         integration_result = IntegrationResult(0.0, 0.0)
+        continuous_learning_rate = 1.0
+        discrete_learning_rate = 1.0
 
-        n_dim = 4 if integrand_implementation.get("integrand_type") == "zenos" else 3
+        n_dim = self.integration_dimension(integrand_implementation)
 
         if opts["multi_channeling"]:
-            integrator = NumericalIntegrator.discrete([
-                NumericalIntegrator.continuous(n_dim),
-                NumericalIntegrator.continuous(n_dim),
-                NumericalIntegrator.continuous(n_dim),
-                NumericalIntegrator.continuous(n_dim),
-                NumericalIntegrator.continuous(n_dim),
-            ])
+            graph_channel_names = self.graph_channel_names(integrand_implementation)
+            if len(graph_channel_names) == 0:
+                raise pygloopException(
+                    "DY Symbolica multi-channeling requires a compiled zenos bundle "
+                    "with graph-grouped evaluators."
+                )
+            logger.info(
+                "Symbolica discrete graph channels: %s",
+                ", ".join(graph_channel_names),
+            )
+            integrator = self._build_symbolica_discrete_integrator(
+                n_dim, len(graph_channel_names)
+            )
         else:
+            graph_channel_names = []
             integrator = NumericalIntegrator.continuous(n_dim)
 
         rng = integrator.rng(seed=opts["seed"], stream_id=0)
@@ -1673,15 +1901,46 @@ class DY(object):
             )
             integrator.add_training_samples(samples, res)
 
-            # Learning rate is 1.5
+            raw_graph_channel_estimates: list[float] = []
+            if opts["multi_channeling"]:
+                raw_graph_channel_estimates = (
+                    self._symbolica_graph_channel_raw_estimates(
+                        integrator,
+                        n_dim,
+                        graph_channel_names,
+                        samples,
+                        res,
+                        continuous_learning_rate,
+                        discrete_learning_rate,
+                    )
+                )
+
+            graph_channel_contributions: list[tuple[str, float]] = []
             avg, err, _chi_sq = integrator.update(
-                continuous_learning_rate=1.0, discrete_learning_rate=1.0
+                continuous_learning_rate=continuous_learning_rate,
+                discrete_learning_rate=discrete_learning_rate,
             )  # type: ignore
+            if opts["multi_channeling"]:
+                graph_channel_contributions = (
+                    self._symbolica_graph_channel_contributions(
+                        graph_channel_names,
+                        raw_graph_channel_estimates,
+                        samples,
+                        res,
+                        avg,
+                    )
+                )
             integration_result.central_value = avg
             integration_result.error = err
             logger.info(
                 f"... result after this iteration:\n{integration_result.str_report(target)}"
             )
+            if graph_channel_contributions:
+                logger.info(
+                    self._symbolica_graph_channel_report(
+                        graph_channel_contributions, avg
+                    )
+                )
 
         return integration_result
 
@@ -1700,8 +1959,7 @@ class DY(object):
         """
         random.seed(seed)
 
-        # zenos uses 4 integration vars (x0,x1,x2,xz), others use 3
-        n_dim = 4 if integrand_implementation.get("integrand_type") == "zenos" else 3
+        n_dim = self.integration_dimension(integrand_implementation)
 
         t0 = time.perf_counter()
         acc = 0.0

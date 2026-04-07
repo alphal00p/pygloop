@@ -92,7 +92,9 @@ class VacuumDotGraph:
     def get_nonzero_winding_cycles(self) -> List[Set[pydot.Edge]]:
         cycles = get_directed_cycles(self.dot)
         cut = [
-            e for e in self.dot.get_edges() if e.get_attributes().get("is_cut", 0) != 0
+            e
+            for e in self.dot.get_edges()
+            if _strip_quotes(e.get_attributes().get("is_cut", "0")) != 0
         ]
         return [
             cycle
@@ -169,8 +171,9 @@ class VacuumDotGraph:
         cutes = [
             e
             for e in self.dot.get_edges()
-            if abs(float(e.get_attributes().get("is_cut", 0))) == 1
+            if abs(float(_strip_quotes(e.get_attributes().get("is_cut", "0")))) == 1
         ]
+
         targets = compute_targets(cutes, cycles)
 
         old_cutkosky_cuts = self.get_minimal_cuts()
@@ -531,6 +534,11 @@ class VacuumDotGraph:
 
         cycles = get_directed_cycles(self.dot)
         for initial_cut in initial_cuts:
+            print("*********************")
+            print("init cut")
+            for e in initial_cut:
+                print(e)
+            print("*********************")
             for final_cut in final_cuts:
                 connected_components = self.cut_splits_into_two_components(
                     initial_cut, final_cut
@@ -538,6 +546,7 @@ class VacuumDotGraph:
                 labelled_graph = self.set_cut_labels(
                     initial_cut, final_cut, copy.deepcopy(self.dot), cycles
                 )
+                print("conditions")
                 if (
                     self.phase_space_check(initial_cut, final_cut)
                     and connected_components
@@ -569,7 +578,7 @@ class VacuumDotGraph:
                         ])
                         if not self.check_routing(graph, [V1, V2]):
                             print("ERROR: Routing is wrongly assigned")
-                            raise Exception
+                            raise ValueError("routing wrongly assigned")
 
         return routed_cut_graphs
 
@@ -912,3 +921,31 @@ class DYDotGraphs(DotGraphs):
 
     def save_to_file(self, file_path: str):
         write_text_with_dirs(file_path, "\n\n".join([g.to_string() for g in self]))
+
+
+def canonicalise_vacuum_graph(vacuum_g):
+    for ee in vacuum_g.dot.get_edges():
+        e_atts = ee.get_attributes()
+        if e_atts.get("is_cut", None) is not None:
+            e_atts["is_cut"] = "1"
+
+            if _edge_particle(ee) == "d":
+                ee.set(
+                    "num",
+                    f"Q({edge_id_int(ee)},spenso::mink(4,mu))*spenso::gamma(spenso::bis(4,hedge({_parse_port(ee.get_destination())})),spenso::bis(4,hedge({_parse_port(ee.get_source())})),spenso::mink(4,mu))*spenso::g(spenso::dind(spenso::cof(3,hedge({_parse_port(ee.get_destination())}))),spenso::cof(3,hedge({_parse_port(ee.get_source())})))",
+                )
+                ee.set("dod", "-1")
+            if _edge_particle(ee) == "d~":
+                ee.set(
+                    "num",
+                    f"Q({edge_id_int(ee)},spenso::mink(4,rho))*spenso::gamma(spenso::bis(4,hedge({_parse_port(ee.get_source())})),spenso::bis(4,hedge({_parse_port(ee.get_destination())})),spenso::mink(4,rho))*spenso::g(spenso::dind(spenso::cof(3,hedge({_parse_port(ee.get_source())}))),spenso::cof(3,hedge({_parse_port(ee.get_destination())})))",
+                )
+                ee.set("dod", "-1")
+            if _edge_particle(ee) == "g":
+                ee.set(
+                    "num",
+                    f"-spenso::g(spenso::mink(4,hedge({_parse_port(ee.get_destination())})),spenso::mink(4,hedge({_parse_port(ee.get_source())})))*spenso::g(spenso::coad(8,hedge({_parse_port(ee.get_source())})),spenso::coad(8,hedge({_parse_port(ee.get_destination())})))",
+                )
+                ee.set("dod", "-2")
+
+    return vacuum_g

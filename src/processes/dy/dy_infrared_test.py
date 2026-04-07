@@ -40,7 +40,7 @@ class approach_point(object):
             ks = [k + pow(10, -i) * vp for k in kcc]
             print(ks)
             print(pow(10, -i) * vp)
-            cut_sum = 0  # Decimal(0)
+            cut_sum = Decimal(0)
 
             for cut_graph, cut_graph_evaluator in zip(
                 self.routed_integrands, self.evaluators
@@ -51,7 +51,7 @@ class approach_point(object):
                 # ):
                 print("------------------------------")
                 print(ks)
-                # cut_graph_evaluator.debug_printout(ks, p1, p2, z)
+                cut_graph_evaluator.debug_printout(ks, p1, p2, z)
                 cut_value = cut_graph_evaluator.eval(
                     ks,
                     p1,
