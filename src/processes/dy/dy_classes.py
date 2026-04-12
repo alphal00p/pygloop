@@ -207,7 +207,7 @@ class VacuumDotGraph:
 
             for e in c:
                 particle = _strip_quotes(str(e.get_attributes().get("particle", "")))
-                if particle not in ["d", "d~", "g", ""]:
+                if particle not in ["d", "d~", "g", "ghG", "ghG~", ""]:
                     massive_in_cut.append(particle)
 
             if massive_in_cut == initial_massive:
@@ -724,6 +724,12 @@ class DYDotGraph(DotGraph):
                 f"-spenso::g(spenso::mink(4,hedge({_parse_port(ee.get_source())})),spenso::mink(4,hedge({_parse_port(ee.get_destination())})))*spenso::g(spenso::coad(8,hedge({_parse_port(ee.get_destination())})),spenso::coad(8,hedge({_parse_port(ee.get_source())})))",
             )
             ee.set("dod", "-2")
+        if _edge_particle(ee) == "ghG" or _edge_particle(ee) == "ghG~":
+            ee.set(
+                "num",
+                "1",
+            )
+            ee.set("dod", "-2")
 
         return ee
 
@@ -910,7 +916,7 @@ class DYDotGraphs(DotGraphs):
                     particle = _strip_quotes(
                         str(e.get_attributes().get("particle", ""))
                     )
-                    if particle not in ["d", "d~", "g"]:
+                    if particle not in ["d", "d~", "g", "ghG", "ghG~"]:
                         massive_in_cut.append(particle)
 
                 # brittle if there are copies of the same particle in the final state

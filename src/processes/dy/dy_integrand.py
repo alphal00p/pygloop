@@ -494,7 +494,9 @@ class EMRIntegrandConstructor(object):
                     eta = etas.expression
                     for rep in g.replacements:
                         eta = eta.replace(E(f"pygloop::E({rep[0]})"), E(f"E({rep[1]})"))
-                    cff_term = cff_term.replace(E(f"pygloop::η({etas.id})"), eta)
+
+                    # tt~change: fix eta here with minus sign
+                    cff_term = cff_term.replace(E(f"pygloop::η({etas.id})"), -eta)
 
                     if get_residues:
                         residue_eta = deepcopy(eta)
@@ -777,7 +779,7 @@ class UltraVioletSubtraction(object):
             e_atts = e.get_attributes()
             e_id = e_atts["id"]
             e_particle = _strip_quotes(str(e_atts["particle"]))
-            if e_particle in ["d", "d~", "g"]:
+            if e_particle in ["d", "d~", "g", "ghG", "ghG~"]:
                 mass = E("0")
             else:
                 mass = E(f"m({e_particle})")
@@ -890,7 +892,7 @@ class ThresholdSubtractor(object):
             eid = _strip_quotes(eid_raw) if isinstance(eid_raw, str) else eid_raw
             target = E(f"E({eid})")
             particle = _strip_quotes(str(e_atts["particle"]))
-            if particle not in ["d", "d~", "g"]:
+            if particle not in ["d", "d~", "g", "ghG", "ghG~"]:
                 replacement = (
                     self.sp3D(E(f"q({eid})"), E(f"q({eid})")) + E(f"m({particle})") ** 2
                 ) ** E("1/2")
@@ -998,7 +1000,7 @@ class ThresholdSubtractor(object):
                     shift = routing_items
                     mass = E("0")
                     e_particle = _strip_quotes(str(e_atts["particle"]))
-                    if e_particle in ["d", "d~", "g"]:
+                    if e_particle in ["d", "d~", "g", "ghG", "ghG~"]:
                         mass = E("0")
                     else:
                         mass = E(f"m({e_particle})")
@@ -1285,7 +1287,7 @@ class LoopIntegrandConstructor(object):
             eid = _strip_quotes(eid_raw) if isinstance(eid_raw, str) else eid_raw
             target = E(f"E({eid})")
             particle = _strip_quotes(str(e_atts["particle"]))
-            if particle not in ["d", "d~", "g"]:
+            if particle not in ["d", "d~", "g", "ghG", "ghG~"]:
                 replacement = (
                     self.sp3D(E(f"q({eid})"), E(f"q({eid})")) + E(f"m({particle})") ** 2
                 ) ** E("1/2")

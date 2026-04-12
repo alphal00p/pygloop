@@ -104,6 +104,8 @@ class DY(object):
         final_state: list[str] | None = None,
         process_name: str | None = None,
         skip_ps_validation: bool = False,
+        integrate_beams: bool = False,
+        skip_gl_worker_init: bool = False,
         clean=True,
         logger_level: int | None = None,
         **opts,
@@ -123,6 +125,11 @@ class DY(object):
             copy.deepcopy(final_state) if final_state is not None else ["a"]
         )
         self.process_name = process_name if process_name is not None else "DY"
+        self.integrate_beams = bool(integrate_beams)
+        self.enforce_ttbar_beam_threshold = (
+            self.integrate_beams and self.process_name.lower() == "tt~"
+        )
+        self.skip_gl_worker_init = bool(skip_gl_worker_init)
 
         self.skip_ps_validation = bool(skip_ps_validation)
         if not self.skip_ps_validation:
@@ -153,78 +160,80 @@ class DY(object):
 
         self.e_cm = math.sqrt(abs((self.ps_point[0] + self.ps_point[1]).squared()))
 
-        gl_states_folder = pjoin(GAMMALOOP_STATES_FOLDER, self.name)
-        self.clean = clean
-        if os.path.exists(gl_states_folder):
-            if clean:
-                logger.info(
-                    f"Removing existing GammaLoop state in {Colour.GREEN}{gl_states_folder}{Colour.END}"
-                )  # nopep8
-                shutil.rmtree(gl_states_folder)
-            else:
-                logger.info(
-                    f"Reusing existing GammaLoop state in {Colour.GREEN}{gl_states_folder}{Colour.END}"
-                )  # nopep8
-
-        logger_level = logger.getEffectiveLevel()
-        if logger_level <= logging.DEBUG:
-            gl_log_level = LogLevel.Debug
-        elif logger_level <= logging.INFO:
-            gl_log_level = LogLevel.Info
-        elif logger_level <= logging.WARNING:
-            gl_log_level = LogLevel.Warn
-        elif logger_level <= logging.ERROR:
-            gl_log_level = LogLevel.Error
-        else:
-            gl_log_level = LogLevel.Off
-
-        logger.info(
-            f"Initializing GammaLoop API (git {Colour.BLUE}{git_version}{Colour.END}) for process {Colour.GREEN}{self.name}{Colour.END}"
-        )  # nopep8
-        self.gl_worker = GammaLoopAPI(
-            pjoin(PYGLOOP_FOLDER, "outputs", "gammaloop_states", self.name),
-            # log_file_name=self.name,
-            # log_level=gl_log_level,
-        )
-        self.set_log_level(logger_level)
-
         if toml_config_path is None:
             toml_config_path = pjoin(CONFIGS_FOLDER, self.name, "generate.toml")
-
         self.toml_config_path = toml_config_path
-        logger.info(
-            f"Setting gammaloop starting configuration from toml file {Colour.BLUE}{toml_config_path}{Colour.END}."
-        )
-        self.gl_worker.run(f"set global file {toml_config_path}")  # nopep8
-        self.setup_gl_worker()
-
-        amplitudes, cross_sections = self.gl_worker.list_outputs()
-        if len(amplitudes) == 0 and len(cross_sections) == 0:
-            logger.info("No output yet in the GammaLoop state loaded.")
-        if len(amplitudes) > 0:
-            logger.info(
-                f"Available amplitudes: {Colour.GREEN}{pformat(amplitudes)}{Colour.END}"
-            )
-        if len(cross_sections) > 0:
-            logger.info(
-                f"Available cross sections: {Colour.GREEN}{pformat(cross_sections)}{Colour.END}"
-            )
 
         if runtime_toml_config_path is None:
             runtime_toml_config_path = pjoin(CONFIGS_FOLDER, self.name, "runtime.toml")
         self.runtime_toml_config_path = runtime_toml_config_path
 
-        logger.info(f"Setting runtime configuration for all outputs from toml file: {Colour.BLUE}{runtime_toml_config_path}{Colour.END}.")  # fmt: off
-        for output_name, output_id in amplitudes.items():
-            # Currently bugged: not all functionalities available on integrands not yet generated
-            if "_generated_graphs" in output_name:
-                continue
-            self.gl_worker.run(f"set process -p {output_id} -i {output_name} file {self.runtime_toml_config_path}")  # fmt: off
-            self.set_sample_point(
-                self.ps_point, self.helicities, str(output_id), output_name
-            )
+        self.gl_worker = None
+        self.clean = clean
+        if not self.skip_gl_worker_init:
+            gl_states_folder = pjoin(GAMMALOOP_STATES_FOLDER, self.name)
+            if os.path.exists(gl_states_folder):
+                if clean:
+                    logger.info(
+                        f"Removing existing GammaLoop state in {Colour.GREEN}{gl_states_folder}{Colour.END}"
+                    )  # nopep8
+                    shutil.rmtree(gl_states_folder)
+                else:
+                    logger.info(
+                        f"Reusing existing GammaLoop state in {Colour.GREEN}{gl_states_folder}{Colour.END}"
+                    )  # nopep8
 
-        self.save_state()
+            logger_level = logger.getEffectiveLevel()
+            if logger_level <= logging.DEBUG:
+                gl_log_level = LogLevel.Debug
+            elif logger_level <= logging.INFO:
+                gl_log_level = LogLevel.Info
+            elif logger_level <= logging.WARNING:
+                gl_log_level = LogLevel.Warn
+            elif logger_level <= logging.ERROR:
+                gl_log_level = LogLevel.Error
+            else:
+                gl_log_level = LogLevel.Off
+
+            logger.info(
+                f"Initializing GammaLoop API (git {Colour.BLUE}{git_version}{Colour.END}) for process {Colour.GREEN}{self.name}{Colour.END}"
+            )  # nopep8
+            self.gl_worker = GammaLoopAPI(
+                pjoin(PYGLOOP_FOLDER, "outputs", "gammaloop_states", self.name),
+                # log_file_name=self.name,
+                # log_level=gl_log_level,
+            )
+            self.set_log_level(logger_level)
+
+            logger.info(
+                f"Setting gammaloop starting configuration from toml file {Colour.BLUE}{toml_config_path}{Colour.END}."
+            )
+            self.gl_worker.run(f"set global file {toml_config_path}")  # nopep8
+            self.setup_gl_worker()
+
+            amplitudes, cross_sections = self.gl_worker.list_outputs()
+            if len(amplitudes) == 0 and len(cross_sections) == 0:
+                logger.info("No output yet in the GammaLoop state loaded.")
+            if len(amplitudes) > 0:
+                logger.info(
+                    f"Available amplitudes: {Colour.GREEN}{pformat(amplitudes)}{Colour.END}"
+                )
+            if len(cross_sections) > 0:
+                logger.info(
+                    f"Available cross sections: {Colour.GREEN}{pformat(cross_sections)}{Colour.END}"
+                )
+
+            logger.info(f"Setting runtime configuration for all outputs from toml file: {Colour.BLUE}{runtime_toml_config_path}{Colour.END}.")  # fmt: off
+            for output_name, output_id in amplitudes.items():
+                # Currently bugged: not all functionalities available on integrands not yet generated
+                if "_generated_graphs" in output_name:
+                    continue
+                self.gl_worker.run(f"set process -p {output_id} -i {output_name} file {self.runtime_toml_config_path}")  # fmt: off
+                self.set_sample_point(
+                    self.ps_point, self.helicities, str(output_id), output_name
+                )
+
+            self.save_state()
         # Cache some quantities for performance
         self.cache: dict[str, Any] = {}
 
@@ -267,6 +276,8 @@ class DY(object):
             clean=False,
             logger_level=logging.CRITICAL,
             skip_ps_validation=self.skip_ps_validation,
+            integrate_beams=self.integrate_beams,
+            skip_gl_worker_init=self.skip_gl_worker_init,
         )
         return copied_self
 
@@ -282,6 +293,7 @@ class DY(object):
             copy.deepcopy(self.final_state),
             self.process_name,
             self.skip_ps_validation,
+            self.integrate_beams,
         )
 
     def process_uses_z(self) -> bool:
@@ -296,10 +308,25 @@ class DY(object):
             and integrand_implementation.get("integrand_type") == "zenos"
         )
 
+    def sampled_uses_beam_fractions(
+        self, integrand_implementation: dict[str, Any] | str
+    ) -> bool:
+        integrand_implementation = self._normalize_integrand_implementation(
+            integrand_implementation
+        )
+        return (
+            self.integrate_beams
+            and integrand_implementation.get("integrand_type") == "zenos"
+        )
+
     def integration_dimension(
         self, integrand_implementation: dict[str, Any] | str
     ) -> int:
-        return 3 * self.n_loops + int(self.sampled_uses_z(integrand_implementation))
+        return (
+            3 * self.n_loops
+            + int(self.sampled_uses_z(integrand_implementation))
+            + 2 * int(self.sampled_uses_beam_fractions(integrand_implementation))
+        )
 
     @staticmethod
     def _channel_selector_from_multi_channeling(
@@ -637,13 +664,14 @@ class DY(object):
             #    math.sqrt(z)
             #    * np.array([1 / math.sqrt(3), 1 / math.sqrt(3), 1 / math.sqrt(3)])
             # ]
+            scale = 1000
             ks = [
                 # math.sqrt(z)
-                np.array([1 / math.sqrt(3), 1 / math.sqrt(3), 1 / math.sqrt(3)])
+                scale * np.array([1 / math.sqrt(3), 1 / math.sqrt(3), 1 / math.sqrt(3)])
             ]
             vp = 0 * np.array([0, 1, 1])
-            p1 = np.array([0, 0, 1])
-            p2 = np.array([0, 0, -1])
+            p1 = scale * np.array([0, 0, 1])
+            p2 = scale * np.array([0, 0, -1])
             approach_limit.approach(ks, p1, p2, z, vp)
 
         if all_evaluators:
@@ -704,11 +732,14 @@ class DY(object):
                 # --select-graphs GL02
                 if self.process_name == "tt~":
                     # self.gl_worker.run(
-                    #    f"generate xs d d~ > t t~ | d d~ g t t~ [{{{{1}}}} QCD=1] --only-diagrams --numerator-grouping group_identical_graphs_up_to_scalar_rescaling --symmetrize-left-right-states true --symmetrize-initial-states true -p {base_name} -i {graphs_process_name} --max-multiplicity-for-fast-cut-filter 99"
+                    #        f"generate xs d d~ > t t~ | d d~ g t t~ [{{{{1}}}} QCD=1] --only-diagrams --numerator-grouping group_identical_graphs_up_to_scalar_rescaling --symmetrize-left-right-states true --symmetrize-initial-states true -p {base_name} -i {graphs_process_name} --max-multiplicity-for-fast-cut-filter 99"
                     # )
                     self.gl_worker.run(
                         f"generate xs g g > t t~ | d d~ g t t~ [{{{{1}}}} QCD=1] --only-diagrams --numerator-grouping group_identical_graphs_up_to_scalar_rescaling --symmetrize-left-right-states true --symmetrize-initial-states true -p {base_name} -i {graphs_process_name} --max-multiplicity-for-fast-cut-filter 99"
                     )
+                    # self.gl_worker.run(
+                    #    f"generate xs ghG ghG~ > t t~ | d d~ g t t~ ghG ghG~ [{{{{1}}}} QCD=1] --only-diagrams --numerator-grouping group_identical_graphs_up_to_scalar_rescaling --symmetrize-left-right-states true --symmetrize-initial-states true -p {base_name} -i {graphs_process_name} --max-multiplicity-for-fast-cut-filter 99"
+                    # )
 
                 self.gl_worker.run("save state -o")
                 DY_1L_dot_files = self.gl_worker.get_dot_files(
@@ -915,6 +946,22 @@ class DY(object):
         jac = radius**3 * math.sin(ph) * 2 * math.pi**2 * (1 / rx + 1 / (1 - rx))
         return (v, jac)
 
+    def sampled_beam_momenta(self, x1: float, x2: float) -> tuple[Vector, Vector]:
+        return (
+            Vector(0.0, 0.0, self.e_cm * math.sqrt(float(x1 * x2)) / 2),
+            Vector(0.0, 0.0, -self.e_cm * math.sqrt(float(x1 * x2)) / 2),
+        )
+        # return (
+        #    Vector(0.0, 0.0, self.e_cm * float(x1)),
+        #    Vector(0.0, 0.0, -self.e_cm * float(x2)),
+        # )
+
+    def ttbar_beam_threshold_passes(self, x1: float, x2: float) -> bool:
+        if not self.enforce_ttbar_beam_threshold:
+            return True
+        mt = 173.0
+        return float(x1) * float(x2) * (self.e_cm**2) >= 4.0 * (mt**2)
+
     @staticmethod
     def _rotation_matrix_from_xs(xs: list[float]) -> tuple[tuple[float, ...], ...]:
         # Deterministic SO(3) rotation from sample coordinates.
@@ -990,8 +1037,9 @@ class DY(object):
                 multi_channeling
             )
             expects_z = self.sampled_uses_z(impl)
+            expects_beam_fractions = self.sampled_uses_beam_fractions(impl)
             n_k_vars = 3 * self.n_loops
-            expected_dim = n_k_vars + int(expects_z)
+            expected_dim = n_k_vars + int(expects_z) + 2 * int(expects_beam_fractions)
             k_rescaling = 1.0
             jac_z = 1
             if expects_z:
@@ -1028,6 +1076,16 @@ class DY(object):
                 z_sample = None
                 impl["z"] = 1.0
 
+            p1 = self.ps_point[0].spatial()
+            p2 = self.ps_point[1].spatial()
+            if expects_beam_fractions:
+                beam_offset = n_k_vars + int(expects_z)
+                x1 = xs[beam_offset]
+                x2 = xs[beam_offset + 1]
+                if not self.ttbar_beam_threshold_passes(x1, x2):
+                    return 0.0
+                p1, p2 = self.sampled_beam_momenta(x1, x2)
+
             loop_momenta = []
             jac_k = 1.0
             for i_loop in range(self.n_loops):
@@ -1041,13 +1099,29 @@ class DY(object):
             momentum_point = f"k = [{'; '.join('[' + ', '.join(f'{ki:.16e}' for ki in km.to_list()) + ']' for km in loop_momenta)}]"
             if z_sample is not None:
                 momentum_point += f", z = {z_sample:.16e}"
+            if expects_beam_fractions:
+                momentum_point += (
+                    f", p1 = [{', '.join(f'{ki:.16e}' for ki in p1.to_list())}]"
+                    f", p2 = [{', '.join(f'{ki:.16e}' for ki in p2.to_list())}]"
+                )
 
             # t1 = time.perf_counter()
 
             # print("-" * 15)
             # print("parametrisation time:", t1 - t0)
 
-            wgt = self.integrand(loop_momenta, impl, channel_selector=channel_selector)
+            if expects_beam_fractions:
+                wgt = self.zenos_integrand_with_externals(
+                    loop_momenta,
+                    p1,
+                    p2,
+                    impl,
+                    channel_selector=channel_selector,
+                )
+            else:
+                wgt = self.integrand(
+                    loop_momenta, impl, channel_selector=channel_selector
+                )
             wgt_in_arb = str(impl.get("dy_evaluation_mode", "compiled")) == "arb"
 
             n_digits = impl.get("dy_rotation_check_digits")
@@ -1057,8 +1131,8 @@ class DY(object):
                     eps = float(impl.get("dy_rotation_check_eps", 1e-15))
                     rmat = self._rotation_matrix_from_xs(xs)
                     rk = [self._rotate_vec(k_loop, rmat) for k_loop in loop_momenta]
-                    rp1 = self._rotate_vec(self.ps_point[0].spatial(), rmat)
-                    rp2 = self._rotate_vec(self.ps_point[1].spatial(), rmat)
+                    rp1 = self._rotate_vec(p1, rmat)
+                    rp2 = self._rotate_vec(p2, rmat)
                     wgt_rot = self.zenos_integrand_with_externals(
                         rk, rp1, rp2, impl, channel_selector=channel_selector
                     )
@@ -1083,8 +1157,8 @@ class DY(object):
                         try:
                             wgt_arb = self.zenos_integrand_with_externals(
                                 loop_momenta,
-                                self.ps_point[0].spatial(),
-                                self.ps_point[1].spatial(),
+                                p1,
+                                p2,
                                 arb_impl,
                                 channel_selector=channel_selector,
                             )
@@ -1152,8 +1226,8 @@ class DY(object):
                     try:
                         wgt_arb = self.zenos_integrand_with_externals(
                             loop_momenta,
-                            self.ps_point[0].spatial(),
-                            self.ps_point[1].spatial(),
+                            p1,
+                            p2,
                             arb_impl,
                             channel_selector=channel_selector,
                         )
@@ -1357,6 +1431,17 @@ class DY(object):
             return {"integrand_type": integrand_implementation}
         return integrand_implementation
 
+    @staticmethod
+    def _call_args_use_zenos_integrand(call_args: list[Any]) -> bool:
+        if len(call_args) < 2:
+            return False
+        integrand_implementation = call_args[1]
+        if isinstance(integrand_implementation, str):
+            return integrand_implementation == "zenos"
+        if isinstance(integrand_implementation, dict):
+            return integrand_implementation.get("integrand_type") == "zenos"
+        return False
+
     def integrate(
         self,
         integrator: str,
@@ -1369,6 +1454,13 @@ class DY(object):
         integrand_implementation = self._normalize_integrand_implementation(
             integrand_implementation
         )
+        if (
+            self.integrate_beams
+            and integrand_implementation.get("integrand_type") != "zenos"
+        ):
+            raise pygloopException(
+                "DY beam integration mode currently only supports the 'zenos' integrand implementation."
+            )
         match integrator:
             case "naive":
                 return self.naive_integrator(
@@ -1619,12 +1711,16 @@ class DY(object):
         id: int,
         all_xs: list[list[float]],
         call_args: list[Any],
+        skip_gl_worker_init: bool = False,
     ) -> tuple[int, list[float], IntegrationResult]:
         res = IntegrationResult(0.0, 0.0)
         t_start = time.time()
         all_weights = []
         process = DY(
-            *process_builder_inputs, clean=False, logger_level=logging.CRITICAL
+            *process_builder_inputs,
+            clean=False,
+            logger_level=logging.CRITICAL,
+            skip_gl_worker_init=skip_gl_worker_init,
         )  # type: ignore
         for xs in all_xs:
             weight = process.integrand_xspace(xs, *call_args)
@@ -1680,8 +1776,15 @@ class DY(object):
         def f(all_xs):
             all_weights = []
             if n_cores > 1:
+                skip_gl_worker_init = DY._call_args_use_zenos_integrand(call_args)
                 all_args = [
-                    (process.builder_inputs(), i_chunk, all_xs_split, call_args)
+                    (
+                        process.builder_inputs(),
+                        i_chunk,
+                        all_xs_split,
+                        call_args,
+                        skip_gl_worker_init,
+                    )
                     for i_chunk, all_xs_split in enumerate(
                         chunks(all_xs, len(all_xs) // n_cores + 1)
                     )
@@ -1752,12 +1855,16 @@ class DY(object):
         multi_channeling: bool,
         all_xs: list[SymbolicaSample],
         call_args: list[Any],
+        skip_gl_worker_init: bool = False,
     ) -> tuple[int, list[float], IntegrationResult]:
         res = IntegrationResult(0.0, 0.0)
         t_start = time.time()
         all_weights = []
         process = DY(
-            *process_builder_inputs, clean=False, logger_level=logging.CRITICAL
+            *process_builder_inputs,
+            clean=False,
+            logger_level=logging.CRITICAL,
+            skip_gl_worker_init=skip_gl_worker_init,
         )  # type: ignore
         for xs in all_xs:
             if not multi_channeling:
@@ -1822,6 +1929,7 @@ class DY(object):
     ) -> list[float]:
         all_weights = []
         if n_cores > 1:
+            skip_gl_worker_init = DY._call_args_use_zenos_integrand(call_args)
             all_args = [
                 (
                     process.builder_inputs(),
@@ -1829,6 +1937,7 @@ class DY(object):
                     multi_channeling,
                     [SymbolicaSample(s) for s in all_xs_split],
                     call_args,
+                    skip_gl_worker_init,
                 )
                 for i_chunk, all_xs_split in enumerate(
                     chunks(samples, len(samples) // n_cores + 1)
@@ -1863,6 +1972,9 @@ class DY(object):
         integration_result = IntegrationResult(0.0, 0.0)
         continuous_learning_rate = 1.0
         discrete_learning_rate = 1.0
+
+        # continuous_learning_rate = 0.0
+        # discrete_learning_rate = 0.0
 
         n_dim = self.integration_dimension(integrand_implementation)
 

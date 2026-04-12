@@ -30,10 +30,11 @@ from processes.dy.dy_graph_utils import (
     _strip_quotes,
 )
 
-MT = 0.69200000000000000000000000000000  # s=500
-MT = 0.46133333333333333333333333333333  # s=750
-MT = 0.346  # s=1000
+# MT = 0.69200000000000000000000000000000  # s=500
+# MT = 0.46133333333333333333333333333333  # s=750
+# MT = 0.346  # s=1000
 # MT = 0.173  # s=2000
+MT = 173
 
 
 def heaviside_theta(x):
@@ -193,7 +194,7 @@ class evaluate_integrand:
                     particle_type = _strip_quotes(str(e_atts["particle"]))
                     mass = (
                         E("0")
-                        if particle_type in ["d", "d~", "g"]
+                        if particle_type in ["d", "d~", "g", "ghG", "ghG~"]
                         else E(f"m({particle_type})")
                     )
                     final_mom = (

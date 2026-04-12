@@ -136,6 +136,25 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
         default=False,
         help="DY only: accept the unrotated arbitrary-precision retry result without applying the rotated arb re-check.",
     )
+    parser.add_argument(
+        "--dy-final-state",
+        type=str,
+        nargs="+",
+        default=None,
+        help="DY only: final-state particle labels used when routing cut graphs. Example: --dy-final-state a or --dy-final-state t t",
+    )
+    parser.add_argument(
+        "--dy-process-name",
+        type=str,
+        default=None,
+        help="DY only: process label passed to the downstream DY integrand/evaluator pipeline.",
+    )
+    parser.add_argument(
+        "--dy-integrate-beams",
+        action="store_true",
+        default=False,
+        help="DY only: sample beam fractions x1 and x2 in [0,1] and use p1=(0,0,e_cm*x1), p2=(0,0,-e_cm*x2) at runtime for the zenos integrand.",
+    )
 
     parser.add_argument("--gammaloop-configuration", "-f", default=None,
         help="Specify a toml file containing the gammaloop configuration desired. Default = ./configs/<PROCESS_NAME>/generate.toml",
@@ -502,7 +521,10 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
                 runtime_toml_config_path=args.runtime_configuration,
                 clean=args.clean,
                 gammaloop_settings=args.gammaloop_settings,
+                final_state=args.dy_final_state,
+                process_name=args.dy_process_name,
                 skip_ps_validation=args.dy_skip_ps_validation,
+                integrate_beams=args.dy_integrate_beams,
             )
         case _:
             raise pygloopException(f"Process {args.process} not implemented.")
@@ -531,11 +553,11 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
         case "generate":
             logger.info("Generating graphs ...")
             process.generate_graphs()
-            if "gammaloop" in args.generation_type or "all" in args.generation_type:
+            if args.process != "scalar_gravity" and ("gammaloop" in args.generation_type or "all" in args.generation_type):
                 logger.info("Generating gammaloop code ...")
                 process.generate_gammaloop_code()
                 logger.info("Gammaloop code generation completed.")
-            if "spenso" in args.generation_type or "all" in args.generation_type:
+            if args.process != "scalar_gravity" and ("spenso" in args.generation_type or "all" in args.generation_type):
                 logger.info("Generating spenso code ...")
                 process.generate_spenso_code(
                     integrand_evaluator_compiler=args.integrand_evaluator_compiler,
