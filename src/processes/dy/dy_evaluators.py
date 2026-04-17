@@ -112,20 +112,25 @@ def _sm_ttbar_couplings() -> dict[str, Expression]:
     return couplings
 
 
+def substitute_process_couplings(expr: Expression, process: str, L: int) -> Expression:
+    if _is_ttbar_process(process):
+        couplings = _sm_ttbar_couplings()
+        for coupling_name, coupling_value in couplings.items():
+            expr = expr.replace(E(coupling_name), coupling_value)
+        if L == 2:
+            expr = E("1i") * expr
+        return expr
+
+    expr = expr.replace(E("GC_11"), E("1"))
+    expr = expr.replace(E("GC_1"), E("1"))
+    expr = expr.replace(E("GC_10"), E("1"))
+    return expr
+
+
 class evaluate_integrand:
     def _replace_couplings(self, expr: Expression, include_tr: bool) -> Expression:
         if include_tr:
             expr = expr.replace(E("TR"), E("1/2"))
-
-        if _is_ttbar_process(self.process):
-            couplings = _sm_ttbar_couplings()
-            for coupling_name, coupling_value in couplings.items():
-                expr = expr.replace(E(coupling_name), coupling_value)
-            return expr
-
-        expr = expr.replace(E("GC_11"), E("1"))
-        expr = expr.replace(E("GC_1"), E("1"))
-        expr = expr.replace(E("GC_10"), E("1"))
         return expr
 
     def impose_rest_frame(self, integrand):
@@ -331,9 +336,6 @@ class evaluate_integrand:
 
         self.e_surface = self.set_e_surface()
 
-        # print("esurface for:     ", self.routed_integrand.approximation_type)
-        # print(self.e_surface)
-
         ht_prefactor = 2.0 / math.sqrt(math.pi)
         ht = (-(E("t") ** 2)).exp() * E(f"{ht_prefactor:.16e}")
 
@@ -350,6 +352,9 @@ class evaluate_integrand:
         self.routed_integrand.integrand = (
             self.routed_integrand.integrand * ht * jacobian
         )
+
+        self.routed_integrand.integrand = self.routed_integrand.integrand
+
         self.integrand_expression = self.routed_integrand.integrand
         ## ADD THETA OF t^2 z
 
@@ -455,9 +460,10 @@ class evaluate_integrand:
                     mom3d[i] = mom3d[i].replace(key, val)
                     mass_sq = mass_sq.replace(E("m(t)"), E(str(MT))).replace(key, val)
 
-            energies[E(f"E({id})")] = (
+            energies[E(f"E({id})")] = ((
                 mom3d[0] ** 2 + mom3d[1] ** 2 + mom3d[2] ** 2 + mass_sq
-            ) ** E("1/2")
+            ) ** E("1/2"))
+
             masses[E(f"m({id})^2")] = mass_sq
             qmomenta[E(f"q({id})")] = mom3d
             for i in range(1, 4):
@@ -477,19 +483,19 @@ class evaluate_integrand:
 
         jacobian = jacobian.replace(E("z"), z)
 
-        print(self.routed_integrand.cut_graph.graph)
+        # print(self.routed_integrand.cut_graph.graph)
         print("input parameters: ", input)
         print("energies:", energies)
         print("masses: ", masses)
         print("momenta: ", qmomenta)
         # print(self.routed_integrand.integrand)
         emr_int = deepcopy(self.routed_integrand.emr_integrand)
-        print("EMR: ", emr_int)
+        # print("EMR: ", emr_int)
         print("e_surface : ", self.e_surface)
         print("h(t): ", ht.replace(E("t"), tstar))
         print(jacobian)
-        print("delta jacobian : ", jacobian.replace(E("t"), tstar))
-        print("Evaluated EMR: ", eval_emr_int)
+        # print("delta jacobian : ", jacobian.replace(E("t"), tstar))
+        # print("Evaluated EMR: ", eval_emr_int)
         # for key, val in energies.items():
         #    emr_int = emr_int.replace(key, val)
 
@@ -547,6 +553,7 @@ class evaluate_integrand:
                 th_value = self._evaluate_expression_arb(
                     th, string_values, decimal_digit_precision
                 )
+                print("x,1-x: ", th_value)
                 if th_value is None or th_value <= 0:
                     return Decimal(0)
 
@@ -1501,16 +1508,6 @@ class DYCompiledBundle:
             self._set_inputs_fast(
                 pe, vals, self._input_index_plans[term.evaluator_name]
             )
-
-            # print("---")
-            # print("vals")
-            # print(vals)
-            # print("thetas")
-            # print(theta_exprs)
-            # print("t")
-            # print(t_sol)
-            # print("e_surface")
-            # print(term.e_surface)
 
             total += complex(pe.evaluate(eager=False)[0])
 

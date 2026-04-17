@@ -688,17 +688,148 @@ class DY(object):
         return processed_graphs
 
     def process_2L_generated_graphs(self, graphs: DYDotGraphs) -> DYDotGraphs:
+        final_state = copy.deepcopy(self.final_state)
+        process_name = self.process_name
+        n_loops = self.n_loops
+
         processed_graphs = DYDotGraphs()
-        for g_input in graphs:
-            g = copy.deepcopy(g_input)
-            attrs = g.get_attributes()
-            attrs["num"] = f'"{expr_to_string(g.get_numerator())}"'
-            attrs["projector"] = (
-                f'"{expr_to_string(g.get_projector() * self.get_color_projector())}"'
+
+        filtered_graphs = DYDotGraphs()
+        # filtered_graphs.extend(
+        #    copy.deepcopy(graphs.filter_particle_definition(final_state))
+        # )
+        filtered_graphs.extend(copy.deepcopy(graphs))
+
+        print("############################")
+        print("Filtered graphs: ", len(filtered_graphs))
+        print("############################")
+
+        processor = EMRIntegrandConstructor([], process_name, n_loops)
+        loop_processor = LoopIntegrandConstructor([], process_name, n_loops)
+
+        all_routed_integrands = []
+        all_evaluators = []
+
+        for graph_index, graph in enumerate(filtered_graphs):
+            vac_g = canonicalise_vacuum_graph(copy.deepcopy(graph))
+
+            vacuum_g = VacuumDotGraph(copy.deepcopy(vac_g.dot))
+
+            # _cuts = vacuum_g.get_cutkosky_cuts()
+            routed_graphs = vacuum_g.cut_graphs_with_routing_leading_virtuality(
+                [], final_state
             )
 
-            g.set_local_numerators_to_one()
-            processed_graphs.append(g)
+            print("############################")
+            print("Routed graphs: ", len(routed_graphs))
+            print("############################")
+
+            routed_integrands = []
+            evaluators = []
+
+            for routed_graph_index, gg in enumerate(routed_graphs):
+                if (len(gg[2][0]) == 1 and len(gg[2][1]) == 1):
+                    continue
+
+                processed_graphs.append(gg[3])
+                cut_graph = deepcopy(routed_cut_graph(gg[3], gg[0], gg[1], gg[2]))
+                # print(cut_graph.graph.get_name())
+                # print(cut_graph.graph)
+                term_integrands = loop_processor.get_integrand(deepcopy(cut_graph))
+
+                routed_integrands.extend(deepcopy(term_integrands))
+
+                observable_params = {
+                    "zmin": 0.0,
+                    "zmax": 1.00000,
+                    "Lambdasq": 100,
+                    "mUV": 1,
+                }
+
+                print("reached evaluator stage")
+                for term_index, term_integrand in enumerate(term_integrands):
+                    evaluator = evaluate_integrand(
+                        n_loops,
+                        process_name,
+                        deepcopy(term_integrand),
+                        n_hornerscheme_iterations=1,
+                        n_cpe_iterations=1,
+                        observable_params=observable_params,
+                    )
+                    evaluator.compiled_name = (
+                        f"graph_{graph_index}_cut_{routed_graph_index}"
+                        f"_term_{term_index}_integrand"
+                    )
+                    evaluator.source_graph_name = str(graph.dot.get_name()).strip('"')
+                    evaluator.routed_graph_name = str(gg[3].get_name()).strip('"')
+                    evaluators.append(evaluator)
+                print("constructed evaluators")
+
+                
+
+            all_routed_integrands.extend(routed_integrands)
+            all_evaluators.extend(evaluators)
+
+        if all_routed_integrands:
+            approach_limit = approach_point(
+                n_loops, process_name, all_routed_integrands
+            )
+            print("##################")
+            z = 0.6
+            # ks = [
+            #    math.sqrt(z)
+            #    * np.array([1 / math.sqrt(3), 1 / math.sqrt(3), 1 / math.sqrt(3)])
+            # ]
+            scale = 1000
+            ks = [
+                # math.sqrt(z)
+                scale
+                * np.array([
+                    0.0,
+                    0.0,
+                    1 / math.sqrt(5),
+                ]),
+                scale * np.array([1 / math.sqrt(3), -1 / math.sqrt(3), 0]),
+            ]
+            # scale = 1000
+            # ks = [
+            #     # math.sqrt(z)
+            #     scale
+            #     * np.array([
+            #         0.0,
+            #         0.0,
+            #         -1 / math.sqrt(5),
+            #     ]),
+            #     scale * np.array([1 / math.sqrt(3), -1 / math.sqrt(3), 0]),
+            # ]
+            # ks = [
+            #    # math.sqrt(z)
+            #    scale * np.array([1 / math.sqrt(3), -1 / math.sqrt(3), 0]),
+            #    scale
+            #    * np.array([
+            #        0.00 / math.sqrt(3),
+            #        0.00 / math.sqrt(3),
+            #        1 / math.sqrt(3),
+            #    ]),
+            # ]
+            vp = np.array([0, 1, 1])
+            p1 = scale * np.array([0, 0, 1])
+            p2 = scale * np.array([0, 0, -1])
+            approach_limit.approach(ks, p1, p2, z, vp)
+
+        if all_evaluators:
+            my_compiler = compile_integrands(
+                n_loops,
+                process_name,
+                self.get_integrand_name(),
+                "z",
+                all_evaluators,
+            )
+            my_compiler.save_compiled_integrand()
+
+        print("############################")
+        print("Processed graphs: ", len(routed_graphs))
+        print("############################")
 
         return processed_graphs
 
@@ -724,10 +855,6 @@ class DY(object):
                     self.gl_worker.run(
                         f"generate xs d g > a | d d~ g a QED^2==2 [{{{{1}}}} QCD=1] --only-diagrams --numerator-grouping only_detect_zeroes -p {base_name} -i {graphs_process_name} --max-multiplicity-for-fast-cut-filter 99"
                     )
-
-                # self.gl_worker.run(
-                #    f"generate xs g g > t t~ | d d~ g t t~ [{{{{2}}}} QCD=1] --only-diagrams --numerator-grouping group_identical_graphs_up_to_scalar_rescaling --symmetrize-left-right-states true --symmetrize-initial-states true -p {base_name} -i {graphs_process_name} --max-multiplicity-for-fast-cut-filter 99"
-                # )
 
                 # --select-graphs GL02
                 if self.process_name == "tt~":
@@ -760,9 +887,14 @@ class DY(object):
                 )
             case 2:
                 logger.info("Generating two-loop graphs ...")
-                self.gl_worker.run(
-                    f"generate amp g g > h h h | g h t t~ QED==3 [{{2}}] --only-diagrams --numerator-grouping only_detect_zeroes --veto-vertex-interactions V_6 V_9 V_36 V_37 --number-of-fermion-loops 1 1 --select-graphs GL303 -p {base_name} -i {graphs_process_name}"
-                )
+                if self.process_name == "tt~":
+                    self.gl_worker.run(
+                        f"generate xs d g > t t~ | d d~ g t t~ ghG ghG~ [{{{{2}}}} QCD=1] --only-diagrams --numerator-grouping group_identical_graphs_up_to_scalar_rescaling --symmetrize-left-right-states true --symmetrize-initial-states true --select-graphs GL02 -p {base_name} -i {graphs_process_name} --max-multiplicity-for-fast-cut-filter 99"
+                    )
+                else:
+                    raise ValueError(
+                        "t t~ is the only implemented process at two loops"
+                    )
                 self.gl_worker.run("save state -o")
                 DY_2L_dot_files = self.gl_worker.get_dot_files(
                     process_id=None, integrand_name=graphs_process_name

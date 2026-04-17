@@ -1,2 +1,7 @@
 .venv/bin/python ./bin/pygloop --clean --process dy generate
 .venv/bin/python ./bin/pygloop   --process dy   --integrand-implementation zenos   --parameterisation spherical   --pg1 1 0 0 1   --pg2 1 0 0 -1   --dy-skip-ps-validation   integrate   --integrator symbolica   --n_iterations 10   --points_per_iteration 10000   --n_cores 1   --phase real
+
+
+../.venv/bin/python3.13 ./bin/pygloop   --clean   --process dy   --dy-final-state t t   --dy-process-name tt~   --n_loops 1   generate
+
+~/zeno/projects/clean_program/.venv/bin/python3.13 /Users/zeno/zeno/projects/clean_program/pygloop/src/pygloop.py   --process dy   --dy-process-name 'tt~'   --dy-final-state t t --dy-skip-ps-validation --pg1 500 0 0 500   --pg2 500 0 0 -500   --integrand-implementation zenos   --multi_channeling   integrate   --integrator symbolica   --n_iterations 10   --points_per_iteration 10000   --phase real

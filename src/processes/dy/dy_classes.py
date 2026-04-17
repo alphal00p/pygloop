@@ -519,6 +519,21 @@ class VacuumDotGraph:
     ) -> bool:
         return len(set(initial_cut) - set(final_cut)) != 1
 
+    def partition_phase_space_check(
+        self, initial_cut: list[pydot.Edge], final_cut: list[pydot.Edge], partition
+    ) -> bool:
+
+        print("my_lens")
+        print(len(set(initial_cut) - set(final_cut) - set(partition[0])))
+        print(len(set(initial_cut) - set(final_cut) - set(partition[1])))
+
+        if (
+            len(set(initial_cut) - set(final_cut) - set(partition[0])) == 0
+            or len(set(initial_cut) - set(final_cut) - set(partition[1])) == 0
+        ):
+            return False
+        return len(set(initial_cut) - set(final_cut)) != 1
+
     # Computes all possible cut routed diagrams given a process definition
     def cut_graphs_with_routing(
         self,
@@ -569,6 +584,30 @@ class VacuumDotGraph:
                         new_graph.set("partition", f"{[idV1, idV2]}")
                         # new_graph.set("num", str(self.num))
                         graph = self.route_cut_graph(new_graph, [V1, V2])
+
+                        # Force the soft particle to be a gluon (NLO only in the assumption int12 is either empy or singleton)
+                        inters12 = set(idV1).intersection(set(idV2))
+                        if len(inters12) == 1:
+                            id12 = next(iter(inters12))
+                            edge = next(
+                                e
+                                for e in graph.get_edges()
+                                if str(e.get_attributes().get("id", "")).strip('"')
+                                == id12
+                            )
+
+                            particle = _strip_quotes(
+                                str(edge.get_attributes().get("particle", ""))
+                            )
+                            if particle != "g":
+                                continue
+                        # the following check filters out a bunch of contributions that would be zero at leading virtuality
+                        if not self.partition_phase_space_check(
+                            initial_cut, final_cut, [V1, V2]
+                        ):
+                            continue
+                        if len(inters12) > 1:
+                            raise ValueError("more than one soft particle at NLO??")
 
                         routed_cut_graphs.append([
                             initial_cut,

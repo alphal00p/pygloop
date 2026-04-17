@@ -26,7 +26,7 @@ class approach_point(object):
                 deepcopy(rout),
                 800,
                 400,
-                {"zmin": 0.0, "zmax": 1.0, "Lambdasq": 0.5, "mUV": 1.0},
+                {"zmin": 0.0, "zmax": 1.0, "Lambdasq": 0.5 * 1000, "mUV": 1.0},
             )
             for rout in routed_integrands
         ]
@@ -34,7 +34,7 @@ class approach_point(object):
     def approach(self, kcc, p1, p2, z, vp):
         kc_comps = []
 
-        for i in range(1, 2):
+        for i in range(1, 3):
             print("####################################################")
             print("####################################################")
             ks = [k + pow(10, -i) * vp for k in kcc]

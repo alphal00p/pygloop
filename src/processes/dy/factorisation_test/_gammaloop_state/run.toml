@@ -1,0 +1,6 @@
+#:schema https://raw.githubusercontent.com/alphal00p/gammaloop/refs/heads/main/assets/schemas/runhistory.json
+commands = [
+    "set global file /Users/zeno/zeno/projects/clean_program/pygloop/configs/DY/generate.toml",
+    "import model sm-default.json",
+    "import graphs /Users/zeno/zeno/projects/clean_program/pygloop/src/processes/dy/factorisation_test/generated_dot_files/factorisation_test_ttbar_generated_graphs.dot -p DY_factorisation_test -i factorisation_test_ttbar_generated_graphs",
+]
