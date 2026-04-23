@@ -46,6 +46,7 @@ from utils.utils import (
     PYGLOOP_FOLDER,
     ParamBuilder,
     PygloopEvaluator,
+    expr_to_string,
     logger,
 )
 
@@ -166,13 +167,38 @@ class EMRIntegrandConstructor(object):
             if node.get_name() not in ["edge", "node"]:
                 n_num = node.get("num")
                 if n_num:
+                    ### BIG NUMERATOR HACK, REMEMBER TO CHANGE BACK
+                    # if _strip_quotes(node.get("int_id")) == "V_74":
                     num *= Es(n_num)
+                # num *= E("1")
         for edge in graph.get_edges():
             e_num = edge.get("num")
             if e_num:
+                # if edge.get("id") in ["8", "6", "0", "7"]:
+                # if edge.get("id") in ["8", "6"]:
                 num *= Es(e_num)
 
+        print("here" * 10)
+        # print(num)
+        #        num_up = Es(
+        #            "((Q(2,spenso::mink(4,hedge(11)))+2*Q(1,spenso::mink(4,hedge(11)))+22*Q(0,spenso::mink(4,hedge(11)))+6*Q(8,spenso::mink(4,hedge(11)))+7*Q(6,spenso::mink(4,hedge(11))))*(5*Q(2,spenso::mink(4,hedge(15)))+Q(1,spenso::mink(4,hedge(15)))-7*Q(0,spenso::mink(4,hedge(15)))+3*Q(6,spenso::mink(4,hedge(15)))-5*Q(8,spenso::mink(4,hedge(15))))+MT^2*spenso::g(spenso::mink(4,hedge(11)),spenso::mink(4,hedge(15))))*spenso::g(spenso::coad(8,hedge(14)),spenso::coad(8,hedge(15)))"
+        #        )
+        #        num_up = Es(
+        #            "((Q(2,spenso::mink(4,hedge(11)))+2*Q(1,spenso::mink(4,hedge(11)))+22*Q(0,spenso::mink(4,hedge(11)))+6*Q(8,spenso::mink(4,hedge(11)))+7*Q(6,spenso::mink(4,hedge(11))))*(5*Q(2,spenso::mink(4,hedge(15)))+Q(1,spenso::mink(4,hedge(15)))-7*Q(0,spenso::mink(4,hedge(15)))+3*Q(6,spenso::mink(4,hedge(15)))-5*Q(8,spenso::mink(4,hedge(15)))))*spenso::g(spenso::coad(8,hedge(14)),spenso::coad(8,hedge(15)))"
+        #        )
+        # num_up = Es(
+        #    "((Q(2,spenso::mink(4,hedge(11))))*(Q(3,spenso::mink(4,hedge(15)))))*spenso::g(spenso::coad(8,hedge(11)),spenso::coad(8,hedge(15)))"
+        # )
+        # num_down = Es(
+        #    "sp(0,7)*(spenso::g(spenso::mink(4,hedge(10)),spenso::mink(4,hedge(14))))*spenso::g(spenso::coad(8,hedge(10)),spenso::coad(8,hedge(14)))"
+        # )
+        # num = num * num_up * num_down * Es("1𝑖")
+
+        num = num
+
+        # print("now here" * 10)
         simplified = simplify_metrics(simplify_gamma(simplify_color(num))).expand()
+        # print(simplified)
         res = _strip_namespaces_structurally(simplified)
         res = substitute_process_couplings(res, self.name, self.L).expand()
 
@@ -180,6 +206,20 @@ class EMRIntegrandConstructor(object):
         out = res.replace(
             E("Q(y_,mink(4,x_))") * E("Q(z_,mink(4,x_))"), E("sp(y_,z_)"), repeat=True
         )
+        out = out.replace(
+            E("Qp(y_,mink(4,x_))") * E("Q(z_,mink(4,x_))"),
+            E("spp(qp(y_),z_)"),
+            repeat=True,
+        )
+        out = out.replace(
+            E("Qp(y_,mink(4,x_))") * E("Qp(z_,mink(4,x_))"),
+            E("spp(qp(y_),qp(z_))"),
+            repeat=True,
+        )
+
+        print(out)
+
+        # out = out.replace(E("sp(0,7)"), E("0"))
 
         return symmetry_factor * out
 
@@ -474,8 +514,6 @@ class EMRIntegrandConstructor(object):
                     break
 
         return s_split_graphs, s_channel_edges_copy
-    
-
 
     # This function takes a bunch of graphs, contained in s_split_graphs, and constructs the
     # cff for the product of these graphs assuming the numerator is num. It multiplies this by
@@ -483,23 +521,44 @@ class EMRIntegrandConstructor(object):
     # and by the s-channel propagators (in the rest freme) contained in s_channel_edges
 
     def get_cff(
-        self, cut_graph, s_split_graphs, s_channel_edges, num, get_residues=False
+        self, cut_graph, s_split_graphs, s_channel_edges, numerator, get_residues=False
     ):
 
-        numerator = num.replace(
-            E("sp(x_,y_)"), E("sigma(x_)*sigma(y_)*E(x_)*E(y_)-sp3(q(x_),q(y_))")
+        print("numerator here" * 5)
+        print(numerator)
+        numerator = numerator.replace(
+            E("spp(qp(x_),qp(y_))"),
+            E("sigma(x_)*sigma(y_)*En(x_)*En(y_)-sp3(q(x_),q(y_))"),
         )
+        numerator = numerator.replace(
+            E("spp(qp(x_),y_)"), E("sigma(x_)*sigma(y_)*En(x_)*En(y_)-sp3(q(x_),q(y_))")
+        )
+        numerator = numerator.replace(
+            E("sp(x_,y_)"), E("sigma(x_)*sigma(y_)*En(x_)*En(y_)-sp3(q(x_),q(y_))")
+        )
+        #
+        #        numerator = numerator.replace(
+        #            E("spp(qp(x_),qp(y_))"),
+        #            E("sigma(x_)*sigma(y_)*E(x_)*E(y_)-sp3(q(x_),q(y_))"),
+        #        )
+        #        numerator = numerator.replace(
+        #            E("spp(qp(x_),y_)"), E("sigma(x_)*sigma(y_)*E(x_)*E(y_)-sp3(q(x_),q(y_))")
+        #        )
+        #        numerator = numerator.replace(
+        #            E("sp(x_,y_)"), E("sigma(x_)*sigma(y_)*E(x_)*E(y_)-sp3(q(x_),q(y_))")
+        #        )
 
         numerator = numerator.replace(E("sigma(1000)"), E("1"))
-        numerator = numerator.replace(
-            E("sp3(q(1000), x___)"), E("0")
-        )
-        numerator = numerator.replace(
-            E("sp3(x___, q(1000))"), E("0")
-        )
-        numerator = numerator.replace(E("E(1000)"), E("1"))
+        numerator = numerator.replace(E("sp3(q(1000), x___)"), E("0"))
+        numerator = numerator.replace(E("sp3(x___, q(1000))"), E("0"))
+        numerator = numerator.replace(E("En(1000)"), E("1"))
 
-        #numerator=self.manage_t_channel_prop(cut_graph, numerator)
+        # numerator = numerator.replace(E("sigma(6)"), E("-sigma(6)"))
+
+        # if len(cut_graph.partition[1]) == 2:
+        #    numerator = numerator.replace(E("E(7)"), E("-E(7)"))
+
+        print(numerator)
 
         cut_g_edges = sorted(
             cut_graph.graph.get_edges(), key=lambda e: int(e.get_attributes()["id"])
@@ -568,9 +627,12 @@ class EMRIntegrandConstructor(object):
                             residue_eta = residue_eta.replace(
                                 E(f"E({id})"), -E(f"E({id})")
                             )
+                            residue_eta = residue_eta.replace(
+                                E(f"En({id})"), -E(f"En({id})")
+                            )
                         e_surfaces.add(residue_eta)
 
-                #for id in set(edges_to_reverse):
+                # for id in set(edges_to_reverse):
                 #    cff_term = cff_term.replace(E(f"E({id})"), -E(f"E({id})"))
 
                 new_cff += cff_term
@@ -579,6 +641,7 @@ class EMRIntegrandConstructor(object):
 
         for id in set(edges_to_reverse):
             previous_cff = previous_cff.replace(E(f"E({id})"), E(f"-E({id})"))
+            previous_cff = previous_cff.replace(E(f"En({id})"), E(f"-En({id})"))
 
         # Multiplies by non-partial-fractioned s-channel propagators and sets the s-channel particle's
         # energy in terms of other cut particles by energy conservation. The logic is weak for many s-channel
@@ -598,6 +661,7 @@ class EMRIntegrandConstructor(object):
                     e_src = e.get_source()
                     if s_edge_atts["name"] == e_atts["name"]:
                         denom = E("0")
+                        denom_num = E("0")
                         for ep in g.graph.get_edges():
                             ep_src = ep.get_source()
                             ep_dest = ep.get_destination()
@@ -606,9 +670,15 @@ class EMRIntegrandConstructor(object):
                                 denom += ep_atts["is_cut_DY"] * E(
                                     f"E({g.replacements[ep_atts['id']][1]})"
                                 )
+                                denom_num += ep_atts["is_cut_DY"] * E(
+                                    f"En({g.replacements[ep_atts['id']][1]})"
+                                )
                             if ep_dest.startswith("ext") and ep != e:
                                 denom -= ep_atts["is_cut_DY"] * E(
                                     f"E({g.replacements[ep_atts['id']][1]})"
+                                )
+                                denom_num -= ep_atts["is_cut_DY"] * E(
+                                    f"En({g.replacements[ep_atts['id']][1]})"
                                 )
                         # NEW: for cut s-channel propagators
                         if e_atts.get("is_cut_DY", None) is not None:
@@ -623,6 +693,10 @@ class EMRIntegrandConstructor(object):
 
                         previous_cff = previous_cff.replace(
                             E(f"E({g.replacements[e_atts['id']][1]})"), -sign * denom
+                        )
+                        previous_cff = previous_cff.replace(
+                            E(f"En({g.replacements[e_atts['id']][1]})"),
+                            -sign * denom_num,
                         )
 
                         if get_residues:
@@ -687,6 +761,10 @@ class EMRIntegrandConstructor(object):
 
         total_cff = total_cff.replace(E("Q(x_,0)"), E("E(x_)"))
 
+        # total_cff = total_cff.replace(E("E(6)"), E("-E(6)"))
+
+        # print(total_cff)
+
         return total_cff
 
     # Use all the previous functions to get the cff for the cut graph
@@ -711,11 +789,13 @@ class EMRIntegrandConstructor(object):
 
         num = self.get_numerator(cut_graph.graph)
 
+        # print(num.replace(E("sp(x_,y_)"),E("1")))
+
         print("and beyond num")
 
-        #print("NUM before contraction:   " , num)
+        # print("NUM before contraction:   " , num)
 
-        num = num.replace(E("Q(x_,y_)^2"), E("sp(x_,x_)"))  # * E("1i")
+        num = num.replace(E("Q(x_,mink(y_,z_))^2"), E("sp(x_,x_)"))  # * E("1i")
 
         self.normalise_graph(cut_graph.graph)
 
@@ -788,11 +868,13 @@ class UltraVioletSubtraction(object):
             eid_raw = e_atts["id"]
             eid = _strip_quotes(eid_raw) if isinstance(eid_raw, str) else eid_raw
             target = E(f"E({eid})")
+            target_num = E(f"En({eid})")
             particle = _strip_quotes(str(e_atts["particle"]))
             replacement = (
                 self.sp3D(E(f"q({eid})"), E(f"q({eid})")) + E(f"m({eid})") ** 2
             ) ** E("1/2")
             integrand = integrand.replace(target, replacement)
+            integrand = integrand.replace(target_num, replacement)
 
         return integrand
 
@@ -965,6 +1047,7 @@ class ThresholdSubtractor(object):
             eid_raw = e_atts["id"]
             eid = _strip_quotes(eid_raw) if isinstance(eid_raw, str) else eid_raw
             target = E(f"E({eid})")
+            target_num = E(f"En({eid})")
             particle = _strip_quotes(str(e_atts["particle"]))
             if particle not in ["d", "d~", "g", "ghG", "ghG~"]:
                 replacement = (
@@ -993,6 +1076,7 @@ class ThresholdSubtractor(object):
                 )
 
             integrand = integrand.replace(target, replacement)
+            integrand = integrand.replace(target_num, replacement)
 
         return integrand
 
@@ -1305,11 +1389,13 @@ class Approximator(object):
 
         # Only consider leading-virtuality contribution
 
-        # FIX::::::::: REMEMBER TO CHANGE BACK TO -2 and overall -1 sign
+        # FIX ::::::::: REMEMBER TO CHANGE BACK TO -2 and overall -1 sign
         # integrand = integrand.series(lam, 0, order).to_expression().replace(lam, 1)
         print("got to expansion")
-        integrand = integrand.series(lam, 0, order).to_expression().replace(lam, 1)
+        integrand = integrand.series(lam, 0, -2).to_expression().replace(lam, 1)
         print("and beyond")
+        # print("HERE INTEGRANDAAAA")
+        # print(integrand)
 
         # Invert back the collinear parametrisation. Since s*q(i)= x*p(1)+lam*k_perp(j), we have
         # x=s*q(i).p(1)/p(1).p(1)
@@ -1374,11 +1460,13 @@ class LoopIntegrandConstructor(object):
             eid_raw = e_atts["id"]
             eid = _strip_quotes(eid_raw) if isinstance(eid_raw, str) else eid_raw
             target = E(f"E({eid})")
+            target_num = E(f"En({eid})")
             particle = _strip_quotes(str(e_atts["particle"]))
             if particle not in ["d", "d~", "g", "ghG", "ghG~"]:
                 replacement = (
                     self.sp3D(E(f"q({eid})"), E(f"q({eid})")) + E(f"m({particle})") ** 2
                 ) ** E("1/2")
+                replacement_num = replacement
             else:
                 # new stuff
                 k_keys = [f"routing_k{i}" for i in range(0, self.L)]
@@ -1400,8 +1488,12 @@ class LoopIntegrandConstructor(object):
                 replacement = (self.sp3D(E(f"q({eid})"), E(f"q({eid})")) + mass) ** E(
                     "1/2"
                 )
+                replacement_num = (self.sp3D(E(f"q({eid})"), E(f"q({eid})"))) ** E(
+                    "1/2"
+                )
 
             integrand = integrand.replace(target, replacement)
+            integrand = integrand.replace(target_num, replacement_num)
 
         return integrand
 
@@ -1478,7 +1570,7 @@ class LoopIntegrandConstructor(object):
         patt = E(f"E({e_to_sub_atts['id']})")
         rep = rep + E(f"E({e_to_sub_atts['id']})")
 
-        #print("canoniucalisation: replacing ", patt, " by ", rep)
+        # print("canoniucalisation: replacing ", patt, " by ", rep)
 
         integrand = integrand.replace(patt, rep)
 
@@ -1498,7 +1590,7 @@ class LoopIntegrandConstructor(object):
     # [i_2,i_3,...]_[i_1] with p2sq substituted with p1sq.
 
     def leading_virtuality_expansion(self, integrand, cut_graph, raised_cut):
-        emr_integrand = integrand
+        emr_integrand = deepcopy(integrand)
         partition = cut_graph.partition
 
         routed_integrands = []
@@ -1559,12 +1651,12 @@ class LoopIntegrandConstructor(object):
             # integrand = integrand.replace(E(f"E({coll_moms[0]})"), coll_en)
             # integrand = integrand.replace(E(f"E({coll_moms[1]})"), a_coll_en)
 
+            # integrand = integrand * 1 / (E("4*E(0)*(E(7)+E(8)-E(0))"))
+
             integrand = self.replace_energies(integrand, cut_graph)
 
             if len(raised_cut) > 0:
-                integrand = integrand * (
-                    self.sp3D(E("p(1)"), E("p(1)")) + E("p1sq")
-                ) ** E("1/2")
+                integrand = integrand * (self.sp3D(E("p(1)"), E("p(1)"))) ** E("1/2")
                 print("got to derivative")
                 integrand = E("1/2") * integrand.derivative(E("p1sq"))
                 print("and beyond")
@@ -1651,18 +1743,19 @@ class LoopIntegrandConstructor(object):
             # In order to make the collinear replacement always work, replace a final-state energy
             # by energy conservation.
 
+            print("EMR INSIDE APPROXIMATOR")
+
             integrand = self.canonicalise_energies(integrand, cut_graph)
 
             # integrand = integrand.replace(E(f"E({coll_moms[0]})"), coll_en)
             # integrand = integrand.replace(E(f"E({coll_moms[1]})"), a_coll_en)
-            #
+
+            # integrand = integrand / (E("4*E(0)*(E(7)+E(8)-E(0))"))
 
             integrand = self.replace_energies(integrand, cut_graph)
 
             if len(raised_cut) > 0:
-                integrand = integrand * (
-                    self.sp3D(E("p(2)"), E("p(2)")) + E("p2sq")
-                ) ** E("1/2")
+                integrand = integrand * (self.sp3D(E("p(2)"), E("p(2)"))) ** E("1/2")
                 print("got to derivative")
                 integrand = E("1/2") * integrand.derivative(E("p2sq"))
 
@@ -1670,6 +1763,10 @@ class LoopIntegrandConstructor(object):
             integrand = integrand.replace(E("p2sq"), E("0"))
 
             integrand = self.route_integrand(integrand, cut_graph)
+
+            print(integrand)
+
+            integrand_old = deepcopy(integrand)
 
             integrand, repl, repl_x, repl_kperp = (
                 self.approximator.collinear_approximation(
@@ -1684,6 +1781,7 @@ class LoopIntegrandConstructor(object):
                 integrand * E(f"Θ({repl_x})") * E(f"Θ(1-{repl_x})") * thetaLambdasq
             )
 
+            # HACKED OLD
             routed_integrand = RoutedIntegrand(
                 integrand,
                 cut_graph,
@@ -1980,14 +2078,15 @@ class LoopIntegrandConstructor(object):
                     # minus sign is because the correct way to correct for an opposite routing of the
                     # raised propagator would be to actually switch the sign of the energy in the
                     # numerator only, which at this point is difficult to access.
-                    emr_representation = - emr_representation.replace(
+                    emr_representation = -emr_representation.replace(
                         E(f"q({cut[0]})"),
                         -E(f"q({cut[0]})"),
                     )
+
+                # emr_representation = emr_representation.replace(E("q(6)"), E("-q(6)"))
+
                 emr_representation = (
-                    emr_representation
-                    * (E(f"E({cut[0]})") - E(f"E({cut[1]})"))
-                    * (2)  
+                    emr_representation * (E(f"E({cut[0]})") - E(f"E({cut[1]})")) * (2)
                 )
                 emr_representation = emr_representation.replace(
                     E(f"E({cut[0]})"), E(f"E({cut[1]})") + E("same")
@@ -1996,8 +2095,13 @@ class LoopIntegrandConstructor(object):
                     E("same"), 0, 0
                 ).to_expression()
 
+        # HACKY HACK THAT IS NEW
+        # emr_representation = emr_representation.replace(E("q(6)"), E("-q(6)"))
+
+        # emr_representation = emr_representation.replace(E("q(8)"), E("-q(8)"))
+
         return emr_representation, raised_cut
-    
+
     def modify_t_channel_gluon_numerator(self, cut_graph):
 
         has_raised_t_channel_gluon = [False, 0, 0, None]
@@ -2037,11 +2141,13 @@ class LoopIntegrandConstructor(object):
             # kinda brittle and kinda not brittle (assumes a specific routing)
             vertices1 = [e1_d, e1_s]
             vertices2 = [e2_d, e2_s]
+            overall_sign = 1
             if e1_atts.get("routing_p1") == "1":
                 if e2_atts.get("routing_p1") == "-1":
                     vertices2 = [e2_s, e2_d]
             elif e1_atts.get("routing_p1") == "-1":
                 vertices1 = [e1_s, e1_d]
+                overall_sign = -1
                 if e2_atts.get("routing_p1") == "-1":
                     vertices2 = [e2_s, e2_d]
             elif e1_atts.get("routing_p2") == "1":
@@ -2049,6 +2155,7 @@ class LoopIntegrandConstructor(object):
                     vertices2 = [e2_s, e2_d]
             elif e1_atts.get("routing_p2") == "-1":
                 vertices1 = [e1_s, e1_d]
+                overall_sign = -1
                 if e2_atts.get("routing_p2") == "-1":
                     vertices2 = [e2_s, e2_d]
             else:
@@ -2057,20 +2164,105 @@ class LoopIntegrandConstructor(object):
             if repeated_relation == "opp":
                 vertices2 = [vertices2[1], vertices2[0]]
 
+            indices = []
+            for e in boundary_edges(cut_graph.graph, {_base_node(vertices1[0])}):
+                e_atts = e.get_attributes()
+                if e_atts["id"] != e1_atts["id"]:
+                    if _base_node(vertices1[0]) == _base_node(e.get_source()):
+                        indices.append((e_atts["id"], overall_sign))
+                    else:
+                        indices.append((e_atts["id"], -overall_sign))
+
+            print("&&&&&&" * 12)
+            print(indices)
+
+            target_node_to_edge_ids = {}
+            target_node_to_edge_ids.setdefault(_base_node(vertices1[1]), []).append(
+                e1_atts["id"]
+            )
+            target_node_to_edge_ids.setdefault(_base_node(vertices2[1]), []).append(
+                e2_atts["id"]
+            )
+            for node in cut_graph.graph.get_nodes():
+                node_name = _strip_quotes(str(node.get_name()))
+                node_int_id = _strip_quotes(str(node.get_attributes().get("int_id")))
+                if node_int_id != "V_36" or node_name not in target_node_to_edge_ids:
+                    continue
+
+                node_num = node.get("num")
+                if not node_num:
+                    continue
+
+                print("substituting momentum conservation condition")
+
+                incident_edges = boundary_edges(cut_graph.graph, {node_name})
+                num = Es(node_num)
+
+                for target_edge_id in target_node_to_edge_ids[node_name]:
+                    target_edge = next(
+                        (
+                            e
+                            for e in incident_edges
+                            if e.get_attributes()["id"] == target_edge_id
+                        ),
+                        None,
+                    )
+                    if target_edge is None:
+                        raise ValueError(
+                            f"target edge {target_edge_id} not incident to {node_name}"
+                        )
+
+                    edge_id_pattern = Es(f"Q({target_edge_id},y___)")
+                    edge_id_replace = Es("0")
+                    for incident_edge in incident_edges:
+                        incident_edge_id = incident_edge.get_attributes()["id"]
+                        if incident_edge_id == target_edge_id:
+                            continue
+                        edge_sign = (
+                            1
+                            if _base_node(incident_edge.get_source()) == node_name
+                            else -1
+                        )
+                        edge_id_replace += edge_sign * Es(f"Q({incident_edge_id},y___)")
+                    if _base_node(target_edge.get_source()) == node_name:
+                        edge_id_replace = -edge_id_replace
+
+                    print("replacement" * 10)
+                    print(edge_id_pattern)
+                    print(edge_id_replace)
+                    num = num.replace(edge_id_pattern, edge_id_replace)
+                    print(num)
+
+                node.get_attributes()["num"] = expr_to_string(num)
+
             # Finally construct the counter-terms
-    
+
             for e in cut_graph.graph.get_edges():
                 e_atts = e.get_attributes()
                 if e_atts["id"] == e1_atts["id"]:
-                    e_atts["num"] = (
-                        f"-1𝑖*(spenso::g(spenso::coad(8,hedge({_parse_port(e.get_destination())})),spenso::coad(8,hedge({_parse_port(e.get_source())})))*spenso::g(spenso::mink(4,hedge({_parse_port(e.get_destination())})),spenso::mink(4,hedge({_parse_port(e.get_source())})))+1/spenso::Q({e_atts['id']},0)*spenso::Q({e_atts['id']},spenso::mink(4,hedge({_parse_port(vertices1[1])})))*spenso::Q(1000,spenso::mink(4,hedge({_parse_port(vertices1[0])})))*spenso::g(spenso::coad(8,hedge({_parse_port(e.get_destination())})),spenso::coad(8,hedge({_parse_port(e.get_source())}))))"
-                    )
+                    ##
+                    if e1_atts["is_cut"] != "0" and e2_atts["is_cut"] != "0":
+                        ##
+                        e_atts["num"] = (
+                            f"-1𝑖*(spenso::g(spenso::coad(8,hedge({_parse_port(e.get_destination())})),spenso::coad(8,hedge({_parse_port(e.get_source())})))*spenso::g(spenso::mink(4,hedge({_parse_port(e.get_destination())})),spenso::mink(4,hedge({_parse_port(e.get_source())})))+1/Q({e_atts['id']},0)*Qp({e_atts['id']},spenso::mink(4,hedge({_parse_port(vertices1[1])})))*Q(1000,spenso::mink(4,hedge({_parse_port(vertices1[0])})))*spenso::g(spenso::coad(8,hedge({_parse_port(e.get_destination())})),spenso::coad(8,hedge({_parse_port(e.get_source())}))))"
+                        )
+                    else:
+                        print("here in the virtual if " * 10)
+                        e_atts["num"] = (
+                            f"-1𝑖*(spenso::g(spenso::coad(8,hedge({_parse_port(e.get_destination())})),spenso::coad(8,hedge({_parse_port(e.get_source())})))*spenso::g(spenso::mink(4,hedge({_parse_port(e.get_destination())})),spenso::mink(4,hedge({_parse_port(e.get_source())})))-1/({indices[0][1]}*Q({indices[0][0]},0)+{indices[1][1]}*Q({indices[1][0]},0))*Qp({e_atts['id']},spenso::mink(4,hedge({_parse_port(vertices1[1])})))*Q(1000,spenso::mink(4,hedge({_parse_port(vertices1[0])})))*spenso::g(spenso::coad(8,hedge({_parse_port(e.get_destination())})),spenso::coad(8,hedge({_parse_port(e.get_source())}))))"
+                        )
+
                     print(e_atts["num"])
                 if e_atts["id"] == e2_atts["id"]:
-                    e_atts["num"] = (
-                        f"-1𝑖*(spenso::g(spenso::coad(8,hedge({_parse_port(e.get_destination())})),spenso::coad(8,hedge({_parse_port(e.get_source())})))*spenso::g(spenso::mink(4,hedge({_parse_port(e.get_destination())})),spenso::mink(4,hedge({_parse_port(e.get_source())})))-1/spenso::Q({e_atts['id']},0)*spenso::Q({e_atts['id']},spenso::mink(4,hedge({_parse_port(vertices2[1])})))*spenso::Q(1000,spenso::mink(4,hedge({_parse_port(vertices2[0])})))*spenso::g(spenso::coad(8,hedge({_parse_port(e.get_destination())})),spenso::coad(8,hedge({_parse_port(e.get_source())}))))"
-                    )
-                    print(e_atts["num"])
+                    if e2_atts["is_cut"] != "0" and e1_atts["is_cut"] != "0":
+                        e_atts["num"] = (
+                            f"-1𝑖*(spenso::g(spenso::coad(8,hedge({_parse_port(e.get_destination())})),spenso::coad(8,hedge({_parse_port(e.get_source())})))*spenso::g(spenso::mink(4,hedge({_parse_port(e.get_destination())})),spenso::mink(4,hedge({_parse_port(e.get_source())})))-1/Q({e_atts['id']},0)*Qp({e_atts['id']},spenso::mink(4,hedge({_parse_port(vertices2[1])})))*Q(1000,spenso::mink(4,hedge({_parse_port(vertices2[0])})))*spenso::g(spenso::coad(8,hedge({_parse_port(e.get_destination())})),spenso::coad(8,hedge({_parse_port(e.get_source())}))))"
+                        )
+                    else:
+                        print("here in the virtual if " * 10)
+                        e_atts["num"] = (
+                            f"-1𝑖*(spenso::g(spenso::coad(8,hedge({_parse_port(e.get_destination())})),spenso::coad(8,hedge({_parse_port(e.get_source())})))*spenso::g(spenso::mink(4,hedge({_parse_port(e.get_destination())})),spenso::mink(4,hedge({_parse_port(e.get_source())})))+1/({indices[0][1]}*Q({indices[0][0]},0)+{indices[1][1]}*Q({indices[1][0]},0))*Qp({e_atts['id']},spenso::mink(4,hedge({_parse_port(vertices2[1])})))*Q(1000,spenso::mink(4,hedge({_parse_port(vertices2[0])})))*spenso::g(spenso::coad(8,hedge({_parse_port(e.get_destination())})),spenso::coad(8,hedge({_parse_port(e.get_source())}))))"
+                        )
 
         return cut_graph
 
@@ -2080,12 +2272,9 @@ class LoopIntegrandConstructor(object):
     def get_integrand(self, cut_graph):
 
         # FIX: cut graph logic and overwriting
-
-        
-
         orig_cut_graph = deepcopy(cut_graph)
 
-        #emr_integrand_tmp = self.emr_processor.get_integrand(orig_cut_graph)
+        # emr_integrand_tmp = self.emr_processor.get_integrand(orig_cut_graph)
 
         if len(cut_graph.final_cut) > 1 and self.name == "DY":
             lmb_choice = []
@@ -2142,11 +2331,9 @@ class LoopIntegrandConstructor(object):
             cut_graph.graph = change_routing(cut_graph.graph, lmb_choice)
             orig_cut_graph.graph = change_routing(orig_cut_graph.graph, lmb_choice)
 
+        cut_graph = self.modify_t_channel_gluon_numerator(cut_graph)
 
-        #cut_graph = self.modify_t_channel_gluon_numerator(cut_graph)
-
-
-        print(cut_graph.graph)  
+        print(cut_graph.graph)
         emr_integrand = self.emr_processor.get_integrand(cut_graph)
 
         uv_approximator = UltraVioletSubtraction(
@@ -2163,12 +2350,15 @@ class LoopIntegrandConstructor(object):
             emr_integrand, cut_graph
         )
 
+        print("this emr")
+        print(emr_integrand)
+
         loop_integrand = self.leading_virtuality_expansion(
             loop_integrand, cut_graph, raised_cut
         )
 
         loop_integrand = (
-            loop_integrand + uv_ct + threshold_cts #+ soft_t_channel_gluon_cts
+            loop_integrand + uv_ct + threshold_cts  # + soft_t_channel_gluon_cts
         )
 
         print("returning final integrand")

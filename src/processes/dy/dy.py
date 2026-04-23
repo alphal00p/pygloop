@@ -728,8 +728,14 @@ class DY(object):
             evaluators = []
 
             for routed_graph_index, gg in enumerate(routed_graphs):
-                if (len(gg[2][0]) == 1 and len(gg[2][1]) == 1):
-                    continue
+                # if (len(gg[2][0]) == 1 and len(gg[2][1]) == 1):
+                #    continue
+
+                # if (len(gg[2][1]) != 2):
+                #    continue
+
+                # if len(gg[2][1]) != 1 or len(gg[2][0]) != 1:
+                #    continue
 
                 processed_graphs.append(gg[3])
                 cut_graph = deepcopy(routed_cut_graph(gg[3], gg[0], gg[1], gg[2]))
@@ -765,15 +771,17 @@ class DY(object):
                     evaluators.append(evaluator)
                 print("constructed evaluators")
 
-                
-
             all_routed_integrands.extend(routed_integrands)
             all_evaluators.extend(evaluators)
 
+            print("added up evaluators")
+
         if all_routed_integrands:
+            print("pre limit taker")
             approach_limit = approach_point(
                 n_loops, process_name, all_routed_integrands
             )
+            print("constructed limit taker")
             print("##################")
             z = 0.6
             # ks = [
@@ -791,17 +799,17 @@ class DY(object):
                 ]),
                 scale * np.array([1 / math.sqrt(3), -1 / math.sqrt(3), 0]),
             ]
-            # scale = 1000
-            # ks = [
-            #     # math.sqrt(z)
-            #     scale
-            #     * np.array([
-            #         0.0,
-            #         0.0,
-            #         -1 / math.sqrt(5),
-            #     ]),
-            #     scale * np.array([1 / math.sqrt(3), -1 / math.sqrt(3), 0]),
-            # ]
+            scale = 1000
+            ks = [
+                # math.sqrt(z)
+                scale
+                * np.array([
+                    0.0,
+                    0.0,
+                    -1 / math.sqrt(5),
+                ]),
+                scale * np.array([1 / math.sqrt(3), -1 / math.sqrt(3), 0]),
+            ]
             # ks = [
             #    # math.sqrt(z)
             #    scale * np.array([1 / math.sqrt(3), -1 / math.sqrt(3), 0]),
@@ -815,6 +823,7 @@ class DY(object):
             vp = np.array([0, 1, 1])
             p1 = scale * np.array([0, 0, 1])
             p2 = scale * np.array([0, 0, -1])
+            print("just about to approach limit")
             approach_limit.approach(ks, p1, p2, z, vp)
 
         if all_evaluators:

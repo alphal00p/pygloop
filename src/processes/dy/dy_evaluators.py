@@ -441,10 +441,11 @@ class evaluate_integrand:
 
         for mom, mass_sq, id in momenta:
             rep = self.routed_integrand.replacements
+            # non_rep_mom = mom
             if len(rep) > 0:
                 patt = rep[0]
                 repl = rep[1]
-                mom = mom.replace(patt, repl)
+                # mom = mom.replace(patt, repl)
 
             mom_old = self.concretise_scalar_products(mom)
             mom = self.t_parametrise(mom_old)
@@ -460,9 +461,9 @@ class evaluate_integrand:
                     mom3d[i] = mom3d[i].replace(key, val)
                     mass_sq = mass_sq.replace(E("m(t)"), E(str(MT))).replace(key, val)
 
-            energies[E(f"E({id})")] = ((
+            energies[E(f"E({id})")] = (
                 mom3d[0] ** 2 + mom3d[1] ** 2 + mom3d[2] ** 2 + mass_sq
-            ) ** E("1/2"))
+            ) ** E("1/2")
 
             masses[E(f"m({id})^2")] = mass_sq
             qmomenta[E(f"q({id})")] = mom3d
@@ -490,14 +491,23 @@ class evaluate_integrand:
         print("momenta: ", qmomenta)
         # print(self.routed_integrand.integrand)
         emr_int = deepcopy(self.routed_integrand.emr_integrand)
-        # print("EMR: ", emr_int)
-        print("e_surface : ", self.e_surface)
+        print("EMR: ", emr_int)
+        # print("e_surface : ", self.e_surface)
         print("h(t): ", ht.replace(E("t"), tstar))
         print(jacobian)
-        # print("delta jacobian : ", jacobian.replace(E("t"), tstar))
-        # print("Evaluated EMR: ", eval_emr_int)
-        # for key, val in energies.items():
-        #    emr_int = emr_int.replace(key, val)
+        # print("delta jacobian : ", jacobian.replace(E("t"), tstar).expand())
+        print(
+            "Evaluated EMR: ",
+            eval_emr_int.replace(E("1000000^(1/2)"), E("1000")).expand(),
+        )
+        jac_rep = jacobian.replace(E("t"), tstar)
+        for key, val in energies.items():
+            jac_rep = jac_rep.replace(key, val)
+        for j in range(self.L):
+            for i in range(1, 4):
+                jac_rep = jac_rep.replace(E(f"k({j},{i})"), k[j][i - 1])
+
+        print("evaluated jac: ", jac_rep)
 
         # print("Evaluated EMR: ", emr_int)
 

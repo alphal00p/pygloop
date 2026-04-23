@@ -24,8 +24,8 @@ class approach_point(object):
                 L,
                 process,
                 deepcopy(rout),
-                800,
-                400,
+                1,
+                1,
                 {"zmin": 0.0, "zmax": 1.0, "Lambdasq": 0.5 * 1000, "mUV": 1.0},
             )
             for rout in routed_integrands
@@ -34,7 +34,7 @@ class approach_point(object):
     def approach(self, kcc, p1, p2, z, vp):
         kc_comps = []
 
-        for i in range(1, 3):
+        for i in range(0, 2):
             print("####################################################")
             print("####################################################")
             ks = [k + pow(10, -i) * vp for k in kcc]
@@ -58,7 +58,7 @@ class approach_point(object):
                     p2,
                     z,
                     mode="arb",
-                    decimal_digit_precision=64,
+                    decimal_digit_precision=128,
                 )
                 # cut_value = cut_graph_evaluator.eval(ks, p1, p2, z)
                 cut_sum += cut_value
