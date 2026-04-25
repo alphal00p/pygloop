@@ -897,8 +897,8 @@ class DY(object):
             case 2:
                 logger.info("Generating two-loop graphs ...")
                 if self.process_name == "tt~":
-                    self.gl_worker.run(  # GL06 GL14
-                        f"generate xs d g > t t~ | d d~ g t t~ ghG ghG~ [{{{{2}}}} QCD=1] --only-diagrams --numerator-grouping group_identical_graphs_up_to_scalar_rescaling --symmetrize-left-right-states true --symmetrize-initial-states true --select-graphs GL14 -p {base_name} -i {graphs_process_name} --max-multiplicity-for-fast-cut-filter 99"
+                    self.gl_worker.run(  # GL06 GL14  --select-graphs GL14
+                        f"generate xs d g > t t~ | d d~ g t t~ ghG ghG~ [{{{{2}}}} QCD=1] --only-diagrams --numerator-grouping group_identical_graphs_up_to_scalar_rescaling --symmetrize-left-right-states true --symmetrize-initial-states true -p {base_name} -i {graphs_process_name} --max-multiplicity-for-fast-cut-filter 99"
                     )
                 else:
                     raise ValueError(
