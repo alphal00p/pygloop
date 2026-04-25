@@ -731,7 +731,7 @@ class DY(object):
                 # if (len(gg[2][0]) == 1 and len(gg[2][1]) == 1):
                 #    continue
 
-                # if (len(gg[2][1]) != 2):
+                # if len(gg[2][1]) != 2:
                 #    continue
 
                 # if len(gg[2][1]) != 1 or len(gg[2][0]) != 1:
@@ -799,17 +799,17 @@ class DY(object):
                 ]),
                 scale * np.array([1 / math.sqrt(3), -1 / math.sqrt(3), 0]),
             ]
-            scale = 1000
-            ks = [
-                # math.sqrt(z)
-                scale
-                * np.array([
-                    0.0,
-                    0.0,
-                    -1 / math.sqrt(5),
-                ]),
-                scale * np.array([1 / math.sqrt(3), -1 / math.sqrt(3), 0]),
-            ]
+            # scale = 1000
+            # ks = [
+            #    # math.sqrt(z)
+            #    scale
+            #    * np.array([
+            #        0.0,
+            #        0.0,
+            #        -1 / math.sqrt(5),
+            #    ]),
+            #    scale * np.array([1 / math.sqrt(3), -1 / math.sqrt(3), 0]),
+            # ]
             # ks = [
             #    # math.sqrt(z)
             #    scale * np.array([1 / math.sqrt(3), -1 / math.sqrt(3), 0]),
@@ -897,8 +897,8 @@ class DY(object):
             case 2:
                 logger.info("Generating two-loop graphs ...")
                 if self.process_name == "tt~":
-                    self.gl_worker.run(
-                        f"generate xs d g > t t~ | d d~ g t t~ ghG ghG~ [{{{{2}}}} QCD=1] --only-diagrams --numerator-grouping group_identical_graphs_up_to_scalar_rescaling --symmetrize-left-right-states true --symmetrize-initial-states true --select-graphs GL02 -p {base_name} -i {graphs_process_name} --max-multiplicity-for-fast-cut-filter 99"
+                    self.gl_worker.run(  # GL06 GL14
+                        f"generate xs d g > t t~ | d d~ g t t~ ghG ghG~ [{{{{2}}}} QCD=1] --only-diagrams --numerator-grouping group_identical_graphs_up_to_scalar_rescaling --symmetrize-left-right-states true --symmetrize-initial-states true --select-graphs GL14 -p {base_name} -i {graphs_process_name} --max-multiplicity-for-fast-cut-filter 99"
                     )
                 else:
                     raise ValueError(

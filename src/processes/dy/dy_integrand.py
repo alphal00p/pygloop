@@ -217,7 +217,7 @@ class EMRIntegrandConstructor(object):
             repeat=True,
         )
 
-        print(out)
+        # print(out)
 
         # out = out.replace(E("sp(0,7)"), E("0"))
 
@@ -524,8 +524,8 @@ class EMRIntegrandConstructor(object):
         self, cut_graph, s_split_graphs, s_channel_edges, numerator, get_residues=False
     ):
 
-        print("numerator here" * 5)
-        print(numerator)
+        # print("numerator here" * 5)
+        # print(numerator)
         numerator = numerator.replace(
             E("spp(qp(x_),qp(y_))"),
             E("sigma(x_)*sigma(y_)*En(x_)*En(y_)-sp3(q(x_),q(y_))"),
@@ -537,16 +537,16 @@ class EMRIntegrandConstructor(object):
             E("sp(x_,y_)"), E("sigma(x_)*sigma(y_)*En(x_)*En(y_)-sp3(q(x_),q(y_))")
         )
         #
-        #        numerator = numerator.replace(
-        #            E("spp(qp(x_),qp(y_))"),
-        #            E("sigma(x_)*sigma(y_)*E(x_)*E(y_)-sp3(q(x_),q(y_))"),
-        #        )
-        #        numerator = numerator.replace(
-        #            E("spp(qp(x_),y_)"), E("sigma(x_)*sigma(y_)*E(x_)*E(y_)-sp3(q(x_),q(y_))")
-        #        )
-        #        numerator = numerator.replace(
-        #            E("sp(x_,y_)"), E("sigma(x_)*sigma(y_)*E(x_)*E(y_)-sp3(q(x_),q(y_))")
-        #        )
+        # numerator = numerator.replace(
+        #    E("spp(qp(x_),qp(y_))"),
+        #    E("sigma(x_)*sigma(y_)*E(x_)*E(y_)-sp3(q(x_),q(y_))"),
+        # )
+        # numerator = numerator.replace(
+        #    E("spp(qp(x_),y_)"), E("sigma(x_)*sigma(y_)*E(x_)*E(y_)-sp3(q(x_),q(y_))")
+        # )
+        # numerator = numerator.replace(
+        #    E("sp(x_,y_)"), E("sigma(x_)*sigma(y_)*E(x_)*E(y_)-sp3(q(x_),q(y_))")
+        # )
 
         numerator = numerator.replace(E("sigma(1000)"), E("1"))
         numerator = numerator.replace(E("sp3(q(1000), x___)"), E("0"))
@@ -558,7 +558,7 @@ class EMRIntegrandConstructor(object):
         # if len(cut_graph.partition[1]) == 2:
         #    numerator = numerator.replace(E("E(7)"), E("-E(7)"))
 
-        print(numerator)
+        # print(numerator)
 
         cut_g_edges = sorted(
             cut_graph.graph.get_edges(), key=lambda e: int(e.get_attributes()["id"])
@@ -590,6 +590,18 @@ class EMRIntegrandConstructor(object):
 
         edges_to_reverse = []
 
+        # print("graphs")
+        # for n_graph, g in enumerate(split_graphs_gt2_non_ext):
+        #    print("n_graph ", n_graph)
+        #    g_rep = g.replacements
+        #    for i in range(0, len(g.graph.get_edges())):
+        #        print(g_rep[i][1])
+
+        # print("emr cutgraph")
+        # for e in cut_g_edges:
+        #    print(e)
+        # print("---------")
+        edges_to_reverse = []
         for n_graph, g in enumerate(split_graphs_gt2_non_ext):
             cff_g = self.get_CFF(g.graph, [], [])
             new_cff = E("0")
@@ -597,7 +609,10 @@ class EMRIntegrandConstructor(object):
 
             for cffterm in cff_g.expressions:
                 cff_term = previous_cff * cffterm.expression
-                edges_to_reverse = []
+
+                # print("çççççççç")
+                # print("n_graph:", n_graph)
+                # print("len:", len(cffterm.orientation))
                 for o, i in zip(cffterm.orientation, range(len(cffterm.orientation))):
                     id_in_original_graph = g_rep[i][1]
                     this_e_atts = cut_g_edges[
@@ -612,7 +627,11 @@ class EMRIntegrandConstructor(object):
                             E(f"sigma({id_in_original_graph})"), E("1")
                         )
                     if this_e_atts.get("is_cut_DY", 0) == -1:
+                        # print("***")
+                        # print(this_e_atts["id"])
+                        # print(id_in_original_graph)
                         edges_to_reverse.append(id_in_original_graph)
+                # print(edges_to_reverse)
                 for etas in cff_g.e_surfaces:
                     eta = etas.expression
                     for rep in g.replacements:
@@ -632,9 +651,12 @@ class EMRIntegrandConstructor(object):
                             )
                         e_surfaces.add(residue_eta)
 
+                # print(f"cff term for graph {n_graph} before: ", cff_term)
+
                 # for id in set(edges_to_reverse):
                 #    cff_term = cff_term.replace(E(f"E({id})"), -E(f"E({id})"))
 
+                # print(f"cff term for graph {n_graph} after: ", cff_term)
                 new_cff += cff_term
 
             previous_cff = new_cff
@@ -642,6 +664,11 @@ class EMRIntegrandConstructor(object):
         for id in set(edges_to_reverse):
             previous_cff = previous_cff.replace(E(f"E({id})"), E(f"-E({id})"))
             previous_cff = previous_cff.replace(E(f"En({id})"), E(f"-En({id})"))
+
+        # print("cff fresh out of the cff algorithm")
+        # print(edges_to_reverse)
+
+        # print(previous_cff)
 
         # Multiplies by non-partial-fractioned s-channel propagators and sets the s-channel particle's
         # energy in terms of other cut particles by energy conservation. The logic is weak for many s-channel
@@ -762,8 +789,6 @@ class EMRIntegrandConstructor(object):
         total_cff = total_cff.replace(E("Q(x_,0)"), E("E(x_)"))
 
         # total_cff = total_cff.replace(E("E(6)"), E("-E(6)"))
-
-        # print(total_cff)
 
         return total_cff
 
@@ -1570,7 +1595,7 @@ class LoopIntegrandConstructor(object):
         patt = E(f"E({e_to_sub_atts['id']})")
         rep = rep + E(f"E({e_to_sub_atts['id']})")
 
-        # print("canoniucalisation: replacing ", patt, " by ", rep)
+        print("canoniucalisation: replacing ", patt, " by ", rep)
 
         integrand = integrand.replace(patt, rep)
 
@@ -1743,7 +1768,7 @@ class LoopIntegrandConstructor(object):
             # In order to make the collinear replacement always work, replace a final-state energy
             # by energy conservation.
 
-            print("EMR INSIDE APPROXIMATOR")
+            # print("EMR INSIDE APPROXIMATOR")
 
             integrand = self.canonicalise_energies(integrand, cut_graph)
 
@@ -1751,6 +1776,8 @@ class LoopIntegrandConstructor(object):
             # integrand = integrand.replace(E(f"E({coll_moms[1]})"), a_coll_en)
 
             # integrand = integrand / (E("4*E(0)*(E(7)+E(8)-E(0))"))
+
+            # print(integrand)
 
             integrand = self.replace_energies(integrand, cut_graph)
 
@@ -1764,7 +1791,7 @@ class LoopIntegrandConstructor(object):
 
             integrand = self.route_integrand(integrand, cut_graph)
 
-            print(integrand)
+            # print(integrand)
 
             integrand_old = deepcopy(integrand)
 
@@ -2127,8 +2154,57 @@ class LoopIntegrandConstructor(object):
             e1 = has_raised_t_channel_gluon[1]
             e2 = has_raised_t_channel_gluon[2]
             repeated_relation = has_raised_t_channel_gluon[3]
+            k_keys = [f"routing_k{i}" for i in range(0, self.L)]
+
+            def _is_pure_external_edge(edge):
+                edge_atts = edge.get_attributes()
+                has_p1 = _strip_quotes(str(edge_atts.get("routing_p1", "0"))) != "0"
+                has_p2 = _strip_quotes(str(edge_atts.get("routing_p2", "0"))) != "0"
+                has_single_external_momentum = has_p1 != has_p2
+                has_no_loop_momentum = all(
+                    _strip_quotes(str(edge_atts.get(key, "0"))) == "0" for key in k_keys
+                )
+                return has_single_external_momentum and has_no_loop_momentum
+
+            def _has_external_with_orientation(candidate_edge, orientation):
+                candidate_nodes = [
+                    _base_node(candidate_edge.get_source()),
+                    _base_node(candidate_edge.get_destination()),
+                ]
+
+                for node_name in candidate_nodes:
+                    for incident_edge in boundary_edges(cut_graph.graph, {node_name}):
+                        incident_atts = incident_edge.get_attributes()
+                        if incident_atts["id"] == candidate_edge.get_attributes()["id"]:
+                            continue
+                        if not _is_pure_external_edge(incident_edge):
+                            continue
+
+                        incident_node = (
+                            _base_node(incident_edge.get_destination())
+                            if orientation == "injecting"
+                            else _base_node(incident_edge.get_source())
+                        )
+                        if incident_node == node_name:
+                            return True
+
+                return False
+
+            e1_has_injecting_external = _has_external_with_orientation(e1, "injecting")
+            e2_has_injecting_external = _has_external_with_orientation(e2, "injecting")
+            if e1_has_injecting_external == e2_has_injecting_external:
+                raise ValueError(
+                    "could not uniquely order raised gluon edges by external injection"
+                )
+            if not e1_has_injecting_external:
+                e1, e2 = e2, e1
+
             e1_atts = e1.get_attributes()
             e2_atts = e2.get_attributes()
+            if not _has_external_with_orientation(e2, "departing"):
+                raise ValueError(
+                    "the second raised gluon edge has no departing pure external edge"
+                )
 
             print("--------------" * 5)
 
@@ -2139,39 +2215,62 @@ class LoopIntegrandConstructor(object):
             e2_d = e2.get_destination()
 
             # kinda brittle and kinda not brittle (assumes a specific routing)
-            vertices1 = [e1_d, e1_s]
-            vertices2 = [e2_d, e2_s]
-            overall_sign = 1
+            vertices1 = [e1_s, e1_d]
+            vertices2 = [e2_s, e2_d]
+
+            # vertices1 = [e1_s, e1_d]
+            # vertices2 = [e2_s, e2_d]
+
+            print("vertices before " * 5)
+            print(vertices1)
+            print(vertices2)
+
+            overall_sign1 = 1
+            overall_sign2 = -1
             if e1_atts.get("routing_p1") == "1":
-                if e2_atts.get("routing_p1") == "-1":
-                    vertices2 = [e2_s, e2_d]
+                print("GOT IN HERE SOMEHOW 0")
+                if e2_atts.get("routing_p1") == "1":
+                    print("GOT IN HERE SOMEHOW 1")
+                    vertices2 = [e2_d, e2_s]
+                    overall_sign2 = 1
             elif e1_atts.get("routing_p1") == "-1":
-                vertices1 = [e1_s, e1_d]
-                overall_sign = -1
-                if e2_atts.get("routing_p1") == "-1":
-                    vertices2 = [e2_s, e2_d]
+                vertices1 = [e1_d, e1_s]
+                overall_sign1 = -1
+                print("GOT IN HERE SOMEHOW 2")
+                if e2_atts.get("routing_p1") == "1":
+                    vertices2 = [e2_d, e2_s]
+                    overall_sign2 = 1
+                    print("GOT IN HERE SOMEHOW 3")
             elif e1_atts.get("routing_p2") == "1":
-                if e2_atts.get("routing_p2") == "-1":
-                    vertices2 = [e2_s, e2_d]
+                if e2_atts.get("routing_p2") == "1":
+                    vertices2 = [e2_d, e2_s]
+                    overall_sign2 = 1
             elif e1_atts.get("routing_p2") == "-1":
-                vertices1 = [e1_s, e1_d]
-                overall_sign = -1
-                if e2_atts.get("routing_p2") == "-1":
-                    vertices2 = [e2_s, e2_d]
+                vertices1 = [e1_d, e1_s]
+                overall_sign1 = -1
+                if e2_atts.get("routing_p2") == "1":
+                    vertices2 = [e2_d, e2_s]
+                    overall_sign2 = 1
             else:
                 raise ValueError("routing in gluonic t-channel exchange has a problem")
 
-            if repeated_relation == "opp":
-                vertices2 = [vertices2[1], vertices2[0]]
+            # if repeated_relation == "opp":
+            #    vertices2 = [vertices2[1], vertices2[0]]
 
             indices = []
             for e in boundary_edges(cut_graph.graph, {_base_node(vertices1[0])}):
                 e_atts = e.get_attributes()
                 if e_atts["id"] != e1_atts["id"]:
                     if _base_node(vertices1[0]) == _base_node(e.get_source()):
-                        indices.append((e_atts["id"], overall_sign))
+                        indices.append((e_atts["id"], overall_sign1))
                     else:
-                        indices.append((e_atts["id"], -overall_sign))
+                        indices.append((e_atts["id"], -overall_sign1))
+
+            print("vertices after " * 5)
+            print(vertices1)
+            print(vertices2)
+            print(overall_sign1)
+            print(overall_sign2)
 
             print("&&&&&&" * 12)
             print(indices)
@@ -2236,6 +2335,7 @@ class LoopIntegrandConstructor(object):
                 node.get_attributes()["num"] = expr_to_string(num)
 
             # Finally construct the counter-terms
+            #
 
             for e in cut_graph.graph.get_edges():
                 e_atts = e.get_attributes()
@@ -2244,25 +2344,26 @@ class LoopIntegrandConstructor(object):
                     if e1_atts["is_cut"] != "0" and e2_atts["is_cut"] != "0":
                         ##
                         e_atts["num"] = (
-                            f"-1𝑖*(spenso::g(spenso::coad(8,hedge({_parse_port(e.get_destination())})),spenso::coad(8,hedge({_parse_port(e.get_source())})))*spenso::g(spenso::mink(4,hedge({_parse_port(e.get_destination())})),spenso::mink(4,hedge({_parse_port(e.get_source())})))+1/Q({e_atts['id']},0)*Qp({e_atts['id']},spenso::mink(4,hedge({_parse_port(vertices1[1])})))*Q(1000,spenso::mink(4,hedge({_parse_port(vertices1[0])})))*spenso::g(spenso::coad(8,hedge({_parse_port(e.get_destination())})),spenso::coad(8,hedge({_parse_port(e.get_source())}))))"
+                            f"-1𝑖*(spenso::g(spenso::coad(8,hedge({_parse_port(e.get_destination())})),spenso::coad(8,hedge({_parse_port(e.get_source())})))*spenso::g(spenso::mink(4,hedge({_parse_port(e.get_destination())})),spenso::mink(4,hedge({_parse_port(e.get_source())})))-{overall_sign1}*1/Q({e_atts['id']},0)*Qp({e_atts['id']},spenso::mink(4,hedge({_parse_port(vertices1[1])})))*Q(1000,spenso::mink(4,hedge({_parse_port(vertices1[0])})))*spenso::g(spenso::coad(8,hedge({_parse_port(e.get_destination())})),spenso::coad(8,hedge({_parse_port(e.get_source())}))))"
                         )
                     else:
                         print("here in the virtual if " * 10)
                         e_atts["num"] = (
-                            f"-1𝑖*(spenso::g(spenso::coad(8,hedge({_parse_port(e.get_destination())})),spenso::coad(8,hedge({_parse_port(e.get_source())})))*spenso::g(spenso::mink(4,hedge({_parse_port(e.get_destination())})),spenso::mink(4,hedge({_parse_port(e.get_source())})))-1/({indices[0][1]}*Q({indices[0][0]},0)+{indices[1][1]}*Q({indices[1][0]},0))*Qp({e_atts['id']},spenso::mink(4,hedge({_parse_port(vertices1[1])})))*Q(1000,spenso::mink(4,hedge({_parse_port(vertices1[0])})))*spenso::g(spenso::coad(8,hedge({_parse_port(e.get_destination())})),spenso::coad(8,hedge({_parse_port(e.get_source())}))))"
+                            f"-1𝑖*(spenso::g(spenso::coad(8,hedge({_parse_port(e.get_destination())})),spenso::coad(8,hedge({_parse_port(e.get_source())})))*spenso::g(spenso::mink(4,hedge({_parse_port(e.get_destination())})),spenso::mink(4,hedge({_parse_port(e.get_source())})))-{overall_sign1}*1/({indices[0][1]}*Q({indices[0][0]},0)+{indices[1][1]}*Q({indices[1][0]},0))*Qp({e_atts['id']},spenso::mink(4,hedge({_parse_port(vertices1[1])})))*Q(1000,spenso::mink(4,hedge({_parse_port(vertices1[0])})))*spenso::g(spenso::coad(8,hedge({_parse_port(e.get_destination())})),spenso::coad(8,hedge({_parse_port(e.get_source())}))))"
                         )
 
                     print(e_atts["num"])
                 if e_atts["id"] == e2_atts["id"]:
                     if e2_atts["is_cut"] != "0" and e1_atts["is_cut"] != "0":
                         e_atts["num"] = (
-                            f"-1𝑖*(spenso::g(spenso::coad(8,hedge({_parse_port(e.get_destination())})),spenso::coad(8,hedge({_parse_port(e.get_source())})))*spenso::g(spenso::mink(4,hedge({_parse_port(e.get_destination())})),spenso::mink(4,hedge({_parse_port(e.get_source())})))-1/Q({e_atts['id']},0)*Qp({e_atts['id']},spenso::mink(4,hedge({_parse_port(vertices2[1])})))*Q(1000,spenso::mink(4,hedge({_parse_port(vertices2[0])})))*spenso::g(spenso::coad(8,hedge({_parse_port(e.get_destination())})),spenso::coad(8,hedge({_parse_port(e.get_source())}))))"
+                            f"-1𝑖*(spenso::g(spenso::coad(8,hedge({_parse_port(e.get_destination())})),spenso::coad(8,hedge({_parse_port(e.get_source())})))*spenso::g(spenso::mink(4,hedge({_parse_port(e.get_destination())})),spenso::mink(4,hedge({_parse_port(e.get_source())})))-{overall_sign2}*1/Q({e_atts['id']},0)*Qp({e_atts['id']},spenso::mink(4,hedge({_parse_port(vertices2[1])})))*Q(1000,spenso::mink(4,hedge({_parse_port(vertices2[0])})))*spenso::g(spenso::coad(8,hedge({_parse_port(e.get_destination())})),spenso::coad(8,hedge({_parse_port(e.get_source())}))))"
                         )
                     else:
                         print("here in the virtual if " * 10)
                         e_atts["num"] = (
-                            f"-1𝑖*(spenso::g(spenso::coad(8,hedge({_parse_port(e.get_destination())})),spenso::coad(8,hedge({_parse_port(e.get_source())})))*spenso::g(spenso::mink(4,hedge({_parse_port(e.get_destination())})),spenso::mink(4,hedge({_parse_port(e.get_source())})))+1/({indices[0][1]}*Q({indices[0][0]},0)+{indices[1][1]}*Q({indices[1][0]},0))*Qp({e_atts['id']},spenso::mink(4,hedge({_parse_port(vertices2[1])})))*Q(1000,spenso::mink(4,hedge({_parse_port(vertices2[0])})))*spenso::g(spenso::coad(8,hedge({_parse_port(e.get_destination())})),spenso::coad(8,hedge({_parse_port(e.get_source())}))))"
+                            f"-1𝑖*(spenso::g(spenso::coad(8,hedge({_parse_port(e.get_destination())})),spenso::coad(8,hedge({_parse_port(e.get_source())})))*spenso::g(spenso::mink(4,hedge({_parse_port(e.get_destination())})),spenso::mink(4,hedge({_parse_port(e.get_source())})))-{overall_sign2}*1/({indices[0][1]}*Q({indices[0][0]},0)+{indices[1][1]}*Q({indices[1][0]},0))*Qp({e_atts['id']},spenso::mink(4,hedge({_parse_port(vertices2[1])})))*Q(1000,spenso::mink(4,hedge({_parse_port(vertices2[0])})))*spenso::g(spenso::coad(8,hedge({_parse_port(e.get_destination())})),spenso::coad(8,hedge({_parse_port(e.get_source())}))))"
                         )
+                    print(e_atts["num"])
 
         return cut_graph
 
@@ -2350,8 +2451,8 @@ class LoopIntegrandConstructor(object):
             emr_integrand, cut_graph
         )
 
-        print("this emr")
-        print(emr_integrand)
+        # print("this emr")
+        # print(emr_integrand)
 
         loop_integrand = self.leading_virtuality_expansion(
             loop_integrand, cut_graph, raised_cut

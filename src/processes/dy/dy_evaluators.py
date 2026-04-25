@@ -470,6 +470,7 @@ class evaluate_integrand:
             for i in range(1, 4):
                 eval_emr_int = eval_emr_int.replace(E(f"q({id},{i})"), mom3d[i - 1])
             eval_emr_int = eval_emr_int.replace(E(f"E({id})"), energies[E(f"E({id})")])
+            eval_emr_int = eval_emr_int.replace(E(f"En({id})"), energies[E(f"E({id})")])
             eval_emr_int = eval_emr_int.replace(E("MT"), E(str(MT)))
 
         ht_prefactor = (
@@ -491,14 +492,17 @@ class evaluate_integrand:
         print("momenta: ", qmomenta)
         # print(self.routed_integrand.integrand)
         emr_int = deepcopy(self.routed_integrand.emr_integrand)
-        print("EMR: ", emr_int)
+        # print("EMR: ", emr_int)
         # print("e_surface : ", self.e_surface)
         print("h(t): ", ht.replace(E("t"), tstar))
-        print(jacobian)
+        # print(jacobian)
         # print("delta jacobian : ", jacobian.replace(E("t"), tstar).expand())
         print(
             "Evaluated EMR: ",
-            eval_emr_int.replace(E("1000000^(1/2)"), E("1000")).expand(),
+            eval_emr_int
+            .replace(E("1000000^(1/2)"), E("1000"))
+            .replace(E("(1/1000000)^(1/2)"), E("1/1000"))
+            .expand(),
         )
         jac_rep = jacobian.replace(E("t"), tstar)
         for key, val in energies.items():
