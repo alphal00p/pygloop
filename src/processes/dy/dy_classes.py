@@ -627,6 +627,45 @@ class VacuumDotGraph:
     ) -> List[
         Tuple[List[pydot.Edge], List[pydot.Edge], List[List[pydot.Edge]], pydot.Dot]
     ]:
+        def _partition_edge_charge(
+            edge: pydot.Edge, graph_edge_by_id: dict[str, pydot.Edge]
+        ) -> int:
+            edge_id = edge.get_attributes().get("id")
+            if edge_id is None or edge_id not in graph_edge_by_id:
+                raise ValueError(
+                    "Missing routed graph edge for partition channel assignment"
+                )
+
+            routed_edge = graph_edge_by_id[edge_id]
+            routed_atts = routed_edge.get_attributes()
+            particle = _strip_quotes(str(routed_atts.get("particle", "")))
+            if particle == "d":
+                base_charge = 1
+            elif particle == "d~":
+                base_charge = -1
+            elif particle in {"g", "ghG", "ghG~"}:
+                return 0
+            else:
+                raise ValueError(
+                    f"Unsupported particle '{particle}' in partition channel assignment"
+                )
+
+            cut_value = routed_atts.get("is_cut_DY", routed_atts.get("is_cut"))
+            if cut_value is None:
+                raise ValueError(
+                    f"Missing cut sign for quark edge '{edge_id}' in partition channel assignment"
+                )
+
+            return base_charge * int(cut_value)
+
+        def _partition_channel(
+            partition_subset: list[pydot.Edge], graph_edge_by_id: dict[str, pydot.Edge]
+        ) -> int:
+            return sum(
+                _partition_edge_charge(edge, graph_edge_by_id)
+                for edge in partition_subset
+            )
+
         cut_graphs_with_routing = self.cut_graphs_with_routing(
             initial_massive, final_massive
         )
@@ -669,6 +708,17 @@ class VacuumDotGraph:
                 ):
                     count_p2 = True
             if count_p1 and count_p2:
+                graph_edge_by_id = {
+                    edge.get_attributes()["id"]: edge for edge in graph[3].get_edges()
+                }
+                particle_channel = (
+                    _partition_channel(graph[2][0], graph_edge_by_id),
+                    _partition_channel(graph[2][1], graph_edge_by_id),
+                )
+                graph_name = _strip_quotes(str(graph[3].get_name()))
+                base_graph_name = graph_name.split("_partition_", 1)[0]
+                graph[3].set("base_graph_name", base_graph_name)
+                graph[3].set("particle_channel", str(particle_channel))
                 cut_graphs_with_routing_LV.append(graph)
 
         return cut_graphs_with_routing_LV

@@ -50,6 +50,7 @@ from processes.dy.dy_evaluators import (
     compile_integrands,
     evaluate_integrand,
 )
+from processes.dy.dy_graph_utils import _strip_quotes
 from processes.dy.dy_infrared_test import (
     approach_point,
     # evaluate_integrand,
@@ -106,6 +107,7 @@ class DY(object):
         skip_ps_validation: bool = False,
         integrate_beams: bool = False,
         skip_gl_worker_init: bool = False,
+        load_compiled_bundle: bool = True,
         clean=True,
         logger_level: int | None = None,
         **opts,
@@ -130,6 +132,7 @@ class DY(object):
             self.integrate_beams and self.process_name.lower() == "tt~"
         )
         self.skip_gl_worker_init = bool(skip_gl_worker_init)
+        self.load_compiled_bundle = bool(load_compiled_bundle)
 
         self.skip_ps_validation = bool(skip_ps_validation)
         if not self.skip_ps_validation:
@@ -238,27 +241,28 @@ class DY(object):
         self.cache: dict[str, Any] = {}
 
         self.compiled_bundle: DYCompiledBundle | None = None
-        integrand_name = self.get_integrand_name()
-        bundle_processes = [self.process_name]
-        if self.name not in bundle_processes:
-            bundle_processes.append(self.name)
-        for bundle_process in bundle_processes:
-            bundle_dir = pjoin(EVALUATORS_FOLDER, bundle_process, integrand_name)
-            bundle_metadata = pjoin(bundle_dir, DYCompiledBundle.METADATA_FILE)
-            if not os.path.exists(bundle_metadata):
-                continue
-            try:
-                self.compiled_bundle = DYCompiledBundle.load(
-                    bundle_process, integrand_name
-                )
-                logger.info(
-                    f"Loaded compiled DY bundle from {Colour.GREEN}{bundle_dir}{Colour.END}"
-                )
-                break
-            except Exception as e:
-                logger.warning(
-                    f"Failed loading compiled DY bundle from {bundle_dir}: {e}"
-                )
+        if self.load_compiled_bundle:
+            integrand_name = self.get_integrand_name()
+            bundle_processes = [self.process_name]
+            if self.name not in bundle_processes:
+                bundle_processes.append(self.name)
+            for bundle_process in bundle_processes:
+                bundle_dir = pjoin(EVALUATORS_FOLDER, bundle_process, integrand_name)
+                bundle_metadata = pjoin(bundle_dir, DYCompiledBundle.METADATA_FILE)
+                if not os.path.exists(bundle_metadata):
+                    continue
+                try:
+                    self.compiled_bundle = DYCompiledBundle.load(
+                        bundle_process, integrand_name
+                    )
+                    logger.info(
+                        f"Loaded compiled DY bundle from {Colour.GREEN}{bundle_dir}{Colour.END}"
+                    )
+                    break
+                except Exception as e:
+                    logger.warning(
+                        f"Failed loading compiled DY bundle from {bundle_dir}: {e}"
+                    )
 
         logger.setLevel(start_logger_level)
 
@@ -278,6 +282,7 @@ class DY(object):
             skip_ps_validation=self.skip_ps_validation,
             integrate_beams=self.integrate_beams,
             skip_gl_worker_init=self.skip_gl_worker_init,
+            load_compiled_bundle=self.load_compiled_bundle,
         )
         return copied_self
 
@@ -704,8 +709,13 @@ class DY(object):
         print("Filtered graphs: ", len(filtered_graphs))
         print("############################")
 
+        channel = (1, 0)  # (1, -1)
+        channel = (1, -1)
+
         processor = EMRIntegrandConstructor([], process_name, n_loops)
-        loop_processor = LoopIntegrandConstructor([], process_name, n_loops)
+        loop_processor = LoopIntegrandConstructor(
+            [], process_name, n_loops, channel=channel
+        )
 
         all_routed_integrands = []
         all_evaluators = []
@@ -736,6 +746,10 @@ class DY(object):
 
                 # if len(gg[2][1]) != 1 or len(gg[2][0]) != 1:
                 #    continue
+                #
+                particle_channel = _strip_quotes(str(gg[3].get("particle_channel")))
+                if particle_channel != str(channel):
+                    continue
 
                 processed_graphs.append(gg[3])
                 cut_graph = deepcopy(routed_cut_graph(gg[3], gg[0], gg[1], gg[2]))
@@ -795,9 +809,26 @@ class DY(object):
                 * np.array([
                     0.0,
                     0.0,
-                    1 / math.sqrt(5),
+                    -1 / math.sqrt(5),
                 ]),
                 scale * np.array([1 / math.sqrt(3), -1 / math.sqrt(3), 0]),
+            ]
+            scale = 1000
+            ks = [
+                # math.sqrt(z)
+                0
+                * scale
+                * np.array([
+                    1,
+                    1 / math.sqrt(5),
+                    -1 / math.sqrt(5),
+                ]),
+                -scale
+                * np.array([
+                    0.0,
+                    1 / math.sqrt(5),
+                    -1 / math.sqrt(5),
+                ]),
             ]
             # scale = 1000
             # ks = [
@@ -820,11 +851,14 @@ class DY(object):
             #        1 / math.sqrt(3),
             #    ]),
             # ]
-            vp = np.array([0, 1, 1])
+            vp = np.array([1, 1, 1])
             p1 = scale * np.array([0, 0, 1])
             p2 = scale * np.array([0, 0, -1])
             print("just about to approach limit")
             approach_limit.approach(ks, p1, p2, z, vp)
+        #
+        #            uv_test = ultraviolet_test(n_loops, process_name, all_routed_integrands)
+        #            uv_test.approach_limits(2000)
 
         if all_evaluators:
             my_compiler = compile_integrands(
@@ -897,8 +931,11 @@ class DY(object):
             case 2:
                 logger.info("Generating two-loop graphs ...")
                 if self.process_name == "tt~":
+                    # self.gl_worker.run(  # GL06 GL14  --select-graphs GL14
+                    #    f"generate xs d g > t t~ | d d~ g t t~ ghG ghG~ [{{{{2}}}} QCD=1] --only-diagrams --numerator-grouping group_identical_graphs_up_to_scalar_rescaling --symmetrize-left-right-states true --symmetrize-initial-states true --select-graphs GL00 -p {base_name} -i {graphs_process_name} --max-multiplicity-for-fast-cut-filter 99"
+                    # )
                     self.gl_worker.run(  # GL06 GL14  --select-graphs GL14
-                        f"generate xs d g > t t~ | d d~ g t t~ ghG ghG~ [{{{{2}}}} QCD=1] --only-diagrams --numerator-grouping group_identical_graphs_up_to_scalar_rescaling --symmetrize-left-right-states true --symmetrize-initial-states true -p {base_name} -i {graphs_process_name} --max-multiplicity-for-fast-cut-filter 99"
+                        f"generate xs d d~ > t t~ | d d~ g t t~ ghG ghG~ [{{{{2}}}} QCD=1] --only-diagrams --numerator-grouping group_identical_graphs_up_to_scalar_rescaling --symmetrize-left-right-states true --symmetrize-initial-states true --select-graphs GL15 -p {base_name} -i {graphs_process_name} --max-multiplicity-for-fast-cut-filter 99"
                     )
                 else:
                     raise ValueError(

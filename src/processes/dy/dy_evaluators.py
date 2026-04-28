@@ -349,11 +349,32 @@ class evaluate_integrand:
         if self.process == "tt~":
             jacobian = E("t") ** (3 * self.L) / self.e_surface.derivative(E("t"))
 
-        self.routed_integrand.integrand = (
-            self.routed_integrand.integrand * ht * jacobian
-        )
+        self.routed_integrand.integrand = self.routed_integrand.integrand * ht
 
-        self.routed_integrand.integrand = self.routed_integrand.integrand
+        if self.routed_integrand.t_derivative:
+            jacobian1 = 1 / self.e_surface.derivative(E("t")) ** 2 / 4
+
+            term1 = (
+                (self.routed_integrand.integrand * E("t") ** (3 * self.L)).derivative(
+                    E("t")
+                )
+            ) * jacobian1
+
+            jacobian2 = (
+                -1
+                * self.e_surface.derivative(E("t")).derivative(E("t"))
+                / self.e_surface.derivative(E("t")) ** 3
+                / 4
+            )
+
+            term2 = (
+                self.routed_integrand.integrand * E("t") ** (3 * self.L)
+            ) * jacobian2
+
+            self.routed_integrand.integrand = term1 + term2
+
+        else:
+            self.routed_integrand.integrand = self.routed_integrand.integrand * jacobian
 
         self.integrand_expression = self.routed_integrand.integrand
         ## ADD THETA OF t^2 z
