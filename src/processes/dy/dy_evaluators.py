@@ -131,6 +131,7 @@ class evaluate_integrand:
     def _replace_couplings(self, expr: Expression, include_tr: bool) -> Expression:
         if include_tr:
             expr = expr.replace(E("TR"), E("1/2"))
+            expr = expr.replace(E("Nc"), E("3"))
         return expr
 
     def impose_rest_frame(self, integrand):
@@ -304,6 +305,12 @@ class evaluate_integrand:
         )
         self.routed_integrand.integrand = self.routed_integrand.integrand.replace(
             E("mUV"), E(str(observable_params.get("mUV", 1.0)))
+        )
+        self.routed_integrand.integrand = self.routed_integrand.integrand.replace(
+            E("mursq"), E(str(observable_params.get("mursq", 1.0)))
+        )
+        self.routed_integrand.integrand = self.routed_integrand.integrand.replace(
+            E("𝜋"), E("3.141592653589793238462643383279502884")
         )
 
         self.observable_params = observable_params

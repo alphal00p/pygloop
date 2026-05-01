@@ -40,6 +40,9 @@ from processes.dy.dy_graph_utils import (
     get_LR_components,
     get_simple_cycles,
 )
+from processes.dy.dy_integrated_uv_ct import (
+    construct_integrated_counter_term as construct_integrated_uv_counter_term,
+)
 from utils.cff import CFFStructure
 from utils.utils import (
     EVALUATORS_FOLDER,
@@ -702,17 +705,19 @@ class EMRIntegrandConstructor(object):
                             ep_dest = ep.get_destination()
                             ep_atts = ep.get_attributes()
                             if ep_src.startswith("ext") and ep != e:
-                                denom += ep_atts["is_cut_DY"] * E(
+                                cut_sign = ep_atts.get("is_cut_DY", 0)
+                                denom += cut_sign * E(
                                     f"E({g.replacements[ep_atts['id']][1]})"
                                 )
-                                denom_num += ep_atts["is_cut_DY"] * E(
+                                denom_num += cut_sign * E(
                                     f"En({g.replacements[ep_atts['id']][1]})"
                                 )
                             if ep_dest.startswith("ext") and ep != e:
-                                denom -= ep_atts["is_cut_DY"] * E(
+                                cut_sign = ep_atts.get("is_cut_DY", 0)
+                                denom -= cut_sign * E(
                                     f"E({g.replacements[ep_atts['id']][1]})"
                                 )
-                                denom_num -= ep_atts["is_cut_DY"] * E(
+                                denom_num -= cut_sign * E(
                                     f"En({g.replacements[ep_atts['id']][1]})"
                                 )
                         # NEW: for cut s-channel propagators
@@ -866,11 +871,22 @@ class EMRIntegrandConstructor(object):
 
 
 class UltraVioletSubtraction(object):
-    def __init__(self, emr_integrand, cut_graph, L):
+    def __init__(
+        self,
+        emr_integrand,
+        cut_graph,
+        L,
+        emr_processor=None,
+        integrated_cut_graph=None,
+        disable_integrated_uv_cts=True,
+    ):
         self.cut_graph = cut_graph
         self.emr_integrand = emr_integrand
         self.sp3D = S("sp3D", is_linear=True, is_symmetric=True)
         self.L = L
+        self.emr_processor = emr_processor
+        self.integrated_cut_graph = integrated_cut_graph
+        self.disable_integrated_uv_cts = bool(disable_integrated_uv_cts)
 
     # Focuses on cycles, and not unions of cycles. Specialised to NLO
     def enumerate_spinneys(self):
@@ -1026,6 +1042,18 @@ class UltraVioletSubtraction(object):
 
         return -expanded_integrand
 
+    def construct_integrated_counter_term(self, cycle, dod):
+        if self.disable_integrated_uv_cts:
+            return None
+
+        return construct_integrated_uv_counter_term(
+            self,
+            cycle,
+            dod,
+            routed_cut_graph,
+            RoutedIntegrand,
+        )
+
     def construct_uv_counter_terms(self):
         spinneys = self.enumerate_spinneys()
         counterms = []
@@ -1037,6 +1065,12 @@ class UltraVioletSubtraction(object):
                 uv_ct, self.cut_graph, [], self.emr_integrand, "uv", "uv"
             )
             counterms.append(routed_uv_ct)
+            if not self.disable_integrated_uv_cts:
+                integrated_uv_ct = self.construct_integrated_counter_term(
+                    cycle[0], cycle[1]
+                )
+                if integrated_uv_ct is not None:
+                    counterms.append(integrated_uv_ct)
 
         return counterms
 
@@ -1529,7 +1563,7 @@ class Approximator(object):
 
 
 class LoopIntegrandConstructor(object):
-    def __init__(self, params, name, L, channel=None):
+    def __init__(self, params, name, L, channel=None, disable_integrated_uv_cts=True):
         self.L = L
         self.params = params
         self.name = name
@@ -1537,6 +1571,7 @@ class LoopIntegrandConstructor(object):
         self.sp3D = S("sp3D", is_linear=True, is_symmetric=True)
         self.approximator = Approximator()
         self.channel = channel
+        self.disable_integrated_uv_cts = bool(disable_integrated_uv_cts)
 
     # Replaces energies by their expression in terms of the emr momenta and particle masses
 
@@ -1956,6 +1991,9 @@ class LoopIntegrandConstructor(object):
             if self.name == "DY" and len(cut_graph.final_cut) == 1:
                 factor = 1 / (4 * self.sp3D(E("p(1)"), E("p(2)")))
 
+            # integrand = integrand.replace(E("p(2)"), -E("p(1)"))
+            # momentum[0] = momentum[0].replace(E("p(2)"), -E("p(1)"))
+
             soft_integrand, repl_s = self.approximator.soft_approximation(
                 deepcopy(integrand), deepcopy(momentum), deepcopy(k_id)
             )
@@ -1996,7 +2034,7 @@ class LoopIntegrandConstructor(object):
                 - momentum[1] * self.sp3D(momentum[0], E("p(2)"))
             )
 
-            thetaSoft = E(f"Θ(Lambdasq-{propsoft1})") * E(f"Θ(Lambdasq-{propsoft2})")
+            thetaSoft = E(f"Θ(Lambdasq-{propsoft1})") * E(f"Θ(Lambdasq-{propsoft2})")  #
 
             routed_integrand_soft = RoutedIntegrand(
                 -factor * soft_integrand * thetaSoft,
@@ -2491,6 +2529,8 @@ class LoopIntegrandConstructor(object):
 
         # FIX: cut graph logic and overwriting
         orig_cut_graph = deepcopy(cut_graph)
+        skip_threshold_cts = False
+        gluonic_t_channel = True
 
         # emr_integrand_tmp = self.emr_processor.get_integrand(orig_cut_graph)
 
@@ -2559,19 +2599,30 @@ class LoopIntegrandConstructor(object):
                         "GL03",
                         "GL05",
                         "GL13",
-                        "GL17",
                         "GL18",
                     ]:
                         theta_flag = False
                         lmb_choice = [3, 6]
 
+                    if base_graph_name in [
+                        "GL17",
+                    ]:
+                        theta_flag = False
+                        lmb_choice = [3, 6]
+                        skip_threshold_cts = True
+
                     if base_graph_name in ["GL04", "GL15"]:
                         theta_flag = False
                         lmb_choice = [8, 3]
 
-                    if base_graph_name in ["GL02", "GL06", "GL07", "GL08", "GL11"]:
+                    if base_graph_name in ["GL06", "GL08", "GL11"]:
                         theta_flag = False
                         lmb_choice = [7, 3]
+
+                    if base_graph_name in ["GL07"]:
+                        theta_flag = False
+                        gluonic_t_channel = False
+                        lmb_choice = [5, 3]
 
                     if base_graph_name in ["GL09"]:
                         theta_flag = True
@@ -2606,7 +2657,8 @@ class LoopIntegrandConstructor(object):
             orig_cut_graph.graph = change_routing(orig_cut_graph.graph, lmb_choice)
 
         print("heyyy")
-        cut_graph = self.modify_t_channel_gluon_numerator(cut_graph)
+        if gluonic_t_channel:
+            cut_graph = self.modify_t_channel_gluon_numerator(cut_graph)
 
         print(cut_graph.graph)
         emr_integrand = self.emr_processor.get_integrand(cut_graph)
@@ -2616,7 +2668,12 @@ class LoopIntegrandConstructor(object):
         )
 
         uv_approximator = UltraVioletSubtraction(
-            loop_integrand, deepcopy(cut_graph), self.L
+            loop_integrand,
+            deepcopy(cut_graph),
+            self.L,
+            self.emr_processor,
+            deepcopy(orig_cut_graph),
+            disable_integrated_uv_cts=self.disable_integrated_uv_cts,
         )
         uv_ct = uv_approximator.construct_uv_counter_terms()
 
@@ -2625,6 +2682,8 @@ class LoopIntegrandConstructor(object):
         )
         threshold_cts = threshold_approximator.construct_threshold_counter_terms()
 
+        if skip_threshold_cts:
+            threshold_cts = []
         # print("this emr")
         # print(emr_integrand)
 

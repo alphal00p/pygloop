@@ -106,6 +106,7 @@ class DY(object):
         process_name: str | None = None,
         skip_ps_validation: bool = False,
         integrate_beams: bool = False,
+        disable_integrated_uv_cts: bool = True,
         skip_gl_worker_init: bool = False,
         load_compiled_bundle: bool = True,
         clean=True,
@@ -133,6 +134,7 @@ class DY(object):
         )
         self.skip_gl_worker_init = bool(skip_gl_worker_init)
         self.load_compiled_bundle = bool(load_compiled_bundle)
+        self.disable_integrated_uv_cts = bool(disable_integrated_uv_cts)
 
         self.skip_ps_validation = bool(skip_ps_validation)
         if not self.skip_ps_validation:
@@ -428,42 +430,120 @@ class DY(object):
     def _symbolica_graph_channel_contributions(
         self,
         graph_channel_names: list[str],
-        raw_channel_estimates: list[float],
         samples: list[Sample],
         sample_values: list[float],
         total_avg: float,
-    ) -> list[tuple[str, float]]:
-        raw_total = sum(raw_channel_estimates)
-        if math.isclose(raw_total, 0.0, abs_tol=TOLERANCE):
-            raw_channel_estimates = self._symbolica_graph_channel_batch_estimates(
-                graph_channel_names, samples, sample_values
-            )
-            raw_total = sum(raw_channel_estimates)
+    ) -> list[tuple[str, float, float, int]]:
+        n_channels = len(graph_channel_names)
+        if n_channels == 0:
+            return []
 
+        channel_totals = getattr(
+            self, "_symbolica_graph_channel_cumulative_totals", None
+        )
+        channel_square_totals = getattr(
+            self, "_symbolica_graph_channel_cumulative_square_totals", None
+        )
+        channel_counts = getattr(
+            self, "_symbolica_graph_channel_cumulative_counts", None
+        )
+        n_samples = getattr(self, "_symbolica_graph_channel_cumulative_n_samples", 0)
+        if (
+            channel_totals is None
+            or channel_square_totals is None
+            or channel_counts is None
+            or len(channel_totals) != n_channels
+            or len(channel_square_totals) != n_channels
+            or len(channel_counts) != n_channels
+        ):
+            channel_totals = [0.0 for _graph_channel_name in graph_channel_names]
+            channel_square_totals = [
+                0.0 for _graph_channel_name in graph_channel_names
+            ]
+            channel_counts = [0 for _graph_channel_name in graph_channel_names]
+            n_samples = 0
+
+        for sample, sample_value in zip(samples, sample_values, strict=True):
+            channel_index = int(sample.d[0])
+            if channel_index < 0 or channel_index >= n_channels:
+                raise pygloopException(
+                    f"Sample discrete channel {channel_index} out of range for "
+                    f"{n_channels} graph channels."
+                )
+            channel_value = float(sample_value) * self._symbolica_sample_weight(sample)
+            channel_totals[channel_index] += channel_value
+            channel_square_totals[channel_index] += channel_value**2
+            channel_counts[channel_index] += 1
+
+        n_samples += len(samples)
+        self._symbolica_graph_channel_cumulative_totals = channel_totals
+        self._symbolica_graph_channel_cumulative_square_totals = channel_square_totals
+        self._symbolica_graph_channel_cumulative_counts = channel_counts
+        self._symbolica_graph_channel_cumulative_n_samples = n_samples
+
+        if n_samples == 0:
+            return [
+                (graph_channel_name, 0.0, 0.0, 0)
+                for graph_channel_name in graph_channel_names
+            ]
+
+        estimates = [
+            channel_total / float(n_samples) for channel_total in channel_totals
+        ]
+        errors = [
+            math.sqrt(
+                abs(channel_square_total / float(n_samples) - estimate**2)
+                / float(n_samples)
+            )
+            for channel_square_total, estimate in zip(
+                channel_square_totals, estimates, strict=True
+            )
+        ]
+        raw_total = sum(estimates)
         if math.isclose(raw_total, 0.0, abs_tol=TOLERANCE):
             return [
-                (graph_channel_name, 0.0) for graph_channel_name in graph_channel_names
+                (graph_channel_name, 0.0, 0.0, channel_count)
+                for graph_channel_name, channel_count in zip(
+                    graph_channel_names, channel_counts, strict=True
+                )
             ]
 
         normalization = float(total_avg) / raw_total
         return [
-            (graph_channel_name, raw_channel_estimate * normalization)
-            for graph_channel_name, raw_channel_estimate in zip(
-                graph_channel_names, raw_channel_estimates, strict=True
+            (
+                graph_channel_name,
+                estimate * normalization,
+                error * abs(normalization),
+                channel_count,
+            )
+            for graph_channel_name, estimate, error, channel_count in zip(
+                graph_channel_names, estimates, errors, channel_counts, strict=True
             )
         ]
 
     @staticmethod
     def _symbolica_graph_channel_report(
-        graph_channel_contributions: list[tuple[str, float]],
+        graph_channel_contributions: list[tuple[str, float, float, int]],
         total_avg: float,
     ) -> str:
-        lines = ["| > Graph-channel rolling contributions:"]
-        for graph_channel_name, contribution in graph_channel_contributions:
-            lines.append(f"| >   {graph_channel_name:<12}: {contribution:.16e}")
+        lines = ["| > Graph-channel cumulative contributions:"]
+        for (
+            graph_channel_name,
+            contribution,
+            error,
+            n_channel_samples,
+        ) in graph_channel_contributions:
+            lines.append(
+                f"| >   {graph_channel_name:<12}: {contribution:.16e} "
+                f"+/- {error:.2e} [{n_channel_samples} selected]"
+            )
+        channel_sum = sum(
+            contribution
+            for _name, contribution, _error, _count in graph_channel_contributions
+        )
         lines.append(
             f"| >   {'sum':<12}: "
-            f"{sum(contribution for _name, contribution in graph_channel_contributions):.16e}"
+            f"{channel_sum:.16e}"
         )
         lines.append(f"| >   {'total':<12}: {float(total_avg):.16e}")
         return "\n".join(lines)
@@ -601,7 +681,12 @@ class DY(object):
         print("############################")
 
         processor = EMRIntegrandConstructor([], process_name, n_loops)
-        loop_processor = LoopIntegrandConstructor([], process_name, n_loops)
+        loop_processor = LoopIntegrandConstructor(
+            [],
+            process_name,
+            n_loops,
+            disable_integrated_uv_cts=self.disable_integrated_uv_cts,
+        )
 
         all_routed_integrands = []
         all_evaluators = []
@@ -637,6 +722,7 @@ class DY(object):
                     "zmax": 1.00000,
                     "Lambdasq": 2,
                     "mUV": 1,
+                    "mursq": 1,
                 }
 
                 for term_index, term_integrand in enumerate(term_integrands):
@@ -710,11 +796,15 @@ class DY(object):
         print("############################")
 
         channel = (1, 0)  # (1, -1)
-        channel = (1, -1)
+        # channel = (1, -1)
 
         processor = EMRIntegrandConstructor([], process_name, n_loops)
         loop_processor = LoopIntegrandConstructor(
-            [], process_name, n_loops, channel=channel
+            [],
+            process_name,
+            n_loops,
+            channel=channel,
+            disable_integrated_uv_cts=self.disable_integrated_uv_cts,
         )
 
         all_routed_integrands = []
@@ -762,8 +852,9 @@ class DY(object):
                 observable_params = {
                     "zmin": 0.0,
                     "zmax": 1.00000,
-                    "Lambdasq": 100,
-                    "mUV": 1,
+                    "Lambdasq": 1000,
+                    "mUV": 100,
+                    "mursq": 1,
                 }
 
                 print("reached evaluator stage")
@@ -809,27 +900,39 @@ class DY(object):
                 * np.array([
                     0.0,
                     0.0,
-                    -1 / math.sqrt(5),
-                ]),
-                scale * np.array([1 / math.sqrt(3), -1 / math.sqrt(3), 0]),
-            ]
-            scale = 1000
-            ks = [
-                # math.sqrt(z)
-                0
-                * scale
-                * np.array([
-                    1,
-                    1 / math.sqrt(5),
-                    -1 / math.sqrt(5),
-                ]),
-                -scale
-                * np.array([
                     0.0,
-                    1 / math.sqrt(5),
-                    -1 / math.sqrt(5),
                 ]),
+                scale
+                * np.array([1 / math.sqrt(3), -1 / math.sqrt(3), 1 / math.sqrt(3)]),
             ]
+            # ks = [
+            #    # math.sqrt(z)
+            #    scale
+            #    * np.array([1 / math.sqrt(3), -1 / math.sqrt(3), 1 / math.sqrt(3)]),
+            #    scale
+            #    * np.array([
+            #        0.0,
+            #        0.0,
+            #        -1 / math.sqrt(5),
+            #    ]),
+            # ]
+            scale = 1000
+            # ks = [
+            #    # math.sqrt(z)
+            #    0
+            #    * scale
+            #    * np.array([
+            #        1,
+            #        1 / math.sqrt(5),
+            #        -1 / math.sqrt(5),
+            #    ]),
+            #    -scale
+            #    * np.array([
+            #        0.0,
+            #        1 / math.sqrt(5),
+            #        -1 / math.sqrt(5),
+            #    ]),
+            # ]
             # scale = 1000
             # ks = [
             #    # math.sqrt(z)
@@ -851,7 +954,7 @@ class DY(object):
             #        1 / math.sqrt(3),
             #    ]),
             # ]
-            vp = np.array([1, 1, 1])
+            vp = 10 * np.array([1, 1, 1 / 2])
             p1 = scale * np.array([0, 0, 1])
             p2 = scale * np.array([0, 0, -1])
             print("just about to approach limit")
@@ -931,12 +1034,12 @@ class DY(object):
             case 2:
                 logger.info("Generating two-loop graphs ...")
                 if self.process_name == "tt~":
-                    # self.gl_worker.run(  # GL06 GL14  --select-graphs GL14
-                    #    f"generate xs d g > t t~ | d d~ g t t~ ghG ghG~ [{{{{2}}}} QCD=1] --only-diagrams --numerator-grouping group_identical_graphs_up_to_scalar_rescaling --symmetrize-left-right-states true --symmetrize-initial-states true --select-graphs GL00 -p {base_name} -i {graphs_process_name} --max-multiplicity-for-fast-cut-filter 99"
-                    # )
                     self.gl_worker.run(  # GL06 GL14  --select-graphs GL14
-                        f"generate xs d d~ > t t~ | d d~ g t t~ ghG ghG~ [{{{{2}}}} QCD=1] --only-diagrams --numerator-grouping group_identical_graphs_up_to_scalar_rescaling --symmetrize-left-right-states true --symmetrize-initial-states true --select-graphs GL15 -p {base_name} -i {graphs_process_name} --max-multiplicity-for-fast-cut-filter 99"
+                        f"generate xs d g > t t~ | d d~ g t t~ ghG ghG~ [{{{{2}}}} QCD=1] --only-diagrams --numerator-grouping group_identical_graphs_up_to_scalar_rescaling --symmetrize-left-right-states true --symmetrize-initial-states true --select-graphs GL00 GL01 GL03 GL04 GL05 GL08 GL12  -p {base_name} -i {graphs_process_name} --max-multiplicity-for-fast-cut-filter 99"
                     )
+                    # self.gl_worker.run(  # GL06 GL14  --select-graphs GL14
+                    #    f"generate xs d d~ > t t~ | d d~ g t t~ ghG ghG~ [{{{{2}}}} QCD=1] --only-diagrams --numerator-grouping group_identical_graphs_up_to_scalar_rescaling --symmetrize-left-right-states true --symmetrize-initial-states true --select-graphs GL07 -p {base_name} -i {graphs_process_name} --max-multiplicity-for-fast-cut-filter 99"
+                    # )
                 else:
                     raise ValueError(
                         "t t~ is the only implemented process at two loops"
@@ -1301,9 +1404,10 @@ class DY(object):
                     loop_momenta, impl, channel_selector=channel_selector
                 )
             wgt_in_arb = str(impl.get("dy_evaluation_mode", "compiled")) == "arb"
+            is_zenos = impl.get("integrand_type") == "zenos"
 
             n_digits = impl.get("dy_rotation_check_digits")
-            if expects_z and n_digits is not None:
+            if is_zenos and n_digits is not None:
                 n_digits_int = int(n_digits)
                 if n_digits_int > 0:
                     eps = float(impl.get("dy_rotation_check_eps", 1e-15))
@@ -1376,7 +1480,7 @@ class DY(object):
 
             large_weight_threshold = impl.get("dy_large_weight_threshold")
             if (
-                expects_z
+                is_zenos
                 and not wgt_in_arb
                 and large_weight_threshold is not None
                 and float(large_weight_threshold) > 0.0
@@ -2174,6 +2278,11 @@ class DY(object):
             graph_channel_names = []
             integrator = NumericalIntegrator.continuous(n_dim)
 
+        self._symbolica_graph_channel_cumulative_totals = None
+        self._symbolica_graph_channel_cumulative_square_totals = None
+        self._symbolica_graph_channel_cumulative_counts = None
+        self._symbolica_graph_channel_cumulative_n_samples = 0
+
         rng = integrator.rng(seed=opts["seed"], stream_id=0)
 
         for i_iter in range(opts["n_iterations"]):
@@ -2191,21 +2300,7 @@ class DY(object):
             )
             integrator.add_training_samples(samples, res)
 
-            raw_graph_channel_estimates: list[float] = []
-            if opts["multi_channeling"]:
-                raw_graph_channel_estimates = (
-                    self._symbolica_graph_channel_raw_estimates(
-                        integrator,
-                        n_dim,
-                        graph_channel_names,
-                        samples,
-                        res,
-                        continuous_learning_rate,
-                        discrete_learning_rate,
-                    )
-                )
-
-            graph_channel_contributions: list[tuple[str, float]] = []
+            graph_channel_contributions: list[tuple[str, float, float, int]] = []
             avg, err, _chi_sq = integrator.update(
                 continuous_learning_rate=continuous_learning_rate,
                 discrete_learning_rate=discrete_learning_rate,
@@ -2214,7 +2309,6 @@ class DY(object):
                 graph_channel_contributions = (
                     self._symbolica_graph_channel_contributions(
                         graph_channel_names,
-                        raw_graph_channel_estimates,
                         samples,
                         res,
                         avg,
