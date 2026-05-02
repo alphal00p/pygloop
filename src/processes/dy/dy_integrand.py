@@ -1363,8 +1363,7 @@ class ThresholdSubtractor(object):
 
             repl_kperp = -x * collinear_momentum + rep_r
 
-            # 1 - theta
-            #
+
             # NEW: CUT THRESHOLD CUTTING REGION BY 4
 
             theta1 = (
@@ -1388,6 +1387,9 @@ class ThresholdSubtractor(object):
                     E("s"), 4 * (E("p(1,1)") ** 2 + E("p(1,2)") ** 2 + E("p(1,3)") ** 2)
                 )
             )
+
+            print(theta1)
+            print(theta2)
         else:
             theta1 = E("1")
             theta2 = E("1")
@@ -1977,13 +1979,34 @@ class LoopIntegrandConstructor(object):
                     ]
 
             # integrand = E("(-(E(0)+E(2)+E(3))+E(0)+E(5))^-1*E(2)^(-2)")
+            base_graph_name = _strip_quotes(
+                        str(cut_graph.graph.get("base_graph_name"))
+                    )
+            
+
+
+            if base_graph_name in ["GL07","GL09"] and self.channel==(1,-1) or self.channel==(-1,1):
+                integrand=integrand.replace(E("E(5)"), self.sp3D(E("k(0)"), E("k(0)"))**E("1/2"))
+                integrand=integrand.replace(E("E(4)"), self.sp3D(E("k(0)"), E("k(0)"))**E("1/2"))
+
+           # print("hacked integrand")
+            #print(integrand)
 
             integrand = self.canonicalise_energies(integrand, cut_graph)
+
+            #print("soft emr integrand")
+            #print(integrand)
+
+            
+            
 
             integrand = self.replace_energies(integrand, cut_graph)
             integrand = integrand.replace(E("p1sq"), E("0"))
             integrand = integrand.replace(E("p2sq"), E("0"))
             integrand = self.route_integrand(integrand, cut_graph)
+
+            #print("routed emr integrand")
+            #print(integrand)
 
             # Factor of 1/s for soft and soft-collinear for virtual DY diagram
 
@@ -1991,12 +2014,21 @@ class LoopIntegrandConstructor(object):
             if self.name == "DY" and len(cut_graph.final_cut) == 1:
                 factor = 1 / (4 * self.sp3D(E("p(1)"), E("p(2)")))
 
-            # integrand = integrand.replace(E("p(2)"), -E("p(1)"))
-            # momentum[0] = momentum[0].replace(E("p(2)"), -E("p(1)"))
+            #if self.name=="tt~":
+                #integrand = integrand.replace(E("p(2)"), -E("p(1)"))
+                #momentum[0] = momentum[0].replace(E("p(2)"), -E("p(1)"))
+
+            print("input-"*10)
+            print(f"hard particles are {id_hard1} and {id_hard2}")
+            print(deepcopy(momentum))
+            print(deepcopy(k_id))
 
             soft_integrand, repl_s = self.approximator.soft_approximation(
                 deepcopy(integrand), deepcopy(momentum), deepcopy(k_id)
             )
+
+            #print("soft approximation")
+            #print(soft_integrand)
 
             soft_collinear_integrand1, repl1, repl1_x, repl_kperp1 = (
                 self.approximator.collinear_approximation(
@@ -2016,7 +2048,11 @@ class LoopIntegrandConstructor(object):
                 )
             )
 
-            # TODO: Lambdasq theta functions
+            if self.name == "tt~" and len(cut_graph.final_cut) == 2:
+                soft_collinear_integrand1=-soft_collinear_integrand1
+                soft_collinear_integrand2=-soft_collinear_integrand2
+                soft_integrand=-soft_integrand
+
 
             integrand = (
                 soft_integrand + soft_collinear_integrand1 + soft_collinear_integrand2
@@ -2148,6 +2184,8 @@ class LoopIntegrandConstructor(object):
                             _strip_quotes(str(e_atts["particle"])),
                         ])
 
+        print("RAISED CUTS ARE: ", raised_cut)
+
         # compute energy conservation condition (specialised to "DY")
         initial_cut_ids = [e.get_attributes()["id"] for e in cut_graph.initial_cut]
         final_cut_ids = [e.get_attributes()["id"] for e in cut_graph.final_cut]
@@ -2231,8 +2269,8 @@ class LoopIntegrandConstructor(object):
 
                 # emr_representation = emr_representation.replace(E("q(6)"), E("-q(6)"))
 
-                print("EMR AFTER LIMITTTTT")
-                print(emr_representation)
+                #print("EMR AFTER LIMITTTTT")
+                #print(emr_representation)
 
                 if cut[3] in ["t", "t~"]:
                     print("HEREEEEEEE" * 10)
@@ -2290,7 +2328,7 @@ class LoopIntegrandConstructor(object):
                         print("check repetated energyyy")
                         print(emr_representation)
                 else:
-                    print("HEREEEEEEE" * 10)
+                    print("HEREEEWWWWWW" * 10)
                     print(cut)
                     emr_representation = (
                         emr_representation
@@ -2602,7 +2640,7 @@ class LoopIntegrandConstructor(object):
                         "GL18",
                     ]:
                         theta_flag = False
-                        lmb_choice = [3, 6]
+                        lmb_choice = [6,3]
 
                     if base_graph_name in [
                         "GL17",
@@ -2622,7 +2660,7 @@ class LoopIntegrandConstructor(object):
                     if base_graph_name in ["GL07"]:
                         theta_flag = False
                         gluonic_t_channel = False
-                        lmb_choice = [5, 3]
+                        lmb_choice = [7, 3]
 
                     if base_graph_name in ["GL09"]:
                         theta_flag = True
@@ -2663,6 +2701,8 @@ class LoopIntegrandConstructor(object):
         print(cut_graph.graph)
         emr_integrand = self.emr_processor.get_integrand(cut_graph)
 
+        #print(emr_integrand)
+
         loop_integrand, raised_cut, is_final_raised = self.eliminate_raised_cuts(
             emr_integrand, cut_graph
         )
@@ -2694,8 +2734,8 @@ class LoopIntegrandConstructor(object):
         print(len(loop_integrand))
 
         print("*** " * 10)
-        for lp in loop_integrand:
-            print(lp.integrand)
+        #for lp in loop_integrand:
+        #    print(lp.integrand)
 
         if is_final_raised:
             for ct in uv_ct:

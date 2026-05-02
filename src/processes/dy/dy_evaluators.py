@@ -583,7 +583,7 @@ class evaluate_integrand:
             return None
         return decimal_value
 
-    def eval(self, k, p1, p2, z, mode="compiled", decimal_digit_precision=80):
+    def eval(self, k, p1, p2, z, mode="compiled", decimal_digit_precision=100):
         param_list = self.param_builder(k, p1, p2, z)
         if mode == "arb":
             string_values = {
@@ -1411,6 +1411,29 @@ class DYCompiledBundle:
         theta_tolerance: float = 0.0,
         channel_selector: int | None = None,
     ) -> Decimal:
+        total, _term_values = self.evaluate_arb_terms(
+            loop_momenta,
+            p1,
+            p2,
+            z,
+            m_uv,
+            decimal_digit_precision=decimal_digit_precision,
+            theta_tolerance=theta_tolerance,
+            channel_selector=channel_selector,
+        )
+        return total
+
+    def evaluate_arb_terms(
+        self,
+        loop_momenta: list[Vector],
+        p1: Vector,
+        p2: Vector,
+        z: float,
+        m_uv: float = 1.0,
+        decimal_digit_precision: int = 80,
+        theta_tolerance: float = 0.0,
+        channel_selector: int | None = None,
+    ) -> tuple[Decimal, list[tuple[str, Decimal]]]:
         self.require_arb_supported()
 
         vals, (p1x, p1y, p1z, _p2x, _p2y, _p2z) = self._build_runtime_values(
@@ -1420,6 +1443,7 @@ class DYCompiledBundle:
             key: self._decimal_from_number(value) for key, value in vals.items()
         }
         total = Decimal(0)
+        term_values: list[tuple[str, Decimal]] = []
         theta_tol = self._decimal_from_number(theta_tolerance)
 
         for term in self.terms_for_channel(channel_selector):
@@ -1448,6 +1472,7 @@ class DYCompiledBundle:
                     theta_passes = False
                     break
             if not theta_passes:
+                term_values.append((term.evaluator_name, Decimal(0)))
                 continue
 
             assert term.integrand_expression is not None
@@ -1459,8 +1484,9 @@ class DYCompiledBundle:
                     f"Failed to evaluate DY term '{term.evaluator_name}' in arbitrary precision."
                 )
             total += term_value
+            term_values.append((term.evaluator_name, term_value))
 
-        return total
+        return total, term_values
 
     def evaluate(
         self,
