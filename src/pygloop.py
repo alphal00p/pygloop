@@ -119,6 +119,19 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
         help="DY only: decimal precision used for arbitrary-precision retry after a rotation-check failure.",
     )
     parser.add_argument(
+        "--dy-fallback-precision",
+        "--dy-higher-precision-digits",
+        dest="dy_fallback_precision",
+        type=int,
+        default=None,
+        help=(
+            "DY only: higher-precision fallback digits. A value of 32 uses "
+            "Symbolica DoubleFloat evaluator bundles; any other positive value "
+            "uses arbitrary-precision expression data. Defaults to "
+            "--dy-rotation-check-arb-digits."
+        ),
+    )
+    parser.add_argument(
         "--dy-theta-tol",
         type=float,
         default=0.0,
@@ -235,6 +248,12 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
     parser_generate.add_argument("--n-iterations-cpe", "-ncpe", type=int, default=None,
         help="Number of iterations for the CPE optimization. Default = until exhaustion",
     )  # fmt: off
+    parser_generate.add_argument(
+        "--dy-enable-integrated-uv-cts",
+        action="store_true",
+        default=False,
+        help="DY generation only: enable integrated UV counterterms. Disabled by default.",
+    )
 
     # create the parser for the "inspect" command
     parser_inspect = subparsers.add_parser(
@@ -525,6 +544,15 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
                 process_name=args.dy_process_name,
                 skip_ps_validation=args.dy_skip_ps_validation,
                 integrate_beams=args.dy_integrate_beams,
+                disable_integrated_uv_cts=not getattr(
+                    args, "dy_enable_integrated_uv_cts", False
+                ),
+                dy_fallback_precision=(
+                    args.dy_fallback_precision
+                    if args.dy_fallback_precision is not None
+                    else args.dy_rotation_check_arb_digits
+                ),
+                load_compiled_bundle=args.command != "generate",
             )
         case _:
             raise pygloopException(f"Process {args.process} not implemented.")
@@ -540,6 +568,11 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
         integrand_implementation["dy_rotation_check_eps"] = args.dy_rotation_check_eps
         integrand_implementation["dy_rotation_check_arb_digits"] = (
             args.dy_rotation_check_arb_digits
+        )
+        integrand_implementation["dy_fallback_precision"] = (
+            args.dy_fallback_precision
+            if args.dy_fallback_precision is not None
+            else args.dy_rotation_check_arb_digits
         )
         integrand_implementation["dy_theta_tol"] = args.dy_theta_tol
         integrand_implementation["dy_large_weight_threshold"] = (
