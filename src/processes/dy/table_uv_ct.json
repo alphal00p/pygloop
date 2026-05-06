@@ -1,0 +1,60 @@
+[
+  {
+    "external_particles": [
+      ["g", ["mu", "p", "a"]],
+      ["g", ["nu", "p", "b"]]
+    ],
+    "internal_particles": ["gh", "gh"],
+    "integrated_ct": "GC_10**2*Pi*6*(2*Log(muvsq)*p(mu)*p(nu) + g(mu,nu)*(6*muvsq + Log(muvsq)*sp(p,p)))/12*g(a,b)"
+  },
+  {
+    "external_particles": [
+      ["g", ["mu", "p", "a"]],
+      ["g", ["nu", "p", "b"]]
+    ],
+    "internal_particles": ["d", "d"],
+    "integrated_ct": "GC_10**2*Pi*2*(-2*(-2*Log(muvsq)*p(mu)*p(nu) + g(mu,nu)*(6*muvsq + (1 + 2*Log(muvsq))*sp(p,p))))/3*g(a,b)"
+  },
+  {
+    "external_particles": [
+      ["g", ["mu", "p", "a"]],
+      ["g", ["nu", "p", "b"]]
+    ],
+    "internal_particles": ["t", "t"],
+    "integrated_ct": "GC_10**2*Pi*2*(2*(2*Log(muvsq)*p(mu)*p(nu) + g(mu,nu)*(6*(MT**2 - muvsq) - (1 + 2*Log(muvsq))*sp(p,p))))/3*g(a,b)"
+  },
+  {
+    "external_particles": [
+      ["g", ["mu", "p", "a"]],
+      ["g", ["nu", "p", "b"]]
+    ],
+    "internal_particles": ["g", "g"],
+    "integrated_ct": "GC_10**2*Pi*3*(2*(-2 + 11*Log(muvsq))*p(mu)*p(nu) + g(mu,nu)*(54*muvsq + (6 - 19*Log(muvsq))*sp(p,p)))/6*g(a,b)"
+  },
+  {
+    "external_particles": [
+      ["t", ["i", "p", "i1"]],
+      ["t", ["j", "p", "j1"]]
+    ],
+    "internal_particles": ["t", "g"],
+    "integrated_ct": "GC_10**2*Pi*4/3*(-2*delta(i,j)*(MT + 2*MT*Log(muvsq)) - gamma(i,nu,j)*(1 + Log(muvsq))*p(nu))*g(i1,j1)"
+  },
+  {
+    "external_particles": [
+      ["d", ["i", "p1", "i1"]],
+      ["d~", ["j", "p2", "j1"]],
+      ["g", ["mu", "q", "a"]]
+    ],
+    "internal_particles": ["g", "g", "d"],
+    "integrated_ct": "GC_10**3*Pi*3*(-(gamma(i,mu,j)*T(i1,a,j1)*(2 + 3*log(muvsq))))"
+  },
+  {
+    "external_particles": [
+      ["d", ["i", "p1", "i1"]],
+      ["d~", ["j", "p2", "j1"]],
+      ["g", ["mu", "q", "a"]]
+    ],
+    "internal_particles": ["g", "d", "d"],
+    "integrated_ct": "GC_10**3*Pi*(-(gamma(i,mu,j)*T(i1,a,j1)*(2 + log(muvsq))))/3"
+  }
+]

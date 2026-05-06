@@ -1,5 +1,6 @@
 import json
 import os
+import re
 from copy import deepcopy
 from functools import lru_cache
 
@@ -16,9 +17,7 @@ pjoin = os.path.join
 
 UV_INTEGRATED_COUNTERTERMS_PATH = pjoin(
     os.path.dirname(__file__),
-    "uv_integrated_counterterms",
-    "generated_integrands",
-    "uv_integrated_counterterms_1L.json",
+    "table_uv_ct.json",
 )
 
 
@@ -26,8 +25,14 @@ def Es(expr: str) -> Expression:
     return E(expr.replace('"', ""), default_namespace="gammalooprs")
 
 
+def Eu(expr: str) -> Expression:
+    return E(expr.replace('"', ""))
+
+
 def _normalise_uv_particle(particle: str) -> str:
     particle = _strip_quotes(str(particle))
+    if particle in {"gh", "gh~"}:
+        return "ghG"
     if particle == "ghG~":
         return "ghG"
     if particle.endswith("~"):
@@ -37,6 +42,8 @@ def _normalise_uv_particle(particle: str) -> str:
 
 def _normalise_uv_external_particle(particle: str) -> str:
     particle = _strip_quotes(str(particle))
+    if particle in {"gh", "gh~"}:
+        return "ghG"
     if particle == "ghG~":
         return "ghG"
     return particle
@@ -89,6 +96,101 @@ def _finite_uv_integrated_expression(expr: Expression) -> Expression:
     )
 
 
+def _compact_external_particle(entry_particle) -> str:
+    if isinstance(entry_particle, str):
+        return entry_particle
+    if (
+        isinstance(entry_particle, list)
+        and len(entry_particle) == 2
+        and isinstance(entry_particle[0], str)
+    ):
+        return entry_particle[0]
+    raise ValueError(f"invalid compact external particle entry: {entry_particle!r}")
+
+
+def _compact_external_labels(entry_particle) -> list[str]:
+    if not isinstance(entry_particle, list) or len(entry_particle) != 2:
+        return []
+    labels = entry_particle[1]
+    if not isinstance(labels, list):
+        raise ValueError(f"invalid compact external labels: {entry_particle!r}")
+    return [str(label) for label in labels]
+
+
+def _compact_process_from_entry(entry: dict) -> str:
+    if "process" in entry:
+        return entry["process"]
+    particles = [_compact_external_particle(p) for p in entry["external_particles"]]
+    process = _uv_process_from_external_particles(particles)
+    if process is None:
+        raise ValueError(
+            f"could not infer UV process from external particles: {particles!r}"
+        )
+    return process
+
+
+def _compact_external_edges(entry: dict) -> list[dict[str, object]]:
+    return [
+        {
+            "particle": _compact_external_particle(entry_particle),
+            "labels": _compact_external_labels(entry_particle),
+            "port": str(index),
+        }
+        for index, entry_particle in enumerate(entry["external_particles"])
+    ]
+
+
+def _compact_integrated_expression(expr: str) -> Expression:
+    expr = expr.replace("**", "^")
+    expr = expr.replace("Log", "log")
+    expr = re.sub(r"Power\(([^(),]+),([^(),]+)\)", r"(\1^\2)", expr)
+    expr = expr.replace("Pi", "3.141592653589793238462643383279502884")
+    parsed = Eu(expr)
+    return parsed.replace(Eu("muvsq"), Eu("mUV") ** 2)
+
+
+def _counterterm_from_generated_entry(entry: dict) -> dict[str, object]:
+    return {
+        "entry": entry,
+        "finite_counterterm": _finite_uv_integrated_expression(
+            E(entry["vakint_analytic_total"].replace('"', ""))
+        ),
+        "source": "generated",
+    }
+
+
+def _counterterm_from_compact_entry(entry: dict) -> dict[str, object]:
+    external_edges = _compact_external_edges(entry)
+    normalized_entry = dict(entry)
+    normalized_entry["process"] = _compact_process_from_entry(entry)
+    normalized_entry["external_edges"] = external_edges
+    normalized_entry["external_particles"] = [
+        edge["particle"] for edge in external_edges
+    ]
+    normalized_entry["internal_particle_sequence"] = entry.get(
+        "internal_particle_sequence", entry["internal_particles"]
+    )
+    normalized_entry["internal_particles_multiset"] = entry.get(
+        "internal_particles_multiset", entry["internal_particles"]
+    )
+    return {
+        "entry": normalized_entry,
+        "finite_counterterm": _compact_integrated_expression(entry["integrated_ct"]),
+        "source": "compact",
+    }
+
+
+def _load_uv_counterterm_entry(entry: dict) -> dict[str, object]:
+    if "vakint_analytic_total" in entry:
+        return _counterterm_from_generated_entry(entry)
+    if "integrated_ct" in entry:
+        return _counterterm_from_compact_entry(entry)
+    raise ValueError(
+        "UV integrated counterterm entry must contain either "
+        "'vakint_analytic_total' or 'integrated_ct'"
+    )
+
+
 @lru_cache(maxsize=1)
 def _uv_integrated_counterterm_table():
     if not os.path.exists(UV_INTEGRATED_COUNTERTERMS_PATH):
@@ -99,9 +201,11 @@ def _uv_integrated_counterterm_table():
 
     counterterms = {}
     for entry in entries:
-        external_particles = entry.get("external_particles") or _external_particles_from_process(
-            entry["process"]
-        )
+        counterterm = _load_uv_counterterm_entry(entry)
+        entry = counterterm["entry"]
+        external_particles = entry.get(
+            "external_particles"
+        ) or _external_particles_from_process(entry["process"])
         internal_particles = entry.get(
             "internal_particles_multiset", entry["internal_particles"]
         )
@@ -112,14 +216,7 @@ def _uv_integrated_counterterm_table():
             ),
             _uv_particle_multiset(internal_particles, _normalise_uv_particle),
         )
-        counterterms.setdefault(key, []).append(
-            {
-                "entry": entry,
-                "finite_counterterm": _finite_uv_integrated_expression(
-                    E(entry["vakint_analytic_total"].replace('"', ""))
-                ),
-            }
-        )
+        counterterms.setdefault(key, []).append(counterterm)
     return counterterms
 
 
@@ -355,6 +452,111 @@ def _remap_uv_integrated_expression(expr: Expression, external_mappings) -> Expr
     return _contract_lorentz_metrics(expr)
 
 
+def _compact_label_maps(external_mappings):
+    index_slots = {}
+    momentum_edges = {}
+
+    for mapping in external_mappings:
+        reference = mapping["reference"]
+        labels = reference.get("labels", [])
+        if not labels:
+            continue
+        particle = _normalise_uv_external_particle(reference.get("particle", ""))
+        actual_port = str(mapping["actual_port"])
+        edge_id = _strip_quotes(str(mapping["actual_edge"].get_attributes()["id"]))
+
+        if particle == "g" and len(labels) >= 3:
+            index_slots[str(labels[0])] = f"mink(4,hedge({actual_port}))"
+            momentum_edges.setdefault(str(labels[1]), edge_id)
+            index_slots[str(labels[2])] = f"coad(8,hedge({actual_port}))"
+        elif particle == "d" and len(labels) >= 3:
+            index_slots[str(labels[0])] = f"bis(4,hedge({actual_port}))"
+            momentum_edges.setdefault(str(labels[1]), edge_id)
+            index_slots[str(labels[2])] = f"cof(3,hedge({actual_port}))"
+        elif particle == "d~" and len(labels) >= 3:
+            index_slots[str(labels[0])] = f"bis(4,hedge({actual_port}))"
+            momentum_edges.setdefault(str(labels[1]), edge_id)
+            index_slots[str(labels[2])] = f"dind(cof(3,hedge({actual_port})))"
+
+    return index_slots, momentum_edges
+
+
+def _replace_compact_momentum_functions(
+    expr: Expression,
+    index_slots: dict[str, str],
+    momentum_edges: dict[str, str],
+) -> Expression:
+    for momentum_label, edge_id in momentum_edges.items():
+        for slot_label, slot in index_slots.items():
+            expr = expr.replace(
+                Eu(f"{momentum_label}({slot_label})"),
+                Eu(f"Q({edge_id},{slot})"),
+                repeat=True,
+            )
+
+    for left_label, left_edge in momentum_edges.items():
+        for right_label, right_edge in momentum_edges.items():
+            expr = expr.replace(
+                Eu(f"sp({left_label},{right_label})"),
+                Eu(
+                    f"Q({left_edge},mink(4,rho))*"
+                    f"Q({right_edge},mink(4,rho))"
+                ),
+                repeat=True,
+            )
+    return expr
+
+
+def _replace_compact_spin_color_functions(
+    expr: Expression,
+    index_slots: dict[str, str],
+) -> Expression:
+    labels = set(index_slots)
+    for first in labels:
+        for second in labels:
+            for third in labels:
+                expr = expr.replace(
+                    Eu(f"gamma({first},{second},{third})"),
+                    Eu(
+                        f"gamma({index_slots[third]},"
+                        f"{index_slots[first]},"
+                        f"{index_slots[second]})"
+                    ),
+                    repeat=True,
+                )
+                expr = expr.replace(
+                    Eu(f"T({first},{second},{third})"),
+                    Eu(
+                        f"t({index_slots[second]},"
+                        f"{index_slots[first]},"
+                        f"{index_slots[third]})"
+                    ),
+                    repeat=True,
+                )
+    return expr
+
+
+def _replace_compact_index_labels(
+    expr: Expression,
+    index_slots: dict[str, str],
+) -> Expression:
+    for label, slot in sorted(
+        index_slots.items(), key=lambda item: len(item[0]), reverse=True
+    ):
+        expr = expr.replace(Eu(label), Eu(slot), repeat=True)
+    return expr
+
+
+def _remap_compact_uv_integrated_expression(
+    expr: Expression, external_mappings
+) -> Expression:
+    index_slots, momentum_edges = _compact_label_maps(external_mappings)
+    expr = _replace_compact_momentum_functions(expr, index_slots, momentum_edges)
+    expr = _replace_compact_spin_color_functions(expr, index_slots)
+    expr = _replace_compact_index_labels(expr, index_slots)
+    return _contract_lorentz_metrics(expr)
+
+
 def _format_uv_integrated_numerator(expr: Expression) -> str:
     expr = expr.replace(
         E("Q(edge_,mink(4,rho))^2"),
@@ -383,6 +585,30 @@ def _format_uv_integrated_numerator(expr: Expression) -> str:
         expr_str = expr_str.replace(
             f"uv_spenso_{function_name}(", f"spenso::{function_name}("
         )
+    return expr_str.replace("+-", "-")
+
+
+def _format_compact_uv_integrated_numerator(expr: Expression) -> str:
+    expr_str = " ".join(expr.to_canonical_string().split())
+    for prefix, replacement in (
+        ("python::{}::", ""),
+        ("gammalooprs::{}::", ""),
+        ("symbolica::{}::", ""),
+    ):
+        expr_str = expr_str.replace(prefix, replacement)
+
+    for function_name in ["gamma", "mink", "coad", "cof", "dind", "bis", "g", "t"]:
+        expr_str = re.sub(
+            rf"(?<![A-Za-z0-9_:]){function_name}\(",
+            f"spenso::{function_name}(",
+            expr_str,
+        )
+
+    expr_str = re.sub(
+        r"\(?(Q\([0-9]+,spenso::mink\(4,rho\)\))\)?\^2",
+        r"\1*\1",
+        expr_str,
+    )
     return expr_str.replace("+-", "-")
 
 
@@ -487,12 +713,20 @@ def construct_integrated_counter_term(
     if external_mappings is None:
         return None
 
-    tensor_numerator = _format_uv_integrated_numerator(
-        _remap_uv_integrated_expression(
-            finite_counterterm,
-            external_mappings,
+    if candidates[0].get("source") == "compact":
+        tensor_numerator = _format_compact_uv_integrated_numerator(
+            _remap_compact_uv_integrated_expression(
+                finite_counterterm,
+                external_mappings,
+            )
         )
-    )
+    else:
+        tensor_numerator = _format_uv_integrated_numerator(
+            _remap_uv_integrated_expression(
+                finite_counterterm,
+                external_mappings,
+            )
+        )
 
     contracted_graph = pydot.Dot(
         graph_type="digraph",
@@ -574,12 +808,16 @@ def construct_integrated_counter_term(
     if len(uv_loop_indices) != 1:
         return None
 
-    routed_integrand *= E("1") / (
+    normalisation=E("mUV")/(3.141592653589793238462643383279502884197169399375105820974944592)**2
+
+    normalising_tadpole = normalisation*E("1") / (
         subtraction.sp3D(
             E(f"k({uv_loop_indices[0]})"), E(f"k({uv_loop_indices[0]})")
         )
         + E("mUV") ** 2
-    )
+    )**2
+
+    routed_integrand *= normalising_tadpole
 
     return routed_integrand_cls(
         routed_integrand,

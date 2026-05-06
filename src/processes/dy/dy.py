@@ -108,6 +108,7 @@ class DY(object):
         skip_ps_validation: bool = False,
         integrate_beams: bool = False,
         disable_integrated_uv_cts: bool = True,
+        dy_fallback_precision: int | None = None,
         skip_gl_worker_init: bool = False,
         load_compiled_bundle: bool = True,
         clean=True,
@@ -130,6 +131,9 @@ class DY(object):
         )
         self.process_name = process_name if process_name is not None else "DY"
         self.integrate_beams = bool(integrate_beams)
+        self.dy_fallback_precision = (
+            int(dy_fallback_precision) if dy_fallback_precision is not None else 80
+        )
         self.enforce_ttbar_beam_threshold = (
             self.integrate_beams and self.process_name.lower() == "tt~"
         )
@@ -284,6 +288,7 @@ class DY(object):
             logger_level=logging.CRITICAL,
             skip_ps_validation=self.skip_ps_validation,
             integrate_beams=self.integrate_beams,
+            dy_fallback_precision=self.dy_fallback_precision,
             skip_gl_worker_init=self.skip_gl_worker_init,
             load_compiled_bundle=self.load_compiled_bundle,
         )
@@ -302,6 +307,8 @@ class DY(object):
             self.process_name,
             self.skip_ps_validation,
             self.integrate_beams,
+            self.disable_integrated_uv_cts,
+            self.dy_fallback_precision,
         )
 
     def process_uses_z(self) -> bool:
@@ -731,6 +738,7 @@ class DY(object):
                 self.get_integrand_name(),
                 "z",
                 all_evaluators,
+                fallback_precision=self.dy_fallback_precision,
             )
             my_compiler.save_compiled_integrand()
 
@@ -755,7 +763,7 @@ class DY(object):
         print("############################")
 
         channel = (1, 0)  # (1, -1)
-        channel = (1, -1)
+        # channel = (1, -1)
 
         processor = EMRIntegrandConstructor([], process_name, n_loops)
         loop_processor = LoopIntegrandConstructor(
@@ -811,8 +819,8 @@ class DY(object):
                 observable_params = {
                     "zmin": 0.0,
                     "zmax": 1.00000,
-                    "Lambdasq": 100000,
-                    "mUV": 1000,
+                    "Lambdasq": 50000,
+                    "mUV": 2000,
                     "mursq": 1,
                 }
 
@@ -857,14 +865,15 @@ class DY(object):
             ks = [
                 # math.sqrt(z)
                 scale
-                * 0 * np.array([
-                    1.0/math.sqrt(2),
-                    1.0/math.sqrt(2),
+                * np.array([
+                    1.0 / math.sqrt(2),
+                    1.0 / math.sqrt(2),
                     0.0,
                 ]),
-                scale*np.array([1 / math.sqrt(3), -1 / math.sqrt(3), 1 / math.sqrt(3)]),
+                scale
+                * np.array([1 / math.sqrt(3), -1 / math.sqrt(3), 1 / math.sqrt(3)]),
             ]
-            #ks=[[2.0543179648600841e+08, -1.8748053733626541e+08, 1.0307223303487062e+08], [-2.6820491673003684e+01, 1.2449677258220136e+02, 1.1282568232590195e+02]]
+            # ks=[[2.0543179648600841e+08, -1.8748053733626541e+08, 1.0307223303487062e+08], [-2.6820491673003684e+01, 1.2449677258220136e+02, 1.1282568232590195e+02]]
             # ks = [
             #    # math.sqrt(z)
             #    scale
@@ -914,14 +923,14 @@ class DY(object):
             #        1 / math.sqrt(3),
             #    ]),
             # ]
-            vp =1*np.array([1/10, 1/10, 1 / 2])
+            vp = 10 * np.array([1 / 10, 1 / 10, -1 / 2])
             p1 = scale * np.array([0, 0, 1])
             p2 = scale * np.array([0, 0, -1])
             print("just about to approach limit")
             approach_limit.approach(ks, p1, p2, z, vp)
         #
-            #uv_test = ultraviolet_test(n_loops, process_name, all_routed_integrands)
-            #uv_test.approach_limits(2000)
+        # uv_test = ultraviolet_test(n_loops, process_name, all_routed_integrands)
+        # uv_test.approach_limits(2000)
 
         if all_evaluators:
             my_compiler = compile_integrands(
@@ -930,6 +939,7 @@ class DY(object):
                 self.get_integrand_name(),
                 "z",
                 all_evaluators,
+                fallback_precision=self.dy_fallback_precision,
             )
             my_compiler.save_compiled_integrand()
 
@@ -994,12 +1004,12 @@ class DY(object):
             case 2:
                 logger.info("Generating two-loop graphs ...")
                 if self.process_name == "tt~":
-                    # self.gl_worker.run(  # GL06 GL14  --select-graphs GL00 GL01 GL03 GL04 GL05 GL08 GL12
-                    #    f"generate xs d g > t t~ | d d~ g t t~ ghG ghG~ [{{{{2}}}} QCD=1] --only-diagrams --numerator-grouping group_identical_graphs_up_to_scalar_rescaling --symmetrize-left-right-states true --symmetrize-initial-states true --select-graphs GL00 GL01 GL03 GL04 GL05 GL08 GL12   -p {base_name} -i {graphs_process_name} --max-multiplicity-for-fast-cut-filter 99"
-                    # )
-                    self.gl_worker.run(  # GL06 GL14  --select-graphs GL14
-                        f"generate xs d d~ > t t~ | d d~ g t t~ ghG ghG~ [{{{{2}}}} QCD=1] --only-diagrams --numerator-grouping group_identical_graphs_up_to_scalar_rescaling --symmetrize-left-right-states true --symmetrize-initial-states true --select-graphs GL09 -p {base_name} -i {graphs_process_name} --max-multiplicity-for-fast-cut-filter 99"
+                    self.gl_worker.run(  # GL06 GL14  --select-graphs GL00 GL01 GL03 GL04 GL05 GL08 GL12
+                        f"generate xs d g > t t~ | d d~ g t t~ ghG ghG~ [{{{{2}}}} QCD=1] --only-diagrams --numerator-grouping group_identical_graphs_up_to_scalar_rescaling --symmetrize-left-right-states true --symmetrize-initial-states true -p {base_name} -i {graphs_process_name} --max-multiplicity-for-fast-cut-filter 99"
                     )
+                    # self.gl_worker.run(  # GL06 GL14  --select-graphs GL14
+                    #    f"generate xs d d~ > t t~ | d d~ g t t~ ghG ghG~ [{{{{2}}}} QCD=1] --only-diagrams --numerator-grouping group_identical_graphs_up_to_scalar_rescaling --symmetrize-left-right-states true --symmetrize-initial-states true --select-graphs GL09 -p {base_name} -i {graphs_process_name} --max-multiplicity-for-fast-cut-filter 99"
+                    # )
                 else:
                     raise ValueError(
                         "t t~ is the only implemented process at two loops"
@@ -1387,15 +1397,19 @@ class DY(object):
                                 momentum_point
                             )
                             self.rotation_hp_retry_example_rel = rel
-                        arb_digits = max(
-                            int(impl.get("dy_rotation_check_arb_digits", 80)),
-                            n_digits_int + 20,
+                        fallback_precision = self._dy_fallback_precision(impl)
+                        arb_digits = (
+                            fallback_precision
+                            if fallback_precision
+                            == DYCompiledBundle.DOUBLE_FLOAT_PRECISION
+                            else max(fallback_precision, n_digits_int + 20)
                         )
                         arb_impl = dict(impl)
                         arb_impl["dy_evaluation_mode"] = "arb"
                         arb_impl["dy_rotation_check_arb_digits"] = arb_digits
+                        arb_impl["dy_fallback_precision"] = arb_digits
                         assert self.compiled_bundle is not None
-                        self.compiled_bundle.require_arb_supported()
+                        self.compiled_bundle.require_fallback_supported(arb_digits)
                         try:
                             wgt_arb = self.zenos_integrand_with_externals(
                                 loop_momenta,
@@ -1460,11 +1474,16 @@ class DY(object):
 
                     arb_impl = dict(impl)
                     arb_impl["dy_evaluation_mode"] = "arb"
-                    arb_impl["dy_rotation_check_arb_digits"] = int(
-                        impl.get("dy_rotation_check_arb_digits", 80)
+                    arb_impl["dy_rotation_check_arb_digits"] = (
+                        self._dy_fallback_precision(impl)
                     )
+                    arb_impl["dy_fallback_precision"] = arb_impl[
+                        "dy_rotation_check_arb_digits"
+                    ]
                     assert self.compiled_bundle is not None
-                    self.compiled_bundle.require_arb_supported()
+                    self.compiled_bundle.require_fallback_supported(
+                        int(arb_impl["dy_rotation_check_arb_digits"])
+                    )
                     try:
                         arb_digits = int(arb_impl["dy_rotation_check_arb_digits"])
                         arb_total, arb_terms = self.compiled_bundle.evaluate_arb_terms(
@@ -1674,9 +1693,13 @@ class DY(object):
             evaluation_mode = str(
                 integrand_implementation.get("dy_evaluation_mode", evaluation_mode)
             )
-            arb_digits = integrand_implementation.get("dy_rotation_check_arb_digits")
-            if arb_digits is not None:
-                decimal_digit_precision = int(arb_digits)
+            if (
+                "dy_fallback_precision" in integrand_implementation
+                or "dy_rotation_check_arb_digits" in integrand_implementation
+            ):
+                decimal_digit_precision = self._dy_fallback_precision(
+                    integrand_implementation
+                )
             theta_tol = integrand_implementation.get("dy_theta_tol")
             if theta_tol is not None:
                 theta_tolerance = float(theta_tol)
@@ -1699,6 +1722,14 @@ class DY(object):
         if isinstance(integrand_implementation, str):
             return {"integrand_type": integrand_implementation}
         return integrand_implementation
+
+    @staticmethod
+    def _dy_fallback_precision(integrand_implementation: dict[str, Any]) -> int:
+        value = integrand_implementation.get(
+            "dy_fallback_precision",
+            integrand_implementation.get("dy_rotation_check_arb_digits", 80),
+        )
+        return int(value)
 
     @staticmethod
     def _call_args_use_zenos_integrand(call_args: list[Any]) -> bool:

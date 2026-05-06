@@ -12,7 +12,7 @@ from decimal import Decimal, InvalidOperation
 from fractions import Fraction
 from functools import lru_cache
 
-from symbolica import E, Expression, S
+from symbolica import E, Evaluator, Expression, S
 
 from utils.utils import (
     EVALUATORS_FOLDER,
@@ -624,16 +624,20 @@ class evaluate_integrand:
 @dataclass
 class DYCompiledTerm:
     evaluator_name: str
-    e_surface: Expression
-    theta_expressions: list[Expression]
+    e_surface: Expression | None
+    theta_expressions: list[Expression | None]
     integrand_expression: Expression | None
     t_initial_guess: float
     graph_group_name: str | None = None
+    e_surface_evaluator: Evaluator | None = None
+    theta_evaluators: list[Evaluator | None] | None = None
+    integrand_evaluator: Evaluator | None = None
 
 
 class DYCompiledBundle:
     METADATA_FILE = "bundle_metadata.json"
-    BUNDLE_FORMAT_VERSION = 2
+    BUNDLE_FORMAT_VERSION = 3
+    DOUBLE_FLOAT_PRECISION = 32
 
     def __init__(
         self,
@@ -661,6 +665,7 @@ class DYCompiledBundle:
         self._k_keys = [
             (E(f"k({i},1)"), E(f"k({i},2)"), E(f"k({i},3)")) for i in range(n_loops)
         ]
+        self._fallback_param_order = self._fallback_params_for_n_loops(n_loops)
 
         self._value_key_by_name: dict[str, Expression] = {
             self._normalize_symbol_key(self._p11.to_canonical_string()): self._p11,
@@ -717,6 +722,56 @@ class DYCompiledBundle:
     @staticmethod
     def _bundle_dir(process: str, integrand_name: str) -> str:
         return pjoin(EVALUATORS_FOLDER, process, integrand_name)
+
+    @staticmethod
+    def _fallback_params_for_n_loops(n_loops: int) -> list[Expression]:
+        params: list[Expression] = []
+        for i in range(n_loops):
+            params.extend([E(f"k({i},1)"), E(f"k({i},2)"), E(f"k({i},3)")])
+        params.extend([
+            E("p(1,1)"),
+            E("p(1,2)"),
+            E("p(1,3)"),
+            E("p(2,1)"),
+            E("p(2,2)"),
+            E("p(2,3)"),
+            E("z"),
+            E("mUV"),
+            E("t"),
+        ])
+        return params
+
+    @staticmethod
+    def _saved_evaluator_relpath(term_index: int, kind: str, theta_index: int | None = None) -> str:
+        if theta_index is None:
+            filename = f"term_{term_index:04d}_{kind}.sev"
+        else:
+            filename = f"term_{term_index:04d}_{kind}_{theta_index:04d}.sev"
+        return pjoin("higher_precision_evaluators", filename)
+
+    @classmethod
+    def _write_saved_evaluator(
+        cls,
+        out_dir: str,
+        relpath: str,
+        expr: Expression,
+        fallback_params: list[Expression],
+    ) -> None:
+        path = pjoin(out_dir, relpath)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        evaluator = expr.evaluator({}, {}, fallback_params)
+        with open(path, "wb") as handle:
+            handle.write(evaluator.save())
+
+    @staticmethod
+    def _load_saved_evaluator(out_dir: str, relpath: str | None) -> Evaluator | None:
+        if relpath is None:
+            return None
+        path = pjoin(out_dir, relpath)
+        if not os.path.isfile(path):
+            raise pygloopException(f"Missing saved DY higher-precision evaluator: {path}")
+        with open(path, "rb") as handle:
+            return Evaluator.load(handle.read())
 
     @staticmethod
     def _build_param_builder(symbols: list[Expression]) -> ParamBuilder:
@@ -798,6 +853,7 @@ class DYCompiledBundle:
         n_loops: int,
         observable: str,
         evaluators: list,
+        fallback_precision: int = 80,
     ) -> DYCompiledBundle:
         if len(evaluators) == 0:
             raise pygloopException(
@@ -811,6 +867,15 @@ class DYCompiledBundle:
 
         loaded_evaluators: dict[str, PygloopEvaluator] = {}
         terms: list[DYCompiledTerm] = []
+        fallback_precision = int(fallback_precision)
+        if fallback_precision <= 0:
+            raise pygloopException("DY fallback precision must be a positive integer.")
+        fallback_backend = (
+            "double_float"
+            if fallback_precision == cls.DOUBLE_FLOAT_PRECISION
+            else "arb"
+        )
+        fallback_params = cls._fallback_params_for_n_loops(n_loops)
 
         for i, ev in enumerate(evaluators):
             evaluator_name = getattr(ev, "compiled_name", f"term_{i}_integrand")
@@ -855,12 +920,58 @@ class DYCompiledBundle:
                 out_dir, evaluator_name
             )
 
+            e_surface = ev.e_surface
+            theta_expressions = getattr(ev, "theta_expressions", [])
+            integrand_expression = getattr(ev, "integrand_expression", None)
+            e_surface_evaluator_path = None
+            theta_evaluator_paths: list[str | None] = []
+            integrand_evaluator_path = None
+            if fallback_backend == "double_float":
+                e_surface_evaluator_path = cls._saved_evaluator_relpath(
+                    i, "e_surface"
+                )
+                cls._write_saved_evaluator(
+                    out_dir, e_surface_evaluator_path, e_surface, fallback_params
+                )
+                for theta_index, theta_expr in enumerate(theta_expressions):
+                    theta_path = cls._saved_evaluator_relpath(
+                        i, "theta", theta_index
+                    )
+                    cls._write_saved_evaluator(
+                        out_dir, theta_path, theta_expr, fallback_params
+                    )
+                    theta_evaluator_paths.append(theta_path)
+                if integrand_expression is not None:
+                    integrand_evaluator_path = cls._saved_evaluator_relpath(
+                        i, "integrand"
+                    )
+                    cls._write_saved_evaluator(
+                        out_dir,
+                        integrand_evaluator_path,
+                        integrand_expression,
+                        fallback_params,
+                    )
+
             terms.append(
                 DYCompiledTerm(
                     evaluator_name=evaluator_name,
-                    e_surface=ev.e_surface,
-                    theta_expressions=getattr(ev, "theta_expressions", []),
-                    integrand_expression=getattr(ev, "integrand_expression", None),
+                    e_surface=e_surface,
+                    theta_expressions=theta_expressions,
+                    integrand_expression=integrand_expression,
+                    e_surface_evaluator=(
+                        cls._load_saved_evaluator(out_dir, e_surface_evaluator_path)
+                        if e_surface_evaluator_path is not None
+                        else None
+                    ),
+                    theta_evaluators=[
+                        cls._load_saved_evaluator(out_dir, theta_path)
+                        for theta_path in theta_evaluator_paths
+                    ],
+                    integrand_evaluator=(
+                        cls._load_saved_evaluator(out_dir, integrand_evaluator_path)
+                        if integrand_evaluator_path is not None
+                        else None
+                    ),
                     t_initial_guess=1.0,
                     graph_group_name=graph_group_name,
                 )
@@ -871,22 +982,58 @@ class DYCompiledBundle:
             "process": process,
             "integrand_name": integrand_name,
             "n_loops": n_loops,
+            "fallback_precision": fallback_precision,
+            "fallback_backend": fallback_backend,
+            "fallback_parameter_order": [
+                param.to_canonical_string() for param in fallback_params
+            ],
             "terms": [
                 {
                     "evaluator_name": t.evaluator_name,
-                    "e_surface": t.e_surface.to_canonical_string(),
-                    "theta_expressions": [
-                        th.to_canonical_string() for th in t.theta_expressions
-                    ],
+                    "e_surface": (
+                        t.e_surface.to_canonical_string()
+                        if fallback_backend != "double_float"
+                        and t.e_surface is not None
+                        else None
+                    ),
+                    "e_surface_evaluator": (
+                        cls._saved_evaluator_relpath(i, "e_surface")
+                        if fallback_backend == "double_float"
+                        else None
+                    ),
+                    "theta_expressions": (
+                        [
+                            th.to_canonical_string()
+                            for th in t.theta_expressions
+                            if th is not None
+                        ]
+                        if fallback_backend != "double_float"
+                        else []
+                    ),
+                    "theta_evaluators": (
+                        [
+                            cls._saved_evaluator_relpath(i, "theta", theta_index)
+                            for theta_index, _theta in enumerate(t.theta_expressions)
+                        ]
+                        if fallback_backend == "double_float"
+                        else []
+                    ),
                     "integrand_expression": (
                         t.integrand_expression.to_canonical_string()
-                        if t.integrand_expression is not None
+                        if fallback_backend != "double_float"
+                        and t.integrand_expression is not None
+                        else None
+                    ),
+                    "integrand_evaluator": (
+                        cls._saved_evaluator_relpath(i, "integrand")
+                        if fallback_backend == "double_float"
+                        and t.integrand_expression is not None
                         else None
                     ),
                     "t_initial_guess": t.t_initial_guess,
                     "graph_group_name": t.graph_group_name,
                 }
-                for t in terms
+                for i, t in enumerate(terms)
             ],
         }
         with open(pjoin(out_dir, cls.METADATA_FILE), "w", encoding="utf-8") as f:
@@ -907,23 +1054,35 @@ class DYCompiledBundle:
         terms: list[DYCompiledTerm] = []
         evaluators: dict[str, PygloopEvaluator] = {}
         bundle_format_version = int(metadata.get("bundle_format_version", 1))
-
         for t in metadata["terms"]:
             name = t["evaluator_name"]
             evaluators[name] = PygloopEvaluator.load(out_dir, name)
             graph_group_name = t.get("graph_group_name")
             if graph_group_name is None:
                 graph_group_name = cls._graph_group_name_from_evaluator_name(name)
+            e_surface_raw = t.get("e_surface")
+            theta_raw = t.get("theta_expressions", [])
+            integrand_raw = t.get("integrand_expression")
             terms.append(
                 DYCompiledTerm(
                     evaluator_name=name,
-                    e_surface=E(t["e_surface"]),
-                    theta_expressions=[E(x) for x in t["theta_expressions"]],
+                    e_surface=E(e_surface_raw) if e_surface_raw is not None else None,
+                    theta_expressions=[E(x) for x in theta_raw],
                     integrand_expression=(
-                        E(t["integrand_expression"])
+                        E(integrand_raw)
                         if bundle_format_version >= 2
-                        and t.get("integrand_expression") is not None
+                        and integrand_raw is not None
                         else None
+                    ),
+                    e_surface_evaluator=cls._load_saved_evaluator(
+                        out_dir, t.get("e_surface_evaluator")
+                    ),
+                    theta_evaluators=[
+                        cls._load_saved_evaluator(out_dir, relpath)
+                        for relpath in t.get("theta_evaluators", [])
+                    ],
+                    integrand_evaluator=cls._load_saved_evaluator(
+                        out_dir, t.get("integrand_evaluator")
                     ),
                     t_initial_guess=float(t.get("t_initial_guess", 1.0)),
                     graph_group_name=graph_group_name,
@@ -966,12 +1125,82 @@ class DYCompiledBundle:
             return Decimal(repr(value))
         return Decimal(str(value))
 
+    def _fallback_input_values(
+        self, values: dict[Expression, float | Decimal]
+    ) -> list[float | Decimal]:
+        return [values[param] for param in self._fallback_param_order]
+
     @staticmethod
+    def _single_evaluator_output(value):
+        if isinstance(value, (list, tuple)):
+            if len(value) != 1:
+                raise pygloopException(
+                    f"Expected one Symbolica evaluator output, got {len(value)}"
+                )
+            return DYCompiledBundle._single_evaluator_output(value[0])
+        if hasattr(value, "size") and hasattr(value, "item"):
+            if value.size != 1:
+                raise pygloopException(
+                    f"Expected one Symbolica evaluator output, got shape {value.shape}"
+                )
+            return value.item()
+        return value
+
+    def _evaluate_float_expression(
+        self,
+        expr: Expression | None,
+        evaluator: Evaluator | None,
+        values: dict[Expression, float],
+    ) -> float:
+        if expr is not None:
+            return float(expr.evaluate(values, {}))
+        if evaluator is None:
+            raise pygloopException(
+                "No float or DoubleFloat evaluator data is present in this DY bundle. "
+                "Regenerate the bundle with --dy-fallback-precision 32."
+            )
+        value = self._single_evaluator_output(
+            evaluator.evaluate(self._fallback_input_values(values))
+        )
+        return float(value)
+
     def _evaluate_expression_with_prec(
-        expr: Expression,
+        self,
+        expr: Expression | None,
+        evaluator: Evaluator | None,
         values: dict[Expression, Decimal],
         decimal_digit_precision: int,
     ) -> Decimal | None:
+        if decimal_digit_precision == self.DOUBLE_FLOAT_PRECISION:
+            if evaluator is None:
+                raise pygloopException(
+                    "No DoubleFloat fallback evaluator data is present in this DY "
+                    "bundle. Regenerate the bundle with --dy-fallback-precision 32."
+                )
+            try:
+                value = self._single_evaluator_output(
+                    evaluator.evaluate_with_prec(
+                        self._fallback_input_values(values),
+                        self.DOUBLE_FLOAT_PRECISION,
+                    )
+                )
+            except BaseException as exc:
+                if isinstance(exc, (KeyboardInterrupt, SystemExit)):
+                    raise
+                return None
+            try:
+                decimal_value = DYCompiledBundle._decimal_from_number(value)
+            except (InvalidOperation, ValueError, pygloopException):
+                return None
+            if decimal_value.is_nan() or not decimal_value.is_finite():
+                return None
+            return decimal_value
+
+        if expr is None:
+            raise pygloopException(
+                "No arbitrary-precision expression data is present in this DY bundle. "
+                "Regenerate the bundle with --dy-fallback-precision <N> for N != 32."
+            )
         string_values = {key: str(value) for key, value in values.items()}
         try:
             value = expr.evaluate_with_prec(string_values, {}, decimal_digit_precision)
@@ -990,7 +1219,18 @@ class DYCompiledBundle:
         return decimal_value
 
     def supports_arb(self) -> bool:
-        return all(t.integrand_expression is not None for t in self.terms)
+        return all(
+            t.e_surface is not None and t.integrand_expression is not None
+            for t in self.terms
+        )
+
+    def supports_double_float_fallback(self) -> bool:
+        return all(
+            t.e_surface_evaluator is not None
+            and t.integrand_evaluator is not None
+            and t.theta_evaluators is not None
+            for t in self.terms
+        )
 
     def require_arb_supported(self) -> None:
         if self.supports_arb():
@@ -1000,6 +1240,16 @@ class DYCompiledBundle:
             "needed for arbitrary-precision fallback. Regenerate the DY bundle with "
             "'--clean --process dy generate'."
         )
+
+    def require_fallback_supported(self, decimal_digit_precision: int) -> None:
+        if decimal_digit_precision == self.DOUBLE_FLOAT_PRECISION:
+            if self.supports_double_float_fallback():
+                return
+            raise pygloopException(
+                "No DoubleFloat fallback evaluator data is present in this DY "
+                "bundle. Regenerate the bundle with --dy-fallback-precision 32."
+            )
+        self.require_arb_supported()
 
     def _build_runtime_values(
         self,
@@ -1046,7 +1296,12 @@ class DYCompiledBundle:
         if p_norm == 0.0:
             return 1.0
         try:
-            denom = term.e_surface.evaluate(valst1, {}) + 2.0 * p_norm
+            denom = (
+                self._evaluate_float_expression(
+                    term.e_surface, term.e_surface_evaluator, valst1
+                )
+                + 2.0 * p_norm
+            )
             if denom == 0.0 or not math.isfinite(denom):
                 return 1.0
             guess = abs(2.0 * p_norm / denom)
@@ -1099,7 +1354,8 @@ class DYCompiledBundle:
 
     def solve_t_newton_bisect(
         self,
-        term_e_surface: Expression,
+        term_e_surface: Expression | None,
+        term_e_surface_evaluator: Evaluator | None,
         vals: dict[Expression, float],
         t_key: Expression,
         t0: float = 1.0,
@@ -1122,7 +1378,9 @@ class DYCompiledBundle:
             #    return y if math.isfinite(y) else None
             # except Exception:
             #    return None
-            y = term_e_surface.evaluate(eval_map, {})
+            y = self._evaluate_float_expression(
+                term_e_surface, term_e_surface_evaluator, eval_map
+            )
             return y
 
         # Initial point
@@ -1292,7 +1550,8 @@ class DYCompiledBundle:
 
     def solve_t_convex_bisect_prec(
         self,
-        term_e_surface: Expression,
+        term_e_surface: Expression | None,
+        term_e_surface_evaluator: Evaluator | None,
         vals: dict[Expression, Decimal],
         t_key: Expression,
         decimal_digit_precision: int,
@@ -1319,7 +1578,10 @@ class DYCompiledBundle:
                 return None
             eval_map[t_key] = t
             return self._evaluate_expression_with_prec(
-                term_e_surface, eval_map, decimal_digit_precision
+                term_e_surface,
+                term_e_surface_evaluator,
+                eval_map,
+                decimal_digit_precision,
             )
 
         try:
@@ -1434,7 +1696,7 @@ class DYCompiledBundle:
         theta_tolerance: float = 0.0,
         channel_selector: int | None = None,
     ) -> tuple[Decimal, list[tuple[str, Decimal]]]:
-        self.require_arb_supported()
+        self.require_fallback_supported(decimal_digit_precision)
 
         vals, (p1x, p1y, p1z, _p2x, _p2y, _p2z) = self._build_runtime_values(
             loop_momenta, p1, p2, z, m_uv
@@ -1450,6 +1712,7 @@ class DYCompiledBundle:
             my_t0 = self._initial_t_guess(term, vals, p1x, p1y, p1z)
             t_sol = self.solve_t_convex_bisect_prec(
                 term.e_surface,
+                term.e_surface_evaluator,
                 dec_vals,
                 self._t_key,
                 decimal_digit_precision=decimal_digit_precision,
@@ -1464,9 +1727,17 @@ class DYCompiledBundle:
             dec_vals[self._t_key] = t_sol
 
             theta_passes = True
-            for th in term.theta_expressions:
+            theta_expressions = list(term.theta_expressions)
+            theta_evaluators = list(term.theta_evaluators or [])
+            theta_count = max(len(theta_expressions), len(theta_evaluators))
+            theta_expressions.extend([None] * (theta_count - len(theta_expressions)))
+            theta_evaluators.extend([None] * (theta_count - len(theta_evaluators)))
+            for th, th_evaluator in zip(theta_expressions, theta_evaluators):
                 th_val = self._evaluate_expression_with_prec(
-                    th, dec_vals, decimal_digit_precision
+                    th,
+                    th_evaluator,
+                    dec_vals,
+                    decimal_digit_precision,
                 )
                 if th_val is None or th_val < -theta_tol:
                     theta_passes = False
@@ -1475,9 +1746,11 @@ class DYCompiledBundle:
                 term_values.append((term.evaluator_name, Decimal(0)))
                 continue
 
-            assert term.integrand_expression is not None
             term_value = self._evaluate_expression_with_prec(
-                term.integrand_expression, dec_vals, decimal_digit_precision
+                term.integrand_expression,
+                term.integrand_evaluator,
+                dec_vals,
+                decimal_digit_precision,
             )
             if term_value is None:
                 raise pygloopException(
@@ -1534,6 +1807,7 @@ class DYCompiledBundle:
 
             t_sol = self.solve_t_newton_bisect(
                 term.e_surface,
+                term.e_surface_evaluator,
                 vals,
                 self._t_key,
                 t0=my_t0,  # fixed per-term start for benchmark-stable branch
@@ -1558,8 +1832,13 @@ class DYCompiledBundle:
 
             # print("---------------")
             theta = 1
-            for th in term.theta_expressions:
-                th_val = th.evaluate(vals, {})
+            theta_expressions = list(term.theta_expressions)
+            theta_evaluators = list(term.theta_evaluators or [])
+            theta_count = max(len(theta_expressions), len(theta_evaluators))
+            theta_expressions.extend([None] * (theta_count - len(theta_expressions)))
+            theta_evaluators.extend([None] * (theta_count - len(theta_evaluators)))
+            for th, th_evaluator in zip(theta_expressions, theta_evaluators):
+                th_val = self._evaluate_float_expression(th, th_evaluator, vals)
                 # if th_val > 0:
                 #    print("-->", 1)
                 # else:
@@ -1583,12 +1862,21 @@ class DYCompiledBundle:
 
 
 class compile_integrands:
-    def __init__(self, L, process, name, observable, evaluators):
+    def __init__(
+        self,
+        L,
+        process,
+        name,
+        observable,
+        evaluators,
+        fallback_precision: int = 80,
+    ):
         self.L = L
         self.process = process
         self.observable = observable
         self.evaluators = evaluators
         self.name = name
+        self.fallback_precision = int(fallback_precision)
 
     def save_compiled_integrand(self):
 
@@ -1598,4 +1886,5 @@ class compile_integrands:
             n_loops=self.L,
             observable=self.observable,
             evaluators=self.evaluators,
+            fallback_precision=self.fallback_precision,
         )

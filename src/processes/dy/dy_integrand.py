@@ -1,6 +1,7 @@
 import json
 import os
 import re
+from collections import Counter
 from copy import deepcopy
 from itertools import product
 
@@ -58,16 +59,10 @@ pjoin = os.path.join
 gl_log_level = LogLevel.Off
 
 debug = False
-_ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 
 
 def Es(expr: str) -> Expression:
     return E(expr.replace('"', ""), default_namespace="gammalooprs")
-
-
-def _canonicalize_symbolica_display_string(expr: str) -> str:
-    expr = _ANSI_RE.sub("", expr)
-    return re.sub(r"\s+", " ", expr).strip()
 
 
 def heaviside_theta(x):
@@ -133,6 +128,163 @@ def _strip_namespaces_structurally(expr: Expression) -> Expression:
     return expr
 
 
+def _raw_graph_numerator(graph) -> Expression:
+    numerator = E("1")
+    for node in graph.get_nodes():
+        if node.get_name() not in ["edge", "node"]:
+            node_numerator = node.get("num")
+            if node_numerator:
+                numerator *= Es(node_numerator)
+    for edge in graph.get_edges():
+        edge_numerator = edge.get("num")
+        if edge_numerator:
+            numerator *= Es(edge_numerator)
+    return numerator
+
+
+def _rewrite_repeated_non_cut_edge_momentum_powers(
+    numerator: Expression, graph, choice_offset: int = 0
+) -> Expression:
+    edge_by_id = {
+        _strip_quotes(str(e.get_attributes()["id"])): e for e in graph.get_edges()
+    }
+    non_cut_ids = {
+        eid
+        for eid, e in edge_by_id.items()
+        if all(
+            _strip_quotes(str(e.get_attributes().get(key, "0"))) in ["0", "0.0"]
+            for key in ["is_cut", "is_cut_DY"]
+        )
+    }
+    incident = {}
+    for edge in graph.get_edges():
+        incident.setdefault(_base_node(edge.get_source()), []).append(edge)
+        incident.setdefault(_base_node(edge.get_destination()), []).append(edge)
+
+    def edge_id(edge) -> str:
+        return _strip_quotes(str(edge.get_attributes()["id"]))
+
+    def q(edge: str, slot: Expression) -> Expression:
+        return Es(f"Q({edge},{slot.to_canonical_string()})")
+
+    def rules_for(edge: str):
+        out = []
+        target = edge_by_id[edge]
+        for node in [
+            _base_node(target.get_source()),
+            _base_node(target.get_destination()),
+        ]:
+            if node.startswith("ext"):
+                continue
+            others = [e for e in incident[node] if edge_id(e) != edge]
+            if not others:
+                continue
+
+            def rhs(slot, node=node, others=others, target=target):
+                repl = E("0")
+                for other in others:
+                    sign = 1 if _base_node(other.get_source()) == node else -1
+                    repl += sign * q(edge_id(other), slot)
+                if _base_node(target.get_source()) == node:
+                    repl = -repl
+                return repl
+
+            out.append(rhs)
+        if not out:
+            raise ValueError(f"No momentum-conservation rule for edge {edge}.")
+        shift = choice_offset % len(out)
+        return out[shift:] + out[:shift]
+
+    def terms(expr):
+        expr = expr.expand()
+        return list(expr) if bool(expr.is_type(AtomType.Add)) else [expr]
+
+    def factors(term):
+        return list(term) if bool(term.is_type(AtomType.Mul)) else [term]
+
+    def match_q(expr):
+        for pattern, edge_key, slot_key in [
+            (Es("Q(edge_,slot_)"), S("gammalooprs::edge_"), S("gammalooprs::slot_")),
+            (E("Q(edge_,slot_)"), S("edge_"), S("slot_")),
+        ]:
+            match = next(iter(expr.match(pattern)), None)
+            if match is not None:
+                return match[edge_key].to_canonical_string(), match[slot_key]
+        return None
+
+    def q_power(factor):
+        if bool(factor.is_type(AtomType.Pow)):
+            base, power = list(factor)
+            match = match_q(base)
+            if match is None:
+                return None
+            power = int(power.to_canonical_string())
+            if power <= 0:
+                return None
+            edge, slot = match
+            return edge, slot, power
+        match = match_q(factor)
+        if match is None:
+            return None
+        edge, slot = match
+        return edge, slot, 1
+
+    def first_repeat(expr):
+        for term in terms(expr):
+            term_factors = factors(term)
+            infos = []
+            counts = Counter()
+            for i, factor in enumerate(term_factors):
+                info = q_power(factor)
+                if info is None:
+                    continue
+                edge, slot, power = info
+                infos.append((i, edge, slot, power))
+                counts[edge] += power
+            repeated = {
+                edge
+                for edge, count in counts.items()
+                if count > 1 and edge in non_cut_ids
+            }
+            for info in infos:
+                if info[1] in repeated:
+                    return term, term_factors, info
+        return None
+
+    def replace_factor(expr, term, term_factors, info, replacement):
+        factor_index, edge, slot, power = info
+        new_factor = replacement
+        if power > 1:
+            new_factor *= q(edge, slot) ** E(str(power - 1))
+        out = E("1")
+        for i, factor in enumerate(term_factors):
+            out *= new_factor if i == factor_index else factor
+        return (expr - term + out).expand()
+
+    def solve(expr, depth, seen):
+        if depth > 512:
+            raise ValueError("Could not remove repeated non-cut edge momenta.")
+        repeat = first_repeat(expr)
+        if repeat is None:
+            return expr
+        term, term_factors, info = repeat
+        edge = info[1]
+        for rule in rules_for(edge):
+            candidate = replace_factor(expr, term, term_factors, info, rule(info[2]))
+            key = candidate.to_canonical_string()
+            if key in seen:
+                continue
+            seen.add(key)
+            try:
+                return solve(candidate, depth + 1, seen)
+            except ValueError:
+                continue
+        raise ValueError(f"Could not remove repeated non-cut edge momentum {edge}.")
+
+    numerator = numerator.expand()
+    return solve(numerator, 0, {numerator.to_canonical_string()})
+
+
 class RoutedIntegrand(object):
     def __init__(
         self,
@@ -172,38 +324,12 @@ class EMRIntegrandConstructor(object):
     # Get the numerator of the graph
 
     def get_numerator(self, graph) -> Expression:
-        num = E("1")
         symmetry_factor = Es(graph.get("overall_factor_evaluated"))
-        for node in graph.get_nodes():
-            if node.get_name() not in ["edge", "node"]:
-                n_num = node.get("num")
-                if n_num:
-                    ### BIG NUMERATOR HACK, REMEMBER TO CHANGE BACK
-                    # if _strip_quotes(node.get("int_id")) == "V_74":
-                    num *= Es(n_num)
-                # num *= E("1")
-        for edge in graph.get_edges():
-            e_num = edge.get("num")
-            if e_num:
-                # if edge.get("id") in ["8", "6", "0", "7"]:
-                # if edge.get("id") in ["8", "6"]:
-                num *= Es(e_num)
+
+        num = _raw_graph_numerator(graph)
+        num = _rewrite_repeated_non_cut_edge_momentum_powers(num, graph)
 
         print("here" * 10)
-        # print(num)
-        #        num_up = Es(
-        #            "((Q(2,spenso::mink(4,hedge(11)))+2*Q(1,spenso::mink(4,hedge(11)))+22*Q(0,spenso::mink(4,hedge(11)))+6*Q(8,spenso::mink(4,hedge(11)))+7*Q(6,spenso::mink(4,hedge(11))))*(5*Q(2,spenso::mink(4,hedge(15)))+Q(1,spenso::mink(4,hedge(15)))-7*Q(0,spenso::mink(4,hedge(15)))+3*Q(6,spenso::mink(4,hedge(15)))-5*Q(8,spenso::mink(4,hedge(15))))+MT^2*spenso::g(spenso::mink(4,hedge(11)),spenso::mink(4,hedge(15))))*spenso::g(spenso::coad(8,hedge(14)),spenso::coad(8,hedge(15)))"
-        #        )
-        #        num_up = Es(
-        #            "((Q(2,spenso::mink(4,hedge(11)))+2*Q(1,spenso::mink(4,hedge(11)))+22*Q(0,spenso::mink(4,hedge(11)))+6*Q(8,spenso::mink(4,hedge(11)))+7*Q(6,spenso::mink(4,hedge(11))))*(5*Q(2,spenso::mink(4,hedge(15)))+Q(1,spenso::mink(4,hedge(15)))-7*Q(0,spenso::mink(4,hedge(15)))+3*Q(6,spenso::mink(4,hedge(15)))-5*Q(8,spenso::mink(4,hedge(15)))))*spenso::g(spenso::coad(8,hedge(14)),spenso::coad(8,hedge(15)))"
-        #        )
-        # num_up = Es(
-        #    "((Q(2,spenso::mink(4,hedge(11))))*(Q(3,spenso::mink(4,hedge(15)))))*spenso::g(spenso::coad(8,hedge(11)),spenso::coad(8,hedge(15)))"
-        # )
-        # num_down = Es(
-        #    "sp(0,7)*(spenso::g(spenso::mink(4,hedge(10)),spenso::mink(4,hedge(14))))*spenso::g(spenso::coad(8,hedge(10)),spenso::coad(8,hedge(14)))"
-        # )
-        # num = num * num_up * num_down * Es("1𝑖")
 
         num = num
 
@@ -688,73 +814,90 @@ class EMRIntegrandConstructor(object):
 
         popping_edges = deepcopy(s_channel_edges)
 
+        def _is_exact_zero(expr):
+            return str(expr.expand()) == "0"
+
         while len(popping_edges) > 0:
             current_s_edge = popping_edges.pop()
             s_edge_atts = current_s_edge.get_attributes()
-            check = False
+            candidates = []
             for g in s_split_graphs:
-                g_rep = g.replacements
                 for e in g.graph.get_edges():
                     e_atts = e.get_attributes()
                     e_src = e.get_source()
-                    if s_edge_atts["name"] == e_atts["name"]:
-                        denom = E("0")
-                        denom_num = E("0")
-                        for ep in g.graph.get_edges():
-                            ep_src = ep.get_source()
-                            ep_dest = ep.get_destination()
-                            ep_atts = ep.get_attributes()
-                            if ep_src.startswith("ext") and ep != e:
-                                cut_sign = ep_atts.get("is_cut_DY", 0)
-                                denom += cut_sign * E(
-                                    f"E({g.replacements[ep_atts['id']][1]})"
-                                )
-                                denom_num += cut_sign * E(
-                                    f"En({g.replacements[ep_atts['id']][1]})"
-                                )
-                            if ep_dest.startswith("ext") and ep != e:
-                                cut_sign = ep_atts.get("is_cut_DY", 0)
-                                denom -= cut_sign * E(
-                                    f"E({g.replacements[ep_atts['id']][1]})"
-                                )
-                                denom_num -= cut_sign * E(
-                                    f"En({g.replacements[ep_atts['id']][1]})"
-                                )
-                        # NEW: for cut s-channel propagators
-                        if e_atts.get("is_cut_DY", None) is not None:
-                            previous_cff = previous_cff / denom
-                        else:
-                            previous_cff = previous_cff / denom**2
+                    if s_edge_atts["name"] != e_atts["name"]:
+                        continue
 
-                        sign = 1 if e_src.startswith("ext") else -1
+                    denom = E("0")
+                    denom_num = E("0")
+                    for ep in g.graph.get_edges():
+                        ep_src = ep.get_source()
+                        ep_dest = ep.get_destination()
+                        ep_atts = ep.get_attributes()
+                        if ep_src.startswith("ext") and ep != e:
+                            cut_sign = ep_atts.get("is_cut_DY", 0)
+                            denom += cut_sign * E(
+                                f"E({g.replacements[ep_atts['id']][1]})"
+                            )
+                            denom_num += cut_sign * E(
+                                f"En({g.replacements[ep_atts['id']][1]})"
+                            )
+                        if ep_dest.startswith("ext") and ep != e:
+                            cut_sign = ep_atts.get("is_cut_DY", 0)
+                            denom -= cut_sign * E(
+                                f"E({g.replacements[ep_atts['id']][1]})"
+                            )
+                            denom_num -= cut_sign * E(
+                                f"En({g.replacements[ep_atts['id']][1]})"
+                            )
+                    candidates.append((g, e_atts, e_src, denom, denom_num))
 
-                        if e_atts.get("is_cut_DY") is not None:
-                            sign = e_atts.get("is_cut_DY") * sign
-
-                        previous_cff = previous_cff.replace(
-                            E(f"E({g.replacements[e_atts['id']][1]})"), -sign * denom
-                        )
-                        previous_cff = previous_cff.replace(
-                            E(f"En({g.replacements[e_atts['id']][1]})"),
-                            -sign * denom_num,
-                        )
-
-                        if get_residues:
-                            e_surfaces = {
-                                e_surf.replace(
-                                    E(f"E({g.replacements[e_atts['id']][1]})"),
-                                    -sign * denom,
-                                )
-                                for e_surf in e_surfaces
-                            }
-
-                        previous_cff = previous_cff.replace(
-                            E(f"sigma({g.replacements[e_atts['id']][1]})"), E("1")
-                        )
-                        check = True
-                        break
-                if check:
+            selected_candidate = None
+            for candidate in candidates:
+                if not _is_exact_zero(candidate[3]):
+                    selected_candidate = candidate
                     break
+
+            if selected_candidate is None:
+                denom_report = [str(candidate[3].expand()) for candidate in candidates]
+                raise ValueError(
+                    "Could not reconstruct nonzero s-channel denominator for "
+                    f"{s_edge_atts.get('name')}; candidates={denom_report}"
+                )
+
+            g, e_atts, e_src, denom, denom_num = selected_candidate
+
+            # NEW: for cut s-channel propagators
+            if e_atts.get("is_cut_DY", None) is not None:
+                previous_cff = previous_cff / denom
+            else:
+                previous_cff = previous_cff / denom**2
+
+            sign = 1 if e_src.startswith("ext") else -1
+
+            if e_atts.get("is_cut_DY") is not None:
+                sign = e_atts.get("is_cut_DY") * sign
+
+            previous_cff = previous_cff.replace(
+                E(f"E({g.replacements[e_atts['id']][1]})"), -sign * denom
+            )
+            previous_cff = previous_cff.replace(
+                E(f"En({g.replacements[e_atts['id']][1]})"),
+                -sign * denom_num,
+            )
+
+            if get_residues:
+                e_surfaces = {
+                    e_surf.replace(
+                        E(f"E({g.replacements[e_atts['id']][1]})"),
+                        -sign * denom,
+                    )
+                    for e_surf in e_surfaces
+                }
+
+            previous_cff = previous_cff.replace(
+                E(f"sigma({g.replacements[e_atts['id']][1]})"), E("1")
+            )
 
         # Multiplies by inverse cut energies and substitutes their orientation acoording to
         # the cut.
@@ -786,7 +929,8 @@ class EMRIntegrandConstructor(object):
                 eN = eta.replace(E("E(x___)"), E("1"))
                 if len(energies) > 1 and eN < len(energies):
                     pivot = energies[0]
-                    if pivot.match(E("-E(x___)")) is not None:
+                    # if pivot.match(E("-E(x___)")) is not None:
+                    if pivot.format_plain().lstrip().startswith("-"):
                         patt = pivot.replace(E("-E(x___)"), E("E(x___)"))
                         repl = sum(en for en in energies[1:]) - delta
                     else:
@@ -1083,6 +1227,7 @@ class ThresholdSubtractor(object):
         self.residues = self.emr_processor.get_integrand(routed_cut_graph, True)
         self.L = L
         self.theta_support = theta_support
+        self.name = name
 
     # Here we can do something that is sort of process-specific...
     def filter_e_surfaces(self):
@@ -1363,7 +1508,6 @@ class ThresholdSubtractor(object):
 
             repl_kperp = -x * collinear_momentum + rep_r
 
-
             # NEW: CUT THRESHOLD CUTTING REGION BY 4
 
             theta1 = (
@@ -1394,17 +1538,30 @@ class ThresholdSubtractor(object):
             theta1 = E("1")
             theta2 = E("1")
 
-        hr = (
-            # (-((r - rstar) ** 2) - 1 / r**2 + 1 / rstar**2)
-            (-((r - rstar) ** 2))
-            .exp()
-            .replace(r, (self.sp3D(E("k(0)"), E("k(0)")) ** E("1/2")).log())
-            .replace(khat, E("k(0)") * inv_knorm)
-            .replace(inv_knorm, 1 / (self.sp3D(E("k(0)"), E("k(0)")) ** E("1/2")))
-            .replace(
-                E("s"), 4 * (E("p(1,1)") ** 2 + E("p(1,2)") ** 2 + E("p(1,3)") ** 2)
+        if self.name == "DY":
+            hr = (
+                # (-((r - rstar) ** 2) - 1 / r**2 + 1 / rstar**2)
+                (-((r - rstar) ** 2))
+                .exp()
+                .replace(r, (self.sp3D(E("k(0)"), E("k(0)")) ** E("1/2")).log())
+                .replace(khat, E("k(0)") * inv_knorm)
+                .replace(inv_knorm, 1 / (self.sp3D(E("k(0)"), E("k(0)")) ** E("1/2")))
+                .replace(
+                    E("s"), 4 * (E("p(1,1)") ** 2 + E("p(1,2)") ** 2 + E("p(1,3)") ** 2)
+                )
             )
-        )
+        else:
+            hr = (
+                # (-((r - rstar) ** 2) - 1 / r**2 + 1 / rstar**2)
+                (-((r - rstar) ** 2) - 1 / r**2 + 1 / rstar**2)
+                .exp()
+                .replace(r, (self.sp3D(E("k(0)"), E("k(0)")) ** E("1/2")).log())
+                .replace(khat, E("k(0)") * inv_knorm)
+                .replace(inv_knorm, 1 / (self.sp3D(E("k(0)"), E("k(0)")) ** E("1/2")))
+                .replace(
+                    E("s"), 4 * (E("p(1,1)") ** 2 + E("p(1,2)") ** 2 + E("p(1,3)") ** 2)
+                )
+            )
 
         jacobian_correction = (
             (-3 * (r - rstar))
@@ -1979,34 +2136,35 @@ class LoopIntegrandConstructor(object):
                     ]
 
             # integrand = E("(-(E(0)+E(2)+E(3))+E(0)+E(5))^-1*E(2)^(-2)")
-            base_graph_name = _strip_quotes(
-                        str(cut_graph.graph.get("base_graph_name"))
-                    )
-            
+            base_graph_name = _strip_quotes(str(cut_graph.graph.get("base_graph_name")))
 
+            if (
+                base_graph_name in ["GL07", "GL09"]
+                and self.channel == (1, -1)
+                or self.channel == (-1, 1)
+            ):
+                integrand = integrand.replace(
+                    E("E(5)"), self.sp3D(E("k(0)"), E("k(0)")) ** E("1/2")
+                )
+                integrand = integrand.replace(
+                    E("E(4)"), self.sp3D(E("k(0)"), E("k(0)")) ** E("1/2")
+                )
 
-            if base_graph_name in ["GL07","GL09"] and self.channel==(1,-1) or self.channel==(-1,1):
-                integrand=integrand.replace(E("E(5)"), self.sp3D(E("k(0)"), E("k(0)"))**E("1/2"))
-                integrand=integrand.replace(E("E(4)"), self.sp3D(E("k(0)"), E("k(0)"))**E("1/2"))
-
-           # print("hacked integrand")
-            #print(integrand)
+            # print("hacked integrand")
+            # print(integrand)
 
             integrand = self.canonicalise_energies(integrand, cut_graph)
 
-            #print("soft emr integrand")
-            #print(integrand)
-
-            
-            
+            # print("soft emr integrand")
+            # print(integrand)
 
             integrand = self.replace_energies(integrand, cut_graph)
             integrand = integrand.replace(E("p1sq"), E("0"))
             integrand = integrand.replace(E("p2sq"), E("0"))
             integrand = self.route_integrand(integrand, cut_graph)
 
-            #print("routed emr integrand")
-            #print(integrand)
+            # print("routed emr integrand")
+            # print(integrand)
 
             # Factor of 1/s for soft and soft-collinear for virtual DY diagram
 
@@ -2014,11 +2172,11 @@ class LoopIntegrandConstructor(object):
             if self.name == "DY" and len(cut_graph.final_cut) == 1:
                 factor = 1 / (4 * self.sp3D(E("p(1)"), E("p(2)")))
 
-            #if self.name=="tt~":
-                #integrand = integrand.replace(E("p(2)"), -E("p(1)"))
-                #momentum[0] = momentum[0].replace(E("p(2)"), -E("p(1)"))
+            # if self.name=="tt~":
+            # integrand = integrand.replace(E("p(2)"), -E("p(1)"))
+            # momentum[0] = momentum[0].replace(E("p(2)"), -E("p(1)"))
 
-            print("input-"*10)
+            print("input-" * 10)
             print(f"hard particles are {id_hard1} and {id_hard2}")
             print(deepcopy(momentum))
             print(deepcopy(k_id))
@@ -2027,8 +2185,8 @@ class LoopIntegrandConstructor(object):
                 deepcopy(integrand), deepcopy(momentum), deepcopy(k_id)
             )
 
-            #print("soft approximation")
-            #print(soft_integrand)
+            # print("soft approximation")
+            # print(soft_integrand)
 
             soft_collinear_integrand1, repl1, repl1_x, repl_kperp1 = (
                 self.approximator.collinear_approximation(
@@ -2049,14 +2207,13 @@ class LoopIntegrandConstructor(object):
             )
 
             if self.name == "tt~" and len(cut_graph.final_cut) == 2:
-                soft_collinear_integrand1=-soft_collinear_integrand1
-                soft_collinear_integrand2=-soft_collinear_integrand2
-                soft_integrand=-soft_integrand
+                soft_collinear_integrand1 = -soft_collinear_integrand1
+                soft_collinear_integrand2 = -soft_collinear_integrand2
+                soft_integrand = -soft_integrand
 
-
-            integrand = (
-                soft_integrand + soft_collinear_integrand1 + soft_collinear_integrand2
-            )  # * E(f"Θ({repl_x})") * E(f"Θ(1-{repl_x})")
+            # integrand = (
+            #    soft_integrand + soft_collinear_integrand1 + soft_collinear_integrand2
+            # )  # * E(f"Θ({repl_x})") * E(f"Θ(1-{repl_x})")
 
             # need to construct propagators
             propsoft1 = 2 * (
@@ -2269,8 +2426,8 @@ class LoopIntegrandConstructor(object):
 
                 # emr_representation = emr_representation.replace(E("q(6)"), E("-q(6)"))
 
-                #print("EMR AFTER LIMITTTTT")
-                #print(emr_representation)
+                # print("EMR AFTER LIMITTTTT")
+                # print(emr_representation)
 
                 if cut[3] in ["t", "t~"]:
                     print("HEREEEEEEE" * 10)
@@ -2640,7 +2797,7 @@ class LoopIntegrandConstructor(object):
                         "GL18",
                     ]:
                         theta_flag = False
-                        lmb_choice = [6,3]
+                        lmb_choice = [6, 3]
 
                     if base_graph_name in [
                         "GL17",
@@ -2701,7 +2858,7 @@ class LoopIntegrandConstructor(object):
         print(cut_graph.graph)
         emr_integrand = self.emr_processor.get_integrand(cut_graph)
 
-        #print(emr_integrand)
+        # print(emr_integrand)
 
         loop_integrand, raised_cut, is_final_raised = self.eliminate_raised_cuts(
             emr_integrand, cut_graph
@@ -2734,7 +2891,7 @@ class LoopIntegrandConstructor(object):
         print(len(loop_integrand))
 
         print("*** " * 10)
-        #for lp in loop_integrand:
+        # for lp in loop_integrand:
         #    print(lp.integrand)
 
         if is_final_raised:
