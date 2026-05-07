@@ -159,6 +159,12 @@ class DY(object):
         self.large_weight_retry_example_momentum_point: str | None = None
         self.large_weight_retry_example_compiled_wgt: float | None = None
         self.large_weight_retry_example_arb_wgt: float | None = None
+        self.nan_weight_count: int = 0
+        self.nan_weight_example: list[float] | None = None
+        self.nan_weight_example_momentum_point: str | None = None
+        self.nan_weight_rotated_count: int = 0
+        self.nan_weight_rotated_example: list[float] | None = None
+        self.nan_weight_rotated_example_momentum_point: str | None = None
         self.max_wgt: float | None = None
         self.max_wgt_point: list[float] | None = None
         self.max_wgt_jacobian: float | None = None
@@ -1373,6 +1379,9 @@ class DY(object):
                 wgt = self.integrand(
                     loop_momenta, impl, channel_selector=channel_selector
                 )
+            wgt = self._sanitize_integrand_weight(
+                wgt, xs, momentum_point, rotated=False
+            )
             wgt_in_arb = str(impl.get("dy_evaluation_mode", "compiled")) == "arb"
             is_zenos = impl.get("integrand_type") == "zenos"
 
@@ -1388,7 +1397,10 @@ class DY(object):
                     wgt_rot = self.zenos_integrand_with_externals(
                         rk, rp1, rp2, impl, channel_selector=channel_selector
                     )
-                    rel = abs(wgt - wgt_rot) / (abs(wgt) + abs(wgt_rot) + abs(eps))
+                    wgt_rot = self._sanitize_integrand_weight(
+                        wgt_rot, xs, momentum_point, rotated=True
+                    )
+                    rel = self._integrand_weight_rel(wgt, wgt_rot, eps)
                     if rel > 10.0 ** (-n_digits_int):
                         self.rotation_hp_retry_count += 1
                         if self.rotation_hp_retry_example is None:
@@ -1418,6 +1430,9 @@ class DY(object):
                                 arb_impl,
                                 channel_selector=channel_selector,
                             )
+                            wgt_arb = self._sanitize_integrand_weight(
+                                wgt_arb, xs, momentum_point, rotated=False
+                            )
                             if bool(impl.get("dy_accept_all_arb_retries", False)):
                                 self.rotation_hp_salvaged_count += 1
                                 wgt = wgt_arb
@@ -1430,8 +1445,14 @@ class DY(object):
                                     arb_impl,
                                     channel_selector=channel_selector,
                                 )
-                                rel_arb = abs(wgt_arb - wgt_rot_arb) / (
-                                    abs(wgt_arb) + abs(wgt_rot_arb) + abs(eps)
+                                wgt_rot_arb = self._sanitize_integrand_weight(
+                                    wgt_rot_arb,
+                                    xs,
+                                    momentum_point,
+                                    rotated=True,
+                                )
+                                rel_arb = self._integrand_weight_rel(
+                                    wgt_arb, wgt_rot_arb, eps
                                 )
                                 if rel_arb <= 10.0 ** (-n_digits_int):
                                     self.rotation_hp_salvaged_count += 1
@@ -1535,6 +1556,9 @@ class DY(object):
                         self.large_weight_unstable_count += 1
                         wgt = 0.0 + 0.0j
 
+            wgt = self._sanitize_integrand_weight(
+                wgt, xs, momentum_point, rotated=False
+            )
             stable_wgt_abs = abs(wgt)
             if self.max_stable_wgt is None or stable_wgt_abs > self.max_stable_wgt:
                 self.max_stable_wgt = stable_wgt_abs
@@ -1549,6 +1573,12 @@ class DY(object):
             wgt = wgt.real if phase == "real" else wgt.imag
             final_wgt = wgt * total_jacobian
 
+            if not math.isfinite(final_wgt):
+                logger.debug(
+                    f"Integrand evaluated to non-finite final weight at xs = [{Colour.BLUE}{', '.join(f'{xi:+.16e}' for xi in xs)}{Colour.END}]. Setting it to zero"
+                )
+                final_wgt = 0.0
+
             if self.max_wgt is None or abs(final_wgt) > abs(self.max_wgt):
                 self.max_wgt = final_wgt
                 self.max_wgt_point = list(xs)
@@ -1558,12 +1588,6 @@ class DY(object):
             # print("res")
             # print(xs)
             # print(final_wgt)
-
-            if math.isnan(final_wgt):
-                logger.debug(
-                    f"Integrand evaluated to NaN at xs = [{Colour.BLUE}{', '.join(f'{xi:+.16e}' for xi in xs)}{Colour.END}]. Setting it to zero"
-                )
-                final_wgt = 0.0
 
         except ZeroDivisionError:
             logger.debug(
@@ -1730,6 +1754,68 @@ class DY(object):
             integrand_implementation.get("dy_rotation_check_arb_digits", 80),
         )
         return int(value)
+
+    @staticmethod
+    def _integrand_weight_is_finite(value: complex) -> bool:
+        try:
+            z = complex(value)
+        except (OverflowError, TypeError, ValueError):
+            return False
+        return (
+            math.isfinite(z.real)
+            and math.isfinite(z.imag)
+            and math.isfinite(math.hypot(z.real, z.imag))
+        )
+
+    @staticmethod
+    def _integrand_weight_rel(
+        wgt: complex,
+        wgt_rot: complex,
+        eps: float,
+    ) -> float:
+        try:
+            z = complex(wgt)
+            z_rot = complex(wgt_rot)
+            dz = z - z_rot
+            numerator = math.hypot(dz.real, dz.imag)
+            denominator = (
+                math.hypot(z.real, z.imag)
+                + math.hypot(z_rot.real, z_rot.imag)
+                + abs(eps)
+            )
+            rel = numerator / denominator
+        except (OverflowError, TypeError, ValueError, ZeroDivisionError):
+            return math.inf
+        return rel if math.isfinite(rel) else math.inf
+
+    def _sanitize_integrand_weight(
+        self,
+        value: complex,
+        xs: list[float],
+        momentum_point: str,
+        *,
+        rotated: bool,
+    ) -> complex:
+        if self._integrand_weight_is_finite(value):
+            return complex(value)
+
+        if rotated:
+            self.nan_weight_rotated_count += 1
+            if self.nan_weight_rotated_example is None:
+                self.nan_weight_rotated_example = list(xs)
+                self.nan_weight_rotated_example_momentum_point = momentum_point
+        else:
+            self.nan_weight_count += 1
+            if self.nan_weight_example is None:
+                self.nan_weight_example = list(xs)
+                self.nan_weight_example_momentum_point = momentum_point
+
+        logger.debug(
+            f"Integrand evaluated to non-finite {'rotated ' if rotated else ''}weight "
+            f"at xs = [{Colour.BLUE}{', '.join(f'{xi:+.16e}' for xi in xs)}{Colour.END}]. "
+            "Setting it to zero"
+        )
+        return 0.0 + 0.0j
 
     @staticmethod
     def _call_args_use_zenos_integrand(call_args: list[Any]) -> bool:
@@ -1924,6 +2010,20 @@ class DY(object):
         this_result.large_weight_unstable_count = (
             process_instance.large_weight_unstable_count
         )
+        this_result.nan_weight_count = process_instance.nan_weight_count
+        this_result.nan_weight_rotated_count = (
+            process_instance.nan_weight_rotated_count
+        )
+        this_result.nan_weight_example = process_instance.nan_weight_example
+        this_result.nan_weight_example_momentum_point = (
+            process_instance.nan_weight_example_momentum_point
+        )
+        this_result.nan_weight_rotated_example = (
+            process_instance.nan_weight_rotated_example
+        )
+        this_result.nan_weight_rotated_example_momentum_point = (
+            process_instance.nan_weight_rotated_example_momentum_point
+        )
         this_result.large_weight_retry_example = (
             process_instance.large_weight_retry_example
         )
@@ -2051,6 +2151,16 @@ class DY(object):
         res.large_weight_retry_count = process.large_weight_hp_retry_count
         res.large_weight_salvaged_count = process.large_weight_hp_salvaged_count
         res.large_weight_unstable_count = process.large_weight_unstable_count
+        res.nan_weight_count = process.nan_weight_count
+        res.nan_weight_rotated_count = process.nan_weight_rotated_count
+        res.nan_weight_example = process.nan_weight_example
+        res.nan_weight_example_momentum_point = (
+            process.nan_weight_example_momentum_point
+        )
+        res.nan_weight_rotated_example = process.nan_weight_rotated_example
+        res.nan_weight_rotated_example_momentum_point = (
+            process.nan_weight_rotated_example_momentum_point
+        )
         res.large_weight_retry_example = process.large_weight_retry_example
         res.large_weight_retry_example_momentum_point = (
             process.large_weight_retry_example_momentum_point
@@ -2201,6 +2311,16 @@ class DY(object):
         res.large_weight_retry_count = process.large_weight_hp_retry_count
         res.large_weight_salvaged_count = process.large_weight_hp_salvaged_count
         res.large_weight_unstable_count = process.large_weight_unstable_count
+        res.nan_weight_count = process.nan_weight_count
+        res.nan_weight_rotated_count = process.nan_weight_rotated_count
+        res.nan_weight_example = process.nan_weight_example
+        res.nan_weight_example_momentum_point = (
+            process.nan_weight_example_momentum_point
+        )
+        res.nan_weight_rotated_example = process.nan_weight_rotated_example
+        res.nan_weight_rotated_example_momentum_point = (
+            process.nan_weight_rotated_example_momentum_point
+        )
         res.large_weight_retry_example = process.large_weight_retry_example
         res.large_weight_retry_example_momentum_point = (
             process.large_weight_retry_example_momentum_point
