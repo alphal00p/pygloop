@@ -106,3 +106,6 @@ class TemplateProcess(object):
 
     def plot(self, **opts: Any) -> None:  # type: ignore
         self._placeholder("plot")
+
+    def test_process(self, **opts: Any) -> dict[str, Any]:  # type: ignore
+        self._placeholder("test_process")

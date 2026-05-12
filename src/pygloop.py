@@ -14,6 +14,7 @@ from pprint import pformat
 
 DY = None
 GGHHH = None
+QQbarNX = None
 ScalarGravity = None
 TemplateProcess = None
 
@@ -26,6 +27,11 @@ try:
     from processes.gghhh.gghhh import GGHHH
 except Exception as exc:
     print(f"Warning: GGHHH process not available ({exc}).", file=sys.stderr)
+
+try:
+    from processes.qqbar_nX.qqbar_nX import qqbar_nX as QQbarNX
+except Exception as exc:
+    print(f"Warning: qqbar_nX process not available ({exc}).", file=sys.stderr)
 
 try:
     from processes.scalar_gravity.scalar_gravity import ScalarGravity
@@ -71,7 +77,7 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
 
     parser = FloatArgParser(prog="pygloop")
 
-    parser.add_argument("--process", "-p", type=str, choices=["gghhh", "template_process", "dy", "scalar_gravity"], default="gghhh",
+    parser.add_argument("--process", "-p", type=str, choices=["gghhh", "template_process", "dy", "scalar_gravity", "qqbar_nX", "qqbar_nx"], default="gghhh",
         help="Process to consider. Default = %(default)s",
     )  # fmt: off
     parser.add_argument("--general_settings", "-gs", type=str, nargs="*", default=None,
@@ -168,6 +174,19 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
         default=False,
         help="DY only: sample beam fractions x1 and x2 in [0,1] and use p1=(0,0,e_cm*x1), p2=(0,0,-e_cm*x2) at runtime for the zenos integrand.",
     )
+    parser.add_argument(
+        "--qqbar-nx-config",
+        type=str,
+        default=None,
+        help="qqbar_nX only: process configuration TOML. Default = src/processes/qqbar_nX/config.toml.",
+    )
+    parser.add_argument(
+        "--qqbar-nx-final-state",
+        type=str,
+        nargs="+",
+        default=None,
+        help="qqbar_nX only: final-state colorless boson labels. Currently only h h h is implemented.",
+    )
 
     parser.add_argument("--gammaloop-configuration", "-f", default=None,
         help="Specify a toml file containing the gammaloop configuration desired. Default = ./configs/<PROCESS_NAME>/generate.toml",
@@ -200,11 +219,11 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
     parser.add_argument("--ph3", "-ph3", type=float, nargs=4, default=None,
         help="Four-momentum of the third Higgs. Default for gghhh = [0.2050747962831133e03, -0.1385298111750267e03, -0.2928692940775817e02, 0.7989016993496030e02] GeV",
     )  # fmt: off
-    parser.add_argument("--helicities", type=int, nargs=5, default=[+1, +1, +0, +0, +0],
-        help="Helicities of the particles in the process. Default = %(default)s",
+    parser.add_argument("--helicities", type=int, nargs=5, default=None,
+        help="Helicities of the particles in the process. Default = process-specific.",
     )  # fmt: off
-    parser.add_argument("--n_loops", type=int, choices=[1, 2, 3, 4], default=1,
-        help="Number of loops in the process. Default = %(default)s",
+    parser.add_argument("--n_loops", type=int, choices=[1, 2, 3, 4], default=None,
+        help="Number of loops in the process. Default = process-specific.",
     )  # fmt: off
     parser.add_argument("--clean", "-c", action="store_true", default=False,
         help="Clean existing generated states before generating new ones. Default = %(default)s",
@@ -336,7 +355,46 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
     parser_bench.add_argument("--repeat", "-r", type=int, default=5,
         help="Number of repeats for the timing profile. Default = %(default)s",
     )  # fmt: off
+    parser_test_process = subparsers.add_parser(
+        "test",
+        aliases=["test_process", "test-process"],
+        help="Run the process-specific test suite implemented by the selected process.",
+    )
+    parser_test_process.add_argument(
+        "--mode",
+        "--test-mode",
+        dest="test_mode",
+        choices=["gammaloop", "3D", "3d", "cff", "4D", "4d"],
+        default="gammaloop",
+        help="Process-specific test mode. qqbar_nX supports gammaloop and 4D.",
+    )
+    subparsers.add_parser(
+        "test-qqbar-nx-selection",
+        help="qqbar_nX only: generate raw graphs, run the pydot topology selector, and write the manifest.",
+    )
+    subparsers.add_parser(
+        "build-qqbar-nx-ir",
+        help="qqbar_nX only: build the ISR-subtracted DOT and standalone GammaLoop run card.",
+    )
+    subparsers.add_parser(
+        "test-qqbar-nx-ir",
+        help="qqbar_nX only: build and re-import the ISR-subtracted DOT to validate GammaLoop parsing.",
+    )
+    subparsers.add_parser(
+        "build-qqbar-nx-ir-smoke",
+        help="qqbar_nX only: build a reduced ISR-subtracted DOT for GammaLoop generation/integration smoke tests.",
+    )
+    subparsers.add_parser(
+        "test-qqbar-nx-standalone-smoke",
+        help="qqbar_nX only: run the standalone GammaLoop smoke load/generate/inspect/integrate path.",
+    )
+    subparsers.add_parser(
+        "test-qqbar-nx-collinear",
+        help="qqbar_nX only: run detailed f64/f128 collinear and +- / ++ low-stat standalone checks.",
+    )
     args = parser.parse_args(argv)
+    if args.process == "qqbar_nx":
+        args.process = "qqbar_nX"
     setup_logging()
 
     match args.verbosity:
@@ -413,6 +471,42 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
                 LorentzVector(ph2[0], ph2[1], ph2[2], ph2[3]),
                 LorentzVector(ph3[0], ph3[1], ph3[2], ph3[3]),
             ]
+        case "qqbar_nX":
+            if args.m_top is None:
+                args.m_top = 173.0
+            if args.m_higgs is None:
+                args.m_higgs = 125.0
+            if ps_point_is_default:
+                ps_point = [
+                    LorentzVector(500.0, 0.0, 0.0, 500.0),
+                    LorentzVector(500.0, 0.0, 0.0, -500.0),
+                    LorentzVector(
+                        438.5555662246945,
+                        155.3322001835378,
+                        348.0160396513587,
+                        -177.3773615718412,
+                    ),
+                    LorentzVector(
+                        356.3696374921922,
+                        -16.80238900851100,
+                        -318.7291102436005,
+                        97.48719163688098,
+                    ),
+                    LorentzVector(
+                        205.0747962831133,
+                        -138.5298111750267,
+                        -29.28692940775817,
+                        79.89016993496030,
+                    ),
+                ]
+            else:
+                ps_point = [
+                    LorentzVector(args.pg1[0], args.pg1[1], args.pg1[2], args.pg1[3]),
+                    LorentzVector(args.pg2[0], args.pg2[1], args.pg2[2], args.pg2[3]),
+                    LorentzVector(args.ph1[0], args.ph1[1], args.ph1[2], args.ph1[3]),
+                    LorentzVector(args.ph2[0], args.ph2[1], args.ph2[2], args.ph2[3]),
+                    LorentzVector(args.ph3[0], args.ph3[1], args.ph3[2], args.ph3[3]),
+                ]
         case _:
             if args.m_top is None:
                 args.m_top = 173.0
@@ -450,6 +544,15 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
                     LorentzVector(args.ph3[0], args.ph3[1], args.ph3[2], args.ph3[3]),
                 ]
 
+    if args.helicities is None:
+        args.helicities = (
+            [+1, -1, +0, +0, +0]
+            if args.process == "qqbar_nX"
+            else [+1, +1, +0, +0, +0]
+        )
+    if args.n_loops is None:
+        args.n_loops = 2 if args.process == "qqbar_nX" else 1
+
     match args.process:
         case "gghhh":
             process_class = _require_process_class("gghhh", GGHHH)
@@ -459,6 +562,8 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
             process_class = _require_process_class("scalar_gravity", ScalarGravity)
         case "dy":
             process_class = _require_process_class("dy", DY)
+        case "qqbar_nX":
+            process_class = _require_process_class("qqbar_nX", QQbarNX)
         case _:
             raise pygloopException(f"Process {args.process} not implemented.")
 
@@ -553,6 +658,26 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
                     else args.dy_rotation_check_arb_digits
                 ),
                 load_compiled_bundle=args.command != "generate",
+            )
+        case "qqbar_nX":
+            qqbar_nx_fast_4d_test = (
+                args.command in {"test", "test_process", "test-process"}
+                and str(getattr(args, "test_mode", "")).lower() == "4d"
+                and not args.clean
+            )
+            process = process_class(
+                args.m_top,
+                args.m_higgs,
+                ps_point,
+                args.helicities,
+                args.n_loops,
+                toml_config_path=args.gammaloop_configuration,
+                runtime_toml_config_path=args.runtime_configuration,
+                clean=args.clean,
+                gammaloop_settings=args.gammaloop_settings,
+                qqbar_nx_config_path=args.qqbar_nx_config,
+                final_state=args.qqbar_nx_final_state,
+                skip_gl_worker_init=qqbar_nx_fast_4d_test,
             )
         case _:
             raise pygloopException(f"Process {args.process} not implemented.")
@@ -729,6 +854,92 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
             result["bench_result"] = res
             result["bench_stats"] = st
             result["disk_size"] = disk_size
+        case "test" | "test_process" | "test-process":
+            if not hasattr(process, "test_process"):
+                raise pygloopException(
+                    f"Process {args.process} does not implement test_process()."
+                )
+            if args.process == "qqbar_nX":
+                test_result = process.test_process(mode=args.test_mode)  # type: ignore[attr-defined]
+            else:
+                test_result = process.test_process()  # type: ignore[attr-defined]
+            result["test_process"] = test_result
+        case "test-qqbar-nx-selection":
+            if args.process != "qqbar_nX":
+                raise pygloopException(
+                    "The test-qqbar-nx-selection command requires --process qqbar_nX."
+                )
+            selection_manifest = process.test_graph_selection()  # type: ignore[attr-defined]
+            logger.info(
+                "qqbar_nX selection test completed with counts: %s",
+                selection_manifest.get("counts", {}),
+            )
+            result["selection_manifest"] = selection_manifest
+        case "build-qqbar-nx-ir":
+            if args.process != "qqbar_nX":
+                raise pygloopException(
+                    "The build-qqbar-nx-ir command requires --process qqbar_nX."
+                )
+            ir_manifest = process.build_ir_subtracted_graphs()  # type: ignore[attr-defined]
+            logger.info(
+                "qqbar_nX IR DOT build completed with counts: %s",
+                ir_manifest.get("counts", {}),
+            )
+            result["ir_manifest"] = ir_manifest
+        case "test-qqbar-nx-ir":
+            if args.process != "qqbar_nX":
+                raise pygloopException(
+                    "The test-qqbar-nx-ir command requires --process qqbar_nX."
+                )
+            ir_manifest = process.test_ir_counterterm_import()  # type: ignore[attr-defined]
+            logger.info(
+                "qqbar_nX IR DOT import test completed with counts: %s and import test: %s",
+                ir_manifest.get("counts", {}),
+                ir_manifest.get("import_test", {}),
+            )
+            result["ir_manifest"] = ir_manifest
+        case "build-qqbar-nx-ir-smoke":
+            if args.process != "qqbar_nX":
+                raise pygloopException(
+                    "The build-qqbar-nx-ir-smoke command requires --process qqbar_nX."
+                )
+            ir_manifest = process.build_ir_smoke_test_graphs()  # type: ignore[attr-defined]
+            logger.info(
+                "qqbar_nX IR smoke DOT build completed with counts: %s",
+                ir_manifest.get("counts", {}),
+            )
+            result["ir_manifest"] = ir_manifest
+        case "test-qqbar-nx-standalone-smoke":
+            if args.process != "qqbar_nX":
+                raise pygloopException(
+                    "The test-qqbar-nx-standalone-smoke command requires --process qqbar_nX."
+                )
+            ir_manifest = process.run_standalone_smoke_tests()  # type: ignore[attr-defined]
+            logger.info(
+                "qqbar_nX standalone smoke test completed with commands: %s",
+                [
+                    item.get("label")
+                    for item in ir_manifest.get("standalone_smoke_test", {}).get(
+                        "commands", []
+                    )
+                ],
+            )
+            result["ir_manifest"] = ir_manifest
+        case "test-qqbar-nx-collinear":
+            if args.process != "qqbar_nX":
+                raise pygloopException(
+                    "The test-qqbar-nx-collinear command requires --process qqbar_nX."
+                )
+            ir_manifest = process.run_standalone_collinear_tests()  # type: ignore[attr-defined]
+            logger.info(
+                "qqbar_nX standalone collinear test completed with checks: %s",
+                list(
+                    ir_manifest.get("standalone_collinear_test", {})
+                    .get("checks", {})
+                    .keys()
+                ),
+            )
+            result["ir_manifest"] = ir_manifest
         case _:
             raise pygloopException(f"Command {args.command} not implemented.")
 

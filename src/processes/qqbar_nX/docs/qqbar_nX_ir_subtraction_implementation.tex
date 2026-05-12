@@ -1,0 +1,994 @@
+\documentclass[11pt]{article}
+
+\usepackage[a4paper,margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath,amssymb,mathtools}
+\usepackage{booktabs,longtable,array}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{listings}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue!60!black,
+  urlcolor=blue!60!black,
+  citecolor=blue!60!black
+}
+
+\lstdefinestyle{pygloop}{
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  columns=fullflexible,
+  frame=single,
+  framerule=0.2pt,
+  backgroundcolor=\color{black!2}
+}
+\lstset{style=pygloop}
+
+\newcommand{\dd}{\mathrm{d}}
+\newcommand{\ii}{\mathrm{i}}
+\newcommand{\GammaLoop}{\textsc{GammaLoop}}
+\newcommand{\pygloop}{\texttt{pygloop}}
+\newcommand{\qqbarNX}{\texttt{qqbar\_nX}}
+\newcommand{\DOT}{\textsc{dot}}
+\newcommand{\spat}[1]{\vec{#1}}
+\newcommand{\Slash}[1]{\not\!#1}
+\newcommand{\lzero}{\ell_0}
+\newcommand{\lone}{\ell_1}
+\newcommand{\D}{\mathcal{D}}
+\newcommand{\N}{\mathcal{N}}
+\newcommand{\I}{\mathcal{I}}
+\newcommand{\MT}{m_t}
+\newcommand{\rtab}[4]{#1 & #2 & \(#3\) & #4\\}
+
+\title{\qqbarNX{} implementation notes: local two-loop initial-state collinear subtraction for \(d\bar d\to HHH\)}
+\author{Generated implementation documentation}
+\date{Updated 12 May 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+This document records the current implementation of the \qqbarNX{} process in
+\pygloop{}, focusing on the phase-space symmetrized two-loop amplitude
+\[
+  d(p_0)\,\bar d(p_1)\to H(p_2)\,H(p_3)\,H(p_4).
+\]
+The selected diagrams contain a massive top-quark pentagon loop connected to
+the incoming massless quark line by two gluons.  The local subtraction follows
+the two initial-state collinear projectors described in
+Ref.~\cite{KermanschahVicini2026}, but no UV subtraction is generated here:
+the heavy subgraph is a pentagon and is UV finite for the present purpose.
+
+The current \DOT{} encoding writes the original graphs and their local IR
+counterterms as separate graphs sharing a \texttt{group\_id}.  Counterterm
+numerators are stored globally as spenso tensor networks, while the CT
+topology is used to expose the denominator structure to \GammaLoop{}'s CFF/LTD
+machinery.  This note gives the exact four-dimensional representation of all
+four selected symmetrized original graphs and all eight associated
+counterterms, including the loop-momentum routing of every denominator.
+\end{abstract}
+
+\tableofcontents
+
+\section{Current implementation state}
+
+The relevant implementation files are:
+\begin{description}[leftmargin=2.5cm,style=nextline]
+\item[\texttt{config.toml}]
+\path{src/processes/qqbar_nX/config.toml}.  User-facing process configuration.
+\item[\texttt{qqbar\_nX.py}]
+\path{src/processes/qqbar_nX/qqbar_nX.py}.  Process class, \GammaLoop{}
+steering, run-card generation, and tests.
+\item[\texttt{qqbar\_nX\_graphs.py}]
+\path{src/processes/qqbar_nX/qqbar_nX_graphs.py}.  \DOT{} parsing, graph
+selection, and canonical topology grouping.
+\item[\texttt{qqbar\_nX\_counterterms.py}]
+\path{src/processes/qqbar_nX/qqbar_nX_counterterms.py}.  Construction of ISR
+counterterm \DOT{} graphs.
+\item[\texttt{qqbar\_nX\_4d.py}]
+\path{src/processes/qqbar_nX/qqbar_nX_4d.py}.  Direct four-dimensional
+Symbolica/spenso evaluator.
+\end{description}
+
+The current default artifacts are:
+\begin{description}[leftmargin=2.5cm,style=nextline]
+\item[subtracted \DOT{}]
+\path{outputs/dot_files/qqbar_nX/qqbar_nX_d_dbar_h_h_h_2L_top_pentagon_isr_subtracted.dot}.
+\item[run card]
+\path{outputs/dot_files/qqbar_nX/qqbar_nX_d_dbar_h_h_h_2L_top_pentagon_isr_subtracted.toml}.
+\item[manifest]
+\path{outputs/dot_files/qqbar_nX/qqbar_nX_d_dbar_h_h_h_2L_top_pentagon_isr_subtracted.manifest.json}.
+\end{description}
+
+The current default configuration is:
+\begin{lstlisting}
+[generation]
+symmetrize_final_states = true
+
+[counterterms]
+build_isr = true
+projector_mode = "leading"
+denominator_strategy = "contract"
+auxiliary_denominator_mode = "spatial_proxy"
+global_phase = "-i"
+uv_inert_dod = -100
+use_parametric_xi = false
+
+[standalone_run_card]
+enable_threshold_subtraction = true
+\end{lstlisting}
+
+For the symmetrized \(HHH\) final state the manifest records
+\[
+  N_{\rm original}=4,\qquad N_{\rm CT}=8,\qquad N_{\rm total}=12.
+\]
+The selected original graphs are \texttt{GL05}, \texttt{GL06},
+\texttt{GL12}, and \texttt{GL13}.  Each original graph has two local
+counterterms:
+\[
+  G_{\rm isr\_p1\_ct}\quad\hbox{for the \(p_0\)-collinear gluon bridge},
+  \qquad
+  G_{\rm isr\_p2\_ct}\quad\hbox{for the \(p_1\)-collinear gluon bridge}.
+\]
+The current groups are
+\[
+  \hbox{group 0}=\{\texttt{GL05},\texttt{GL06}\hbox{ and CTs}\},\qquad
+  \hbox{group 1}=\{\texttt{GL12},\texttt{GL13}\hbox{ and CTs}\}.
+\]
+The original graph remains the group master; the CT graphs are marked
+\texttt{is\_group\_master=false}.  All CT node and edge \texttt{dod}
+attributes are forced to \(-100\), which prevents \GammaLoop{}'s own local UV
+machinery from acting on these artificial local IR counterterms.
+
+\section{Generation, selection, and grouping}
+
+The raw generation command built by \texttt{qqbar\_nX.build\_feyngen\_command}
+is conceptually
+\begin{lstlisting}
+generate amp d d~ > h h h | d d~ g h t t~ QED==3 [{2}]
+  --only-diagrams
+  --global-prefactor-projector '<external spin/color projector>'
+  --numerator-grouping no_grouping
+  --veto-vertex-interactions V_6 V_9 V_36 V_37
+  --number-of-fermion-loops 1 1
+  --graph-prefix GL
+  --max-multiplicity-for-fast-cut-filter 99
+  --symmetrize-final-states true
+\end{lstlisting}
+The selector in \texttt{qqbar\_nX\_graphs.py} retains a graph only if it has
+exactly:
+\begin{itemize}[leftmargin=2em]
+  \item external particles \(d,\bar d,H,H,H\);
+  \item two light-quark--gluon vertices \(\texttt{V\_74}\);
+  \item two top--gluon vertices \(\texttt{V\_137}\);
+  \item three top--Higgs vertices \(\texttt{V\_141}\);
+  \item one internal massless light-quark edge joining the two light vertices;
+  \item one gluon bridge from each light vertex to a top--gluon vertex;
+  \item one connected top cycle with five top propagators.
+\end{itemize}
+Canonical topology grouping forgets raw node labels and uses label-preserving
+permutations of the graph.  The resulting \texttt{group\_id} is the minimal
+unit expected to be locally IR finite after adding the corresponding CTs.
+
+\section{Momentum convention and loop-momentum basis}
+
+The \DOT{} uses \GammaLoop{}'s all-incoming convention.  We write
+\[
+  p_0=P(0),\quad p_1=P(1),\quad p_2=P(2),\quad
+  p_3=P(3),\quad p_4=P(4),
+\]
+and
+\[
+  \lzero=K(0),\qquad \lone=K(1).
+\]
+For every internal edge \(e\),
+\[
+  q_e^\mu
+  =
+  \rho_{e0}\ell_0^\mu+\rho_{e1}\ell_1^\mu
+  +\sum_{r=0}^{4}\eta_{er}p_r^\mu ,
+\]
+as stored in the edge attribute \texttt{lmb\_rep}.  The four-dimensional
+propagator denominator associated with edge \(e\) is
+\[
+  D_e=q_e^2-m_e^2+\ii0,\qquad
+  m_e=
+  \begin{cases}
+    \MT, & e\hbox{ a top edge},\\
+    0, & e\hbox{ a massless \(d\) or gluon edge}.
+  \end{cases}
+\]
+
+The local subtraction depends on the routing of the light-line momentum.  The
+implementation therefore pins the loop momentum basis explicitly:
+\begin{center}
+\begin{tabular}{ccll}
+\toprule
+group & originals & \texttt{lmb\_id=0} & \texttt{lmb\_id=1}\\
+\midrule
+0 & \texttt{GL05}, \texttt{GL06} & light bridge edge \(10\) & top edge \(5\)\\
+1 & \texttt{GL12}, \texttt{GL13} & light bridge edge \(5\) & top edge \(8\)\\
+\bottomrule
+\end{tabular}
+\end{center}
+The same basis edges are preserved in every CT graph in the same group.  This
+is important because \GammaLoop{} sets several group-level structures from the
+group master.
+
+\section{Exact four-dimensional integrand representation}
+
+For each original or CT graph \(G\), the represented four-dimensional
+integrand is
+\begin{equation}
+  \I_G(\ell_0,\ell_1)
+  =
+  \frac{\N_G(\ell_0,\ell_1)}
+       {\prod_{e\in E_{\rm int}(G)}D_e(\ell_0,\ell_1)} ,
+  \qquad
+  A_G=\int\frac{\dd^4\ell_0}{(2\pi)^4}
+          \frac{\dd^4\ell_1}{(2\pi)^4}\,
+          \I_G(\ell_0,\ell_1).
+  \label{eq:generalIntegrand}
+\end{equation}
+The denominator product is specified graph by graph in
+Sec.~\ref{sec:denominatorTables}.
+
+\subsection{Original graph numerators}
+
+For original graphs,
+\begin{equation}
+  \N_G =
+  {\cal P}_{\rm ext}
+  \prod_{e\in E_{\rm ext}}E_{\rm ext}(e)
+  \prod_{e\in E_{\rm int}}E_e(q_e)
+  \prod_{v\in V_{\rm int}}V_v ,
+  \label{eq:originalNumeratorProduct}
+\end{equation}
+with the graph-global external projector
+\[
+  {\cal P}_{\rm ext}
+  =
+  u(0)\,\bar v(1)\,\frac{1}{3}\,\delta_{\rm color}(\bar d,d).
+\]
+The local edge numerator rules exported by \GammaLoop{} are
+\begin{align}
+  E_d(e:a\to b)
+  &=
+  \ii\,q_{e,\mu}\,
+  \gamma(s_b,s_a;\mu)\,
+  \delta(c_a,c_b),
+  \\
+  E_t(e:a\to b)
+  &=
+  \ii\,[q_{e,\mu}\gamma(s_b,s_a;\mu)+\MT\,\delta(s_b,s_a)]
+  \,\delta(c_a,c_b),
+  \\
+  E_g(e:a\to b)
+  &=
+  -\ii\,g(\mu_a,\mu_b)\,\delta(A_a,A_b),
+  \\
+  E_{\rm ext}(e)&=\ii
+  \quad\hbox{for every external \(d,\bar d,H\) edge}.
+\end{align}
+The vertex numerator rules are
+\begin{align}
+  V_{74}(q q g)
+  &=
+  {\rm GC}_{11}\,\gamma(s_L,s_R;\mu_g)\,
+  T(A_g,c_R,c_L),
+  \\
+  V_{137}(t t g)
+  &=
+  {\rm GC}_{11}\,\gamma(s_L,s_R;\mu_g)\,
+  T(A_g,c_R,c_L),
+  \\
+  V_{141}(t t H)
+  &=
+  {\rm GC}_{94}\,[P_-(s_L,s_R)+P_+(s_L,s_R)]\,\delta(c_R,c_L).
+\end{align}
+In the independent four-dimensional evaluator \(P_-+P_+\) is simplified to
+the spin identity.
+
+\subsection{Counterterm graph numerators}
+
+For CT graphs, the final \DOT{} has every local node and edge numerator set to
+\(\texttt{num}=1\).  The complete numerator is collected first and then stored
+in the graph-global \texttt{num} attribute as a spenso tensor network.  In
+factorised notation the current default CT numerator is
+\begin{equation}
+  \N_{{\rm CT}}(G,b)
+  =
+  \Phi_{\rm CFF}\,\eta_b\,R_b(G)\,A_b\,B_b(G)^{-1}\,
+  {\cal C}_{G,b}[\N_G],
+  \qquad b=1,2.
+  \label{eq:ctNumerator}
+\end{equation}
+The current default is
+\[
+  \Phi_{\rm CFF}=-\ii,\qquad
+  \eta_1=-\ii,\qquad
+  \eta_2=+\ii.
+\]
+The additional phase \(\Phi_{\rm CFF}\) is a current \GammaLoop{} CFF/event
+convention phase.  It is required for the 3D CFF inspect cancellation.  For a
+pure paper-level four-dimensional Feynman-integrand identity, this phase is
+set to \(1\) in a temporary config.
+
+The fixed auxiliary vector is
+\[
+  \zeta=p_0+p_1,
+\]
+and the default implementation uses \texttt{use\_parametric\_xi=false}.  The
+Lorentz prefactors are
+\[
+  A_1=\frac{p_0\cdot\zeta}{p_0\cdot p_1},
+  \qquad
+  A_2=\frac{p_1\cdot\zeta}{p_0\cdot p_1}.
+\]
+For massless beams and \(\zeta=p_0+p_1\), both evaluate to one, but the DOT
+keeps the tensor expression.
+
+Define the Euclidean spatial projection
+\[
+  \langle a,b\rangle_3=a_xb_x+a_yb_y+a_zb_z,\qquad
+  |a|_3^2=\langle a,a\rangle_3.
+\]
+Let \(L\) be the pinned light bridge, \(g_1\) the gluon that is collinear to
+\(p_0\), and \(g_2\) the gluon that is collinear to \(p_1\).  The finite
+routing fractions are
+\begin{equation}
+  R_1(G)=\frac{\langle q_L,p_1\rangle_3}{\langle q_{g_1},p_1\rangle_3},
+  \qquad
+  R_2(G)=\frac{\langle q_L,p_0\rangle_3}{\langle q_{g_2},p_0\rangle_3}.
+  \label{eq:routingFractions}
+\end{equation}
+They deliberately use only spatial components and therefore introduce no
+loop-energy poles in the graph-global numerator.
+
+The current CFF-compatible auxiliary denominator mode is
+\texttt{spatial\_proxy}.  It removes the opposite gluon propagator from the CT
+topology and keeps the leading fixed-\(\zeta\) auxiliary denominator as a
+loop-energy-free graph numerator factor:
+\begin{align}
+  B_1(G)
+  &=
+  -2(p_0\cdot p_1)
+  \frac{\langle q_L,p_0\rangle_3}{|p_0|_3^2},
+  \\
+  B_2(G)
+  &=
+  +2(p_0\cdot p_1)
+  \frac{\langle q_L,p_0\rangle_3}{|p_0|_3^2}.
+  \label{eq:spatialProxy}
+\end{align}
+This is the most important current engineering choice: denominators with
+actual loop-energy dependence are part of the graph topology; graph-global
+inverse factors are allowed only when they are purely spatial.
+
+The transformation \({\cal C}_{G,b}\) acts on the original numerator as:
+\begin{itemize}[leftmargin=2em]
+  \item replace the internal light-bridge numerator by
+        \(\delta_{\rm spin}\delta_{\rm color}\);
+  \item for \(b=1\), replace the \(p_0\)-side light vertex by
+        \[
+          V_{{\rm CT},1}
+          =
+          \omega_1\,{\rm GC}_{11}\,
+          T(A_{g_1},c_{\rm ext},c_{\rm int})\,
+          [2q_{g_1}^{\mu_{g_1}}\delta_{\rm spin}];
+        \]
+  \item for \(b=2\), replace the \(p_1\)-side light vertex by
+        \[
+          V_{{\rm CT},2}
+          =
+          \omega_2\,{\rm GC}_{11}\,
+          T(A_{g_2},c_{\rm int},c_{\rm ext})\,
+          [-2q_{g_2}^{\mu_{g_2}}\delta_{\rm spin}];
+        \]
+  \item contract the opposite gluon edge into the opposite light endpoint,
+        multiplying the opposite light vertex, the opposite gluon numerator,
+        and the corresponding top--gluon vertex into the graph-global
+        numerator.
+\end{itemize}
+The orientation signs currently selected from the \DOT{} are:
+\begin{center}
+\begin{tabular}{lcc}
+\toprule
+original graph & \(\omega_1\) & \(\omega_2\)\\
+\midrule
+\texttt{GL05}, \texttt{GL06} & \(+1\) & \(-1\)\\
+\texttt{GL12}, \texttt{GL13} & \(-1\) & \(+1\)\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection[Relation to reference subtraction formula]{Relation to Ref.~\cite{KermanschahVicini2026}}
+
+The paper writes the light-line factor schematically as
+\[
+  D_{\alpha\beta}
+  =
+  \ii\,
+  \frac{
+    \bar v(p_1)\gamma_\beta(-\Slash{k}_1)\gamma_\alpha u(p_0)
+  }{
+    k_1^2\,k_{g1}^2\,k_{g2}^2
+  },
+\]
+and constructs two local operators \(\Delta_1,\Delta_2\) that replace the
+light-line numerator by the leading collinear numerator and introduce an
+auxiliary denominator built from a fixed vector.  The \qqbarNX{} code uses the
+same local leading-collinear replacement logic for the two ISR regions, but
+differs in three implementation-level ways:
+\begin{enumerate}[leftmargin=2em]
+  \item the heavy subgraph is a top pentagon with three Higgs insertions;
+  \item no UV subtraction operator is generated;
+  \item the current CFF-compatible \DOT{} writes the auxiliary denominator in
+        the spatial-proxy form of Eq.~\eqref{eq:spatialProxy}, not as a
+        graph-global denominator with loop-energy dependence.
+\end{enumerate}
+
+\section{Original numerator topologies}
+\label{sec:numeratorTopologies}
+
+The original numerator of each selected graph is exactly obtained by applying
+Eq.~\eqref{eq:originalNumeratorProduct} and the local rules above to the
+following directed \DOT{} topologies.  An entry \(u:h\to v:k\) denotes source
+node \(u\) at hedge \(h\) and destination node \(v\) at hedge \(k\).
+
+\begin{longtable}{>{\ttfamily}p{0.14\linewidth}p{0.25\linewidth}p{0.50\linewidth}}
+\toprule
+graph & internal nodes & internal edges \\
+\midrule
+\endhead
+GL05 &
+0 V\_137, 1 V\_137, 2 V\_74, 3 V\_74, 4 V\_141, 5 V\_141, 6 V\_141 &
+e5 t \(0{:}5\to1{:}6\);
+e6 g \(0{:}7\to3{:}8\);
+e7 t \(6{:}9\to0{:}10\);
+e8 g \(1{:}11\to2{:}12\);
+e9 t \(1{:}13\to5{:}14\);
+e10 d \(3{:}15\to2{:}16\);
+e11 t \(5{:}17\to4{:}18\);
+e12 t \(4{:}19\to6{:}20\).\\
+\addlinespace
+GL06 &
+0 V\_137, 1 V\_137, 2 V\_74, 3 V\_74, 4 V\_141, 5 V\_141, 6 V\_141 &
+e5 t \(1{:}5\to0{:}6\);
+e6 g \(0{:}7\to3{:}8\);
+e7 t \(0{:}9\to6{:}10\);
+e8 g \(1{:}11\to2{:}12\);
+e9 t \(5{:}13\to1{:}14\);
+e10 d \(3{:}15\to2{:}16\);
+e11 t \(4{:}17\to5{:}18\);
+e12 t \(6{:}19\to4{:}20\).\\
+\addlinespace
+GL12 &
+0 V\_74, 1 V\_74, 2 V\_137, 3 V\_137, 4 V\_141, 5 V\_141, 6 V\_141 &
+e5 d \(1{:}5\to0{:}6\);
+e6 g \(0{:}7\to3{:}8\);
+e7 g \(1{:}9\to2{:}10\);
+e8 t \(2{:}11\to5{:}12\);
+e9 t \(6{:}13\to2{:}14\);
+e10 t \(4{:}15\to3{:}16\);
+e11 t \(3{:}17\to6{:}18\);
+e12 t \(5{:}19\to4{:}20\).\\
+\addlinespace
+GL13 &
+0 V\_74, 1 V\_74, 2 V\_137, 3 V\_137, 4 V\_141, 5 V\_141, 6 V\_141 &
+e5 d \(1{:}5\to0{:}6\);
+e6 g \(0{:}7\to3{:}8\);
+e7 g \(1{:}9\to2{:}10\);
+e8 t \(5{:}11\to2{:}12\);
+e9 t \(2{:}13\to6{:}14\);
+e10 t \(3{:}15\to4{:}16\);
+e11 t \(6{:}17\to3{:}18\);
+e12 t \(4{:}19\to5{:}20\).\\
+\bottomrule
+\end{longtable}
+
+\section{Exact denominator routings}
+\label{sec:denominatorTables}
+
+This section gives the exact four-dimensional denominator routing for every
+graph in the current symmetrized subtracted \DOT{}.  For each listed graph,
+\[
+  \I_G=\frac{\N_G}{\prod_{e\in S_G}D_e},
+\]
+where \(S_G\) is the edge set shown in the corresponding product.  For CT
+graphs, \(\N_G\) means the global numerator of Eq.~\eqref{eq:ctNumerator} with
+the original graph and beam indicated by the graph name.
+
+\subsection{\texttt{GL05} and counterterms}
+
+\paragraph{\texttt{GL05}.}
+\[
+  \I_{\texttt{GL05}}=
+  \frac{\N_{\texttt{GL05}}}{D_5D_6D_7D_8D_9D_{10}D_{11}D_{12}}.
+\]
+\begin{center}
+\begin{tabular}{ccll}
+\toprule
+edge & part. & \(q_e\) & basis\\
+\midrule
+\rtab{5}{t}{\lzero}{\texttt{lmb\_id=1}}
+\rtab{6}{g}{-\lzero-p_0-p_1+\lone+p_3}{}
+\rtab{7}{t}{-p_0-p_1+\lone+p_3}{}
+\rtab{8}{g}{\lzero-\lone-p_3}{}
+\rtab{9}{t}{\lone+p_3}{}
+\rtab{10}{d}{-\lzero-p_1+\lone+p_3}{\texttt{lmb\_id=0}}
+\rtab{11}{t}{\lone}{}
+\rtab{12}{t}{-p_0-p_1+\lone+p_2+p_3}{}
+\bottomrule
+\end{tabular}
+\end{center}
+
+\paragraph{\texttt{GL05\_isr\_p1\_ct}.}
+This is \(N_{\rm CT}(\texttt{GL05},1)\).  It keeps \(g_1=e6\) and removes
+the opposite gluon \(e8\) from the active denominator topology:
+\[
+  \I_{\texttt{GL05\_isr\_p1\_ct}}=
+  \frac{\N_{\rm CT}(\texttt{GL05},1)}
+       {D_5D_6D_7D_8D_9D_{10}D_{11}}.
+\]
+\begin{center}
+\begin{tabular}{ccll}
+\toprule
+edge & part. & \(q_e\) & basis\\
+\midrule
+\rtab{5}{t}{\lzero}{\texttt{lmb\_id=1}}
+\rtab{6}{g}{-\lzero-p_0-p_1+\lone+p_3}{}
+\rtab{7}{t}{-p_0-p_1+\lone+p_3}{}
+\rtab{8}{t}{-p_0-p_1+\lone+p_2+p_3}{}
+\rtab{9}{t}{\lone+p_3}{}
+\rtab{10}{d}{-\lzero-p_1+\lone+p_3}{\texttt{lmb\_id=0}}
+\rtab{11}{t}{\lone}{}
+\bottomrule
+\end{tabular}
+\end{center}
+
+\paragraph{\texttt{GL05\_isr\_p2\_ct}.}
+This is \(N_{\rm CT}(\texttt{GL05},2)\).  It keeps \(g_2=e8\) and removes
+the opposite gluon \(e6\):
+\[
+  \I_{\texttt{GL05\_isr\_p2\_ct}}=
+  \frac{\N_{\rm CT}(\texttt{GL05},2)}
+       {D_5D_6D_7D_8D_9D_{10}D_{11}}.
+\]
+\begin{center}
+\begin{tabular}{ccll}
+\toprule
+edge & part. & \(q_e\) & basis\\
+\midrule
+\rtab{5}{t}{\lzero}{\texttt{lmb\_id=1}}
+\rtab{6}{t}{-p_0-p_1+\lone+p_2+p_3}{}
+\rtab{7}{t}{-p_0-p_1+\lone+p_3}{}
+\rtab{8}{g}{\lzero-\lone-p_3}{}
+\rtab{9}{t}{\lone+p_3}{}
+\rtab{10}{d}{-\lzero-p_1+\lone+p_3}{\texttt{lmb\_id=0}}
+\rtab{11}{t}{\lone}{}
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{\texttt{GL06} and counterterms}
+
+\paragraph{\texttt{GL06}.}
+\[
+  \I_{\texttt{GL06}}=
+  \frac{\N_{\texttt{GL06}}}{D_5D_6D_7D_8D_9D_{10}D_{11}D_{12}}.
+\]
+\begin{center}
+\begin{tabular}{ccll}
+\toprule
+edge & part. & \(q_e\) & basis\\
+\midrule
+\rtab{5}{t}{\lzero}{\texttt{lmb\_id=1}}
+\rtab{6}{g}{\lzero-\lone-p_0-p_1+p_3}{}
+\rtab{7}{t}{\lone+p_0+p_1-p_3}{}
+\rtab{8}{g}{-\lzero+\lone-p_3}{}
+\rtab{9}{t}{\lone-p_3}{}
+\rtab{10}{d}{\lzero-\lone-p_1+p_3}{\texttt{lmb\_id=0}}
+\rtab{11}{t}{\lone}{}
+\rtab{12}{t}{\lone+p_0+p_1-p_2-p_3}{}
+\bottomrule
+\end{tabular}
+\end{center}
+
+\paragraph{\texttt{GL06\_isr\_p1\_ct}.}
+\[
+  \I_{\texttt{GL06\_isr\_p1\_ct}}=
+  \frac{\N_{\rm CT}(\texttt{GL06},1)}
+       {D_5D_6D_7D_8D_9D_{10}D_{11}}.
+\]
+\begin{center}
+\begin{tabular}{ccll}
+\toprule
+edge & part. & \(q_e\) & basis\\
+\midrule
+\rtab{5}{t}{\lzero}{\texttt{lmb\_id=1}}
+\rtab{6}{g}{\lzero-\lone-p_0-p_1+p_3}{}
+\rtab{7}{t}{\lone+p_0+p_1-p_3}{}
+\rtab{8}{t}{\lone+p_0+p_1-p_2-p_3}{}
+\rtab{9}{t}{\lone-p_3}{}
+\rtab{10}{d}{\lzero-\lone-p_1+p_3}{\texttt{lmb\_id=0}}
+\rtab{11}{t}{\lone}{}
+\bottomrule
+\end{tabular}
+\end{center}
+
+\paragraph{\texttt{GL06\_isr\_p2\_ct}.}
+\[
+  \I_{\texttt{GL06\_isr\_p2\_ct}}=
+  \frac{\N_{\rm CT}(\texttt{GL06},2)}
+       {D_5D_6D_7D_8D_9D_{10}D_{11}}.
+\]
+\begin{center}
+\begin{tabular}{ccll}
+\toprule
+edge & part. & \(q_e\) & basis\\
+\midrule
+\rtab{5}{t}{\lzero}{\texttt{lmb\_id=1}}
+\rtab{6}{t}{\lone+p_0+p_1-p_2-p_3}{}
+\rtab{7}{t}{\lone+p_0+p_1-p_3}{}
+\rtab{8}{g}{-\lzero+\lone-p_3}{}
+\rtab{9}{t}{\lone-p_3}{}
+\rtab{10}{d}{\lzero-\lone-p_1+p_3}{\texttt{lmb\_id=0}}
+\rtab{11}{t}{\lone}{}
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{\texttt{GL12} and counterterms}
+
+\paragraph{\texttt{GL12}.}
+\[
+  \I_{\texttt{GL12}}=
+  \frac{\N_{\texttt{GL12}}}{D_5D_6D_7D_8D_9D_{10}D_{11}D_{12}}.
+\]
+\begin{center}
+\begin{tabular}{ccll}
+\toprule
+edge & part. & \(q_e\) & basis\\
+\midrule
+\rtab{5}{d}{-\lzero+p_0}{\texttt{lmb\_id=0}}
+\rtab{6}{g}{-\lzero+p_0+p_1}{}
+\rtab{7}{g}{\lzero}{}
+\rtab{8}{t}{\lone+p_0+p_1-p_2}{\texttt{lmb\_id=1}}
+\rtab{9}{t}{-\lzero+\lone+p_0+p_1-p_2}{}
+\rtab{10}{t}{\lone}{}
+\rtab{11}{t}{-\lzero+\lone+p_0+p_1}{}
+\rtab{12}{t}{\lone+p_0+p_1-p_2-p_3}{}
+\bottomrule
+\end{tabular}
+\end{center}
+
+\paragraph{\texttt{GL12\_isr\_p1\_ct}.}
+This keeps \(g_1=e7\) and removes \(e6\):
+\[
+  \I_{\texttt{GL12\_isr\_p1\_ct}}=
+  \frac{\N_{\rm CT}(\texttt{GL12},1)}
+       {D_5D_6D_7D_8D_9D_{10}D_{11}}.
+\]
+\begin{center}
+\begin{tabular}{ccll}
+\toprule
+edge & part. & \(q_e\) & basis\\
+\midrule
+\rtab{5}{d}{-\lzero+p_0}{\texttt{lmb\_id=0}}
+\rtab{6}{t}{\lone+p_0+p_1-p_2-p_3}{}
+\rtab{7}{g}{\lzero}{}
+\rtab{8}{t}{\lone+p_0+p_1-p_2}{\texttt{lmb\_id=1}}
+\rtab{9}{t}{-\lzero+\lone+p_0+p_1-p_2}{}
+\rtab{10}{t}{\lone}{}
+\rtab{11}{t}{-\lzero+\lone+p_0+p_1}{}
+\bottomrule
+\end{tabular}
+\end{center}
+
+\paragraph{\texttt{GL12\_isr\_p2\_ct}.}
+This keeps \(g_2=e6\) and removes \(e7\):
+\[
+  \I_{\texttt{GL12\_isr\_p2\_ct}}=
+  \frac{\N_{\rm CT}(\texttt{GL12},2)}
+       {D_5D_6D_7D_8D_9D_{10}D_{11}}.
+\]
+\begin{center}
+\begin{tabular}{ccll}
+\toprule
+edge & part. & \(q_e\) & basis\\
+\midrule
+\rtab{5}{d}{-\lzero+p_0}{\texttt{lmb\_id=0}}
+\rtab{6}{g}{-\lzero+p_0+p_1}{}
+\rtab{7}{t}{\lone+p_0+p_1-p_2-p_3}{}
+\rtab{8}{t}{\lone+p_0+p_1-p_2}{\texttt{lmb\_id=1}}
+\rtab{9}{t}{-\lzero+\lone+p_0+p_1-p_2}{}
+\rtab{10}{t}{\lone}{}
+\rtab{11}{t}{-\lzero+\lone+p_0+p_1}{}
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{\texttt{GL13} and counterterms}
+
+\paragraph{\texttt{GL13}.}
+\[
+  \I_{\texttt{GL13}}=
+  \frac{\N_{\texttt{GL13}}}{D_5D_6D_7D_8D_9D_{10}D_{11}D_{12}}.
+\]
+\begin{center}
+\begin{tabular}{ccll}
+\toprule
+edge & part. & \(q_e\) & basis\\
+\midrule
+\rtab{5}{d}{-\lzero+p_0}{\texttt{lmb\_id=0}}
+\rtab{6}{g}{-\lzero+p_0+p_1}{}
+\rtab{7}{g}{\lzero}{}
+\rtab{8}{t}{\lone-p_0-p_1+p_2}{\texttt{lmb\_id=1}}
+\rtab{9}{t}{\lzero+\lone-p_0-p_1+p_2}{}
+\rtab{10}{t}{\lone}{}
+\rtab{11}{t}{\lzero+\lone-p_0-p_1}{}
+\rtab{12}{t}{\lone-p_0-p_1+p_2+p_3}{}
+\bottomrule
+\end{tabular}
+\end{center}
+
+\paragraph{\texttt{GL13\_isr\_p1\_ct}.}
+This keeps \(g_1=e7\) and removes \(e6\):
+\[
+  \I_{\texttt{GL13\_isr\_p1\_ct}}=
+  \frac{\N_{\rm CT}(\texttt{GL13},1)}
+       {D_5D_6D_7D_8D_9D_{10}D_{11}}.
+\]
+\begin{center}
+\begin{tabular}{ccll}
+\toprule
+edge & part. & \(q_e\) & basis\\
+\midrule
+\rtab{5}{d}{-\lzero+p_0}{\texttt{lmb\_id=0}}
+\rtab{6}{t}{\lone-p_0-p_1+p_2+p_3}{}
+\rtab{7}{g}{\lzero}{}
+\rtab{8}{t}{\lone-p_0-p_1+p_2}{\texttt{lmb\_id=1}}
+\rtab{9}{t}{\lzero+\lone-p_0-p_1+p_2}{}
+\rtab{10}{t}{\lone}{}
+\rtab{11}{t}{\lzero+\lone-p_0-p_1}{}
+\bottomrule
+\end{tabular}
+\end{center}
+
+\paragraph{\texttt{GL13\_isr\_p2\_ct}.}
+This keeps \(g_2=e6\) and removes \(e7\):
+\[
+  \I_{\texttt{GL13\_isr\_p2\_ct}}=
+  \frac{\N_{\rm CT}(\texttt{GL13},2)}
+       {D_5D_6D_7D_8D_9D_{10}D_{11}}.
+\]
+\begin{center}
+\begin{tabular}{ccll}
+\toprule
+edge & part. & \(q_e\) & basis\\
+\midrule
+\rtab{5}{d}{-\lzero+p_0}{\texttt{lmb\_id=0}}
+\rtab{6}{g}{-\lzero+p_0+p_1}{}
+\rtab{7}{t}{\lone-p_0-p_1+p_2+p_3}{}
+\rtab{8}{t}{\lone-p_0-p_1+p_2}{\texttt{lmb\_id=1}}
+\rtab{9}{t}{\lzero+\lone-p_0-p_1+p_2}{}
+\rtab{10}{t}{\lone}{}
+\rtab{11}{t}{\lzero+\lone-p_0-p_1}{}
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Four-dimensional evaluator}
+
+The independent 4D test path in \texttt{qqbar\_nX\_4d.py} constructs
+\[
+  \I_{\mathcal G}^{4D}
+  =
+  \frac{
+    {\rm Contr}\!\left[
+      {\cal P}_{\rm ext}\,
+      {\cal N}_{\mathcal G}^{\rm graph}
+      \prod_v{\cal N}_v
+      \prod_e{\cal N}_e
+    \right]
+  }{
+    \prod_{e\in E_{\rm int}\setminus E_{\rm dummy}}
+    \left(Q_e(0)^2-Q_e(1)^2-Q_e(2)^2-Q_e(3)^2-m_e^2\right)
+  }.
+  \label{eq:fourDEvaluator}
+\]
+It replaces \(\texttt{spenso::projm}+\texttt{spenso::projp}\) by the Dirac
+metric, simplifies color with Symbolica community, and contracts the tensor
+network with spenso before numerical evaluation.  If a graph-global numerator
+contains \({\rm OSE}(e)\), it is replaced in the 4D diagnostic by
+\[
+  {\rm OSE}(e)\to
+  \sqrt{Q_e(1)^2+Q_e(2)^2+Q_e(3)^2+m_e^2}.
+\]
+
+Implementation caveat: the current DOTs do not write an explicit top mass
+attribute on top edges.  The formal \GammaLoop{} interpretation uses
+\(m_t={\rm MT}\) for top denominators; the current independent 4D evaluator
+only subtracts masses present as DOT edge attributes.  The tested collinear
+identity is nevertheless meaningful because the heavy-loop denominators are
+finite in the collinear approach and the same DOT object is evaluated for the
+originals and their CTs.  A later cleanup should infer model masses by
+particle name.
+
+\section{Collinear tests and current results}
+
+The process-specific tests are exposed through:
+\begin{lstlisting}
+PYTHONPATH=src .venv/bin/python src/pygloop.py --process qqbar_nX test --mode 4D
+PYTHONPATH=src .venv/bin/python src/pygloop.py --process qqbar_nX test --mode gammaloop
+\end{lstlisting}
+The current test configuration uses \(x=0.3\), precision
+\texttt{ArbPrec}, and
+\[
+  |k_\perp|=\lambda\sqrt{s},
+  \qquad
+  \lambda\in\{1,10^{-1},10^{-2},10^{-3},10^{-4},10^{-5},10^{-6},10^{-7}\}.
+\]
+For every \(\lambda\) and group, the diagnostic ratio is
+\[
+  \rho_{\rm group}
+  =
+  \frac{\left|\sum_{i\in{\rm group}}\I_i\right|}
+       {\sum_{i\in{\rm group}}|\I_i|}.
+\]
+A local cancellation of the leading collinear singularity appears as a ratio
+that decreases linearly with \(\lambda\).
+
+\subsection[Pure 4D paper-level diagnostic, Phi CFF = 1]{Pure 4D paper-level diagnostic, \(\Phi_{\rm CFF}=1\)}
+
+The independent 4D algebra check should be run with the CT global phase reset
+to \(1\), because it tests the paper-level Feynman-integrand identity, not the
+\GammaLoop{} 3D CFF event convention:
+\begin{lstlisting}
+tmp=/tmp/qqbar_nX_4d_phase1.toml
+cp src/processes/qqbar_nX/config.toml "$tmp"
+perl -0pi -e 's/global_phase = "-i"/global_phase = "1"/' "$tmp"
+PYTHONPATH=src .venv/bin/python src/pygloop.py --process qqbar_nX \
+  --qqbar-nx-config "$tmp" \
+  --overwrite-process-basename qqbar_nX_4dphase1 \
+  --m_top 1500 test --mode 4D
+\end{lstlisting}
+The current results are:
+\begin{center}
+\begin{tabular}{ccccc}
+\toprule
+beam & group & \(\lambda=10^{-3}\) & \(\lambda=10^{-5}\) & \(\lambda=10^{-7}\)\\
+\midrule
+\(p_0\) & 0 & \(1.207432422884\times10^{-2}\) & \(1.219429826526\times10^{-4}\) & \(1.219547309408\times10^{-6}\)\\
+\(p_0\) & 1 & \(5.953650138218\times10^{-3}\) & \(5.918551126568\times10^{-5}\) & \(5.918194450500\times10^{-7}\)\\
+\(p_1\) & 0 & \(5.110458964993\times10^{-3}\) & \(5.133079576218\times10^{-5}\) & \(5.133298939401\times10^{-7}\)\\
+\(p_1\) & 1 & \(5.329260932463\times10^{-3}\) & \(5.304017780889\times10^{-5}\) & \(5.303763375967\times10^{-7}\)\\
+\bottomrule
+\end{tabular}
+\end{center}
+This confirms that the 4D numerator/projector construction cancels locally.
+
+\subsection[Default 4D diagnostic with Phi CFF = -i]{Default 4D diagnostic with \(\Phi_{\rm CFF}=-\ii\)}
+
+With the default CFF phase, the same 4D Feynman-integrand diagnostic does not
+cancel, as expected:
+\begin{center}
+\begin{tabular}{ccc}
+\toprule
+beam & group & \(\rho_{\rm group}(\lambda=10^{-7})\)\\
+\midrule
+\(p_0\) & 0 & \(6.932501873977\times10^{-1}\)\\
+\(p_0\) & 1 & \(7.070605995487\times10^{-1}\)\\
+\(p_1\) & 0 & \(5.417365569681\times10^{-1}\)\\
+\(p_1\) & 1 & \(7.068718138865\times10^{-1}\)\\
+\bottomrule
+\end{tabular}
+\end{center}
+This is a convention check: the \(-\ii\) phase is inserted for the
+\GammaLoop{} CFF representation, not for the pure 4D algebra identity.
+
+\subsection[GammaLoop 3D CFF inspect, mt = 1500]{\GammaLoop{} 3D CFF inspect, \(m_t=1500\)}
+
+The non-threshold-clean heavy-mass test was run with:
+\begin{lstlisting}
+PYTHONPATH=src .venv/bin/python src/pygloop.py --process qqbar_nX \
+  --m_top 1500 --clean test --mode gammaloop
+\end{lstlisting}
+The current results are:
+\begin{center}
+\begin{tabular}{ccccc}
+\toprule
+beam & group & \(\lambda=10^{-3}\) & \(\lambda=10^{-5}\) & \(\lambda=10^{-7}\)\\
+\midrule
+\(p_0\) & 0 & \(2.156437298117\times10^{-3}\) & \(2.162682427278\times10^{-5}\) & \(2.162745021408\times10^{-7}\)\\
+\(p_0\) & 1 & \(1.019780744626\times10^{-2}\) & \(1.015716257667\times10^{-4}\) & \(1.015675267491\times10^{-6}\)\\
+\(p_1\) & 0 & \(2.156437298117\times10^{-3}\) & \(2.162682427278\times10^{-5}\) & \(2.162745021408\times10^{-7}\)\\
+\(p_1\) & 1 & \(1.019780744626\times10^{-2}\) & \(1.015716257667\times10^{-4}\) & \(1.015675267491\times10^{-6}\)\\
+\bottomrule
+\end{tabular}
+\end{center}
+The \(p_0\) and \(p_1\) summaries are identical in the current fractional
+test because the GammaLoop inspect path solves the same pinned light-edge ray.
+The important result is the linear decrease with \(\lambda\) in each group.
+
+\subsection[GammaLoop 3D CFF inspect, physical mt = 173]{\GammaLoop{} 3D CFF inspect, physical \(m_t=173\)}
+
+The physical-mass test was run at \(\sqrt{s}=1000\) GeV with threshold
+subtraction enabled:
+\begin{lstlisting}
+PYTHONPATH=src .venv/bin/python src/pygloop.py --process qqbar_nX \
+  --overwrite-process-basename qqbar_nX_mt173 \
+  --m_top 173 --clean test --mode gammaloop
+\end{lstlisting}
+The generated threshold overlap structures were active:
+\[
+  \hbox{group 0 sizes }[13,12,12],
+  \qquad
+  \hbox{group 1 sizes }[9,9,8,8].
+\]
+The current results are:
+\begin{center}
+\begin{tabular}{ccccc}
+\toprule
+beam & group & \(\lambda=10^{-3}\) & \(\lambda=10^{-5}\) & \(\lambda=10^{-7}\)\\
+\midrule
+\(p_0\) & 0 & \(1.388028023261\times10^{-3}\) & \(1.409386585386\times10^{-5}\) & \(1.409618038701\times10^{-7}\)\\
+\(p_0\) & 1 & \(1.738779562355\times10^{-3}\) & \(1.729480510655\times10^{-5}\) & \(1.729359476107\times10^{-7}\)\\
+\(p_1\) & 0 & \(1.388028023261\times10^{-3}\) & \(1.409386585386\times10^{-5}\) & \(1.409618038701\times10^{-7}\)\\
+\(p_1\) & 1 & \(1.738779562355\times10^{-3}\) & \(1.729480510655\times10^{-5}\) & \(1.729359476107\times10^{-7}\)\\
+\bottomrule
+\end{tabular}
+\end{center}
+This demonstrates the same local cancellation pattern in the physical-mass
+setup with threshold sectors present.
+
+\section{Standalone \GammaLoop{} run card}
+
+The generated run card has named command blocks and no non-empty top-level
+\texttt{commands} block, so loading the TOML does not automatically run
+generation or inspection.  The intended standalone sequence is:
+\begin{lstlisting}
+GL=/Users/vjhirsch/Documents/Work/gammaloop_dev/target/dev-optim/gammaloop
+CARD=outputs/dot_files/qqbar_nX/qqbar_nX_d_dbar_h_h_h_2L_top_pentagon_isr_subtracted.toml
+STATE=outputs/gammaloop_states/qqbar_nX_standalone_qqbar_nX_d_dbar_h_h_h_2L_top_pentagon_isr_subtracted
+
+$GL --clean-state "$CARD"
+$GL -o -s "$STATE" run generate_subtracted_integrand
+$GL -o -s "$STATE" run inspect_collinear_p1
+$GL -o -s "$STATE" run inspect_collinear_p1_arb
+$GL -o -s "$STATE" run inspect_collinear_p2
+$GL -o -s "$STATE" run inspect_collinear_p2_arb
+$GL -o -s "$STATE" run low_stat_integrate_pm
+$GL -o -s "$STATE" run low_stat_integrate_pp
+\end{lstlisting}
+The helper shell script supports sectioned execution, including an \texttt{open}
+mode that drops into the live \GammaLoop{} CLI.
+
+\section{Current caveats and next cleanup items}
+
+\begin{enumerate}[leftmargin=2em]
+  \item The independent 4D evaluator should infer masses from the model or
+        particle name, not only from explicit DOT edge \texttt{mass}
+        attributes.
+  \item The parametric-\(\xi\) option is implemented as configuration and
+        additional-parameter plumbing, but the current validated results use
+        the fixed \(\zeta=p_0+p_1\) setup.
+  \item The current GammaLoop inspect \(p_0\) and \(p_1\) summaries use the
+        same pinned light-edge fractional ray.  This is a useful grouped
+        regression test, but a later diagnostic should also print independent
+        solved rays for the two beam limits.
+\end{enumerate}
+
+\begin{thebibliography}{9}
+\bibitem{KermanschahVicini2026}
+D.~Kermanschah and M.~Vicini,
+\emph{Heavy-quark box-loop corrections to \(q\bar q \to Z\gamma\) at two loops in QCD},
+arXiv:2603.03169 [hep-ph],
+\url{https://arxiv.org/abs/2603.03169}.
+\end{thebibliography}
+
+\end{document}
