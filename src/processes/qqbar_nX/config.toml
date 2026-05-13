@@ -60,12 +60,21 @@ denominator_strategy = "contract"
 # keeps the fixed-zeta leading-power auxiliary denominator as a loop-energy-free
 # spatial factor in the graph numerator. This is the current 3D CFF-compatible
 # representation used by the local GammaLoop collinear tests.
+# "exact_xi_topology" reserves two fake external ids, Q(2) incoming and Q(6)
+# outgoing, remaps the physical Higgses to Q(3),Q(4),Q(5), and keeps the
+# Kermanshah auxiliary denominator as an actual CT propagator carrying the
+# fake xi shift. The original graphs receive the fake externals as is_dummy
+# half-edges; CT graphs keep them non-dummy so GammaLoop's LMB signatures see xi.
 auxiliary_denominator_mode = "spatial_proxy"
 # Overall graph-global phase applied to ISR counterterm numerators only.
 # The 3D GammaLoop CFF event convention returns these CTs with an extra +i
 # phase relative to the original graph, so "-i" restores the local cancellation.
 # For pure 4D algebra diagnostics, set this back to "1".
 global_phase = "-i"
+# Diagnostic scalar multiplier applied to all local ISR CT numerators. Keep at
+# 1 for the paper-level Feynman-integrand representation; values different from
+# 1 are useful to isolate GammaLoop CFF normalization effects.
+normalization_factor = "1"
 # Local IR CTs are UV-finite by construction here. Force all IR CT node/edge
 # DOD attributes far negative, and keep GammaLoop's own UV generation disabled
 # in the standalone run card and API generation path.

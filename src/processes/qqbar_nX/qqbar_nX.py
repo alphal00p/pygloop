@@ -17,6 +17,7 @@ from typing import Any
 from gammaloop import DotExportSettings, GammaLoopAPI  # type: ignore
 
 from processes.qqbar_nX.qqbar_nX_counterterms import (
+    EXACT_XI_AUXILIARY_MODE,
     build_isr_counterterm_graphs,
     identify_light_line_structure,
 )
@@ -24,6 +25,8 @@ from processes.qqbar_nX.qqbar_nX_graphs import (
     SelectionReport,
     TopologySelectorConfig,
     dot_graphs_to_string,
+    graph_external_edges,
+    graph_internal_edges,
     graph_name,
     parse_dot_graphs,
     select_top_pentagon_isr_graphs,
@@ -56,6 +59,7 @@ LMB_TERM_RE = re.compile(
     r"(?P<coef>[+-]?(?:(?:\d+(?:\.\d*)?|\.\d+)\*)?)"
     r"(?P<kind>[KP])\((?P<index>\d+),"
 )
+SINGLE_EXTERNAL_RE = re.compile(r"^P\((?P<index>\d+),a___\)$")
 
 
 def _load_toml(path: str) -> dict[str, Any]:
@@ -105,6 +109,16 @@ def _format_cli_float(value: float) -> str:
     return text if text not in {"", "-0"} else "0"
 
 
+def _momenta_toml_array(momenta: list[list[float]], *, dependent_last: bool) -> str:
+    entries = [
+        "[{:.16e}, {:.16e}, {:.16e}, {:.16e}]".format(*momentum)
+        for momentum in (momenta[:-1] if dependent_last else momenta)
+    ]
+    if dependent_last:
+        entries.append('"dependent"')
+    return ",\n    ".join(entries)
+
+
 def _helicity_label(helicities: list[int]) -> str:
     if helicities[:2] == [1, -1]:
         return "pm"
@@ -134,6 +148,15 @@ def _complex_from_api_value(value: Any) -> complex:
     if hasattr(value, "re") and hasattr(value, "im"):
         return complex(float(value.re), float(value.im))
     return complex(value)
+
+
+def _minkowski_square_numeric(momentum: list[float]) -> float:
+    return (
+        momentum[0] * momentum[0]
+        - momentum[1] * momentum[1]
+        - momentum[2] * momentum[2]
+        - momentum[3] * momentum[3]
+    )
 
 
 def _parse_lmb_representation(lmb_rep: str) -> dict[str, dict[int, float]]:
@@ -293,6 +316,9 @@ class qqbar_nX(object):
             "auxiliary_denominator_mode", "global"
         )
         self.counterterm_global_phase = str(counterterm_config.get("global_phase", "1"))
+        self.counterterm_normalization_factor = str(
+            counterterm_config.get("normalization_factor", "1")
+        )
         self.counterterm_uv_inert_dod = int(counterterm_config.get("uv_inert_dod", -100))
         self.counterterm_use_parametric_xi = bool(
             counterterm_config.get("use_parametric_xi", False)
@@ -444,6 +470,150 @@ class qqbar_nX(object):
 
     def get_subtracted_integrand_name(self) -> str:
         return self.get_integrand_name(suffix=self.subtracted_suffix)
+
+    def uses_fake_xi_externals(self) -> bool:
+        return self.counterterm_auxiliary_denominator_mode == EXACT_XI_AUXILIARY_MODE
+
+    def get_subtracted_process_name(self) -> str:
+        base_name = self.get_integrand_name(suffix="")
+        if self.uses_fake_xi_externals():
+            return f"{base_name}_xi_ext"
+        return base_name
+
+    def _xi_external_momentum(self) -> list[float]:
+        if self.counterterm_use_parametric_xi:
+            return [float(value) for value in self.xi_default_values]
+        if len(self.ps_point) < 2:
+            raise pygloopException("Need two incoming momenta to build xi=p1+p2.")
+        return [
+            float(self.ps_point[0].t + self.ps_point[1].t),
+            float(self.ps_point[0].x + self.ps_point[1].x),
+            float(self.ps_point[0].y + self.ps_point[1].y),
+            float(self.ps_point[0].z + self.ps_point[1].z),
+        ]
+
+    def _physical_momenta_4d(self) -> list[list[float]]:
+        return [
+            [
+                float(momentum.t),
+                float(momentum.x),
+                float(momentum.y),
+                float(momentum.z),
+            ]
+            for momentum in self.ps_point
+        ]
+
+    def _current_external_momenta_4d(
+        self, *, fake_xi_momentum: list[float] | None = None
+    ) -> list[list[float]]:
+        physical = self._physical_momenta_4d()
+        if not self.uses_fake_xi_externals():
+            return physical
+        if len(physical) != 5:
+            raise pygloopException(
+                "qqbar_nX fake-xi topology expects five physical external momenta."
+            )
+        xi = self._xi_external_momentum()
+        fake_xi = list(xi if fake_xi_momentum is None else fake_xi_momentum)
+        return [
+            physical[0],
+            physical[1],
+            fake_xi,
+            physical[2],
+            physical[3],
+            physical[4],
+            fake_xi,
+        ]
+
+    def _fake_xi_edge_momentum_map(
+        self, *, fake_xi_momentum: list[float] | None = None
+    ) -> dict[int, list[float]]:
+        physical = self._physical_momenta_4d()
+        if len(physical) != 5:
+            raise pygloopException(
+                "qqbar_nX fake-xi topology expects five physical external momenta."
+            )
+        xi = self._xi_external_momentum()
+        fake_xi = list(xi if fake_xi_momentum is None else fake_xi_momentum)
+        return {
+            0: physical[0],
+            1: physical[1],
+            2: fake_xi,
+            3: physical[2],
+            4: physical[3],
+            5: physical[4],
+            6: fake_xi,
+        }
+
+    def _external_momenta_for_graph_4d(
+        self, graph: Any, *, fake_xi_momentum: list[float] | None = None
+    ) -> list[list[float]]:
+        momenta = [
+            list(momentum)
+            for momentum in self._current_external_momenta_4d(
+                fake_xi_momentum=fake_xi_momentum
+            )
+        ]
+        if not self.uses_fake_xi_externals():
+            return momenta
+
+        edge_momenta = self._fake_xi_edge_momentum_map(
+            fake_xi_momentum=fake_xi_momentum
+        )
+        for edge in graph_external_edges(graph):
+            raw_edge_id = edge.get_attributes().get("id")
+            if raw_edge_id is None:
+                continue
+            edge_id = int(strip_quotes(raw_edge_id))
+            if edge_id not in edge_momenta:
+                continue
+            lmb_rep = strip_quotes(edge.get_attributes().get("lmb_rep", ""))
+            match = SINGLE_EXTERNAL_RE.fullmatch(lmb_rep.replace(" ", ""))
+            if match is None:
+                continue
+            p_index = int(match.group("index"))
+            if p_index >= len(momenta):
+                momenta.extend(
+                    [[0.0, 0.0, 0.0, 0.0] for _ in range(p_index + 1 - len(momenta))]
+                )
+            momenta[p_index] = list(edge_momenta[edge_id])
+        return momenta
+
+    def _external_spatial_vectors_for_graph(
+        self,
+        graph: Any | None = None,
+        *,
+        fake_xi_momentum: list[float] | None = None,
+    ) -> dict[int, list[float]]:
+        external_momenta = (
+            self._current_external_momenta_4d(fake_xi_momentum=fake_xi_momentum)
+            if graph is None
+            else self._external_momenta_for_graph_4d(
+                graph, fake_xi_momentum=fake_xi_momentum
+            )
+        )
+        return {
+            index: [momentum[1], momentum[2], momentum[3]]
+            for index, momentum in enumerate(external_momenta)
+        }
+
+    def _current_external_spatial_vectors(self) -> dict[int, list[float]]:
+        return self._external_spatial_vectors_for_graph()
+
+    def _helicities_for_current_externals(
+        self, helicities: list[int] | None = None
+    ) -> list[int]:
+        values = list(self.helicities if helicities is None else helicities)
+        if not self.uses_fake_xi_externals():
+            return values
+        if len(values) == 7:
+            return values
+        if len(values) != 5:
+            raise pygloopException(
+                "qqbar_nX fake-xi topology expects helicities for either five "
+                "physical externals or all seven DOT externals."
+            )
+        return [values[0], values[1], 0, values[2], values[3], values[4], 0]
 
     def _initialise_gl_worker(self) -> None:
         if os.path.exists(self.state_folder):
@@ -645,6 +815,11 @@ class qqbar_nX(object):
         return report.manifest()
 
     def _standalone_momenta_toml(self) -> str:
+        if self.uses_fake_xi_externals():
+            return _momenta_toml_array(
+                self._current_external_momenta_4d(), dependent_last=True
+            )
+
         momenta: list[str] = []
         for momentum in self.ps_point[:-1]:
             momenta.append(
@@ -772,10 +947,7 @@ class qqbar_nX(object):
             )
 
         coefficients = _parse_lmb_representation(lmb_rep)
-        external_vectors = {
-            index: [momentum.x, momentum.y, momentum.z]
-            for index, momentum in enumerate(self.ps_point)
-        }
+        external_vectors = self._external_spatial_vectors_for_graph(graph)
         fixed_loop_vectors = {1: [0.25, 0.125, -0.375]}
         solve_loop_index = 0
         solve_coefficient = coefficients["K"].get(solve_loop_index, 0.0)
@@ -825,6 +997,7 @@ class qqbar_nX(object):
         x_fraction: float,
         lambda_value: float,
         routed_graph: Any | None = None,
+        fake_xi_momentum: list[float] | None = None,
     ) -> list[float]:
         if not 0.0 < x_fraction < 1.0:
             raise pygloopException("tests.collinear_fraction_x must lie in (0, 1).")
@@ -858,10 +1031,10 @@ class qqbar_nX(object):
             )
 
         coefficients = _parse_lmb_representation(lmb_rep)
-        external_vectors = {
-            index: [momentum.x, momentum.y, momentum.z]
-            for index, momentum in enumerate(self.ps_point)
-        }
+        external_vectors = self._external_spatial_vectors_for_graph(
+            routed_graph if routed_graph is not None else graph,
+            fake_xi_momentum=fake_xi_momentum,
+        )
         fixed_loop_vectors = {1: [0.25, 0.125, -0.375]}
         solve_loop_index = 0
         solve_coefficient = coefficients["K"].get(solve_loop_index, 0.0)
@@ -908,6 +1081,222 @@ class qqbar_nX(object):
         raise pygloopException(
             f"Could not find routed edge {edge_id} in {graph_name(graph)}."
         )
+
+    def _exact_xi_auxiliary_edge(self, graph: Any) -> Any | None:
+        if not self.uses_fake_xi_externals():
+            return None
+        name = graph_name(graph)
+        if not (name.endswith("_isr_p1_ct") or name.endswith("_isr_p2_ct")):
+            return None
+        mass_edges = [
+            edge
+            for edge in graph_internal_edges(graph)
+            if edge.get_attributes().get("mass") is not None
+        ]
+        if len(mass_edges) != 1:
+            return None
+        return mass_edges[0]
+
+    def _exact_xi_fake_momentum_from_auxiliary_signature(
+        self, graph: Any, *, shift_sign: float = -1.0
+    ) -> list[float] | None:
+        details = self._exact_xi_auxiliary_signature_details(
+            graph, shift_sign=shift_sign
+        )
+        if details is None:
+            return None
+        return details["required_fake_q2"]
+
+    def _exact_xi_auxiliary_signature_details(
+        self, graph: Any, *, shift_sign: float = -1.0
+    ) -> dict[str, Any] | None:
+        auxiliary_edge = self._exact_xi_auxiliary_edge(graph)
+        if auxiliary_edge is None:
+            return None
+        raw_lmb_rep = auxiliary_edge.get_attributes().get("lmb_rep")
+        if raw_lmb_rep is None:
+            return None
+
+        coefficients = _parse_lmb_representation(strip_quotes(raw_lmb_rep))
+        loop_coefficients = {
+            index: value
+            for index, value in coefficients["K"].items()
+            if abs(value) > 1.0e-12
+        }
+        if set(loop_coefficients) != {0}:
+            return None
+        loop_sign = loop_coefficients[0]
+        fake_coefficient = (
+            coefficients["P"].get(2, 0.0) + coefficients["P"].get(6, 0.0)
+        )
+        if abs(fake_coefficient) < 1.0e-12:
+            return None
+
+        physical = self._physical_momenta_4d()
+        if len(physical) != 5:
+            raise pygloopException(
+                "qqbar_nX fake-xi topology expects five physical external momenta."
+            )
+        external_momenta = {
+            0: physical[0],
+            1: physical[1],
+            3: physical[2],
+            4: physical[3],
+            5: physical[4],
+        }
+        external_shift = [0.0, 0.0, 0.0, 0.0]
+        for p_index, coefficient in coefficients["P"].items():
+            if p_index in {2, 6} or abs(coefficient) < 1.0e-12:
+                continue
+            if p_index not in external_momenta:
+                return None
+            for component in range(4):
+                external_shift[component] += coefficient * external_momenta[p_index][
+                    component
+                ]
+
+        xi = self._xi_external_momentum()
+        desired_shift = [shift_sign * loop_sign * component for component in xi]
+        required_fake_q2 = [
+            (desired_shift[component] - external_shift[component]) / fake_coefficient
+            for component in range(4)
+        ]
+        solved_shift = list(external_shift)
+        for p_index, coefficient in coefficients["P"].items():
+            if p_index not in {2, 6} or abs(coefficient) < 1.0e-12:
+                continue
+            for component in range(4):
+                solved_shift[component] += coefficient * required_fake_q2[component]
+        residual = [
+            solved_shift[component] - desired_shift[component]
+            for component in range(4)
+        ]
+        return {
+            "auxiliary_edge_id": int(strip_quotes(auxiliary_edge.get("id"))),
+            "lmb_rep": strip_quotes(raw_lmb_rep),
+            "loop_sign": loop_sign,
+            "fake_coefficient": fake_coefficient,
+            "external_shift": external_shift,
+            "target_non_loop_shift": desired_shift,
+            "solved_non_loop_shift": solved_shift,
+            "residual_to_k0_minus_xi": residual,
+            "max_abs_residual": max(abs(component) for component in residual),
+            "required_fake_q2": required_fake_q2,
+            "required_fake_q2_square": _minkowski_square_numeric(required_fake_q2),
+            "xi": xi,
+            "xi_square": _minkowski_square_numeric(xi),
+        }
+
+    def _exact_xi_fake_momentum_for_group_beam(
+        self, graphs: list[Any], *, beam: str, shift_sign: float = -1.0
+    ) -> list[float] | None:
+        if not self.uses_fake_xi_externals():
+            return None
+        suffix = "_isr_p1_ct" if beam == "p1" else "_isr_p2_ct"
+        for graph in graphs:
+            if not graph_name(graph).endswith(suffix):
+                continue
+            fake_momentum = self._exact_xi_fake_momentum_from_auxiliary_signature(
+                graph, shift_sign=shift_sign
+            )
+            if fake_momentum is not None:
+                return fake_momentum
+        return None
+
+    def _is_exact_xi_auxiliary_signature(self, lmb_rep: str) -> bool:
+        coefficients = _parse_lmb_representation(lmb_rep)
+        nonzero_loop = {
+            index: value
+            for index, value in coefficients["K"].items()
+            if abs(value) > 1.0e-12
+        }
+        nonzero_external = {
+            index: value
+            for index, value in coefficients["P"].items()
+            if abs(value) > 1.0e-12
+        }
+        if set(nonzero_loop) != {0} or set(nonzero_external) != {2}:
+            return False
+        return abs(nonzero_loop[0]) == 1.0 and nonzero_loop[0] == nonzero_external[2]
+
+    def _verify_exact_xi_routing(
+        self, grouped_routed_graphs: dict[int, list[Any]]
+    ) -> list[dict[str, Any]]:
+        if not self.uses_fake_xi_externals():
+            return []
+
+        report: list[dict[str, Any]] = []
+        for group_id, graphs in grouped_routed_graphs.items():
+            for graph in graphs:
+                name = graph_name(graph)
+                if not (name.endswith("_isr_p1_ct") or name.endswith("_isr_p2_ct")):
+                    continue
+                mass_edges = [
+                    edge
+                    for edge in graph_internal_edges(graph)
+                    if edge.get_attributes().get("mass") is not None
+                ]
+                if len(mass_edges) != 1:
+                    report.append(
+                        {
+                            "group_id": group_id,
+                            "graph": name,
+                            "auxiliary_edge_id": None,
+                            "lmb_rep": None,
+                            "matches_k1_minus_xi": False,
+                            "reason": (
+                                "expected exactly one massive fake-xi auxiliary "
+                                f"edge, found {len(mass_edges)}"
+                            ),
+                        }
+                    )
+                    continue
+                auxiliary_edge = mass_edges[0]
+
+                raw_lmb_rep = auxiliary_edge.get_attributes().get("lmb_rep", "")
+                lmb_rep = strip_quotes(raw_lmb_rep)
+                details = self._exact_xi_auxiliary_signature_details(graph)
+                required_fake_momentum = (
+                    details["required_fake_q2"] if details is not None else None
+                )
+                entry = {
+                    "group_id": group_id,
+                    "graph": name,
+                    "auxiliary_edge_id": int(strip_quotes(auxiliary_edge.get("id"))),
+                    "lmb_rep": lmb_rep,
+                    "direct_signature_without_fake_solve": self._is_exact_xi_auxiliary_signature(lmb_rep),
+                    "solves_with_fake_q2": required_fake_momentum is not None,
+                    "required_fake_q2": required_fake_momentum,
+                }
+                if details is not None:
+                    entry.update(
+                        {
+                            "loop_sign": details["loop_sign"],
+                            "fake_coefficient": details["fake_coefficient"],
+                            "target_non_loop_shift": details["target_non_loop_shift"],
+                            "solved_non_loop_shift": details["solved_non_loop_shift"],
+                            "residual_to_k0_minus_xi": details[
+                                "residual_to_k0_minus_xi"
+                            ],
+                            "max_abs_residual": details["max_abs_residual"],
+                            "required_fake_q2_square": details[
+                                "required_fake_q2_square"
+                            ],
+                            "xi": details["xi"],
+                            "xi_square": details["xi_square"],
+                        }
+                    )
+                report.append(entry)
+
+        failing = [entry for entry in report if not entry["solves_with_fake_q2"]]
+        if failing:
+            logger.warning(
+                "Exact-xi CT routing cannot yet be solved into the paper "
+                "auxiliary denominator by assigning the fake Q(2)=Q(6) "
+                "external. Mismatches:\n%s",
+                pformat(failing),
+            )
+        return report
 
     def _collinear_xs_from_dot(
         self, dot_path: str, *, beam: str, epsilon: float
@@ -1016,14 +1405,14 @@ class qqbar_nX(object):
         self, dot_path: str, *, integrand_name: str | None = None
     ) -> str:
         subtracted_name = integrand_name or self.get_subtracted_integrand_name()
-        process_name = self.get_integrand_name(suffix="")
+        process_name = self.get_subtracted_process_name()
         run_card_path = pjoin(self.dot_folder, f"{subtracted_name}.toml")
         state_folder = self.get_standalone_state_folder(subtracted_name)
         momenta = self._standalone_momenta_toml()
-        helicities = ", ".join(str(h) for h in self.helicities)
+        helicities = ", ".join(str(h) for h in self._helicities_for_current_externals())
         additional_param_values = self._standalone_additional_param_values_toml()
-        pm_helicities = [1, -1, 0, 0, 0]
-        pp_helicities = [1, 1, 0, 0, 0]
+        pm_helicities = self._helicities_for_current_externals([1, -1, 0, 0, 0])
+        pp_helicities = self._helicities_for_current_externals([1, 1, 0, 0, 0])
         template_process_name = "{process_name}"
         template_integrand_name = "{integrand_name}"
         template_dot_path = "{dot_path}"
@@ -1427,6 +1816,7 @@ integrate = {self.low_stat_n_cores}
             denominator_strategy=self.counterterm_denominator_strategy,
             auxiliary_denominator_mode=self.counterterm_auxiliary_denominator_mode,
             global_phase=self.counterterm_global_phase,
+            normalization_factor=self.counterterm_normalization_factor,
             uv_inert_dod=self.counterterm_uv_inert_dod,
             use_parametric_xi=self.counterterm_use_parametric_xi,
             xi_parameter_names=self.xi_parameter_names,  # type: ignore[arg-type]
@@ -1466,7 +1856,11 @@ integrate = {self.low_stat_n_cores}
             amplitudes, _cross_sections = worker.list_outputs()
             if subtracted_name not in amplitudes:
                 raw_name = self.get_integrand_name(suffix="_raw_generated_graphs")
-                process_ref = amplitudes.get(raw_name, self.get_integrand_name(suffix=""))
+                process_ref = (
+                    self.get_subtracted_process_name()
+                    if self.uses_fake_xi_externals()
+                    else amplitudes.get(raw_name, self.get_integrand_name(suffix=""))
+                )
                 worker.run(
                     f"import graphs {subtracted_dot_path} -p {process_ref} -i {subtracted_name}"
                 )
@@ -1715,7 +2109,7 @@ integrate = {self.low_stat_n_cores}
             self._collinear_precision_settings_fragment()
         )
         runtime_fragment = (
-            _helicity_toml_fragment(self.helicities)
+            _helicity_toml_fragment(self._helicities_for_current_externals())
             + self._collinear_test_sampling_fragment()
             + stability_fragment
         )
@@ -1725,6 +2119,31 @@ integrate = {self.low_stat_n_cores}
             f"'\n{runtime_fragment}'"
         )
         return use_arb_prec, display_digits
+
+    def _set_process_external_momenta(
+        self,
+        api: GammaLoopAPI,
+        *,
+        process_name: str,
+        integrand_name: str,
+        fake_xi_momentum: list[float] | None = None,
+    ) -> None:
+        if self.uses_fake_xi_externals():
+            momenta = self._current_external_momenta_4d(
+                fake_xi_momentum=fake_xi_momentum
+            )
+        else:
+            momenta = self._current_external_momenta_4d()
+        fragment = (
+            "[kinematics.externals.data]\n"
+            "momenta = [\n"
+            f"    {_momenta_toml_array(momenta, dependent_last=True)}\n"
+            "]\n"
+        )
+        api.run(
+            f"set process -p {process_name} -i {integrand_name} string "
+            f"'\n{fragment}'"
+        )
 
     def _graph_id_name_map_from_integrand_info(
         self, api: GammaLoopAPI, *, integrand_name: str
@@ -1794,7 +2213,11 @@ integrate = {self.low_stat_n_cores}
         return ordered, event_metadata
 
     def _ensure_api_test_state(
-        self, *, manifest: dict[str, Any], integrand_name: str
+        self,
+        *,
+        manifest: dict[str, Any],
+        integrand_name: str,
+        generate_command_block: str = "generate_subtracted_integrand",
     ) -> GammaLoopAPI:
         state_folder = manifest.get("standalone_state_folder")
         run_card_path = manifest.get("standalone_run_card_path")
@@ -1836,7 +2259,7 @@ integrate = {self.low_stat_n_cores}
                 boot_commands_path=run_card_path,
                 clean_state=True,
             )
-            api.run("run generate_subtracted_integrand")
+            api.run(f"run {generate_command_block}")
             api.run("save state -o true")
             prepared_api = api
             generated_integrand_exists = True
@@ -1846,7 +2269,7 @@ integrate = {self.low_stat_n_cores}
 
         api = GammaLoopAPI(state_folder, clean_state=False)
         if not generated_integrand_exists:
-            api.run("run generate_subtracted_integrand")
+            api.run(f"run {generate_command_block}")
             api.run("save state -o true")
         return api
 
@@ -1910,7 +2333,7 @@ integrate = {self.low_stat_n_cores}
         title = (
             f"qqbar_nX collinear approach {beam}: x={self.collinear_fraction_x}, "
             f"|k_perp|=lambda*sqrt(s), precision={self.collinear_precision}, "
-            f"helicities={self.helicities}"
+            f"helicities={self._helicities_for_current_externals()}"
         )
         if backend_label:
             title += f", backend={backend_label}"
@@ -1922,20 +2345,14 @@ integrate = {self.low_stat_n_cores}
             return self.test_process_4d()
         if normalized_mode in {"gammaloop", "3d", "cff"}:
             return self.test_process_gammaloop()
+        if normalized_mode in {"ltd", "gammaloop-ltd", "3d-ltd"}:
+            return self.test_process_gammaloop(representation="LTD")
         raise pygloopException(
-            "qqbar_nX test_process mode must be one of 'gammaloop' or '4D'."
+            "qqbar_nX test_process mode must be one of 'gammaloop', 'LTD' or '4D'."
         )
 
     def _external_momenta_4d(self) -> list[list[float]]:
-        return [
-            [
-                float(momentum.t),
-                float(momentum.x),
-                float(momentum.y),
-                float(momentum.z),
-            ]
-            for momentum in self.ps_point
-        ]
+        return self._current_external_momenta_4d()
 
     def _sm_4d_model_values(self) -> dict[str, complex]:
         a_ewm1 = 132.50698
@@ -1966,6 +2383,7 @@ integrate = {self.low_stat_n_cores}
         x_fraction: float,
         lambda_value: float,
         routed_graph: Any,
+        fake_xi_momentum: list[float] | None = None,
     ) -> list[list[float]]:
         if not 0.0 < x_fraction < 1.0:
             raise pygloopException("tests.collinear_fraction_x must lie in (0, 1).")
@@ -2002,13 +2420,12 @@ integrate = {self.low_stat_n_cores}
 
         coefficients = _parse_lmb_representation(lmb_rep)
         external_vectors = {
-            index: [
-                float(momentum.t),
-                float(momentum.x),
-                float(momentum.y),
-                float(momentum.z),
-            ]
-            for index, momentum in enumerate(self.ps_point)
+            index: momentum
+            for index, momentum in enumerate(
+                self._external_momenta_for_graph_4d(
+                    routed_graph, fake_xi_momentum=fake_xi_momentum
+                )
+            )
         }
         fixed_loop_vectors = {1: [200.0, 17.0, -31.0, 47.0]}
         solve_loop_index = 0
@@ -2085,13 +2502,24 @@ integrate = {self.low_stat_n_cores}
         write_text_with_dirs(routed_dot_path, routed_dot)
         return routed_dot_path
 
-    def test_process_gammaloop(self) -> dict[str, Any]:
+    def test_process_gammaloop(self, *, representation: str = "CFF") -> dict[str, Any]:
+        representation = representation.upper()
+        if representation not in {"CFF", "LTD"}:
+            raise pygloopException(
+                "qqbar_nX GammaLoop collinear test representation must be CFF or LTD."
+            )
         manifest = self.build_ir_subtracted_graphs()
         subtracted_name = self.get_subtracted_integrand_name()
-        process_name = self.get_integrand_name(suffix="")
+        process_name = self.get_subtracted_process_name()
         dot_path = manifest["subtracted_dot_path"]
         api = self._ensure_api_test_state(
-            manifest=manifest, integrand_name=subtracted_name
+            manifest=manifest,
+            integrand_name=subtracted_name,
+            generate_command_block=(
+                "generate_subtracted_integrand_ltd"
+                if representation == "LTD"
+                else "generate_subtracted_integrand"
+            ),
         )
         dot_export_settings = DotExportSettings()
         dot_export_settings.include_autogenerated_fields = True
@@ -2114,6 +2542,7 @@ integrate = {self.low_stat_n_cores}
         grouped_graphs = self._graph_members_by_group_from_routed_dot(
             reference_dot_path=dot_path, routed_dot_path=routed_dot_path
         )
+        exact_xi_routing = self._verify_exact_xi_routing(grouped_graphs)
         tables: dict[str, str] = {}
         numeric_results: dict[str, Any] = {}
 
@@ -2135,6 +2564,16 @@ integrate = {self.low_stat_n_cores}
                     graphs[0],
                 )
                 graph_names = [graph_name(graph) for graph in graphs]
+                fake_xi_momentum = self._exact_xi_fake_momentum_for_group_beam(
+                    graphs, beam=beam
+                )
+                if fake_xi_momentum is not None:
+                    self._set_process_external_momenta(
+                        api,
+                        process_name=process_name,
+                        integrand_name=subtracted_name,
+                        fake_xi_momentum=fake_xi_momentum,
+                    )
                 numeric_results[beam][str(group_id)] = {}
                 for lambda_value in self.collinear_lambdas:
                     xs = self._collinear_xs_from_graph_fractional(
@@ -2143,50 +2582,26 @@ integrate = {self.low_stat_n_cores}
                         x_fraction=self.collinear_fraction_x,
                         lambda_value=lambda_value,
                         routed_graph=routed_master_graph,
+                        fake_xi_momentum=fake_xi_momentum,
                     )
+                    points = np.array([xs], dtype=float)
                     group_batch = api.evaluate_samples(
-                        np.array([xs], dtype=float),
+                        points,
                         integrand_name=subtracted_name,
                         use_arb_prec=use_arb_prec,
-                        minimal_output=False,
+                        minimal_output=True,
                         return_events=True,
                         momentum_space=True,
                         discrete_dims=np.array([[group_id]], dtype=np.uintp),
                     )
-                    group_sample = group_batch.samples[0]
-                    group_sum = _complex_from_api_value(group_sample.integrand_result)
-                    member_values, event_metadata = (
-                        self._member_values_from_event_groups(
-                            group_sample,
-                            graph_id_to_name=graph_id_to_name,
-                            ordered_graph_names=graph_names,
-                        )
+                    sample = group_batch.samples[0]
+                    member_values, event_metadata = self._member_values_from_event_groups(
+                        sample,
+                        graph_id_to_name=graph_id_to_name,
+                        ordered_graph_names=graph_names,
                     )
-
-                    if not member_values:
-                        # Fallback for older GammaLoop states/settings where
-                        # event generation is unavailable. These values are
-                        # diagnostics only: explicit graph names bypass the
-                        # group-master CFF setup.
-                        points = np.array([xs for _name in graph_names], dtype=float)
-                        batch = api.evaluate_samples(
-                            points,
-                            integrand_name=subtracted_name,
-                            use_arb_prec=use_arb_prec,
-                            minimal_output=True,
-                            return_events=False,
-                            momentum_space=True,
-                            graph_names=graph_names,
-                        )
-                        values = [
-                            _complex_from_api_value(sample.integrand_result)
-                            for sample in batch.samples
-                        ]
-                        member_values = list(zip(graph_names, values, strict=True))
-                        event_metadata = {}
-                        members_source = "isolated_graph_fallback"
-                    else:
-                        members_source = "grouped_event_weights"
+                    group_sum = sum(value for _name, value in member_values)
+                    members_source = "event_groups"
                     sum_abs = sum(abs(value) for _name, value in member_values)
                     ratio = abs(group_sum) / sum_abs if sum_abs != 0.0 else 0.0
                     beam_rows.append(
@@ -2203,7 +2618,8 @@ integrate = {self.low_stat_n_cores}
                         _lambda_label(lambda_value)
                     ] = {
                         "xs": xs,
-                        "group_evaluation_mode": "discrete_dim_group",
+                        "fake_xi_momentum": fake_xi_momentum,
+                        "group_evaluation_mode": "discrete_group",
                         "members_source": members_source,
                         "members": {
                             name: {"re": value.real, "im": value.imag}
@@ -2219,8 +2635,9 @@ integrate = {self.low_stat_n_cores}
             )
 
         rendered_report = "\n\n".join(tables[beam] for beam in ("p1", "p2"))
-        report_path = pjoin(self.dot_folder, f"{subtracted_name}.collinear_test.txt")
-        json_path = pjoin(self.dot_folder, f"{subtracted_name}.collinear_test.json")
+        report_suffix = ".collinear_test_ltd" if representation == "LTD" else ".collinear_test"
+        report_path = pjoin(self.dot_folder, f"{subtracted_name}{report_suffix}.txt")
+        json_path = pjoin(self.dot_folder, f"{subtracted_name}{report_suffix}.json")
         write_text_with_dirs(report_path, rendered_report)
         write_text_with_dirs(
             json_path,
@@ -2233,11 +2650,13 @@ integrate = {self.low_stat_n_cores}
                         "GammaLoop evaluates at the requested precision, but the "
                         "current Python API returns Python complex values to pygloop."
                     ),
+                    "representation": representation,
                     "collinear_fraction_x": self.collinear_fraction_x,
                     "collinear_lambdas": list(self.collinear_lambdas),
                     "dot_path": dot_path,
                     "routed_dot_path": routed_dot_path,
                     "standalone_state_folder": manifest.get("standalone_state_folder"),
+                    "exact_xi_routing": exact_xi_routing,
                     "results": numeric_results,
                 },
                 indent=2,
@@ -2252,7 +2671,9 @@ integrate = {self.low_stat_n_cores}
             "routed_dot_path": routed_dot_path,
             "standalone_state_folder": manifest.get("standalone_state_folder"),
             "precision": self.collinear_precision,
+            "representation": representation,
             "collinear_fraction_x": self.collinear_fraction_x,
+            "exact_xi_routing": exact_xi_routing,
             "tables": tables,
             "results": numeric_results,
         }
@@ -2275,7 +2696,8 @@ integrate = {self.low_stat_n_cores}
         grouped_graphs = self._graph_members_by_group_from_routed_dot(
             reference_dot_path=dot_path, routed_dot_path=routed_dot_path
         )
-        external_momenta = self._external_momenta_4d()
+        exact_xi_routing = self._verify_exact_xi_routing(grouped_graphs)
+        external_count = len(self._external_momenta_4d())
         model_values = self._sm_4d_model_values()
         graph_evaluators: dict[str, Any] = {}
         for graphs in grouped_graphs.values():
@@ -2286,7 +2708,7 @@ integrate = {self.low_stat_n_cores}
                 logger.info("Building 4D Symbolica evaluator for %s.", name)
                 graph_evaluators[name] = build_4d_graph_evaluator(
                     graph,
-                    external_count=len(external_momenta),
+                    external_count=external_count,
                     model_values=model_values,
                     xi_parameter_names=self.xi_parameter_names,  # type: ignore[arg-type]
                     xi_default_values=self.xi_default_values,  # type: ignore[arg-type]
@@ -2314,6 +2736,15 @@ integrate = {self.low_stat_n_cores}
                     graphs[0],
                 )
                 graph_names = [graph_name(graph) for graph in graphs]
+                fake_xi_momentum = self._exact_xi_fake_momentum_for_group_beam(
+                    graphs, beam=beam
+                )
+                external_momenta_by_name = {
+                    graph_name(graph): self._external_momenta_for_graph_4d(
+                        graph, fake_xi_momentum=fake_xi_momentum
+                    )
+                    for graph in graphs
+                }
                 numeric_results[beam][str(group_id)] = {}
                 for lambda_value in self.collinear_lambdas:
                     loop_momenta = self._collinear_loop_momenta_4d(
@@ -2322,14 +2753,15 @@ integrate = {self.low_stat_n_cores}
                         x_fraction=self.collinear_fraction_x,
                         lambda_value=lambda_value,
                         routed_graph=routed_master_graph,
+                        fake_xi_momentum=fake_xi_momentum,
                     )
                     member_values: list[tuple[str, complex]] = []
                     for name in graph_names:
                         evaluator = graph_evaluators[name]
                         evaluator.set_kinematics(
-                            external_momenta=external_momenta,
+                            external_momenta=external_momenta_by_name[name],
                             loop_momenta=loop_momenta,
-                            helicities=self.helicities,
+                            helicities=self._helicities_for_current_externals(),
                         )
                         member_values.append((name, evaluator.evaluate()))
                     values = [value for _name, value in member_values]
@@ -2350,6 +2782,7 @@ integrate = {self.low_stat_n_cores}
                         _lambda_label(lambda_value)
                     ] = {
                         "loop_momenta_4d": loop_momenta,
+                        "fake_xi_momentum": fake_xi_momentum,
                         "members": {
                             name: {"re": value.real, "im": value.imag}
                             for name, value in member_values
@@ -2383,6 +2816,7 @@ integrate = {self.low_stat_n_cores}
                         key: {"re": value.real, "im": value.imag}
                         for key, value in model_values.items()
                     },
+                    "exact_xi_routing": exact_xi_routing,
                     "results": numeric_results,
                 },
                 indent=2,
@@ -2397,6 +2831,7 @@ integrate = {self.low_stat_n_cores}
             "routed_dot_path": routed_dot_path,
             "backend": "4D direct f64",
             "collinear_fraction_x": self.collinear_fraction_x,
+            "exact_xi_routing": exact_xi_routing,
             "tables": tables,
             "results": numeric_results,
         }
@@ -2404,14 +2839,14 @@ integrate = {self.low_stat_n_cores}
     def run_standalone_collinear_tests(self) -> dict[str, Any]:
         manifest = self.build_ir_smoke_test_graphs()
         subtracted_name = self.get_integrand_name(suffix=self.smoke_test_suffix)
-        process_name = self.get_integrand_name(suffix="")
+        process_name = self.get_subtracted_process_name()
         run_card_path = manifest["standalone_run_card_path"]
         state_folder = manifest["standalone_state_folder"]
         dot_path = manifest["subtracted_dot_path"]
         graph = self._first_original_graph_from_dot(dot_path)
         log_prefix = subtracted_name
-        pm_helicities = [1, -1, 0, 0, 0]
-        pp_helicities = [1, 1, 0, 0, 0]
+        pm_helicities = self._helicities_for_current_externals([1, -1, 0, 0, 0])
+        pp_helicities = self._helicities_for_current_externals([1, 1, 0, 0, 0])
         command_results: list[dict[str, Any]] = []
 
         def run_command(label: str, command: list[str]) -> dict[str, Any]:

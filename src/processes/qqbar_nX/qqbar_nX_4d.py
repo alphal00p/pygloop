@@ -55,9 +55,20 @@ def _propagator_denominators_4d(graph: DotGraph) -> Expression:
         edge_denominator -= E(f"gammalooprs::Q({edge_id},spenso::cind(3))^2")
         mass = edge.get_attributes().get("mass")
         if mass is not None:
-            edge_denominator -= Es(f"{strip_quotes(mass)}^2")
+            edge_denominator -= Es(f"({strip_quotes(mass)})^2")
         denominator *= edge_denominator
     return denominator
+
+
+def _on_shell_energy_4d(edge: pydot.Edge) -> Expression:
+    edge_id = strip_quotes(edge.get("id"))
+    energy_squared = E(f"gammalooprs::Q({edge_id},spenso::cind(1))^2")
+    energy_squared += E(f"gammalooprs::Q({edge_id},spenso::cind(2))^2")
+    energy_squared += E(f"gammalooprs::Q({edge_id},spenso::cind(3))^2")
+    mass = edge.get_attributes().get("mass")
+    if mass is not None:
+        energy_squared += Es(f"({strip_quotes(mass)})^2")
+    return energy_squared ** E("1/2")
 
 
 def _replace_ose_with_four_dimensional_spatial_energy(
@@ -66,16 +77,45 @@ def _replace_ose_with_four_dimensional_spatial_energy(
     replacements: list[Replacement] = []
     for edge in graph.get_internal_edges():
         edge_id = strip_quotes(edge.get("id"))
-        energy_squared = E(f"gammalooprs::Q({edge_id},spenso::cind(1))^2")
-        energy_squared += E(f"gammalooprs::Q({edge_id},spenso::cind(2))^2")
-        energy_squared += E(f"gammalooprs::Q({edge_id},spenso::cind(3))^2")
-        mass = edge.get_attributes().get("mass")
-        if mass is not None:
-            energy_squared += Es(f"{strip_quotes(mass)}^2")
-        on_shell_energy = energy_squared ** E("1/2")
+        on_shell_energy = _on_shell_energy_4d(edge)
         replacements.append(Replacement(E(f"gammalooprs::OSE({edge_id})"), on_shell_energy))
         replacements.append(Replacement(E(f"OSE({edge_id})"), on_shell_energy))
     return expression.replace_multiple(replacements)
+
+
+def _remove_cff_ose_compensation(expression: Expression, graph: DotGraph) -> Expression:
+    raw_edges = graph.get_attributes().get("cff_ose_compensation_edges")
+    if raw_edges is None:
+        raw_label = graph.get_attributes().get("label")
+        label = strip_quotes(raw_label) if raw_label is not None else ""
+        prefix = "cff_ose_compensation_edges:"
+        if label.startswith(prefix):
+            raw_edges = label[len(prefix) :]
+    if raw_edges is None:
+        compensated_edge_ids = {
+            strip_quotes(edge.get("id"))
+            for edge in graph.get_internal_edges()
+            if _is_dummy_edge(edge)
+        }
+    else:
+        compensated_edge_ids = {
+            edge_id.strip()
+            for edge_id in strip_quotes(raw_edges).split(",")
+            if edge_id.strip()
+        }
+    if not compensated_edge_ids:
+        return expression
+    edges_by_id = {
+        strip_quotes(edge.get("id")): edge for edge in graph.get_internal_edges()
+    }
+    compensation = E("1")
+    for edge_id in compensated_edge_ids:
+        if edge_id not in edges_by_id:
+            raise pygloopException(
+                f"Cannot remove CFF OSE compensation for missing edge {edge_id}."
+            )
+        compensation *= _on_shell_energy_4d(edges_by_id[edge_id])
+    return expression / compensation
 
 
 def _xi_symbol(name: str) -> Expression:
@@ -100,6 +140,7 @@ def _scalar_expression_from_graph(dot_graph: pydot.Dot) -> Expression:
     tensor_network.execute(hep_library)
     expression = tensor_network.result_scalar() / _propagator_denominators_4d(graph)
     expression = _replace_ose_with_four_dimensional_spatial_energy(expression, graph)
+    expression = _remove_cff_ose_compensation(expression, graph)
 
     expression = expression.replace_multiple(
         [Replacement(lhs, rhs) for lhs, rhs in graph.get_emr_replacements()]
