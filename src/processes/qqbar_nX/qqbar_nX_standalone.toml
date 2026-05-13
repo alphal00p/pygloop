@@ -166,19 +166,35 @@ b = 1.0
 [[command_blocks]]
 name = "demo"
 commands = [
-    "run _generate_subtracted_integrand -D process_name=qqbar_nX_d_dbar_h_h_h_2L_xi_ext -D integrand_name=qqbar_nX_d_dbar_h_h_h_2L_top_pentagon_isr_subtracted -D dot_path=outputs/dot_files/qqbar_nX/qqbar_nX_d_dbar_h_h_h_2L_top_pentagon_isr_subtracted.dot -D m_top=1000.0 -D m_higgs=125.0 -D ymt=1000.0 -D enable_thresholds=false -D check_esurface_at_generation=false -D assume_positive_external_energies=false -D disable_threshold_subtraction=true",
-    "run _inspect_collinear_p1_group0_arb -D process_name=qqbar_nX_d_dbar_h_h_h_2L_xi_ext -D integrand_name=qqbar_nX_d_dbar_h_h_h_2L_top_pentagon_isr_subtracted -D dot_path=outputs/dot_files/qqbar_nX/qqbar_nX_d_dbar_h_h_h_2L_top_pentagon_isr_subtracted.dot -D m_top=1000.0 -D m_higgs=125.0 -D ymt=1000.0 -D enable_thresholds=false -D check_esurface_at_generation=false -D assume_positive_external_energies=false -D disable_threshold_subtraction=true",
-    "run _inspect_collinear_p2_group0_arb -D process_name=qqbar_nX_d_dbar_h_h_h_2L_xi_ext -D integrand_name=qqbar_nX_d_dbar_h_h_h_2L_top_pentagon_isr_subtracted -D dot_path=outputs/dot_files/qqbar_nX/qqbar_nX_d_dbar_h_h_h_2L_top_pentagon_isr_subtracted.dot -D m_top=1000.0 -D m_higgs=125.0 -D ymt=1000.0 -D enable_thresholds=false -D check_esurface_at_generation=false -D assume_positive_external_energies=false -D disable_threshold_subtraction=true",
-    "run _low_stat_integrate_pm -D process_name=qqbar_nX_d_dbar_h_h_h_2L_xi_ext -D integrand_name=qqbar_nX_d_dbar_h_h_h_2L_top_pentagon_isr_subtracted -D dot_path=outputs/dot_files/qqbar_nX/qqbar_nX_d_dbar_h_h_h_2L_top_pentagon_isr_subtracted.dot -D m_top=1000.0 -D m_higgs=125.0 -D ymt=1000.0 -D enable_thresholds=false -D check_esurface_at_generation=false -D assume_positive_external_energies=false -D disable_threshold_subtraction=true -D workspace_path=outputs/dot_files/qqbar_nX/qqbar_nX_demo_no_threshold_pm"
+    """run _generate_subtracted_integrand _inspect_collinear_p1_group0_arb _inspect_collinear_p2_group0_arb _low_stat_integrate_pm
+-D process_name=qqbar_nX_d_dbar_h_h_h_2L_xi_ext
+-D integrand_name=qqbar_nX_d_dbar_h_h_h_2L_top_pentagon_isr_subtracted
+-D dot_path=outputs/dot_files/qqbar_nX/qqbar_nX_d_dbar_h_h_h_2L_top_pentagon_isr_subtracted.dot
+-D m_top=1000.0
+-D m_higgs=125.0
+-D ymt=1000.0
+-D enable_thresholds=false
+-D check_esurface_at_generation=false
+-D assume_positive_external_energies=false
+-D disable_threshold_subtraction=true
+-D workspace_path=outputs/dot_files/qqbar_nX/qqbar_nX_demo_no_threshold_pm"""
 ]
 
 [[command_blocks]]
 name = "demo_with_thresholds"
 commands = [
-    "run _generate_subtracted_integrand -D process_name=qqbar_nX_d_dbar_h_h_h_2L_xi_ext -D integrand_name=qqbar_nX_d_dbar_h_h_h_2L_top_pentagon_isr_subtracted -D dot_path=outputs/dot_files/qqbar_nX/qqbar_nX_d_dbar_h_h_h_2L_top_pentagon_isr_subtracted.dot -D m_top=173.0 -D m_higgs=125.0 -D ymt=173.0 -D enable_thresholds=true -D check_esurface_at_generation=false -D assume_positive_external_energies=false -D disable_threshold_subtraction=false",
-    "run _inspect_collinear_p1_group0_arb -D process_name=qqbar_nX_d_dbar_h_h_h_2L_xi_ext -D integrand_name=qqbar_nX_d_dbar_h_h_h_2L_top_pentagon_isr_subtracted -D dot_path=outputs/dot_files/qqbar_nX/qqbar_nX_d_dbar_h_h_h_2L_top_pentagon_isr_subtracted.dot -D m_top=173.0 -D m_higgs=125.0 -D ymt=173.0 -D enable_thresholds=true -D check_esurface_at_generation=false -D assume_positive_external_energies=false -D disable_threshold_subtraction=false",
-    "run _inspect_collinear_p2_group0_arb -D process_name=qqbar_nX_d_dbar_h_h_h_2L_xi_ext -D integrand_name=qqbar_nX_d_dbar_h_h_h_2L_top_pentagon_isr_subtracted -D dot_path=outputs/dot_files/qqbar_nX/qqbar_nX_d_dbar_h_h_h_2L_top_pentagon_isr_subtracted.dot -D m_top=173.0 -D m_higgs=125.0 -D ymt=173.0 -D enable_thresholds=true -D check_esurface_at_generation=false -D assume_positive_external_energies=false -D disable_threshold_subtraction=false",
-    "run _low_stat_integrate_pm -D process_name=qqbar_nX_d_dbar_h_h_h_2L_xi_ext -D integrand_name=qqbar_nX_d_dbar_h_h_h_2L_top_pentagon_isr_subtracted -D dot_path=outputs/dot_files/qqbar_nX/qqbar_nX_d_dbar_h_h_h_2L_top_pentagon_isr_subtracted.dot -D m_top=173.0 -D m_higgs=125.0 -D ymt=173.0 -D enable_thresholds=true -D check_esurface_at_generation=false -D assume_positive_external_energies=false -D disable_threshold_subtraction=false -D workspace_path=outputs/dot_files/qqbar_nX/qqbar_nX_demo_threshold_pm"
+    """run _generate_subtracted_integrand _inspect_collinear_p1_group0_arb _inspect_collinear_p2_group0_arb _low_stat_integrate_pm
+-D process_name=qqbar_nX_d_dbar_h_h_h_2L_xi_ext
+-D integrand_name=qqbar_nX_d_dbar_h_h_h_2L_top_pentagon_isr_subtracted
+-D dot_path=outputs/dot_files/qqbar_nX/qqbar_nX_d_dbar_h_h_h_2L_top_pentagon_isr_subtracted.dot
+-D m_top=173.0
+-D m_higgs=125.0
+-D ymt=173.0
+-D enable_thresholds=true
+-D check_esurface_at_generation=false
+-D assume_positive_external_energies=false
+-D disable_threshold_subtraction=false
+-D workspace_path=outputs/dot_files/qqbar_nX/qqbar_nX_demo_threshold_pm"""
 ]
 
 [default_runtime_settings.kinematics]

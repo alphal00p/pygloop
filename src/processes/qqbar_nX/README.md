@@ -5,6 +5,14 @@ topology with a massive top pentagon, two gluons attached to the initial-state
 quark line, and local ISR-collinear counterterms in the same GammaLoop graph
 groups as their original graph.
 
+The checked-in process configs cover the four currently supported generation
+setups directly:
+
+- `config.toml`: final-state symmetrized, threshold-enabled.
+- `config_no_thresholds.toml`: final-state symmetrized, no-threshold.
+- `config_nosym.toml`: non-symmetrized final states, threshold-enabled.
+- `config_no_thresholds_nosym.toml`: non-symmetrized final states, no-threshold.
+
 The default configuration in `config.toml` is the final-state-symmetrized,
 exact-xi topology mode with GammaLoop threshold subtraction enabled:
 
@@ -14,9 +22,9 @@ exact-xi topology mode with GammaLoop threshold subtraction enabled:
 - `tests.collinear_precision = "ArbPrec"`
 - `tests.collinear_fraction_x = 0.3`
 
-Use `config_no_thresholds.toml` for the fast heavy-top/no-threshold validation
-setup. The threshold flag only changes GammaLoop generation/runtime settings;
-the subtracted DOT construction is independent of it.
+Use one of the no-threshold configs for the fast heavy-top validation setup.
+The threshold flag only changes GammaLoop generation/runtime settings; the
+subtracted DOT construction is independent of it.
 
 The exact-xi mode adds two dummy in/out helper pairs to every graph, so the
 GammaLoop externals are ordered as
@@ -38,6 +46,7 @@ Final-state-symmetrized, threshold-enabled physical-top setup (`m_t = 173 GeV`):
 ```bash
 python src/pygloop.py \
   --process qqbar_nX \
+  --qqbar-nx-config src/processes/qqbar_nX/config.toml \
   --m_top 173 \
   --clean \
   build-qqbar-nx-ir
@@ -65,16 +74,23 @@ The DOT file is identical between these threshold and no-threshold configs when
 the same graph-selection/symmetrization options are used; only the generated
 run-card defaults and GammaLoop generation/runtime threshold settings differ.
 
-Non-symmetrized final states use a temporary config with a distinct suffix, so
-the symmetrized output is not overwritten. For the fast no-threshold variant:
+Non-symmetrized, threshold-enabled physical-top setup (`m_t = 173 GeV`):
 
 ```bash
-cp src/processes/qqbar_nX/config_no_thresholds.toml /tmp/qqbar_nX_nosym.toml
-perl -0pi -e 's/symmetrize_final_states = true/symmetrize_final_states = false/; s/subtracted_suffix = "_top_pentagon_isr_subtracted"/subtracted_suffix = "_top_pentagon_isr_subtracted_nosym"/' /tmp/qqbar_nX_nosym.toml
-
 python src/pygloop.py \
   --process qqbar_nX \
-  --qqbar-nx-config /tmp/qqbar_nX_nosym.toml \
+  --qqbar-nx-config src/processes/qqbar_nX/config_nosym.toml \
+  --m_top 173 \
+  --clean \
+  build-qqbar-nx-ir
+```
+
+Non-symmetrized, no-threshold setup (`m_t = 1000 GeV`):
+
+```bash
+python src/pygloop.py \
+  --process qqbar_nX \
+  --qqbar-nx-config src/processes/qqbar_nX/config_no_thresholds_nosym.toml \
   --m_top 1000 \
   --clean \
   build-qqbar-nx-ir
@@ -82,9 +98,6 @@ python src/pygloop.py \
 
 This writes the non-symmetrized DOT/TOML pair with the
 `_top_pentagon_isr_subtracted_nosym` suffix.
-
-For the threshold-enabled non-symmetrized variant, start from
-`src/processes/qqbar_nX/config.toml` instead.
 
 ## Standalone GammaLoop steering
 
@@ -126,17 +139,20 @@ $GL -o -s "$STATE"
 ```
 
 The private blocks are reusable templates and accept `-D` overrides for the
-process name, integrand name, DOT path, model masses, and threshold flags. This
-is the form to use when switching between symmetrized/non-symmetrized outputs
-or no-threshold/threshold settings without duplicating the command block
-definitions:
+process name, integrand name, DOT path, model masses, threshold flags, and
+integration workspace. Multiple blocks can be run in a single command with one
+shared context, which is the form used by `demo` and `demo_with_thresholds`:
 
 ```bash
 PROC=qqbar_nX_d_dbar_h_h_h_2L_xi_ext
 INT=qqbar_nX_d_dbar_h_h_h_2L_top_pentagon_isr_subtracted
 DOT=$PWD/outputs/dot_files/qqbar_nX/${INT}.dot
 
-$GL -o -s "$STATE" run _generate_subtracted_integrand \
+$GL -o -s "$STATE" run \
+  _generate_subtracted_integrand \
+  _inspect_collinear_p1_group0_arb \
+  _inspect_collinear_p2_group0_arb \
+  _low_stat_integrate_pm \
   -D process_name=$PROC \
   -D integrand_name=$INT \
   -D dot_path=$DOT \
@@ -146,13 +162,18 @@ $GL -o -s "$STATE" run _generate_subtracted_integrand \
   -D enable_thresholds=false \
   -D check_esurface_at_generation=false \
   -D assume_positive_external_energies=false \
-  -D disable_threshold_subtraction=true
+  -D disable_threshold_subtraction=true \
+  -D workspace_path=$PWD/outputs/dot_files/qqbar_nX/${INT}_demo_pm
 ```
 
 For the threshold version, switch only the model and threshold defines:
 
 ```bash
-$GL -o -s "$STATE" run _generate_subtracted_integrand \
+$GL -o -s "$STATE" run \
+  _generate_subtracted_integrand \
+  _inspect_collinear_p1_group0_arb \
+  _inspect_collinear_p2_group0_arb \
+  _low_stat_integrate_pm \
   -D process_name=$PROC \
   -D integrand_name=$INT \
   -D dot_path=$DOT \
@@ -162,7 +183,8 @@ $GL -o -s "$STATE" run _generate_subtracted_integrand \
   -D enable_thresholds=true \
   -D check_esurface_at_generation=false \
   -D assume_positive_external_energies=false \
-  -D disable_threshold_subtraction=false
+  -D disable_threshold_subtraction=false \
+  -D workspace_path=$PWD/outputs/dot_files/qqbar_nX/${INT}_demo_threshold_pm
 ```
 
 For the non-symmetrized file, point `INT` and `DOT` at the `_nosym` suffix. The

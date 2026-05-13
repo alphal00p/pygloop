@@ -1666,19 +1666,37 @@ class qqbar_nX(object):
                 define_args += f" -D {key}={value}"
             return f"run {block_name} {define_args}"
 
-        def context_define_args(*, threshold: bool) -> str:
+        def context_define_lines(*, threshold: bool, workspace_path: str) -> list[str]:
             m_top_value = 173.0 if threshold else 1000.0
+            return [
+                f"-D process_name={process_name}",
+                f"-D integrand_name={subtracted_name}",
+                f"-D dot_path={os.path.abspath(dot_path)}",
+                f"-D m_top={m_top_value:.16f}",
+                f"-D m_higgs={self.m_higgs:.16f}",
+                f"-D ymt={m_top_value:.16f}",
+                f"-D enable_thresholds={str(threshold).lower()}",
+                "-D check_esurface_at_generation=false",
+                "-D assume_positive_external_energies=false",
+                f"-D disable_threshold_subtraction={str((not threshold)).lower()}",
+                f"-D workspace_path={workspace_path}",
+            ]
+
+        def demo_run_command(*, threshold: bool, workspace_path: str) -> str:
+            blocks = (
+                "_generate_subtracted_integrand",
+                "_inspect_collinear_p1_group0_arb",
+                "_inspect_collinear_p2_group0_arb",
+                "_low_stat_integrate_pm",
+            )
             return (
-                f"-D process_name={process_name} "
-                f"-D integrand_name={subtracted_name} "
-                f"-D dot_path={os.path.abspath(dot_path)} "
-                f"-D m_top={m_top_value:.16f} "
-                f"-D m_higgs={self.m_higgs:.16f} "
-                f"-D ymt={m_top_value:.16f} "
-                f"-D enable_thresholds={str(threshold).lower()} "
-                "-D check_esurface_at_generation=false "
-                "-D assume_positive_external_energies=false "
-                f"-D disable_threshold_subtraction={str((not threshold)).lower()}"
+                f"run {' '.join(blocks)}\n"
+                + "\n".join(
+                    context_define_lines(
+                        threshold=threshold,
+                        workspace_path=workspace_path,
+                    )
+                )
             )
 
         inspect_group_blocks: list[str] = []
@@ -1759,8 +1777,6 @@ class qqbar_nX(object):
         workspace_pp = os.path.abspath(
             self._integration_workspace(subtracted_name, pp_helicities)
         )
-        demo_no_threshold_context = context_define_args(threshold=False)
-        demo_threshold_context = context_define_args(threshold=True)
         demo_workspace_pm = os.path.abspath(
             pjoin(self.dot_folder, f"{subtracted_name}_demo_no_threshold_pm")
         )
@@ -1768,21 +1784,12 @@ class qqbar_nX(object):
             pjoin(self.dot_folder, f"{subtracted_name}_demo_threshold_pm")
         )
         demo_commands = [
-            f"run _generate_subtracted_integrand {demo_no_threshold_context}",
-            f"run _inspect_collinear_p1_group0_arb {demo_no_threshold_context}",
-            f"run _inspect_collinear_p2_group0_arb {demo_no_threshold_context}",
-            (
-                f"run _low_stat_integrate_pm {demo_no_threshold_context} "
-                f"-D workspace_path={demo_workspace_pm}"
-            ),
+            demo_run_command(threshold=False, workspace_path=demo_workspace_pm),
         ]
         demo_with_thresholds_commands = [
-            f"run _generate_subtracted_integrand {demo_threshold_context}",
-            f"run _inspect_collinear_p1_group0_arb {demo_threshold_context}",
-            f"run _inspect_collinear_p2_group0_arb {demo_threshold_context}",
-            (
-                f"run _low_stat_integrate_pm {demo_threshold_context} "
-                f"-D workspace_path={demo_threshold_workspace_pm}"
+            demo_run_command(
+                threshold=True,
+                workspace_path=demo_threshold_workspace_pm,
             ),
         ]
 
