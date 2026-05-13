@@ -22,8 +22,22 @@ from processes.qqbar_nX.qqbar_nX_graphs import (
 )
 
 EXACT_XI_AUXILIARY_MODE = "exact_xi_topology"
-FAKE_XI_IN_EXTERNAL_ID = 2
-FAKE_XI_OUT_EXTERNAL_ID = 6
+FAKE_XI_P1_IN_EXTERNAL_ID = 2
+FAKE_XI_P2_IN_EXTERNAL_ID = 3
+FAKE_XI_P1_OUT_EXTERNAL_ID = 4
+FAKE_XI_P2_OUT_EXTERNAL_ID = 5
+FAKE_XI_PAIR_IDS = {
+    "isr_p1": (FAKE_XI_P1_IN_EXTERNAL_ID, FAKE_XI_P1_OUT_EXTERNAL_ID),
+    "isr_p2": (FAKE_XI_P2_IN_EXTERNAL_ID, FAKE_XI_P2_OUT_EXTERNAL_ID),
+}
+FAKE_XI_EXTERNAL_IDS = frozenset(
+    {
+        FAKE_XI_P1_IN_EXTERNAL_ID,
+        FAKE_XI_P2_IN_EXTERNAL_ID,
+        FAKE_XI_P1_OUT_EXTERNAL_ID,
+        FAKE_XI_P2_OUT_EXTERNAL_ID,
+    }
+)
 
 
 def _endpoint_port(endpoint: str) -> int | None:
@@ -283,11 +297,6 @@ def _spatial_proxy_auxiliary_factor(
 ) -> str:
     """Leading-power fixed-zeta auxiliary denominator without loop energies."""
     return f"(({_auxiliary_denominator_spatial_proxy(light_edge_id, beam=beam)})^(-1))"
-
-
-def _fake_xi_mass_expression() -> str:
-    xi_squared = _external_dot(FAKE_XI_IN_EXTERNAL_ID, FAKE_XI_IN_EXTERNAL_ID)
-    return f"(({xi_squared})^(1/2))"
 
 
 def _fake_xi_external_mass_expression() -> str:
@@ -1079,10 +1088,8 @@ def _fake_xi_edge_id_mapping(graph: pydot.Dot) -> dict[int, int]:
         old_edge_id = _edge_id(edge)
         if old_edge_id <= 1:
             mapping[old_edge_id] = old_edge_id
-        elif old_edge_id <= 4:
-            mapping[old_edge_id] = old_edge_id + 1
         else:
-            mapping[old_edge_id] = old_edge_id + 2
+            mapping[old_edge_id] = old_edge_id + 4
     return mapping
 
 
@@ -1098,15 +1105,13 @@ def _fake_xi_hedge_mapping(graph: pydot.Dot) -> dict[int, int]:
     for hedge_id in hedge_ids:
         if hedge_id <= 1:
             mapping[hedge_id] = hedge_id
-        elif hedge_id <= 4:
-            mapping[hedge_id] = hedge_id + 1
         else:
-            mapping[hedge_id] = hedge_id + 2
+            mapping[hedge_id] = hedge_id + 4
     return mapping
 
 
 def _fake_xi_external_mapping() -> dict[int, int]:
-    return {0: 0, 1: 1, 2: 3, 3: 4, 4: 5}
+    return {0: 0, 1: 1, 2: 6, 3: 7, 4: 8}
 
 
 def _renumber_endpoint_external_node(endpoint: str, replacements: dict[int, int]) -> str:
@@ -1147,8 +1152,6 @@ def _add_fake_xi_external_nodes_and_edges(
     outgoing_vertex: str,
     dummy: bool,
 ) -> None:
-    graph.add_node(pydot.Node(f"ext{FAKE_XI_IN_EXTERNAL_ID}", style="invis"))
-    graph.add_node(pydot.Node(f"ext{FAKE_XI_OUT_EXTERNAL_ID}", style="invis"))
     common_attributes = {
         "dir": "none",
         "dod": "-2",
@@ -1159,31 +1162,37 @@ def _add_fake_xi_external_nodes_and_edges(
     if dummy:
         common_attributes["is_dummy"] = "true"
 
-    graph.add_edge(
-        pydot.Edge(
-            f"ext{FAKE_XI_IN_EXTERNAL_ID}",
-            f"{incoming_vertex}:{FAKE_XI_IN_EXTERNAL_ID}",
-            id=str(FAKE_XI_IN_EXTERNAL_ID),
-            name=f"e{FAKE_XI_IN_EXTERNAL_ID}",
-            lmb_rep=f"P({FAKE_XI_IN_EXTERNAL_ID},a___)",
-            **common_attributes,
+    for incoming_id, outgoing_id in FAKE_XI_PAIR_IDS.values():
+        graph.add_node(pydot.Node(f"ext{incoming_id}", style="invis"))
+        graph.add_node(pydot.Node(f"ext{outgoing_id}", style="invis"))
+        graph.add_edge(
+            pydot.Edge(
+                f"ext{incoming_id}",
+                f"{incoming_vertex}:{incoming_id}",
+                id=str(incoming_id),
+                name=f"e{incoming_id}",
+                lmb_rep=f"P({incoming_id},a___)",
+                **common_attributes,
+            )
         )
-    )
-    graph.add_edge(
-        pydot.Edge(
-            f"{outgoing_vertex}:{FAKE_XI_OUT_EXTERNAL_ID}",
-            f"ext{FAKE_XI_OUT_EXTERNAL_ID}",
-            id=str(FAKE_XI_OUT_EXTERNAL_ID),
-            name=f"e{FAKE_XI_OUT_EXTERNAL_ID}",
-            lmb_rep=f"P({FAKE_XI_OUT_EXTERNAL_ID},a___)",
-            **common_attributes,
+        graph.add_edge(
+            pydot.Edge(
+                f"{outgoing_vertex}:{outgoing_id}",
+                f"ext{outgoing_id}",
+                id=str(outgoing_id),
+                name=f"e{outgoing_id}",
+                lmb_rep=f"P({outgoing_id},a___)",
+                **common_attributes,
+            )
         )
-    )
 
 
-def _delete_fake_xi_external_edges(graph: pydot.Dot) -> None:
+def _delete_fake_xi_external_edges(
+    graph: pydot.Dot, edge_ids: set[int] | None = None
+) -> None:
+    ids_to_delete = set(FAKE_XI_EXTERNAL_IDS if edge_ids is None else edge_ids)
     for edge in list(graph.get_edges()):
-        if _edge_id(edge) in {FAKE_XI_IN_EXTERNAL_ID, FAKE_XI_OUT_EXTERNAL_ID}:
+        if _edge_id(edge) in ids_to_delete:
             _delete_edge(graph, edge)
 
 
@@ -1193,18 +1202,24 @@ def _add_fake_xi_edge(
     edge_id: int,
     source: str,
     destination: str,
+    dummy: bool,
 ) -> None:
+    attributes: dict[str, Any] = {
+        "id": str(edge_id),
+        "name": f"e{edge_id}",
+        "lmb_rep": f"P({edge_id},a___)",
+        "particle": "H",
+        "mass": _fake_xi_external_mass_expression(),
+        "dod": "-2",
+        "num": "1",
+    }
+    if dummy:
+        attributes["is_dummy"] = "true"
     graph.add_edge(
         pydot.Edge(
             source,
             destination,
-            id=str(edge_id),
-            name=f"e{edge_id}",
-            lmb_rep=f"P({edge_id},a___)",
-            particle="H",
-            mass=_fake_xi_external_mass_expression(),
-            dod="-2",
-            num="1",
+            **attributes,
         )
     )
 
@@ -1274,18 +1289,21 @@ def _split_light_bridge_with_exact_xi_auxiliary(
         )
     )
 
-    _delete_fake_xi_external_edges(graph)
+    incoming_id, outgoing_id = FAKE_XI_PAIR_IDS[counterterm]
+    _delete_fake_xi_external_edges(graph, {incoming_id, outgoing_id})
     _add_fake_xi_edge(
         graph,
-        edge_id=FAKE_XI_IN_EXTERNAL_ID,
-        source=f"ext{FAKE_XI_IN_EXTERNAL_ID}",
-        destination=f"{split_node}:{FAKE_XI_IN_EXTERNAL_ID}",
+        edge_id=incoming_id,
+        source=f"ext{incoming_id}",
+        destination=f"{split_node}:{incoming_id}",
+        dummy=False,
     )
     _add_fake_xi_edge(
         graph,
-        edge_id=FAKE_XI_OUT_EXTERNAL_ID,
-        source=f"{destination}:{FAKE_XI_OUT_EXTERNAL_ID}",
-        destination=f"ext{FAKE_XI_OUT_EXTERNAL_ID}",
+        edge_id=outgoing_id,
+        source=f"{destination}:{outgoing_id}",
+        destination=f"ext{outgoing_id}",
+        dummy=False,
     )
     replaced_gluon = _edge_by_id(graph, replaced_gluon_id)
     replaced_gluon.set("is_dummy", "true")
@@ -1297,6 +1315,7 @@ def _attach_exact_xi_pair_around_edge(
     graph: pydot.Dot,
     *,
     edge_id: int,
+    counterterm: str,
     use_parametric_xi: bool,
     xi_parameter_names: tuple[str, str, str, str],
     reverse: bool = False,
@@ -1307,28 +1326,35 @@ def _attach_exact_xi_pair_around_edge(
     only robust way to change a propagator signature is therefore to change the
     graph connectivity.  The incoming fake xi leg is attached to the source side
     of the special edge and the outgoing fake xi leg to the destination side.
-    Momentum conservation then makes Q(6)=Q(2) on physical events, while the
-    routed signature of ``edge_id`` determines which numeric value Q(2) must be
-    assigned to reproduce the paper denominator.
+    The p1 and p2 collinear CTs use independent helper pairs:
+    Q(2)=Q(4) for the p1 CT and Q(3)=Q(5) for the p2 CT.  The routed
+    signature of ``edge_id`` determines which numeric value the active
+    incoming helper momentum must be assigned to reproduce the paper
+    denominator; the inactive helper pair stays present but dummy.
     """
+    if counterterm not in FAKE_XI_PAIR_IDS:
+        raise ValueError(f"Unknown qqbar_nX counterterm '{counterterm}'.")
+    incoming_id, outgoing_id = FAKE_XI_PAIR_IDS[counterterm]
     target_edge = _edge_by_id(graph, edge_id)
     source, _source_hedge, destination, _destination_hedge = _edge_endpoints(
         target_edge
     )
     incoming_vertex = destination if reverse else source
     outgoing_vertex = source if reverse else destination
-    _delete_fake_xi_external_edges(graph)
+    _delete_fake_xi_external_edges(graph, {incoming_id, outgoing_id})
     _add_fake_xi_edge(
         graph,
-        edge_id=FAKE_XI_IN_EXTERNAL_ID,
-        source=f"ext{FAKE_XI_IN_EXTERNAL_ID}",
-        destination=f"{incoming_vertex}:{FAKE_XI_IN_EXTERNAL_ID}",
+        edge_id=incoming_id,
+        source=f"ext{incoming_id}",
+        destination=f"{incoming_vertex}:{incoming_id}",
+        dummy=False,
     )
     _add_fake_xi_edge(
         graph,
-        edge_id=FAKE_XI_OUT_EXTERNAL_ID,
-        source=f"{outgoing_vertex}:{FAKE_XI_OUT_EXTERNAL_ID}",
-        destination=f"ext{FAKE_XI_OUT_EXTERNAL_ID}",
+        edge_id=outgoing_id,
+        source=f"{outgoing_vertex}:{outgoing_id}",
+        destination=f"ext{outgoing_id}",
+        dummy=False,
     )
     target_edge = _edge_by_id(graph, edge_id)
     target_edge.set(
@@ -1341,20 +1367,6 @@ def _attach_exact_xi_pair_around_edge(
     _strip_autogenerated_attributes(target_edge.get_attributes())
 
 
-def _replace_special_gluon_with_exact_xi_auxiliary(edge: pydot.Edge) -> None:
-    """Turn the paper's replaced gluon into the exact xi propagator.
-
-    The fake external id 2 is sampled as xi.  Assigning this edge
-    q=K(0)+P(2) and m^2=xi^2 makes its denominator
-    (K(0)+xi)^2-xi^2, i.e. the paper auxiliary denominator up to the overall
-    sign already carried by the CT numerator convention.
-    """
-    edge.set("particle", "g")
-    edge.set("mass", _fake_xi_mass_expression())
-    edge.set("lmb_rep", f"K(0,a___)+P({FAKE_XI_IN_EXTERNAL_ID},a___)")
-    _strip_autogenerated_attributes(edge.get_attributes())
-
-
 def _with_fake_xi_externals(
     graph: pydot.Dot,
     *,
@@ -1362,12 +1374,13 @@ def _with_fake_xi_externals(
     outgoing_vertex: str,
     dummy: bool,
 ) -> tuple[pydot.Dot, dict[int, int]]:
-    """Reserve external ids 2 and 6 for the fake xi in/out pair.
+    """Reserve external ids 2..5 for two fake xi in/out pairs.
 
-    The physical Higgs external ids are shifted from 2,3,4 to 3,4,5 and all
-    internal edge and hedge ids are shifted by two.  This keeps external ids
-    contiguous after adding the fake incoming xi edge (2) and fake outgoing xi
-    edge (6).
+    The physical Higgs external ids are shifted from 2,3,4 to 6,7,8 and all
+    original non-initial edge and hedge ids are shifted by four.  This keeps
+    external ids contiguous after adding the p1 helper pair Q(2)=Q(4) and the
+    p2 helper pair Q(3)=Q(5), with the last physical Higgs Q(8) available as
+    the dependent runtime momentum.
     """
     out = copy.deepcopy(graph)
     edge_mapping = _fake_xi_edge_id_mapping(out)
@@ -1950,18 +1963,18 @@ def _make_counterterm_graph(
             graph,
             incoming_vertex=structure.p1.vertex,
             outgoing_vertex=structure.p2.vertex,
-            dummy=False,
+            dummy=True,
         )
         heavy_edge_id = fake_xi_edge_mapping.get(heavy_edge_id, heavy_edge_id)
 
     prefix = _sanitize_symbol(new_name)
     copied_structure = identify_light_line_structure(graph)
-    # In exact-xi topology the fake Q(2)=Q(6) external is a routing handle:
-    # its sampled value is chosen from the routed edge signature so the special
-    # propagator carries k_1 +/- xi.  It is therefore not generally equal to
-    # the paper reference vector xi itself.  The CT numerator must keep using
-    # the true xi expression, either zeta=p0+p1 or the parametric additional
-    # parameters.
+    # In exact-xi topology, Q(2)=Q(4) and Q(3)=Q(5) are independent routing
+    # handles for the p1 and p2 collinear CTs.  Their sampled values are chosen
+    # from the routed special-edge signatures, so they are not generally equal
+    # to the paper reference vector xi itself.  The CT numerator must keep
+    # using the true xi expression, either zeta=p0+p1 or the parametric
+    # additional parameters.
     xi_external_id = None
     _set_edge_counterterm_num(
         copied_structure.light_edge,
@@ -2018,7 +2031,7 @@ def _make_counterterm_graph(
             # the graph-level numerator.
             aux_denominator_factor = "1"
             routing_fraction = _routing_fraction_factor(
-                copied_structure, beam=1, spatial_only=True
+                copied_structure, beam=1, prefix=f"{prefix}_p1_rf"
             )
             auxiliary_damping = "1"
             remove_cancelled_denominator = False
@@ -2109,7 +2122,7 @@ def _make_counterterm_graph(
             # external momentum.
             aux_denominator_factor = "1"
             routing_fraction = _routing_fraction_factor(
-                copied_structure, beam=2, spatial_only=True
+                copied_structure, beam=2, prefix=f"{prefix}_p2_rf"
             )
             auxiliary_damping = "1"
             remove_cancelled_denominator = False
@@ -2157,6 +2170,7 @@ def _make_counterterm_graph(
         _attach_exact_xi_pair_around_edge(
             graph,
             edge_id=cancelled_edge_id,
+            counterterm=counterterm,
             use_parametric_xi=use_parametric_xi,
             xi_parameter_names=xi_parameter_names,
         )

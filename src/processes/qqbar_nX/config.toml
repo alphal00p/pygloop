@@ -58,14 +58,14 @@ denominator_strategy = "contract"
 # denominator active, so the loop-energy pole remains in the CFF topology.
 # "spatial_proxy" removes that opposite propagator from the CT topology and
 # keeps the fixed-zeta leading-power auxiliary denominator as a loop-energy-free
-# spatial factor in the graph numerator. This is the current 3D CFF-compatible
-# representation used by the local GammaLoop collinear tests.
-# "exact_xi_topology" reserves two fake external ids, Q(2) incoming and Q(6)
-# outgoing, remaps the physical Higgses to Q(3),Q(4),Q(5), and keeps the
-# Kermanshah auxiliary denominator as an actual CT propagator carrying the
-# fake xi shift. The original graphs receive the fake externals as is_dummy
-# half-edges; CT graphs keep them non-dummy so GammaLoop's LMB signatures see xi.
-auxiliary_denominator_mode = "spatial_proxy"
+# spatial factor in the graph numerator. It is kept as a legacy diagnostic.
+# "exact_xi_topology" reserves two fake in/out helper pairs:
+# Q(2)=Q(4) for the p1-collinear CT and Q(3)=Q(5) for the p2-collinear CT.
+# It remaps the physical Higgses to Q(6),Q(7),Q(8), with Q(8) dependent,
+# and keeps the Kermanshah auxiliary denominator as an actual CT propagator
+# carrying the active fake xi shift. Original graphs receive all helpers as
+# is_dummy half-edges; CT graphs keep only their active pair non-dummy.
+auxiliary_denominator_mode = "exact_xi_topology"
 # Overall graph-global phase applied to ISR counterterm numerators only.
 # The 3D GammaLoop CFF event convention returns these CTs with an extra +i
 # phase relative to the original graph, so "-i" restores the local cancellation.
@@ -95,7 +95,15 @@ low_stat_n_max = 64
 low_stat_n_cores = 1
 low_stat_batch_size = 16
 evaluator_summed_function_map = false
-enable_threshold_subtraction = true
+# Current default is the below-threshold validation setup used by the local
+# collinear tests. Set this to true when returning to physical top mass /
+# threshold-subtracted 3D generation.
+enable_threshold_subtraction = false
+check_esurface_at_generation = false
+# Fake exact-xi helper legs can carry negative energies even when the physical
+# event obeys the usual incoming/outgoing positivity pattern. Disable this
+# assumption when testing threshold subtraction with exact_xi_topology.
+assume_positive_external_energies = false
 
 [standalone_tests]
 gammaloop_cli_path = "/Users/vjhirsch/Documents/Work/gammaloop_dev/target/dev-optim/gammaloop"
@@ -113,6 +121,15 @@ collinear_fraction_x = 0.3
 collinear_precision = "ArbPrec" # Double, Quad, or ArbPrec.
 collinear_lambdas = [1.0, 0.1, 0.01, 0.001, 0.0001, 0.00001, 0.000001, 0.0000001]
 collinear_arb_display_digits = 50
+# The direct 4D Feynman-integrand diagnostic checks the paper-level CT identity,
+# before the extra GammaLoop CFF event-convention phase used in the DOT for 3D
+# inspect tests.
+four_d_global_phase = "1"
+# Diagnostics for `pygloop --process qqbar_nX test --mode pygloop-cff`.
+# Keeping a single orientation makes parity against GammaLoop inspect fast and
+# gives a clean first target for the custom CFF meta-expression evaluator.
+cff_meta_graph_name = "GL05"
+cff_meta_orientation_id = 0
 
 [selection.vertex_ids]
 # sm-default vertex IDs used to recognize q-q-g, t-t-g, and t-t-H vertices.

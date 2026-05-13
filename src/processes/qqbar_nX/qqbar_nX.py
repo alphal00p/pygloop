@@ -10,7 +10,7 @@ import shutil
 import subprocess
 import time
 import tomllib
-from decimal import Decimal
+from decimal import Decimal, localcontext
 from pprint import pformat
 from typing import Any
 
@@ -353,6 +353,12 @@ class qqbar_nX(object):
         self.enable_threshold_subtraction = bool(
             standalone_config.get("enable_threshold_subtraction", False)
         )
+        self.check_esurface_at_generation = bool(
+            standalone_config.get("check_esurface_at_generation", False)
+        )
+        self.assume_positive_external_energies = bool(
+            standalone_config.get("assume_positive_external_energies", True)
+        )
 
         standalone_test_config = self.config.get("standalone_tests", {})
         configured_gammaloop_cli = standalone_test_config.get(
@@ -398,6 +404,16 @@ class qqbar_nX(object):
             raise pygloopException("tests.collinear_lambdas must not be empty.")
         self.collinear_arb_display_digits = int(
             test_config.get("collinear_arb_display_digits", 50)
+        )
+        self.four_d_counterterm_global_phase = str(
+            test_config.get("four_d_global_phase", "1")
+        )
+        self.cff_meta_graph_name = str(test_config.get("cff_meta_graph_name", "GL05"))
+        raw_cff_orientation = test_config.get("cff_meta_orientation_id", 0)
+        self.cff_meta_orientation_id = (
+            None
+            if str(raw_cff_orientation).lower() == "none"
+            else int(raw_cff_orientation)
         )
 
         selection_config = self.config.get("selection", {})
@@ -492,6 +508,29 @@ class qqbar_nX(object):
             float(self.ps_point[0].z + self.ps_point[1].z),
         ]
 
+    def _fake_xi_pair_momenta(
+        self, fake_xi_momentum: Any | None = None
+    ) -> dict[str, list[float]]:
+        default_xi = self._xi_external_momentum()
+        if fake_xi_momentum is None:
+            return {"p1": list(default_xi), "p2": list(default_xi)}
+        if isinstance(fake_xi_momentum, dict):
+            p1_value = (
+                fake_xi_momentum.get("p1")
+                or fake_xi_momentum.get(2)
+                or fake_xi_momentum.get("2")
+                or default_xi
+            )
+            p2_value = (
+                fake_xi_momentum.get("p2")
+                or fake_xi_momentum.get(3)
+                or fake_xi_momentum.get("3")
+                or default_xi
+            )
+            return {"p1": list(p1_value), "p2": list(p2_value)}
+        shared = list(fake_xi_momentum)
+        return {"p1": shared, "p2": list(shared)}
+
     def _physical_momenta_4d(self) -> list[list[float]]:
         return [
             [
@@ -513,16 +552,17 @@ class qqbar_nX(object):
             raise pygloopException(
                 "qqbar_nX fake-xi topology expects five physical external momenta."
             )
-        xi = self._xi_external_momentum()
-        fake_xi = list(xi if fake_xi_momentum is None else fake_xi_momentum)
+        fake_xi = self._fake_xi_pair_momenta(fake_xi_momentum)
         return [
             physical[0],
             physical[1],
-            fake_xi,
+            fake_xi["p1"],
+            fake_xi["p2"],
+            fake_xi["p1"],
+            fake_xi["p2"],
             physical[2],
             physical[3],
             physical[4],
-            fake_xi,
         ]
 
     def _fake_xi_edge_momentum_map(
@@ -533,16 +573,17 @@ class qqbar_nX(object):
             raise pygloopException(
                 "qqbar_nX fake-xi topology expects five physical external momenta."
             )
-        xi = self._xi_external_momentum()
-        fake_xi = list(xi if fake_xi_momentum is None else fake_xi_momentum)
+        fake_xi = self._fake_xi_pair_momenta(fake_xi_momentum)
         return {
             0: physical[0],
             1: physical[1],
-            2: fake_xi,
-            3: physical[2],
-            4: physical[3],
-            5: physical[4],
-            6: fake_xi,
+            2: fake_xi["p1"],
+            3: fake_xi["p2"],
+            4: fake_xi["p1"],
+            5: fake_xi["p2"],
+            6: physical[2],
+            7: physical[3],
+            8: physical[4],
         }
 
     def _external_momenta_for_graph_4d(
@@ -606,14 +647,14 @@ class qqbar_nX(object):
         values = list(self.helicities if helicities is None else helicities)
         if not self.uses_fake_xi_externals():
             return values
-        if len(values) == 7:
+        if len(values) == 9:
             return values
         if len(values) != 5:
             raise pygloopException(
                 "qqbar_nX fake-xi topology expects helicities for either five "
-                "physical externals or all seven DOT externals."
+                "physical externals or all nine DOT externals."
             )
-        return [values[0], values[1], 0, values[2], values[3], values[4], 0]
+        return [values[0], values[1], 0, 0, 0, 0, values[2], values[3], values[4]]
 
     def _initialise_gl_worker(self) -> None:
         if os.path.exists(self.state_folder):
@@ -1105,7 +1146,28 @@ class qqbar_nX(object):
         )
         if details is None:
             return None
-        return details["required_fake_q2"]
+        return details["required_fake_momentum"]
+
+    def _exact_xi_active_fake_edge_ids(self, graph: Any) -> set[int]:
+        name = graph_name(graph)
+        if name.endswith("_isr_p1_ct"):
+            return {2, 4}
+        if name.endswith("_isr_p2_ct"):
+            return {3, 5}
+        return {2, 3, 4, 5}
+
+    def _external_single_p_index_by_edge_id(self, graph: Any) -> dict[int, int]:
+        mapping: dict[int, int] = {}
+        for edge in graph_external_edges(graph):
+            raw_edge_id = edge.get_attributes().get("id")
+            if raw_edge_id is None:
+                continue
+            lmb_rep = strip_quotes(edge.get_attributes().get("lmb_rep", ""))
+            match = SINGLE_EXTERNAL_RE.fullmatch(lmb_rep.replace(" ", ""))
+            if match is None:
+                continue
+            mapping[int(strip_quotes(raw_edge_id))] = int(match.group("index"))
+        return mapping
 
     def _exact_xi_auxiliary_signature_details(
         self, graph: Any, *, shift_sign: float = -1.0
@@ -1126,27 +1188,28 @@ class qqbar_nX(object):
         if set(loop_coefficients) != {0}:
             return None
         loop_sign = loop_coefficients[0]
-        fake_coefficient = (
-            coefficients["P"].get(2, 0.0) + coefficients["P"].get(6, 0.0)
+        p_index_by_edge_id = self._external_single_p_index_by_edge_id(graph)
+        active_fake_edge_ids = self._exact_xi_active_fake_edge_ids(graph)
+        active_fake_p_indices = {
+            p_index_by_edge_id[edge_id]
+            for edge_id in active_fake_edge_ids
+            if edge_id in p_index_by_edge_id
+        }
+        if not active_fake_p_indices:
+            return None
+        fake_coefficient = sum(
+            coefficients["P"].get(index, 0.0) for index in active_fake_p_indices
         )
         if abs(fake_coefficient) < 1.0e-12:
             return None
 
-        physical = self._physical_momenta_4d()
-        if len(physical) != 5:
-            raise pygloopException(
-                "qqbar_nX fake-xi topology expects five physical external momenta."
-            )
+        graph_external_momenta = self._external_momenta_for_graph_4d(graph)
         external_momenta = {
-            0: physical[0],
-            1: physical[1],
-            3: physical[2],
-            4: physical[3],
-            5: physical[4],
+            index: momentum for index, momentum in enumerate(graph_external_momenta)
         }
         external_shift = [0.0, 0.0, 0.0, 0.0]
         for p_index, coefficient in coefficients["P"].items():
-            if p_index in {2, 6} or abs(coefficient) < 1.0e-12:
+            if p_index in active_fake_p_indices or abs(coefficient) < 1.0e-12:
                 continue
             if p_index not in external_momenta:
                 return None
@@ -1157,16 +1220,16 @@ class qqbar_nX(object):
 
         xi = self._xi_external_momentum()
         desired_shift = [shift_sign * loop_sign * component for component in xi]
-        required_fake_q2 = [
+        required_fake_momentum = [
             (desired_shift[component] - external_shift[component]) / fake_coefficient
             for component in range(4)
         ]
         solved_shift = list(external_shift)
         for p_index, coefficient in coefficients["P"].items():
-            if p_index not in {2, 6} or abs(coefficient) < 1.0e-12:
+            if p_index not in active_fake_p_indices or abs(coefficient) < 1.0e-12:
                 continue
             for component in range(4):
-                solved_shift[component] += coefficient * required_fake_q2[component]
+                solved_shift[component] += coefficient * required_fake_momentum[component]
         residual = [
             solved_shift[component] - desired_shift[component]
             for component in range(4)
@@ -1181,11 +1244,36 @@ class qqbar_nX(object):
             "solved_non_loop_shift": solved_shift,
             "residual_to_k0_minus_xi": residual,
             "max_abs_residual": max(abs(component) for component in residual),
-            "required_fake_q2": required_fake_q2,
-            "required_fake_q2_square": _minkowski_square_numeric(required_fake_q2),
+            "active_fake_edge_ids": sorted(active_fake_edge_ids),
+            "active_fake_p_indices": sorted(active_fake_p_indices),
+            "required_fake_momentum": required_fake_momentum,
+            "required_fake_momentum_square": _minkowski_square_numeric(required_fake_momentum),
             "xi": xi,
             "xi_square": _minkowski_square_numeric(xi),
         }
+
+    def _exact_xi_fake_momenta_for_group(
+        self, graphs: list[Any], *, shift_sign: float = -1.0
+    ) -> dict[str, list[float]] | None:
+        if not self.uses_fake_xi_externals():
+            return None
+        result: dict[str, list[float]] = {}
+        for beam, suffix in (("p1", "_isr_p1_ct"), ("p2", "_isr_p2_ct")):
+            for graph in graphs:
+                if not graph_name(graph).endswith(suffix):
+                    continue
+                fake_momentum = self._exact_xi_fake_momentum_from_auxiliary_signature(
+                    graph, shift_sign=shift_sign
+                )
+                if fake_momentum is not None:
+                    result[beam] = fake_momentum
+                break
+        if not result:
+            return None
+        default_xi = self._xi_external_momentum()
+        result.setdefault("p1", list(default_xi))
+        result.setdefault("p2", list(default_xi))
+        return result
 
     def _exact_xi_fake_momentum_for_group_beam(
         self, graphs: list[Any], *, beam: str, shift_sign: float = -1.0
@@ -1215,9 +1303,17 @@ class qqbar_nX(object):
             for index, value in coefficients["P"].items()
             if abs(value) > 1.0e-12
         }
-        if set(nonzero_loop) != {0} or set(nonzero_external) != {2}:
+        fake_pairs = ({2, 3},)
+        if set(nonzero_loop) != {0}:
             return False
-        return abs(nonzero_loop[0]) == 1.0 and nonzero_loop[0] == nonzero_external[2]
+        for fake_external_ids in fake_pairs:
+            if not set(nonzero_external).issubset(fake_external_ids):
+                continue
+            fake_coefficient = sum(
+                nonzero_external.get(index, 0.0) for index in fake_external_ids
+            )
+            return abs(nonzero_loop[0]) == 1.0 and nonzero_loop[0] == fake_coefficient
+        return False
 
     def _verify_exact_xi_routing(
         self, grouped_routed_graphs: dict[int, list[Any]]
@@ -1257,7 +1353,7 @@ class qqbar_nX(object):
                 lmb_rep = strip_quotes(raw_lmb_rep)
                 details = self._exact_xi_auxiliary_signature_details(graph)
                 required_fake_momentum = (
-                    details["required_fake_q2"] if details is not None else None
+                    details["required_fake_momentum"] if details is not None else None
                 )
                 entry = {
                     "group_id": group_id,
@@ -1265,22 +1361,28 @@ class qqbar_nX(object):
                     "auxiliary_edge_id": int(strip_quotes(auxiliary_edge.get("id"))),
                     "lmb_rep": lmb_rep,
                     "direct_signature_without_fake_solve": self._is_exact_xi_auxiliary_signature(lmb_rep),
-                    "solves_with_fake_q2": required_fake_momentum is not None,
-                    "required_fake_q2": required_fake_momentum,
+                    "solves_with_fake_helper": required_fake_momentum is not None,
+                    "required_fake_momentum": required_fake_momentum,
                 }
                 if details is not None:
                     entry.update(
                         {
                             "loop_sign": details["loop_sign"],
                             "fake_coefficient": details["fake_coefficient"],
+                            "active_fake_edge_ids": details[
+                                "active_fake_edge_ids"
+                            ],
+                            "active_fake_p_indices": details[
+                                "active_fake_p_indices"
+                            ],
                             "target_non_loop_shift": details["target_non_loop_shift"],
                             "solved_non_loop_shift": details["solved_non_loop_shift"],
                             "residual_to_k0_minus_xi": details[
                                 "residual_to_k0_minus_xi"
                             ],
                             "max_abs_residual": details["max_abs_residual"],
-                            "required_fake_q2_square": details[
-                                "required_fake_q2_square"
+                            "required_fake_momentum_square": details[
+                                "required_fake_momentum_square"
                             ],
                             "xi": details["xi"],
                             "xi_square": details["xi_square"],
@@ -1288,12 +1390,12 @@ class qqbar_nX(object):
                     )
                 report.append(entry)
 
-        failing = [entry for entry in report if not entry["solves_with_fake_q2"]]
+        failing = [entry for entry in report if not entry["solves_with_fake_helper"]]
         if failing:
             logger.warning(
                 "Exact-xi CT routing cannot yet be solved into the paper "
-                "auxiliary denominator by assigning the fake Q(2)=Q(6) "
-                "external. Mismatches:\n%s",
+                "auxiliary denominator by assigning the active fake helper "
+                "pair. Mismatches:\n%s",
                 pformat(failing),
             )
         return report
@@ -1419,12 +1521,26 @@ class qqbar_nX(object):
         default_define_args = (
             f"-D process_name={process_name} "
             f"-D integrand_name={subtracted_name} "
-            f"-D dot_path={os.path.abspath(dot_path)}"
+            f"-D dot_path={os.path.abspath(dot_path)} "
+            f"-D m_top={self.m_top:.16f} "
+            f"-D m_higgs={self.m_higgs:.16f} "
+            f"-D ymt={self.m_top:.16f} "
+            f"-D enable_thresholds={str(self.enable_threshold_subtraction).lower()} "
+            f"-D check_esurface_at_generation={str(self.check_esurface_at_generation).lower()} "
+            f"-D assume_positive_external_energies={str(self.assume_positive_external_energies).lower()} "
+            f"-D disable_threshold_subtraction={str((not self.enable_threshold_subtraction)).lower()}"
         )
         template_define_args = (
             "-D process_name={process_name} "
             "-D integrand_name={integrand_name} "
-            "-D dot_path={dot_path}"
+            "-D dot_path={dot_path} "
+            "-D m_top={m_top} "
+            "-D m_higgs={m_higgs} "
+            "-D ymt={ymt} "
+            "-D enable_thresholds={enable_thresholds} "
+            "-D check_esurface_at_generation={check_esurface_at_generation} "
+            "-D assume_positive_external_energies={assume_positive_external_energies} "
+            "-D disable_threshold_subtraction={disable_threshold_subtraction}"
         )
         grouped_originals = self._original_graphs_by_group_from_dot(dot_path)
         inspect_sampling_fragment = (
@@ -1455,21 +1571,34 @@ class qqbar_nX(object):
         threshold_commands = [
             (
                 "set global kv "
-                f"global.generation.threshold_subtraction.enable_thresholds="
-                f"{str(self.enable_threshold_subtraction).lower()}"
+                "global.generation.threshold_subtraction.enable_thresholds="
+                "{enable_thresholds}"
             ),
-            "set global kv global.generation.threshold_subtraction.check_esurface_at_generation=false",
+            (
+                "set global kv "
+                "global.generation.threshold_subtraction.check_esurface_at_generation="
+                "{check_esurface_at_generation}"
+            ),
+            (
+                "set global kv "
+                "global.generation.threshold_subtraction.assume_positive_external_energies="
+                "{assume_positive_external_energies}"
+            ),
         ]
+        runtime_subtraction_command = (
+            f"set process -p {template_process_name} -i {template_integrand_name} kv "
+            "subtraction.disable_threshold_subtraction={disable_threshold_subtraction}"
+        )
 
         load_commands = [
             *uv_disabled_commands,
             *threshold_commands,
             f"import model {self.model}",
-            f"set model MT={self.m_top:.16f}",
-            f"set model MH={self.m_higgs:.16f}",
+            "set model MT={m_top}",
+            "set model MH={m_higgs}",
             "set model WT=0.0",
             "set model WH=0.0",
-            f"set model ymt={self.m_top:.16f}",
+            "set model ymt={ymt}",
             f"remove processes -p {template_process_name}",
             (
                 f"import graphs {template_dot_path} -p {template_process_name} "
@@ -1508,6 +1637,7 @@ class qqbar_nX(object):
             commands = [
                 f"run _generate_subtracted_integrand {template_define_args}",
                 f"set process -p {template_process_name} -i {template_integrand_name} defaults",
+                runtime_subtraction_command,
                 self._set_process_helicities_command(
                     template_process_name, template_integrand_name, pm_helicities
                 ),
@@ -1582,6 +1712,7 @@ class qqbar_nX(object):
             return [
                 f"run _generate_subtracted_integrand {template_define_args}",
                 f"set process -p {template_process_name} -i {template_integrand_name} defaults",
+                runtime_subtraction_command,
                 self._set_process_helicities_command(
                     template_process_name, template_integrand_name, helicities_for_block
                 ),
@@ -1752,7 +1883,8 @@ disable_threshold_subtraction = {str((not self.enable_threshold_subtraction)).lo
 
 [cli_settings.global.generation.threshold_subtraction]
 enable_thresholds = {str(self.enable_threshold_subtraction).lower()}
-check_esurface_at_generation = false
+check_esurface_at_generation = {str(self.check_esurface_at_generation).lower()}
+assume_positive_external_energies = {str(self.assume_positive_external_energies).lower()}
 
 [cli_settings.global.generation.uv]
 subtract_uv = false
@@ -2120,25 +2252,45 @@ integrate = {self.low_stat_n_cores}
         )
         return use_arb_prec, display_digits
 
-    def _set_process_external_momenta(
+    def _external_momenta_toml_fragment(
         self,
-        api: GammaLoopAPI,
         *,
-        process_name: str,
-        integrand_name: str,
-        fake_xi_momentum: list[float] | None = None,
-    ) -> None:
+        fake_xi_momentum: dict[str, list[float]] | list[float] | None = None,
+    ) -> str:
         if self.uses_fake_xi_externals():
             momenta = self._current_external_momenta_4d(
                 fake_xi_momentum=fake_xi_momentum
             )
         else:
             momenta = self._current_external_momenta_4d()
-        fragment = (
+        return (
             "[kinematics.externals.data]\n"
             "momenta = [\n"
             f"    {_momenta_toml_array(momenta, dependent_last=True)}\n"
             "]\n"
+        )
+
+    def _set_default_runtime_external_momenta(
+        self,
+        api: GammaLoopAPI,
+        *,
+        fake_xi_momentum: dict[str, list[float]] | list[float] | None = None,
+    ) -> None:
+        fragment = self._external_momenta_toml_fragment(
+            fake_xi_momentum=fake_xi_momentum
+        )
+        api.run(f"set default-runtime string '\n{fragment}'")
+
+    def _set_process_external_momenta(
+        self,
+        api: GammaLoopAPI,
+        *,
+        process_name: str,
+        integrand_name: str,
+        fake_xi_momentum: dict[str, list[float]] | list[float] | None = None,
+    ) -> None:
+        fragment = self._external_momenta_toml_fragment(
+            fake_xi_momentum=fake_xi_momentum
         )
         api.run(
             f"set process -p {process_name} -i {integrand_name} string "
@@ -2347,8 +2499,11 @@ integrate = {self.low_stat_n_cores}
             return self.test_process_gammaloop()
         if normalized_mode in {"ltd", "gammaloop-ltd", "3d-ltd"}:
             return self.test_process_gammaloop(representation="LTD")
+        if normalized_mode in {"pygloop-cff", "cff-meta"}:
+            return self.test_process_pygloop_cff()
         raise pygloopException(
-            "qqbar_nX test_process mode must be one of 'gammaloop', 'LTD' or '4D'."
+            "qqbar_nX test_process mode must be one of 'gammaloop', 'LTD', "
+            "'pygloop-cff' or '4D'."
         )
 
     def _external_momenta_4d(self) -> list[list[float]]:
@@ -2512,6 +2667,9 @@ integrate = {self.low_stat_n_cores}
         subtracted_name = self.get_subtracted_integrand_name()
         process_name = self.get_subtracted_process_name()
         dot_path = manifest["subtracted_dot_path"]
+        dot_export_settings = DotExportSettings()
+        dot_export_settings.include_autogenerated_fields = True
+
         api = self._ensure_api_test_state(
             manifest=manifest,
             integrand_name=subtracted_name,
@@ -2521,20 +2679,12 @@ integrate = {self.low_stat_n_cores}
                 else "generate_subtracted_integrand"
             ),
         )
-        dot_export_settings = DotExportSettings()
-        dot_export_settings.include_autogenerated_fields = True
         routed_dot = api.get_dot_files(
             integrand_name=subtracted_name,
             settings=dot_export_settings,
         )
         routed_dot_path = pjoin(self.dot_folder, f"{subtracted_name}.routed.dot")
         write_text_with_dirs(routed_dot_path, routed_dot)
-        use_arb_prec, display_digits = self._set_collinear_test_runtime(
-            api, process_name=process_name, integrand_name=subtracted_name
-        )
-        graph_id_to_name = self._graph_id_name_map_from_integrand_info(
-            api, integrand_name=subtracted_name
-        )
 
         import numpy as np
 
@@ -2543,6 +2693,17 @@ integrate = {self.low_stat_n_cores}
             reference_dot_path=dot_path, routed_dot_path=routed_dot_path
         )
         exact_xi_routing = self._verify_exact_xi_routing(grouped_graphs)
+        group_fake_xi_momenta = {
+            group_id: self._exact_xi_fake_momenta_for_group(graphs)
+            for group_id, graphs in grouped_graphs.items()
+        }
+        use_arb_prec, display_digits = self._set_collinear_test_runtime(
+            api, process_name=process_name, integrand_name=subtracted_name
+        )
+        graph_id_to_name = self._graph_id_name_map_from_integrand_info(
+            api, integrand_name=subtracted_name
+        )
+
         tables: dict[str, str] = {}
         numeric_results: dict[str, Any] = {}
 
@@ -2564,9 +2725,7 @@ integrate = {self.low_stat_n_cores}
                     graphs[0],
                 )
                 graph_names = [graph_name(graph) for graph in graphs]
-                fake_xi_momentum = self._exact_xi_fake_momentum_for_group_beam(
-                    graphs, beam=beam
-                )
+                fake_xi_momentum = group_fake_xi_momenta[group_id]
                 if fake_xi_momentum is not None:
                     self._set_process_external_momenta(
                         api,
@@ -2681,10 +2840,15 @@ integrate = {self.low_stat_n_cores}
     def test_process_4d(self) -> dict[str, Any]:
         from processes.qqbar_nX.qqbar_nX_4d import build_4d_graph_evaluator
 
-        manifest = self.build_ir_subtracted_graphs(
-            import_graphs=False,
-            allow_cached_selected_dot=True,
-        )
+        configured_counterterm_global_phase = self.counterterm_global_phase
+        self.counterterm_global_phase = self.four_d_counterterm_global_phase
+        try:
+            manifest = self.build_ir_subtracted_graphs(
+                import_graphs=False,
+                allow_cached_selected_dot=True,
+            )
+        finally:
+            self.counterterm_global_phase = configured_counterterm_global_phase
         subtracted_name = self.get_subtracted_integrand_name()
         dot_path = manifest["subtracted_dot_path"]
         routed_dot_path = self._routed_dot_for_4d_test(
@@ -2736,9 +2900,7 @@ integrate = {self.low_stat_n_cores}
                     graphs[0],
                 )
                 graph_names = [graph_name(graph) for graph in graphs]
-                fake_xi_momentum = self._exact_xi_fake_momentum_for_group_beam(
-                    graphs, beam=beam
-                )
+                fake_xi_momentum = self._exact_xi_fake_momenta_for_group(graphs)
                 external_momenta_by_name = {
                     graph_name(graph): self._external_momenta_for_graph_4d(
                         graph, fake_xi_momentum=fake_xi_momentum
@@ -2835,6 +2997,313 @@ integrate = {self.low_stat_n_cores}
             "tables": tables,
             "results": numeric_results,
         }
+
+    def _ensure_cli_generated_state_for_cff_meta(
+        self, *, manifest: dict[str, Any], integrand_name: str
+    ) -> None:
+        state_folder = manifest.get("standalone_state_folder")
+        run_card_path = manifest.get("standalone_run_card_path")
+        if not state_folder or not run_card_path:
+            raise pygloopException(
+                "qqbar_nX pygloop-cff test requires the standalone run card/state paths."
+            )
+
+        needs_rebuild = self.clean or not os.path.isdir(state_folder)
+        if not needs_rebuild:
+            probe = subprocess.run(
+                [
+                    self.gammaloop_cli_path,
+                    "-s",
+                    state_folder,
+                    "display",
+                    "processes",
+                ],
+                cwd=os.getcwd(),
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                check=False,
+            )
+            needs_rebuild = (
+                probe.returncode != 0
+                or "Invalid export format" in probe.stdout
+                or integrand_name not in probe.stdout
+            )
+
+        if not needs_rebuild:
+            return
+
+        log_prefix = f"{integrand_name}_cff_meta"
+        self._run_standalone_command(
+            label="load_run_card",
+            log_prefix=log_prefix,
+            command=[
+                self.gammaloop_cli_path,
+                "--clean-state",
+                run_card_path,
+                "quit",
+                "-o",
+                "true",
+            ],
+        )
+        self._run_standalone_command(
+            label="generate_subtracted_integrand",
+            log_prefix=log_prefix,
+            command=[
+                self.gammaloop_cli_path,
+                "-o",
+                "-s",
+                state_folder,
+                "run",
+                "generate_subtracted_integrand",
+            ],
+        )
+
+    def test_process_pygloop_cff(self) -> dict[str, Any]:
+        from processes.qqbar_nX.qqbar_nX_cff import (
+            build_cff_graph_evaluator,
+            load_or_build_cff_json,
+        )
+
+        manifest = self.build_ir_subtracted_graphs(
+            import_graphs=False,
+            allow_cached_selected_dot=True,
+        )
+        subtracted_name = self.get_subtracted_integrand_name()
+        process_name = self.get_subtracted_process_name()
+        state_folder = manifest["standalone_state_folder"]
+        dot_path = manifest["subtracted_dot_path"]
+        routed_dot_path = pjoin(self.dot_folder, f"{subtracted_name}.routed.dot")
+        if not os.path.isfile(routed_dot_path):
+            raise pygloopException(
+                "pygloop-cff needs the routed DOT with GammaLoop's actual LMB "
+                f"assignments. Missing {routed_dot_path}; run the 4D or "
+                "GammaLoop collinear test once to create it."
+            )
+
+        self._ensure_cli_generated_state_for_cff_meta(
+            manifest=manifest, integrand_name=subtracted_name
+        )
+
+        routed_graphs = parse_dot_graphs(open(routed_dot_path, encoding="utf-8").read())
+        graph = next(
+            (item for item in routed_graphs if graph_name(item) == self.cff_meta_graph_name),
+            None,
+        )
+        if graph is None:
+            raise pygloopException(
+                f"Could not find graph {self.cff_meta_graph_name} in {routed_dot_path}."
+            )
+
+        cff_json_path = pjoin(
+            self.dot_folder,
+            "cff_debug",
+            f"{self.cff_meta_graph_name}_cff.json",
+        )
+        cff_data = load_or_build_cff_json(
+            api=None,
+            gammaloop_cli_path=self.gammaloop_cli_path,
+            state_folder=state_folder,
+            process_name=process_name,
+            integrand_name=subtracted_name,
+            graph_name_value=self.cff_meta_graph_name,
+            json_path=cff_json_path,
+            representation="cff",
+        )
+        graph_id = int(cff_data.get("graph_id", 0))
+        orientation_id = self.cff_meta_orientation_id
+
+        edge_momentum_map = (
+            self._fake_xi_edge_momentum_map()
+            if self.uses_fake_xi_externals()
+            else {
+                index: momentum
+                for index, momentum in enumerate(self._physical_momenta_4d())
+            }
+        )
+        cff_external_edge_ids: list[int] = []
+        for ext_name in cff_data.get("graph", {}).get("ext_names", []):
+            if not str(ext_name).startswith("e"):
+                raise pygloopException(f"Unexpected CFF external name {ext_name!r}.")
+            edge_id = int(str(ext_name)[1:])
+            if edge_id not in edge_momentum_map:
+                raise pygloopException(
+                    f"CFF external {ext_name!r} has no DOT edge momentum."
+                )
+            cff_external_edge_ids.append(edge_id)
+        cff_external_momenta: list[list[float]] = [
+            [0.0, 0.0, 0.0, 0.0]
+            for _ in range((max(cff_external_edge_ids) + 1) if cff_external_edge_ids else 0)
+        ]
+        for edge_id in cff_external_edge_ids:
+            cff_external_momenta[edge_id] = edge_momentum_map[edge_id]
+
+        logger.info(
+            "Building qqbar_nX custom CFF evaluator for graph %s, orientation %s.",
+            self.cff_meta_graph_name,
+            "all" if orientation_id is None else orientation_id,
+        )
+        evaluator = build_cff_graph_evaluator(
+            graph,
+            cff_data,
+            external_count=len(cff_external_momenta),
+            model_values=self._sm_4d_model_values(),
+            orientation_id=orientation_id,
+        )
+
+        # Use the same simple momentum-space sample as the GammaLoop inspect
+        # diagnostic. It is deliberately not summed over groups, so this first
+        # parity target isolates one graph/orientation.
+        xs = [
+            1.0e-4,
+            0.0,
+            self.collinear_fraction_x * abs(float(self.ps_point[0].t)),
+            0.25,
+            0.125,
+            -0.375,
+        ]
+        loop_spatial_momenta = [xs[:3], xs[3:]]
+        evaluator.set_kinematics(
+            external_momenta=cff_external_momenta,
+            loop_spatial_momenta=loop_spatial_momenta,
+            helicities=self._helicities_for_current_externals(),
+            decimal_digit_precision=self.collinear_arb_display_digits,
+        )
+        custom_value = evaluator.evaluate()
+        custom_decimal_re, custom_decimal_im = evaluator.evaluate_with_prec(
+            self.collinear_arb_display_digits
+        )
+
+        precision_fragment, use_arb_prec, _display_digits = (
+            self._collinear_precision_settings_fragment()
+        )
+        runtime_fragment = (
+            _helicity_toml_fragment(self._helicities_for_current_externals())
+            + precision_fragment
+            + self._collinear_test_sampling_fragment()
+        )
+        self._run_standalone_command(
+            label="cff_meta_runtime",
+            command=[
+                self.gammaloop_cli_path,
+                "-o",
+                "-s",
+                state_folder,
+                "set",
+                "process",
+                "-p",
+                process_name,
+                "-i",
+                subtracted_name,
+                "string",
+                f"\n{runtime_fragment}",
+            ],
+            log_prefix=f"{subtracted_name}_cff_meta",
+        )
+
+        inspect_command = [
+            self.gammaloop_cli_path,
+            "-s",
+            state_folder,
+            "-o",
+            "inspect",
+            "-p",
+            f"name:{process_name}",
+            "-i",
+            subtracted_name,
+            "--graph-id",
+            str(graph_id),
+        ]
+        if orientation_id is not None:
+            inspect_command.extend(["--orientation-id", str(orientation_id)])
+        if use_arb_prec:
+            inspect_command.append("-f")
+        inspect_command.extend(["-m", "-x", *[repr(value) for value in xs]])
+        reference = self._run_inspect_and_parse(
+            label=f"cff_meta_inspect_{self.cff_meta_graph_name}",
+            command=inspect_command,
+            log_prefix=f"{subtracted_name}_cff_meta",
+            expected_accepted_events=1 if orientation_id is not None else None,
+        )
+        reference_value = complex(
+            reference["result"]["re"],
+            reference["result"]["im"],
+        )
+        reference_decimal_re = Decimal(reference["result"]["re_decimal"])
+        reference_decimal_im = Decimal(reference["result"]["im_decimal"])
+        difference = custom_value - reference_value
+        decimal_difference_re = custom_decimal_re - reference_decimal_re
+        decimal_difference_im = custom_decimal_im - reference_decimal_im
+        with localcontext() as context:
+            context.prec = max(self.collinear_arb_display_digits + 10, 50)
+            decimal_difference_abs = (
+                decimal_difference_re * decimal_difference_re
+                + decimal_difference_im * decimal_difference_im
+            ).sqrt()
+            reference_decimal_abs = (
+                reference_decimal_re * reference_decimal_re
+                + reference_decimal_im * reference_decimal_im
+            ).sqrt()
+            decimal_relative_difference = (
+                decimal_difference_abs / reference_decimal_abs
+                if reference_decimal_abs != 0
+                else Decimal("Infinity")
+            )
+        relative_difference = (
+            abs(difference) / abs(reference_value) if reference_value != 0.0 else math.inf
+        )
+
+        report = {
+            "graph_name": self.cff_meta_graph_name,
+            "graph_id": graph_id,
+            "orientation_id": orientation_id,
+            "xs": xs,
+            "cff_json_path": cff_json_path,
+            "dot_path": dot_path,
+            "routed_dot_path": routed_dot_path,
+            "custom_value": {"re": custom_value.real, "im": custom_value.imag},
+            "custom_value_decimal": {
+                "re": str(custom_decimal_re),
+                "im": str(custom_decimal_im),
+            },
+            "gammaloop_inspect_value": {
+                "re": reference_value.real,
+                "im": reference_value.imag,
+            },
+            "gammaloop_inspect_value_decimal": {
+                "re": str(reference_decimal_re),
+                "im": str(reference_decimal_im),
+            },
+            "cff_external_edge_ids": cff_external_edge_ids,
+            "lmb_external_edge_map": evaluator.lmb_external_edge_map,
+            "difference": {"re": difference.real, "im": difference.imag},
+            "difference_decimal": {
+                "re": str(decimal_difference_re),
+                "im": str(decimal_difference_im),
+            },
+            "relative_difference": relative_difference,
+            "relative_difference_decimal": str(decimal_relative_difference),
+            "custom_decimal_precision": self.collinear_arb_display_digits,
+            "gammaloop_arb_prec": use_arb_prec,
+            "inspect_log_path": reference["log_path"],
+        }
+        report_path = pjoin(
+            self.dot_folder,
+            f"{subtracted_name}.cff_meta_parity.json",
+        )
+        write_text_with_dirs(report_path, json.dumps(report, indent=2, sort_keys=True))
+        logger.info(
+            "qqbar_nX custom CFF parity %s orientation %s: custom=%s %si, "
+            "GammaLoop=%s %si, rel=%s",
+            self.cff_meta_graph_name,
+            "all" if orientation_id is None else orientation_id,
+            f"{custom_decimal_re:+.17E}",
+            f"{custom_decimal_im:+.17E}",
+            f"{reference_decimal_re:+.17E}",
+            f"{reference_decimal_im:+.17E}",
+            f"{decimal_relative_difference:.3E}",
+        )
+        return report
 
     def run_standalone_collinear_tests(self) -> dict[str, Any]:
         manifest = self.build_ir_smoke_test_graphs()

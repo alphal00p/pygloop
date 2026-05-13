@@ -373,6 +373,8 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
             "ltd",
             "gammaloop-ltd",
             "3d-ltd",
+            "pygloop-cff",
+            "cff-meta",
             "4D",
             "4d",
         ],
