@@ -1666,6 +1666,21 @@ class qqbar_nX(object):
                 define_args += f" -D {key}={value}"
             return f"run {block_name} {define_args}"
 
+        def context_define_args(*, threshold: bool) -> str:
+            m_top_value = 173.0 if threshold else 1000.0
+            return (
+                f"-D process_name={process_name} "
+                f"-D integrand_name={subtracted_name} "
+                f"-D dot_path={os.path.abspath(dot_path)} "
+                f"-D m_top={m_top_value:.16f} "
+                f"-D m_higgs={self.m_higgs:.16f} "
+                f"-D ymt={m_top_value:.16f} "
+                f"-D enable_thresholds={str(threshold).lower()} "
+                "-D check_esurface_at_generation=false "
+                "-D assume_positive_external_energies=false "
+                f"-D disable_threshold_subtraction={str((not threshold)).lower()}"
+            )
+
         inspect_group_blocks: list[str] = []
         for beam in ("p1", "p2"):
             for group_id, graph in grouped_originals:
@@ -1744,6 +1759,32 @@ class qqbar_nX(object):
         workspace_pp = os.path.abspath(
             self._integration_workspace(subtracted_name, pp_helicities)
         )
+        demo_no_threshold_context = context_define_args(threshold=False)
+        demo_threshold_context = context_define_args(threshold=True)
+        demo_workspace_pm = os.path.abspath(
+            pjoin(self.dot_folder, f"{subtracted_name}_demo_no_threshold_pm")
+        )
+        demo_threshold_workspace_pm = os.path.abspath(
+            pjoin(self.dot_folder, f"{subtracted_name}_demo_threshold_pm")
+        )
+        demo_commands = [
+            f"run _generate_subtracted_integrand {demo_no_threshold_context}",
+            f"run _inspect_collinear_p1_group0_arb {demo_no_threshold_context}",
+            f"run _inspect_collinear_p2_group0_arb {demo_no_threshold_context}",
+            (
+                f"run _low_stat_integrate_pm {demo_no_threshold_context} "
+                f"-D workspace_path={demo_workspace_pm}"
+            ),
+        ]
+        demo_with_thresholds_commands = [
+            f"run _generate_subtracted_integrand {demo_threshold_context}",
+            f"run _inspect_collinear_p1_group0_arb {demo_threshold_context}",
+            f"run _inspect_collinear_p2_group0_arb {demo_threshold_context}",
+            (
+                f"run _low_stat_integrate_pm {demo_threshold_context} "
+                f"-D workspace_path={demo_threshold_workspace_pm}"
+            ),
+        ]
 
         run_card = f"""# Intentionally empty: loading this card should only apply settings and
 # register command blocks. Use `run <block-name>` explicitly to load,
@@ -1844,6 +1885,18 @@ commands = [
 name = "low_stat_integrate_pp"
 commands = [
     {self._commands_toml_array([default_run_command("_low_stat_integrate_pp", workspace_path=workspace_pp)])}
+]
+
+[[command_blocks]]
+name = "demo"
+commands = [
+    {self._commands_toml_array(demo_commands)}
+]
+
+[[command_blocks]]
+name = "demo_with_thresholds"
+commands = [
+    {self._commands_toml_array(demo_with_thresholds_commands)}
 ]
 
 [default_runtime_settings.kinematics]

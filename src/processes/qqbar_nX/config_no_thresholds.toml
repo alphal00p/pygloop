@@ -95,9 +95,10 @@ low_stat_n_max = 64
 low_stat_n_cores = 1
 low_stat_batch_size = 16
 evaluator_summed_function_map = false
-# Default standalone steering includes GammaLoop's threshold subtraction. Use
-# config_no_thresholds.toml for the faster heavy-top validation setup.
-enable_threshold_subtraction = true
+# No-threshold standalone steering for the fast heavy-top validation setup.
+# This only changes GammaLoop generation/runtime threshold settings; it does
+# not affect the subtracted DOT graph construction.
+enable_threshold_subtraction = false
 check_esurface_at_generation = false
 # Fake exact-xi helper legs can carry negative energies even when the physical
 # event obeys the usual incoming/outgoing positivity pattern. Disable this
