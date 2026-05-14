@@ -144,6 +144,12 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
         help="DY only: if |final weighted sample| exceeds this threshold, re-evaluate the point in arbitrary precision.",
     )
     parser.add_argument(
+        "--dy-zero-large-weight-samples",
+        action="store_true",
+        default=False,
+        help="DY only: set final weighted samples above --dy-large-weight-threshold to zero.",
+    )
+    parser.add_argument(
         "--dy-accept-all-arb-retries",
         action="store_true",
         default=False,
@@ -167,6 +173,14 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
         action="store_true",
         default=False,
         help="DY only: sample beam fractions x1 and x2 in [0,1] and use p1=(0,0,e_cm*x1), p2=(0,0,-e_cm*x2) at runtime for the zenos integrand.",
+    )
+    parser.add_argument(
+        "--mUV",
+        "--dy-muv",
+        dest="dy_muv",
+        type=float,
+        default=None,
+        help="DY only: UV mass parameter passed to the zenos runtime evaluator.",
     )
 
     parser.add_argument("--gammaloop-configuration", "-f", default=None,
@@ -578,9 +592,14 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
         integrand_implementation["dy_large_weight_threshold"] = (
             args.dy_large_weight_threshold
         )
+        integrand_implementation["dy_zero_large_weight_samples"] = (
+            args.dy_zero_large_weight_samples
+        )
         integrand_implementation["dy_accept_all_arb_retries"] = (
             args.dy_accept_all_arb_retries
         )
+        if args.dy_muv is not None:
+            integrand_implementation["mUV"] = args.dy_muv
     t_start = time.time()
     match args.command:
         case "generate":
