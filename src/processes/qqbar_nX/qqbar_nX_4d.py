@@ -92,11 +92,7 @@ def _remove_cff_ose_compensation(expression: Expression, graph: DotGraph) -> Exp
         if label.startswith(prefix):
             raw_edges = label[len(prefix) :]
     if raw_edges is None:
-        compensated_edge_ids = {
-            strip_quotes(edge.get("id"))
-            for edge in graph.get_internal_edges()
-            if _is_dummy_edge(edge)
-        }
+        return expression
     else:
         compensated_edge_ids = {
             edge_id.strip()

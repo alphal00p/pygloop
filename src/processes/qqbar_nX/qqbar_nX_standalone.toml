@@ -83,38 +83,174 @@ b = 1.0
 name = "_inspect_collinear_p1_group0_arb"
 commands = [
     "run _generate_subtracted_integrand -D process_name={process_name} -D integrand_name={integrand_name} -D dot_path={dot_path} -D m_top={m_top} -D m_higgs={m_higgs} -D ymt={ymt} -D enable_thresholds={enable_thresholds} -D check_esurface_at_generation={check_esurface_at_generation} -D assume_positive_external_energies={assume_positive_external_energies} -D disable_threshold_subtraction={disable_threshold_subtraction}",
-    "run _inspect_runtime_pm -D process_name={process_name} -D integrand_name={integrand_name} -D disable_threshold_subtraction={disable_threshold_subtraction}",
-    "inspect -p {process_name} -i {integrand_name} --discrete-dim 0 -f -m -x -16.5522890085109999 -318.6040102436004986 197.1121916368809934 0.25 0.125 -0.375",
-    "inspect -p {process_name} -i {integrand_name} --discrete-dim 0 -f -m -x -16.5523889985109989 -318.6041102336004656 197.1121916368809934 0.25 0.125 -0.375"
+    "set process -p {process_name} -i {integrand_name} defaults",
+    "set process -p {process_name} -i {integrand_name} kv subtraction.disable_threshold_subtraction={disable_threshold_subtraction}",
+    """set process -p {process_name} -i {integrand_name} string '
+[kinematics.externals.data]
+helicities = [1, -1, 0, 0, 0, 0, 0, 0, 0]
+'""",
+    """set process -p {process_name} -i {integrand_name} string '
+[kinematics.externals.data]
+momenta = [
+    [5.0000000000000000e+02, 0.0000000000000000e+00, 0.0000000000000000e+00, 5.0000000000000000e+02],
+    [5.0000000000000000e+02, 0.0000000000000000e+00, 0.0000000000000000e+00, -5.0000000000000000e+02],
+    [1.0000000000000000e+03, 0.0000000000000000e+00, 0.0000000000000000e+00, 0.0000000000000000e+00],
+    [1.0000000000000000e+03, 0.0000000000000000e+00, 0.0000000000000000e+00, 0.0000000000000000e+00],
+    [1.0000000000000000e+03, 0.0000000000000000e+00, 0.0000000000000000e+00, 0.0000000000000000e+00],
+    [1.0000000000000000e+03, 0.0000000000000000e+00, 0.0000000000000000e+00, 0.0000000000000000e+00],
+    [4.3855556622469447e+02, 1.5533220018353779e+02, 3.4801603965135871e+02, -1.7737736157184119e+02],
+    [3.5636963749219223e+02, -1.6802389008511000e+01, -3.1872911024360047e+02, 9.7487191636880979e+01],
+    "dependent"
 ]
-
+'""",
+    """set process -p {process_name} -i {integrand_name} string '
+[sampling]
+graphs = "monte_carlo"
+orientations = "summed"
+lmb_multichanneling = false
+lmb_channels = "summed"
+coordinate_system = "spherical"
+mapping = "linear"
+b = 1.0
+'""",
+    "inspect -p {process_name} -i {integrand_name} --discrete-dim 0 -f -m -x 1000 0 150 250 125 -375",
+    "inspect -p {process_name} -i {integrand_name} --discrete-dim 0 -f -m -x 100 0 150 250 125 -375",
+    "inspect -p {process_name} -i {integrand_name} --discrete-dim 0 -f -m -x 10 0 150 250 125 -375",
+    "inspect -p {process_name} -i {integrand_name} --discrete-dim 0 -f -m -x 1 0 150 250 125 -375",
+    "inspect -p {process_name} -i {integrand_name} --discrete-dim 0 -f -m -x 0.1 0 150 250 125 -375",
+    "inspect -p {process_name} -i {integrand_name} --discrete-dim 0 -f -m -x 0.01 0 150 250 125 -375",
+    "inspect -p {process_name} -i {integrand_name} --discrete-dim 0 -f -m -x 0.001 0 150 250 125 -375",
+    "inspect -p {process_name} -i {integrand_name} --discrete-dim 0 -f -m -x 0.0001 0 150 250 125 -375"
+]
 [[command_blocks]]
 name = "_inspect_collinear_p1_group1_arb"
 commands = [
     "run _generate_subtracted_integrand -D process_name={process_name} -D integrand_name={integrand_name} -D dot_path={dot_path} -D m_top={m_top} -D m_higgs={m_higgs} -D ymt={ymt} -D enable_thresholds={enable_thresholds} -D check_esurface_at_generation={check_esurface_at_generation} -D assume_positive_external_energies={assume_positive_external_energies} -D disable_threshold_subtraction={disable_threshold_subtraction}",
-    "run _inspect_runtime_pm -D process_name={process_name} -D integrand_name={integrand_name} -D disable_threshold_subtraction={disable_threshold_subtraction}",
-    "inspect -p {process_name} -i {integrand_name} --discrete-dim 1 -f -m -x 0.0001 0.0001 100 0.25 0.125 -0.375",
-    "inspect -p {process_name} -i {integrand_name} --discrete-dim 1 -f -m -x 0.00000001 0.00000001 100 0.25 0.125 -0.375"
+    "set process -p {process_name} -i {integrand_name} defaults",
+    "set process -p {process_name} -i {integrand_name} kv subtraction.disable_threshold_subtraction={disable_threshold_subtraction}",
+    """set process -p {process_name} -i {integrand_name} string '
+[kinematics.externals.data]
+helicities = [1, -1, 0, 0, 0, 0, 0, 0, 0]
+'""",
+    """set process -p {process_name} -i {integrand_name} string '
+[kinematics.externals.data]
+momenta = [
+    [5.0000000000000000e+02, 0.0000000000000000e+00, 0.0000000000000000e+00, 5.0000000000000000e+02],
+    [5.0000000000000000e+02, 0.0000000000000000e+00, 0.0000000000000000e+00, -5.0000000000000000e+02],
+    [1.0000000000000000e+03, 0.0000000000000000e+00, 0.0000000000000000e+00, 0.0000000000000000e+00],
+    [1.0000000000000000e+03, 0.0000000000000000e+00, 0.0000000000000000e+00, 0.0000000000000000e+00],
+    [1.0000000000000000e+03, 0.0000000000000000e+00, 0.0000000000000000e+00, 0.0000000000000000e+00],
+    [1.0000000000000000e+03, 0.0000000000000000e+00, 0.0000000000000000e+00, 0.0000000000000000e+00],
+    [4.3855556622469447e+02, 1.5533220018353779e+02, 3.4801603965135871e+02, -1.7737736157184119e+02],
+    [3.5636963749219223e+02, -1.6802389008511000e+01, -3.1872911024360047e+02, 9.7487191636880979e+01],
+    "dependent"
 ]
-
+'""",
+    """set process -p {process_name} -i {integrand_name} string '
+[sampling]
+graphs = "monte_carlo"
+orientations = "summed"
+lmb_multichanneling = false
+lmb_channels = "summed"
+coordinate_system = "spherical"
+mapping = "linear"
+b = 1.0
+'""",
+    "inspect -p {process_name} -i {integrand_name} --discrete-dim 1 -f -m -x 1000 0 150 250 125 -375",
+    "inspect -p {process_name} -i {integrand_name} --discrete-dim 1 -f -m -x 100 0 150 250 125 -375",
+    "inspect -p {process_name} -i {integrand_name} --discrete-dim 1 -f -m -x 10 0 150 250 125 -375",
+    "inspect -p {process_name} -i {integrand_name} --discrete-dim 1 -f -m -x 1 0 150 250 125 -375",
+    "inspect -p {process_name} -i {integrand_name} --discrete-dim 1 -f -m -x 0.1 0 150 250 125 -375",
+    "inspect -p {process_name} -i {integrand_name} --discrete-dim 1 -f -m -x 0.01 0 150 250 125 -375",
+    "inspect -p {process_name} -i {integrand_name} --discrete-dim 1 -f -m -x 0.001 0 150 250 125 -375",
+    "inspect -p {process_name} -i {integrand_name} --discrete-dim 1 -f -m -x 0.0001 0 150 250 125 -375"
+]
 [[command_blocks]]
 name = "_inspect_collinear_p2_group0_arb"
 commands = [
     "run _generate_subtracted_integrand -D process_name={process_name} -D integrand_name={integrand_name} -D dot_path={dot_path} -D m_top={m_top} -D m_higgs={m_higgs} -D ymt={ymt} -D enable_thresholds={enable_thresholds} -D check_esurface_at_generation={check_esurface_at_generation} -D assume_positive_external_energies={assume_positive_external_energies} -D disable_threshold_subtraction={disable_threshold_subtraction}",
-    "run _inspect_runtime_pm -D process_name={process_name} -D integrand_name={integrand_name} -D disable_threshold_subtraction={disable_threshold_subtraction}",
-    "inspect -p {process_name} -i {integrand_name} --discrete-dim 0 -f -m -x -16.5524890085109995 -318.6042102436004484 197.1121916368809934 0.25 0.125 -0.375",
-    "inspect -p {process_name} -i {integrand_name} --discrete-dim 0 -f -m -x -16.5523890185110005 -318.6041102536004814 197.1121916368809934 0.25 0.125 -0.375"
+    "set process -p {process_name} -i {integrand_name} defaults",
+    "set process -p {process_name} -i {integrand_name} kv subtraction.disable_threshold_subtraction={disable_threshold_subtraction}",
+    """set process -p {process_name} -i {integrand_name} string '
+[kinematics.externals.data]
+helicities = [1, -1, 0, 0, 0, 0, 0, 0, 0]
+'""",
+    """set process -p {process_name} -i {integrand_name} string '
+[kinematics.externals.data]
+momenta = [
+    [5.0000000000000000e+02, 0.0000000000000000e+00, 0.0000000000000000e+00, 5.0000000000000000e+02],
+    [5.0000000000000000e+02, 0.0000000000000000e+00, 0.0000000000000000e+00, -5.0000000000000000e+02],
+    [1.0000000000000000e+03, 0.0000000000000000e+00, 0.0000000000000000e+00, 0.0000000000000000e+00],
+    [1.0000000000000000e+03, 0.0000000000000000e+00, 0.0000000000000000e+00, 0.0000000000000000e+00],
+    [1.0000000000000000e+03, 0.0000000000000000e+00, 0.0000000000000000e+00, 0.0000000000000000e+00],
+    [1.0000000000000000e+03, 0.0000000000000000e+00, 0.0000000000000000e+00, 0.0000000000000000e+00],
+    [4.3855556622469447e+02, 1.5533220018353779e+02, 3.4801603965135871e+02, -1.7737736157184119e+02],
+    [3.5636963749219223e+02, -1.6802389008511000e+01, -3.1872911024360047e+02, 9.7487191636880979e+01],
+    "dependent"
 ]
-
+'""",
+    """set process -p {process_name} -i {integrand_name} string '
+[sampling]
+graphs = "monte_carlo"
+orientations = "summed"
+lmb_multichanneling = false
+lmb_channels = "summed"
+coordinate_system = "spherical"
+mapping = "linear"
+b = 1.0
+'""",
+    "inspect -p {process_name} -i {integrand_name} --discrete-dim 0 -f -m -x 1000 0 150 250 125 -375",
+    "inspect -p {process_name} -i {integrand_name} --discrete-dim 0 -f -m -x 100 0 150 250 125 -375",
+    "inspect -p {process_name} -i {integrand_name} --discrete-dim 0 -f -m -x 10 0 150 250 125 -375",
+    "inspect -p {process_name} -i {integrand_name} --discrete-dim 0 -f -m -x 1 0 150 250 125 -375",
+    "inspect -p {process_name} -i {integrand_name} --discrete-dim 0 -f -m -x 0.1 0 150 250 125 -375",
+    "inspect -p {process_name} -i {integrand_name} --discrete-dim 0 -f -m -x 0.01 0 150 250 125 -375",
+    "inspect -p {process_name} -i {integrand_name} --discrete-dim 0 -f -m -x 0.001 0 150 250 125 -375",
+    "inspect -p {process_name} -i {integrand_name} --discrete-dim 0 -f -m -x 0.0001 0 150 250 125 -375"
+]
 [[command_blocks]]
 name = "_inspect_collinear_p2_group1_arb"
 commands = [
     "run _generate_subtracted_integrand -D process_name={process_name} -D integrand_name={integrand_name} -D dot_path={dot_path} -D m_top={m_top} -D m_higgs={m_higgs} -D ymt={ymt} -D enable_thresholds={enable_thresholds} -D check_esurface_at_generation={check_esurface_at_generation} -D assume_positive_external_energies={assume_positive_external_energies} -D disable_threshold_subtraction={disable_threshold_subtraction}",
-    "run _inspect_runtime_pm -D process_name={process_name} -D integrand_name={integrand_name} -D disable_threshold_subtraction={disable_threshold_subtraction}",
-    "inspect -p {process_name} -i {integrand_name} --discrete-dim 1 -f -m -x -0.0001 -0.0001 100 0.25 0.125 -0.375",
-    "inspect -p {process_name} -i {integrand_name} --discrete-dim 1 -f -m -x -0.00000001 -0.00000001 100 0.25 0.125 -0.375"
+    "set process -p {process_name} -i {integrand_name} defaults",
+    "set process -p {process_name} -i {integrand_name} kv subtraction.disable_threshold_subtraction={disable_threshold_subtraction}",
+    """set process -p {process_name} -i {integrand_name} string '
+[kinematics.externals.data]
+helicities = [1, -1, 0, 0, 0, 0, 0, 0, 0]
+'""",
+    """set process -p {process_name} -i {integrand_name} string '
+[kinematics.externals.data]
+momenta = [
+    [5.0000000000000000e+02, 0.0000000000000000e+00, 0.0000000000000000e+00, 5.0000000000000000e+02],
+    [5.0000000000000000e+02, 0.0000000000000000e+00, 0.0000000000000000e+00, -5.0000000000000000e+02],
+    [1.0000000000000000e+03, 0.0000000000000000e+00, 0.0000000000000000e+00, 0.0000000000000000e+00],
+    [1.0000000000000000e+03, 0.0000000000000000e+00, 0.0000000000000000e+00, 0.0000000000000000e+00],
+    [1.0000000000000000e+03, 0.0000000000000000e+00, 0.0000000000000000e+00, 0.0000000000000000e+00],
+    [1.0000000000000000e+03, 0.0000000000000000e+00, 0.0000000000000000e+00, 0.0000000000000000e+00],
+    [4.3855556622469447e+02, 1.5533220018353779e+02, 3.4801603965135871e+02, -1.7737736157184119e+02],
+    [3.5636963749219223e+02, -1.6802389008511000e+01, -3.1872911024360047e+02, 9.7487191636880979e+01],
+    "dependent"
 ]
-
+'""",
+    """set process -p {process_name} -i {integrand_name} string '
+[sampling]
+graphs = "monte_carlo"
+orientations = "summed"
+lmb_multichanneling = false
+lmb_channels = "summed"
+coordinate_system = "spherical"
+mapping = "linear"
+b = 1.0
+'""",
+    "inspect -p {process_name} -i {integrand_name} --discrete-dim 1 -f -m -x 1000 0 150 250 125 -375",
+    "inspect -p {process_name} -i {integrand_name} --discrete-dim 1 -f -m -x 100 0 150 250 125 -375",
+    "inspect -p {process_name} -i {integrand_name} --discrete-dim 1 -f -m -x 10 0 150 250 125 -375",
+    "inspect -p {process_name} -i {integrand_name} --discrete-dim 1 -f -m -x 1 0 150 250 125 -375",
+    "inspect -p {process_name} -i {integrand_name} --discrete-dim 1 -f -m -x 0.1 0 150 250 125 -375",
+    "inspect -p {process_name} -i {integrand_name} --discrete-dim 1 -f -m -x 0.01 0 150 250 125 -375",
+    "inspect -p {process_name} -i {integrand_name} --discrete-dim 1 -f -m -x 0.001 0 150 250 125 -375",
+    "inspect -p {process_name} -i {integrand_name} --discrete-dim 1 -f -m -x 0.0001 0 150 250 125 -375"
+]
 [[command_blocks]]
 name = "_low_stat_integrate_pm"
 commands = [

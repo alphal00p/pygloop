@@ -20,6 +20,7 @@ from processes.qqbar_nX.qqbar_nX_counterterms import (
     EXACT_XI_AUXILIARY_MODE,
     build_isr_counterterm_graphs,
     identify_light_line_structure,
+    minimise_edge_attributes_for_import,
 )
 from processes.qqbar_nX.qqbar_nX_graphs import (
     SelectionReport,
@@ -132,10 +133,6 @@ def _helicity_toml_fragment(helicities: list[int]) -> str:
         "[kinematics.externals.data]\n"
         f"helicities = [{', '.join(str(h) for h in helicities)}]\n"
     )
-
-
-def _epsilon_label(epsilon: float) -> str:
-    return f"{epsilon:.0e}".replace("+", "").replace("-", "m")
 
 
 def _lambda_label(lambda_value: float) -> str:
@@ -519,12 +516,16 @@ class qqbar_nX(object):
                 fake_xi_momentum.get("p1")
                 or fake_xi_momentum.get(2)
                 or fake_xi_momentum.get("2")
+                or fake_xi_momentum.get(4)
+                or fake_xi_momentum.get("4")
                 or default_xi
             )
             p2_value = (
                 fake_xi_momentum.get("p2")
                 or fake_xi_momentum.get(3)
                 or fake_xi_momentum.get("3")
+                or fake_xi_momentum.get(5)
+                or fake_xi_momentum.get("5")
                 or default_xi
             )
             return {"p1": list(p1_value), "p2": list(p2_value)}
@@ -962,74 +963,6 @@ class qqbar_nX(object):
             raise pygloopException("Need at least two incoming momenta for the collinear test.")
         return float(self.ps_point[0].t + self.ps_point[1].t)
 
-    def _collinear_xs_from_graph(
-        self,
-        graph: Any,
-        *,
-        beam: str,
-        epsilon: float,
-        lambda_scale: float = 100.0,
-    ) -> list[float]:
-        if beam == "p1":
-            target = [epsilon, epsilon, lambda_scale]
-        elif beam == "p2":
-            target = [epsilon, epsilon, -lambda_scale]
-        else:
-            raise pygloopException(f"Unknown collinear beam '{beam}'.")
-
-        structure = identify_light_line_structure(graph)
-        attachment = structure.p1 if beam == "p1" else structure.p2
-        edge = attachment.gluon_edge
-        lmb_rep = edge.get_attributes().get("lmb_rep")
-        if lmb_rep is None:
-            raise pygloopException(
-                f"Cannot build collinear test point for {graph_name(graph)}: "
-                f"the target {beam} gluon edge has no lmb_rep."
-            )
-
-        coefficients = _parse_lmb_representation(lmb_rep)
-        external_vectors = self._external_spatial_vectors_for_graph(graph)
-        fixed_loop_vectors = {1: [0.25, 0.125, -0.375]}
-        solve_loop_index = 0
-        solve_coefficient = coefficients["K"].get(solve_loop_index, 0.0)
-        if solve_coefficient == 0.0:
-            solve_loop_index = 1
-            solve_coefficient = coefficients["K"].get(solve_loop_index, 0.0)
-            fixed_loop_vectors = {0: [0.11, 0.23, -0.31]}
-        if solve_coefficient == 0.0:
-            raise pygloopException(
-                f"Cannot solve collinear point for {graph_name(graph)}: "
-                f"no loop momentum appears in {strip_quotes(lmb_rep)}."
-            )
-
-        rhs = [
-            attachment.gluon_momentum_sign_into_loop * component
-            for component in target
-        ]
-        for p_index, coefficient in coefficients["P"].items():
-            if p_index not in external_vectors:
-                raise pygloopException(
-                    f"lmb_rep references unavailable external P({p_index}) "
-                    f"for {graph_name(graph)}."
-                )
-            _sub_scaled(rhs, coefficient, external_vectors[p_index])
-
-        for k_index, coefficient in coefficients["K"].items():
-            if k_index == solve_loop_index:
-                continue
-            if k_index not in fixed_loop_vectors:
-                fixed_loop_vectors[k_index] = [0.25, 0.125, -0.375]
-            _sub_scaled(rhs, coefficient, fixed_loop_vectors[k_index])
-
-        solved_loop = [component / solve_coefficient for component in rhs]
-        loop_vectors = dict(fixed_loop_vectors)
-        loop_vectors[solve_loop_index] = solved_loop
-        if 0 not in loop_vectors or 1 not in loop_vectors:
-            raise pygloopException(
-                f"Could not construct both loop momenta for {graph_name(graph)}."
-            )
-        return loop_vectors[0] + loop_vectors[1]
-
     def _collinear_xs_from_graph_fractional(
         self,
         graph: Any,
@@ -1064,11 +997,23 @@ class qqbar_nX(object):
         edge = structure.light_edge
         if routed_graph is not None:
             edge = self._edge_by_id(routed_graph, structure.light_edge_id)
+
+        raw_lmb_id = edge.get_attributes().get("lmb_id")
+        if routed_graph is None and raw_lmb_id is not None:
+            lmb_id = int(strip_quotes(raw_lmb_id))
+            spectator_loop_3d = [250.0, 125.0, -375.0]
+            loop_vectors = {
+                0: list(spectator_loop_3d),
+                1: list(spectator_loop_3d),
+            }
+            loop_vectors[lmb_id] = [k_perp_norm, 0.0, z_component]
+            return loop_vectors[0] + loop_vectors[1]
+
         lmb_rep = edge.get_attributes().get("lmb_rep")
         if lmb_rep is None:
             raise pygloopException(
                 f"Cannot build collinear test point for {graph_name(graph)}: "
-                f"the target {beam} gluon edge has no lmb_rep."
+                "the pinned light-line edge has no lmb_rep."
             )
 
         coefficients = _parse_lmb_representation(lmb_rep)
@@ -1076,13 +1021,14 @@ class qqbar_nX(object):
             routed_graph if routed_graph is not None else graph,
             fake_xi_momentum=fake_xi_momentum,
         )
-        fixed_loop_vectors = {1: [0.25, 0.125, -0.375]}
+        spectator_loop_3d = [250.0, 125.0, -375.0]
+        fixed_loop_vectors = {1: list(spectator_loop_3d)}
         solve_loop_index = 0
         solve_coefficient = coefficients["K"].get(solve_loop_index, 0.0)
         if solve_coefficient == 0.0:
             solve_loop_index = 1
             solve_coefficient = coefficients["K"].get(solve_loop_index, 0.0)
-            fixed_loop_vectors = {0: [0.11, 0.23, -0.31]}
+            fixed_loop_vectors = {0: list(spectator_loop_3d)}
         if solve_coefficient == 0.0:
             raise pygloopException(
                 f"Cannot solve collinear point for {graph_name(graph)}: "
@@ -1102,7 +1048,7 @@ class qqbar_nX(object):
             if k_index == solve_loop_index:
                 continue
             if k_index not in fixed_loop_vectors:
-                fixed_loop_vectors[k_index] = [0.25, 0.125, -0.375]
+                fixed_loop_vectors[k_index] = list(spectator_loop_3d)
             _sub_scaled(rhs, coefficient, fixed_loop_vectors[k_index])
 
         solved_loop = [component / solve_coefficient for component in rhs]
@@ -1303,7 +1249,7 @@ class qqbar_nX(object):
             for index, value in coefficients["P"].items()
             if abs(value) > 1.0e-12
         }
-        fake_pairs = ({2, 3},)
+        fake_pairs = ({2, 4}, {3, 5})
         if set(nonzero_loop) != {0}:
             return False
         for fake_external_ids in fake_pairs:
@@ -1314,6 +1260,29 @@ class qqbar_nX(object):
             )
             return abs(nonzero_loop[0]) == 1.0 and nonzero_loop[0] == fake_coefficient
         return False
+
+    def _lmb_rep_loop_coefficients(self, lmb_rep: str) -> dict[int, float]:
+        coefficients = _parse_lmb_representation(lmb_rep)
+        return {
+            index: value
+            for index, value in coefficients["K"].items()
+            if abs(value) > 1.0e-12
+        }
+
+    def _lmb_rep_external_shift_4d(
+        self, graph: Any, lmb_rep: str
+    ) -> list[float] | None:
+        coefficients = _parse_lmb_representation(lmb_rep)
+        external_momenta = self._external_momenta_for_graph_4d(graph)
+        shift = [0.0, 0.0, 0.0, 0.0]
+        for p_index, coefficient in coefficients["P"].items():
+            if abs(coefficient) < 1.0e-12:
+                continue
+            if p_index >= len(external_momenta):
+                return None
+            for component in range(4):
+                shift[component] += coefficient * external_momenta[p_index][component]
+        return shift
 
     def _verify_exact_xi_routing(
         self, grouped_routed_graphs: dict[int, list[Any]]
@@ -1348,66 +1317,96 @@ class qqbar_nX(object):
                     )
                     continue
                 auxiliary_edge = mass_edges[0]
-
                 raw_lmb_rep = auxiliary_edge.get_attributes().get("lmb_rep", "")
                 lmb_rep = strip_quotes(raw_lmb_rep)
-                details = self._exact_xi_auxiliary_signature_details(graph)
-                required_fake_momentum = (
-                    details["required_fake_momentum"] if details is not None else None
+                original_name = (
+                    name.removesuffix("_isr_p1_ct")
+                    if name.endswith("_isr_p1_ct")
+                    else name.removesuffix("_isr_p2_ct")
                 )
+                auxiliary_edge_id = int(strip_quotes(auxiliary_edge.get("id")))
+                reference_lmb_rep = None
+                loop_residual: dict[int, float] | None = None
+                shift_residual = None
+                direct_matches = False
+                reason = None
+                reference_edges = [
+                    edge
+                    for edge in graph_internal_edges(graph)
+                    if strip_quotes(edge.get_attributes().get("lmb_id", "")) == "0"
+                ]
+                if len(reference_edges) != 1:
+                    reason = (
+                        "expected exactly one CT light edge with lmb_id=0, "
+                        f"found {len(reference_edges)}"
+                    )
+                else:
+                    reference_edge = reference_edges[0]
+                    reference_lmb_rep = strip_quotes(reference_edge.get_attributes().get("lmb_rep", ""))
+                    ct_loop = self._lmb_rep_loop_coefficients(lmb_rep)
+                    reference_loop = self._lmb_rep_loop_coefficients(reference_lmb_rep)
+                    all_loop_ids = set(ct_loop) | set(reference_loop)
+                    loop_residual = {
+                        index: ct_loop.get(index, 0.0) - reference_loop.get(index, 0.0)
+                        for index in sorted(all_loop_ids)
+                    }
+                    ct_shift = self._lmb_rep_external_shift_4d(graph, lmb_rep)
+                    reference_shift = self._lmb_rep_external_shift_4d(
+                        graph, reference_lmb_rep
+                    )
+                    if ct_shift is None or reference_shift is None:
+                        reason = "could not evaluate external shift from lmb_rep"
+                    else:
+                        xi = self._xi_external_momentum()
+                        shift_difference = [
+                            ct_shift[component] - reference_shift[component]
+                            for component in range(4)
+                        ]
+                        target_shift = [-component for component in xi]
+                        shift_residual = [
+                            shift_difference[component] - target_shift[component]
+                            for component in range(4)
+                        ]
+                        direct_matches = (
+                            max((abs(value) for value in loop_residual.values()), default=0.0)
+                            < 1.0e-9
+                            and max(abs(value) for value in shift_residual) < 1.0e-8
+                        )
+                        if not direct_matches:
+                            reason = (
+                                "shifted edge does not equal the pinned light-edge "
+                                "signature minus xi"
+                            )
                 entry = {
                     "group_id": group_id,
                     "graph": name,
-                    "auxiliary_edge_id": int(strip_quotes(auxiliary_edge.get("id"))),
+                    "auxiliary_edge_id": auxiliary_edge_id,
                     "lmb_rep": lmb_rep,
-                    "direct_signature_without_fake_solve": self._is_exact_xi_auxiliary_signature(lmb_rep),
-                    "solves_with_fake_helper": required_fake_momentum is not None,
-                    "required_fake_momentum": required_fake_momentum,
+                    "original_graph": original_name,
+                    "reference_light_edge_lmb_rep": reference_lmb_rep,
+                    "direct_signature_with_helpers_set_to_xi": direct_matches,
+                    "loop_residual_to_light_edge": loop_residual,
+                    "residual_to_light_edge_minus_xi": shift_residual,
+                    "active_fake_edge_ids": sorted(
+                        self._exact_xi_active_fake_edge_ids(graph)
+                    ),
+                    "reason": reason,
                 }
-                if details is not None:
-                    entry.update(
-                        {
-                            "loop_sign": details["loop_sign"],
-                            "fake_coefficient": details["fake_coefficient"],
-                            "active_fake_edge_ids": details[
-                                "active_fake_edge_ids"
-                            ],
-                            "active_fake_p_indices": details[
-                                "active_fake_p_indices"
-                            ],
-                            "target_non_loop_shift": details["target_non_loop_shift"],
-                            "solved_non_loop_shift": details["solved_non_loop_shift"],
-                            "residual_to_k0_minus_xi": details[
-                                "residual_to_k0_minus_xi"
-                            ],
-                            "max_abs_residual": details["max_abs_residual"],
-                            "required_fake_momentum_square": details[
-                                "required_fake_momentum_square"
-                            ],
-                            "xi": details["xi"],
-                            "xi_square": details["xi_square"],
-                        }
-                    )
                 report.append(entry)
 
-        failing = [entry for entry in report if not entry["solves_with_fake_helper"]]
+        failing = [
+            entry
+            for entry in report
+            if not entry["direct_signature_with_helpers_set_to_xi"]
+        ]
         if failing:
             logger.warning(
-                "Exact-xi CT routing cannot yet be solved into the paper "
-                "auxiliary denominator by assigning the active fake helper "
-                "pair. Mismatches:\n%s",
+                "Exact-xi CT routing does not directly reproduce the paper "
+                "auxiliary denominator with all helper pairs set to xi. "
+                "Mismatches:\n%s",
                 pformat(failing),
             )
         return report
-
-    def _collinear_xs_from_dot(
-        self, dot_path: str, *, beam: str, epsilon: float
-    ) -> list[float]:
-        return self._collinear_xs_from_graph(
-            self._first_original_graph_from_dot(dot_path),
-            beam=beam,
-            epsilon=epsilon,
-        )
 
     def _format_xs(self, xs: list[float]) -> list[str]:
         return [_format_cli_float(value) for value in xs]
@@ -1543,6 +1542,7 @@ class qqbar_nX(object):
             "-D disable_threshold_subtraction={disable_threshold_subtraction}"
         )
         grouped_originals = self._original_graphs_by_group_from_dot(dot_path)
+        grouped_members = self._graph_members_by_group_from_dot(dot_path)
         inspect_sampling_fragment = (
             "[sampling]\n"
             'graphs = "monte_carlo"\n'
@@ -1633,7 +1633,7 @@ class qqbar_nX(object):
             graph: Any,
             use_arb_prec: bool,
         ) -> list[str]:
-            epsilons = (1.0e-4, 1.0e-8) if use_arb_prec else (1.0e-2, 1.0e-4, 1.0e-6)
+            momenta_fragment = self._external_momenta_toml_fragment()
             commands = [
                 f"run _generate_subtracted_integrand {template_define_args}",
                 f"set process -p {template_process_name} -i {template_integrand_name} defaults",
@@ -1641,12 +1641,18 @@ class qqbar_nX(object):
                 self._set_process_helicities_command(
                     template_process_name, template_integrand_name, pm_helicities
                 ),
+                set_process_sampling_command(momenta_fragment),
                 set_process_sampling_command(inspect_sampling_fragment),
             ]
             precision_flag = "-f " if use_arb_prec else ""
-            for epsilon in epsilons:
+            for lambda_value in self.collinear_lambdas:
                 xs = self._format_xs(
-                    self._collinear_xs_from_graph(graph, beam=beam, epsilon=epsilon)
+                    self._collinear_xs_from_graph_fractional(
+                        graph,
+                        beam=beam,
+                        x_fraction=self.collinear_fraction_x,
+                        lambda_value=lambda_value,
+                    )
                 )
                 commands.append(
                     f"inspect -p {template_process_name} -i {template_integrand_name} "
@@ -2014,6 +2020,7 @@ integrate = {self.low_stat_n_cores}
             xi_parameter_names=self.xi_parameter_names,  # type: ignore[arg-type]
             xi_default_values=self.xi_default_values,  # type: ignore[arg-type]
         )
+        minimise_edge_attributes_for_import(subtracted_graphs)
         subtracted_dot = dot_graphs_to_string(subtracted_graphs)
         subtracted_dot_path = pjoin(self.dot_folder, f"{subtracted_name}.dot")
         manifest_path = pjoin(self.dot_folder, f"{subtracted_name}.manifest.json")
@@ -2642,13 +2649,14 @@ integrate = {self.low_stat_n_cores}
                 )
             )
         }
-        fixed_loop_vectors = {1: [200.0, 17.0, -31.0, 47.0]}
+        spectator_loop_4d = [1200.0, 250.0, 125.0, -375.0]
+        fixed_loop_vectors = {1: list(spectator_loop_4d)}
         solve_loop_index = 0
         solve_coefficient = coefficients["K"].get(solve_loop_index, 0.0)
         if solve_coefficient == 0.0:
             solve_loop_index = 1
             solve_coefficient = coefficients["K"].get(solve_loop_index, 0.0)
-            fixed_loop_vectors = {0: [137.0, 11.0, 23.0, -31.0]}
+            fixed_loop_vectors = {0: list(spectator_loop_4d)}
         if solve_coefficient == 0.0:
             raise pygloopException(
                 f"Cannot solve 4D collinear point for {graph_name(graph)}: "
@@ -2668,7 +2676,7 @@ integrate = {self.low_stat_n_cores}
         for k_index, coefficient in coefficients["K"].items():
             if k_index == solve_loop_index:
                 continue
-            fixed_loop_vectors.setdefault(k_index, [200.0, 17.0, -31.0, 47.0])
+            fixed_loop_vectors.setdefault(k_index, list(spectator_loop_4d))
             for component in range(4):
                 rhs[component] -= coefficient * fixed_loop_vectors[k_index][component]
 
@@ -2753,10 +2761,6 @@ integrate = {self.low_stat_n_cores}
             reference_dot_path=dot_path, routed_dot_path=routed_dot_path
         )
         exact_xi_routing = self._verify_exact_xi_routing(grouped_graphs)
-        group_fake_xi_momenta = {
-            group_id: self._exact_xi_fake_momenta_for_group(graphs)
-            for group_id, graphs in grouped_graphs.items()
-        }
         use_arb_prec, display_digits = self._set_collinear_test_runtime(
             api, process_name=process_name, integrand_name=subtracted_name
         )
@@ -2785,14 +2789,6 @@ integrate = {self.low_stat_n_cores}
                     graphs[0],
                 )
                 graph_names = [graph_name(graph) for graph in graphs]
-                fake_xi_momentum = group_fake_xi_momenta[group_id]
-                if fake_xi_momentum is not None:
-                    self._set_process_external_momenta(
-                        api,
-                        process_name=process_name,
-                        integrand_name=subtracted_name,
-                        fake_xi_momentum=fake_xi_momentum,
-                    )
                 numeric_results[beam][str(group_id)] = {}
                 for lambda_value in self.collinear_lambdas:
                     xs = self._collinear_xs_from_graph_fractional(
@@ -2801,7 +2797,6 @@ integrate = {self.low_stat_n_cores}
                         x_fraction=self.collinear_fraction_x,
                         lambda_value=lambda_value,
                         routed_graph=routed_master_graph,
-                        fake_xi_momentum=fake_xi_momentum,
                     )
                     points = np.array([xs], dtype=float)
                     group_batch = api.evaluate_samples(
@@ -2837,7 +2832,7 @@ integrate = {self.low_stat_n_cores}
                         _lambda_label(lambda_value)
                     ] = {
                         "xs": xs,
-                        "fake_xi_momentum": fake_xi_momentum,
+                        "fake_xi_momentum": None,
                         "group_evaluation_mode": "discrete_group",
                         "members_source": members_source,
                         "members": {
@@ -2960,11 +2955,8 @@ integrate = {self.low_stat_n_cores}
                     graphs[0],
                 )
                 graph_names = [graph_name(graph) for graph in graphs]
-                fake_xi_momentum = self._exact_xi_fake_momenta_for_group(graphs)
                 external_momenta_by_name = {
-                    graph_name(graph): self._external_momenta_for_graph_4d(
-                        graph, fake_xi_momentum=fake_xi_momentum
-                    )
+                    graph_name(graph): self._external_momenta_for_graph_4d(graph)
                     for graph in graphs
                 }
                 numeric_results[beam][str(group_id)] = {}
@@ -2975,7 +2967,6 @@ integrate = {self.low_stat_n_cores}
                         x_fraction=self.collinear_fraction_x,
                         lambda_value=lambda_value,
                         routed_graph=routed_master_graph,
-                        fake_xi_momentum=fake_xi_momentum,
                     )
                     member_values: list[tuple[str, complex]] = []
                     for name in graph_names:
@@ -3004,7 +2995,7 @@ integrate = {self.low_stat_n_cores}
                         _lambda_label(lambda_value)
                     ] = {
                         "loop_momenta_4d": loop_momenta,
-                        "fake_xi_momentum": fake_xi_momentum,
+                        "fake_xi_momentum": None,
                         "members": {
                             name: {"re": value.real, "im": value.imag}
                             for name, value in member_values
@@ -3372,7 +3363,7 @@ integrate = {self.low_stat_n_cores}
         run_card_path = manifest["standalone_run_card_path"]
         state_folder = manifest["standalone_state_folder"]
         dot_path = manifest["subtracted_dot_path"]
-        graph = self._first_original_graph_from_dot(dot_path)
+        smoke_group_id, graph = self._original_graphs_by_group_from_dot(dot_path)[0]
         log_prefix = subtracted_name
         pm_helicities = self._helicities_for_current_externals([1, -1, 0, 0, 0])
         pp_helicities = self._helicities_for_current_externals([1, 1, 0, 0, 0])
@@ -3475,22 +3466,24 @@ integrate = {self.low_stat_n_cores}
                 log_prefix=log_prefix,
             )
         )
-
         collinear_results: dict[str, Any] = {}
         for beam in ("p1", "p2"):
             beam_results: dict[str, Any] = {}
             for target_label, graph_id, discrete_dim, accepted_events in (
                 ("graph0", 0, None, 1),
-                ("group", None, (0,), 3),
+                ("group", None, (smoke_group_id,), 3),
             ):
                 target_results: dict[str, Any] = {"f64": {}, "arb": {}}
-                for epsilon in (1.0e-2, 1.0e-4, 1.0e-6):
-                    xs = self._collinear_xs_from_graph(
-                        graph, beam=beam, epsilon=epsilon
+                for lambda_value in (1.0e-2, 1.0e-4, 1.0e-6):
+                    xs = self._collinear_xs_from_graph_fractional(
+                        graph,
+                        beam=beam,
+                        x_fraction=self.collinear_fraction_x,
+                        lambda_value=lambda_value,
                     )
-                    epsilon_label = _epsilon_label(epsilon)
+                    lambda_label = _lambda_label(lambda_value)
                     label = (
-                        f"collinear_{beam}_{target_label}_pm_f64_{epsilon_label}"
+                        f"collinear_{beam}_{target_label}_pm_f64_{lambda_label}"
                     )
                     parsed = self._run_inspect_and_parse(
                         label=label,
@@ -3508,16 +3501,19 @@ integrate = {self.low_stat_n_cores}
                     command_results.append(parsed["command"])
                     parsed["xs"] = xs
                     parsed["precision"] = "f64"
-                    parsed["epsilon"] = epsilon
-                    target_results["f64"][epsilon_label] = parsed
+                    parsed["lambda"] = lambda_value
+                    target_results["f64"][lambda_label] = parsed
 
-                for epsilon in (1.0e-4, 1.0e-8):
-                    xs = self._collinear_xs_from_graph(
-                        graph, beam=beam, epsilon=epsilon
+                for lambda_value in (1.0e-4, 1.0e-7):
+                    xs = self._collinear_xs_from_graph_fractional(
+                        graph,
+                        beam=beam,
+                        x_fraction=self.collinear_fraction_x,
+                        lambda_value=lambda_value,
                     )
-                    epsilon_label = _epsilon_label(epsilon)
+                    lambda_label = _lambda_label(lambda_value)
                     label = (
-                        f"collinear_{beam}_{target_label}_pm_arb_{epsilon_label}"
+                        f"collinear_{beam}_{target_label}_pm_arb_{lambda_label}"
                     )
                     parsed = self._run_inspect_and_parse(
                         label=label,
@@ -3536,8 +3532,8 @@ integrate = {self.low_stat_n_cores}
                     command_results.append(parsed["command"])
                     parsed["xs"] = xs
                     parsed["precision"] = "arb"
-                    parsed["epsilon"] = epsilon
-                    target_results["arb"][epsilon_label] = parsed
+                    parsed["lambda"] = lambda_value
+                    target_results["arb"][lambda_label] = parsed
                 beam_results[target_label] = target_results
             collinear_results[beam] = beam_results
 
@@ -3561,7 +3557,7 @@ integrate = {self.low_stat_n_cores}
                     "f64_stable_from_1e-4_to_1e-6": f64_stable_1e4_to_1e6,
                     "accepted_events": {
                         "f64_1e-6": f64["1em06"]["accepted_events"],
-                        "arb_1e-8": arb["1em08"]["accepted_events"],
+                        "arb_1e-7": arb["1em07"]["accepted_events"],
                     },
                     "passed": bool(arb_agrees_at_1e4 and f64_stable_1e4_to_1e6),
                 }
