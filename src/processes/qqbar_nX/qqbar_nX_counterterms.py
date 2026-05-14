@@ -2062,12 +2062,14 @@ def _make_counterterm_graph(
             remove_cancelled_denominator = False
         elif exact_xi_topology:
             # The auxiliary denominator is now carried by the DOT topology
-            # itself.  The fake external momentum is solved from the routed
-            # signature, so no extra denominator-sign conversion is needed in
-            # the graph-level numerator.
+            # itself.  The loop basis is pinned to the light-line bridge k1,
+            # whereas the paper writes the local numerator with the adjacent
+            # collinear gluon momentum kg1.  Convert between the two leading
+            # collinear routings using spatial projections only; putting the
+            # same ratio in terms of OSEs introduces spurious CFF surfaces.
             aux_denominator_factor = "1"
             routing_fraction = _routing_fraction_factor(
-                copied_structure, beam=1, prefix=f"{prefix}_p1_rf"
+                copied_structure, beam=1, spatial_only=True
             )
             auxiliary_damping = "1"
             remove_cancelled_denominator = False
@@ -2156,11 +2158,13 @@ def _make_counterterm_graph(
             remove_cancelled_denominator = False
         elif exact_xi_topology:
             # Same exact-topology convention as in the p1 CT: the denominator
-            # sign is fixed by the routed auxiliary edge and the solved fake
-            # external momentum.
+            # sign is fixed by the routed auxiliary edge and the sampled fake
+            # external momentum.  Keep loop-energy dependent denominators out
+            # of the graph-level numerator; the finite k1/kg2 routing
+            # conversion is purely spatial for CFF safety.
             aux_denominator_factor = "1"
             routing_fraction = _routing_fraction_factor(
-                copied_structure, beam=2, prefix=f"{prefix}_p2_rf"
+                copied_structure, beam=2, spatial_only=True
             )
             auxiliary_damping = "1"
             remove_cancelled_denominator = False
