@@ -2578,6 +2578,13 @@ class LoopIntegrandConstructor(object):
 
             e1_atts = e1.get_attributes()
             e2_atts = e2.get_attributes()
+
+            def _is_cut_edge(edge_atts):
+                return _strip_quotes(str(edge_atts.get("is_cut", "0"))) not in (
+                    "0",
+                    "0.0",
+                )
+
             if not _has_external_with_orientation(e2, "departing"):
                 raise ValueError(
                     "the second raised gluon edge has no departing pure external edge"
@@ -2624,14 +2631,23 @@ class LoopIntegrandConstructor(object):
             # if repeated_relation == "opp":
             #    vertices2 = [vertices2[1], vertices2[0]]
 
-            indices = []
+            indices1 = []
             for e in boundary_edges(cut_graph.graph, {_base_node(vertices1[0])}):
                 e_atts = e.get_attributes()
                 if e_atts["id"] != e1_atts["id"]:
                     if _base_node(vertices1[0]) == _base_node(e.get_source()):
-                        indices.append((e_atts["id"], overall_sign1))
+                        indices1.append((e_atts["id"], overall_sign1))
                     else:
-                        indices.append((e_atts["id"], -overall_sign1))
+                        indices1.append((e_atts["id"], -overall_sign1))
+
+            indices2 = []
+            for e in boundary_edges(cut_graph.graph, {_base_node(vertices2[0])}):
+                e_atts = e.get_attributes()
+                if e_atts["id"] != e2_atts["id"]:
+                    if _base_node(vertices2[0]) == _base_node(e.get_source()):
+                        indices2.append((e_atts["id"], overall_sign2))
+                    else:
+                        indices2.append((e_atts["id"], -overall_sign2))
 
             target_node_to_edge_ids = {}
             target_node_to_edge_ids.setdefault(_base_node(vertices1[1]), []).append(
@@ -2691,29 +2707,40 @@ class LoopIntegrandConstructor(object):
             # Finally construct the counter-terms
             #
 
+
             for e in cut_graph.graph.get_edges():
                 e_atts = e.get_attributes()
                 if e_atts["id"] == e1_atts["id"]:
                     ##
-                    if e1_atts["is_cut"] != "0" and e2_atts["is_cut"] != "0":
+                    if _is_cut_edge(e1_atts) or _is_cut_edge(e2_atts):
                         ##
                         e_atts["num"] = (
                             f"-1𝑖*(spenso::g(spenso::coad(8,hedge({_parse_port(e.get_destination())})),spenso::coad(8,hedge({_parse_port(e.get_source())})))*spenso::g(spenso::mink(4,hedge({_parse_port(e.get_destination())})),spenso::mink(4,hedge({_parse_port(e.get_source())})))-{overall_sign1}*1/Q({e_atts['id']},0)*Qp({e_atts['id']},spenso::mink(4,hedge({_parse_port(vertices1[1])})))*Q(1000,spenso::mink(4,hedge({_parse_port(vertices1[0])})))*spenso::g(spenso::coad(8,hedge({_parse_port(e.get_destination())})),spenso::coad(8,hedge({_parse_port(e.get_source())}))))"
                         )
+                        print("- IN CUT -" * 10)
                     else:
                         e_atts["num"] = (
-                            f"-1𝑖*(spenso::g(spenso::coad(8,hedge({_parse_port(e.get_destination())})),spenso::coad(8,hedge({_parse_port(e.get_source())})))*spenso::g(spenso::mink(4,hedge({_parse_port(e.get_destination())})),spenso::mink(4,hedge({_parse_port(e.get_source())})))-{overall_sign1}*1/({indices[0][1]}*Q({indices[0][0]},0)+{indices[1][1]}*Q({indices[1][0]},0))*Qp({e_atts['id']},spenso::mink(4,hedge({_parse_port(vertices1[1])})))*Q(1000,spenso::mink(4,hedge({_parse_port(vertices1[0])})))*spenso::g(spenso::coad(8,hedge({_parse_port(e.get_destination())})),spenso::coad(8,hedge({_parse_port(e.get_source())}))))"
+                            f"-1𝑖*(spenso::g(spenso::coad(8,hedge({_parse_port(e.get_destination())})),spenso::coad(8,hedge({_parse_port(e.get_source())})))*spenso::g(spenso::mink(4,hedge({_parse_port(e.get_destination())})),spenso::mink(4,hedge({_parse_port(e.get_source())})))+(-1)*(-1)*1/({indices1[0][1]}*Q({indices1[0][0]},0)+{indices1[1][1]}*Q({indices1[1][0]},0))*Qp({e_atts['id']},spenso::mink(4,hedge({_parse_port(vertices1[1])})))*Q(1000,spenso::mink(4,hedge({_parse_port(vertices1[0])}))*spenso::g(spenso::coad(8,hedge({_parse_port(e.get_destination())})),spenso::coad(8,hedge({_parse_port(e.get_source())}))))"
                         )
+                        print("- NOT IN CUT -" * 10)
+                        print("sign 1")
+                        print(overall_sign1)
+                        print(e_atts["num"])
 
                 if e_atts["id"] == e2_atts["id"]:
-                    if e2_atts["is_cut"] != "0" and e1_atts["is_cut"] != "0":
+                    if _is_cut_edge(e2_atts) or _is_cut_edge(e1_atts):
                         e_atts["num"] = (
                             f"-1𝑖*(spenso::g(spenso::coad(8,hedge({_parse_port(e.get_destination())})),spenso::coad(8,hedge({_parse_port(e.get_source())})))*spenso::g(spenso::mink(4,hedge({_parse_port(e.get_destination())})),spenso::mink(4,hedge({_parse_port(e.get_source())})))-{overall_sign2}*1/Q({e_atts['id']},0)*Qp({e_atts['id']},spenso::mink(4,hedge({_parse_port(vertices2[1])})))*Q(1000,spenso::mink(4,hedge({_parse_port(vertices2[0])})))*spenso::g(spenso::coad(8,hedge({_parse_port(e.get_destination())})),spenso::coad(8,hedge({_parse_port(e.get_source())}))))"
                         )
+                        print("- IN CUT -" * 10)
                     else:
                         e_atts["num"] = (
-                            f"-1𝑖*(spenso::g(spenso::coad(8,hedge({_parse_port(e.get_destination())})),spenso::coad(8,hedge({_parse_port(e.get_source())})))*spenso::g(spenso::mink(4,hedge({_parse_port(e.get_destination())})),spenso::mink(4,hedge({_parse_port(e.get_source())})))-{overall_sign2}*1/({indices[0][1]}*Q({indices[0][0]},0)+{indices[1][1]}*Q({indices[1][0]},0))*Qp({e_atts['id']},spenso::mink(4,hedge({_parse_port(vertices2[1])})))*Q(1000,spenso::mink(4,hedge({_parse_port(vertices2[0])})))*spenso::g(spenso::coad(8,hedge({_parse_port(e.get_destination())})),spenso::coad(8,hedge({_parse_port(e.get_source())}))))"
+                            f"-1𝑖*(spenso::g(spenso::coad(8,hedge({_parse_port(e.get_destination())})),spenso::coad(8,hedge({_parse_port(e.get_source())})))*spenso::g(spenso::mink(4,hedge({_parse_port(e.get_destination())})),spenso::mink(4,hedge({_parse_port(e.get_source())})))+(-1)*(1)*1/({indices2[0][1]}*Q({indices2[0][0]},0)+{indices2[1][1]}*Q({indices2[1][0]},0))*Qp({e_atts['id']},spenso::mink(4,hedge({_parse_port(vertices2[1])})))*Q(1000,spenso::mink(4,hedge({_parse_port(vertices2[0])})))*spenso::(spenso::coad(8,hedge({_parse_port(e.get_destination())})),spenso::coad(8,hedge({_parse_port(e.get_source())}))))"
                         )
+                        print("- NOT IN CUT -" * 10)
+                        print("sign 2")
+                        print(overall_sign2)
+                        print(e_atts["num"])
 
         return cut_graph
 

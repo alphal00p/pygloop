@@ -155,6 +155,7 @@ class DY(object):
         self.large_weight_hp_retry_count: int = 0
         self.large_weight_hp_salvaged_count: int = 0
         self.large_weight_unstable_count: int = 0
+        self.large_weight_zeroed_count: int = 0
         self.large_weight_retry_example: list[float] | None = None
         self.large_weight_retry_example_momentum_point: str | None = None
         self.large_weight_retry_example_compiled_wgt: float | None = None
@@ -826,7 +827,7 @@ class DY(object):
                     "zmin": 0.0,
                     "zmax": 1.00000,
                     "Lambdasq": 50000,
-                    "mUV": 2000,
+                    "mUV": 1000,
                     "mursq": 1,
                 }
 
@@ -1011,10 +1012,10 @@ class DY(object):
                 logger.info("Generating two-loop graphs ...")
                 if self.process_name == "tt~":
                     self.gl_worker.run(  # GL06 GL14  --select-graphs GL00 GL01 GL03 GL04 GL05 GL08 GL12
-                        f"generate xs d g > t t~ | d d~ g t t~ ghG ghG~ [{{{{2}}}} QCD=1] --only-diagrams --numerator-grouping group_identical_graphs_up_to_scalar_rescaling --symmetrize-left-right-states true --symmetrize-initial-states true -p {base_name} -i {graphs_process_name} --max-multiplicity-for-fast-cut-filter 99"
+                        f"generate xs d g > t t~ | d d~ g t t~ ghG ghG~ [{{{{2}}}} QCD=1] --only-diagrams --numerator-grouping group_identical_graphs_up_to_scalar_rescaling --symmetrize-left-right-states true --symmetrize-initial-states true --select-graphs GL02 -p {base_name} -i {graphs_process_name} --max-multiplicity-for-fast-cut-filter 99"
                     )
                     # self.gl_worker.run(  # GL06 GL14  --select-graphs GL14
-                    #    f"generate xs d d~ > t t~ | d d~ g t t~ ghG ghG~ [{{{{2}}}} QCD=1] --only-diagrams --numerator-grouping group_identical_graphs_up_to_scalar_rescaling --symmetrize-left-right-states true --symmetrize-initial-states true --select-graphs GL09 -p {base_name} -i {graphs_process_name} --max-multiplicity-for-fast-cut-filter 99"
+                    #    f"generate xs d d~ > t t~ | d d~ g t t~ ghG ghG~ [{{{{2}}}} QCD=1] --only-diagrams --numerator-grouping group_identical_graphs_up_to_scalar_rescaling --symmetrize-left-right-states true --symmetrize-initial-states true --select-graphs GL00 -p {base_name} -i {graphs_process_name} --max-multiplicity-for-fast-cut-filter 99"
                     # )
                 else:
                     raise ValueError(
@@ -1572,6 +1573,16 @@ class DY(object):
 
             wgt = wgt.real if phase == "real" else wgt.imag
             final_wgt = wgt * total_jacobian
+            if bool(impl.get("dy_zero_large_weight_samples", False)):
+                zero_threshold = impl.get("dy_large_weight_threshold")
+                if (
+                    zero_threshold is not None
+                    and float(zero_threshold) > 0.0
+                    and math.isfinite(final_wgt)
+                    and abs(final_wgt) > float(zero_threshold)
+                ):
+                    self.large_weight_zeroed_count += 1
+                    final_wgt = 0.0
 
             if not math.isfinite(final_wgt):
                 logger.debug(
@@ -2010,10 +2021,9 @@ class DY(object):
         this_result.large_weight_unstable_count = (
             process_instance.large_weight_unstable_count
         )
+        this_result.large_weight_zeroed_count = process_instance.large_weight_zeroed_count
         this_result.nan_weight_count = process_instance.nan_weight_count
-        this_result.nan_weight_rotated_count = (
-            process_instance.nan_weight_rotated_count
-        )
+        this_result.nan_weight_rotated_count = process_instance.nan_weight_rotated_count
         this_result.nan_weight_example = process_instance.nan_weight_example
         this_result.nan_weight_example_momentum_point = (
             process_instance.nan_weight_example_momentum_point
@@ -2151,6 +2161,7 @@ class DY(object):
         res.large_weight_retry_count = process.large_weight_hp_retry_count
         res.large_weight_salvaged_count = process.large_weight_hp_salvaged_count
         res.large_weight_unstable_count = process.large_weight_unstable_count
+        res.large_weight_zeroed_count = process.large_weight_zeroed_count
         res.nan_weight_count = process.nan_weight_count
         res.nan_weight_rotated_count = process.nan_weight_rotated_count
         res.nan_weight_example = process.nan_weight_example
@@ -2311,6 +2322,7 @@ class DY(object):
         res.large_weight_retry_count = process.large_weight_hp_retry_count
         res.large_weight_salvaged_count = process.large_weight_hp_salvaged_count
         res.large_weight_unstable_count = process.large_weight_unstable_count
+        res.large_weight_zeroed_count = process.large_weight_zeroed_count
         res.nan_weight_count = process.nan_weight_count
         res.nan_weight_rotated_count = process.nan_weight_rotated_count
         res.nan_weight_example = process.nan_weight_example

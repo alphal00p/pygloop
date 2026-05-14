@@ -834,6 +834,13 @@ class IntegrationResult(object):
         large_weight_retry_count: int = 0,
         large_weight_salvaged_count: int = 0,
         large_weight_unstable_count: int = 0,
+        large_weight_zeroed_count: int = 0,
+        nan_weight_count: int = 0,
+        nan_weight_rotated_count: int = 0,
+        nan_weight_example: list[float] | None = None,
+        nan_weight_example_momentum_point: str | None = None,
+        nan_weight_rotated_example: list[float] | None = None,
+        nan_weight_rotated_example_momentum_point: str | None = None,
         large_weight_retry_example: list[float] | None = None,
         large_weight_retry_example_momentum_point: str | None = None,
         large_weight_retry_example_compiled_wgt: float | None = None,
@@ -864,6 +871,15 @@ class IntegrationResult(object):
         self.large_weight_retry_count = large_weight_retry_count
         self.large_weight_salvaged_count = large_weight_salvaged_count
         self.large_weight_unstable_count = large_weight_unstable_count
+        self.large_weight_zeroed_count = large_weight_zeroed_count
+        self.nan_weight_count = nan_weight_count
+        self.nan_weight_rotated_count = nan_weight_rotated_count
+        self.nan_weight_example = nan_weight_example
+        self.nan_weight_example_momentum_point = nan_weight_example_momentum_point
+        self.nan_weight_rotated_example = nan_weight_rotated_example
+        self.nan_weight_rotated_example_momentum_point = (
+            nan_weight_rotated_example_momentum_point
+        )
         self.large_weight_retry_example = large_weight_retry_example
         self.large_weight_retry_example_momentum_point = (
             large_weight_retry_example_momentum_point
@@ -889,6 +905,9 @@ class IntegrationResult(object):
         self.large_weight_unstable_count += getattr(
             other, "large_weight_unstable_count", 0
         )
+        self.large_weight_zeroed_count += getattr(other, "large_weight_zeroed_count", 0)
+        self.nan_weight_count += getattr(other, "nan_weight_count", 0)
+        self.nan_weight_rotated_count += getattr(other, "nan_weight_rotated_count", 0)
         if self.unstable_retry_example is None:
             self.unstable_retry_example = getattr(other, "unstable_retry_example", None)
             self.unstable_retry_example_momentum_point = getattr(
@@ -901,6 +920,18 @@ class IntegrationResult(object):
             self.unstable_example = getattr(other, "unstable_example", None)
             self.unstable_example_momentum_point = getattr(
                 other, "unstable_example_momentum_point", None
+            )
+        if self.nan_weight_example is None:
+            self.nan_weight_example = getattr(other, "nan_weight_example", None)
+            self.nan_weight_example_momentum_point = getattr(
+                other, "nan_weight_example_momentum_point", None
+            )
+        if self.nan_weight_rotated_example is None:
+            self.nan_weight_rotated_example = getattr(
+                other, "nan_weight_rotated_example", None
+            )
+            self.nan_weight_rotated_example_momentum_point = getattr(
+                other, "nan_weight_rotated_example_momentum_point", None
             )
         if self.large_weight_retry_example is None:
             self.large_weight_retry_example = getattr(
@@ -998,6 +1029,11 @@ class IntegrationResult(object):
         report.append(
             f"Large-weight high-precision rejected = {self.large_weight_unstable_count}"
         )
+        report.append(f"Large-weight samples zeroed = {self.large_weight_zeroed_count}")
+        report.append(f"NaN/non-finite weights zeroed = {self.nan_weight_count}")
+        report.append(
+            f"NaN/non-finite rotated weights zeroed = {self.nan_weight_rotated_count}"
+        )
         if self.unstable_retry_example is not None:
             line = f"Example arb-retried xs = [{' '.join(f'{x:.16e}' for x in self.unstable_retry_example)}]"
             if self.unstable_retry_example_rel is not None:
@@ -1032,6 +1068,25 @@ class IntegrationResult(object):
             if self.unstable_example_momentum_point is not None:
                 report.append(
                     f"    momentum space  : {self.unstable_example_momentum_point}"
+                )
+        if self.nan_weight_example is not None:
+            report.append(
+                f"Example NaN/non-finite xs = [{' '.join(f'{x:.16e}' for x in self.nan_weight_example)}]"
+            )
+            if self.nan_weight_example_momentum_point is not None:
+                report.append(
+                    f"    momentum space  : {self.nan_weight_example_momentum_point}"
+                )
+        if self.nan_weight_rotated_example is not None:
+            report.append(
+                "Example NaN/non-finite rotated xs = ["
+                + " ".join(f"{x:.16e}" for x in self.nan_weight_rotated_example)
+                + "]"
+            )
+            if self.nan_weight_rotated_example_momentum_point is not None:
+                report.append(
+                    "    momentum space  : "
+                    f"{self.nan_weight_rotated_example_momentum_point}"
                 )
 
         # Finally return information about current best estimate of the central value
