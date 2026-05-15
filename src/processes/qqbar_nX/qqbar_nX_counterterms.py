@@ -673,6 +673,12 @@ def _p1_vertex_counterterm_num(
         # light-line bridge inside the same canonical group.
         orientation_factor = "1" if gluon_momentum_sign == -1 else "-1"
         spin_part = f"({orientation_factor})*({spin_part})"
+    else:
+        # The affine template fixes the paper momentum itself.  A separate
+        # incidence sign remains because the Lorentz hedge belongs to the DOT
+        # edge orientation used by the imported vertex tensor network.
+        orientation_factor = "-1" if gluon_momentum_sign == -1 else "1"
+        spin_part = f"({orientation_factor})*({spin_part})"
     color_part = (
         f"spenso::t({_coad(gluon_light_hedge)},{_cof(external_hedge)},"
         f"spenso::dind({_cof(internal_hedge)}))"
@@ -740,6 +746,10 @@ def _p2_vertex_counterterm_num(
         # There is no extra 1/2 in Eq. (13); the finite collinear fraction is
         # carried by the shifted CT topology and the auxiliary prefactor.
         orientation_factor = "-1" if gluon_momentum_sign == -1 else "1"
+        spin_part = f"({orientation_factor})*({spin_part})"
+    else:
+        # Same incidence sign as above, with the anti-quark-side orientation.
+        orientation_factor = "1" if gluon_momentum_sign == -1 else "-1"
         spin_part = f"({orientation_factor})*({spin_part})"
     color_part = (
         f"spenso::t({_coad(gluon_light_hedge)},{_cof(internal_hedge)},"
@@ -2088,10 +2098,14 @@ def _make_counterterm_graph(
             # The auxiliary denominator is now carried by the DOT topology
             # itself.  With lmb_id=0 pinned to the light bridge, the adjacent
             # gluon momentum entering the paper numerator is an affine
-            # function of K(0) and the external beam momentum; no extra spatial
-            # routing ratio belongs in graph num.
+            # function of K(0) and the external beam momentum.  The finite
+            # spatial factor converts the routed light-bridge current used by
+            # the parsed DOT numerator to this paper gluon-current convention
+            # without introducing loop-energy denominators.
             aux_denominator_factor = "1"
-            routing_fraction = "1"
+            routing_fraction = _routing_fraction_factor(
+                copied_structure, beam=1, spatial_only=True
+            )
             auxiliary_damping = "1"
             remove_cancelled_denominator = False
         else:
@@ -2186,9 +2200,13 @@ def _make_counterterm_graph(
             # Same exact-topology convention as in the p1 CT: the denominator
             # sign is fixed by the routed auxiliary edge and the sampled fake
             # external momentum, while the adjacent gluon momentum in the
-            # paper numerator is written as an affine function of K(0).
+            # paper numerator is written as an affine function of K(0).  Keep
+            # the finite light-bridge/gluon-current conversion spatial-only so
+            # CFF does not see any extra loop-energy pole in graph num.
             aux_denominator_factor = "1"
-            routing_fraction = "1"
+            routing_fraction = _routing_fraction_factor(
+                copied_structure, beam=2, spatial_only=True
+            )
             auxiliary_damping = "1"
             remove_cancelled_denominator = False
         else:

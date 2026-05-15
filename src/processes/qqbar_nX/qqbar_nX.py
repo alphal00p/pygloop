@@ -983,13 +983,10 @@ class qqbar_nX(object):
             raise pygloopException(f"Unknown collinear beam '{beam}'.")
         beam_momentum = self.ps_point[beam_index]
         beam_z_norm = abs(float(beam_momentum.z))
-        # The paper's subtraction variables are written in terms of the
-        # pinned light-line momentum k1, not the emitted gluon momentum.
-        # Approach the two beam-collinear regions through the spatial
-        # GammaLoop loop-momentum routing of that light edge.
-        # In the all-incoming convention used by the DOT, the p2-collinear
-        # light-line routing approaches k1 -> -x p2, hence the positive z
-        # component for p2=(E,0,0,-E).
+        # The local pinch is approached through the pinned light bridge k1
+        # used in Eq. (11)-(13).  The CT numerator still contains the adjacent
+        # k_gi momentum, with the finite current-conversion factor encoded in
+        # the graph numerator.
         z_direction = 1.0
         z_component = z_direction * x_fraction * beam_z_norm
 
