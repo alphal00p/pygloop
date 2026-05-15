@@ -123,6 +123,14 @@ def _signed_q(edge_id: int, lorentz_index: str, sign: int) -> str:
     raise ValueError(f"Invalid momentum sign {sign}; expected +/-1.")
 
 
+def _paper_kg1_template(light_edge_id: int) -> str:
+    return "(" + _q(light_edge_id, "{index}") + "-" + _p(0, "{index}") + ")"
+
+
+def _paper_kg2_template(light_edge_id: int) -> str:
+    return "(-1*" + _q(light_edge_id, "{index}") + "-" + _p(1, "{index}") + ")"
+
+
 def _component_p(ext_id: int, component: int) -> str:
     return f"Q({ext_id},spenso::cind({component}))"
 
@@ -611,6 +619,7 @@ def _p1_vertex_counterterm_num(
     gluon_light_hedge: int,
     gluon_edge_id: int,
     gluon_momentum_sign: int,
+    gluon_momentum_template: str | None = None,
     prefix: str,
     projector_mode: str,
     use_parametric_xi: bool,
@@ -626,8 +635,14 @@ def _p1_vertex_counterterm_num(
         xi_external_id=xi_external_id,
         xi_parameter_names=xi_parameter_names,
     )
+
+    def gluon_momentum(index: str) -> str:
+        if gluon_momentum_template is not None:
+            return gluon_momentum_template.format(index=index)
+        return _signed_q(gluon_edge_id, index, gluon_momentum_sign)
+
     leading = (
-        f"2*{_signed_q(gluon_edge_id, _h(gluon_light_hedge), gluon_momentum_sign)}"
+        f"2*({gluon_momentum(_h(gluon_light_hedge))})"
         f"*{_spin_identity(internal_hedge, external_hedge)}"
     )
     if projector_mode == "leading":
@@ -647,16 +662,17 @@ def _p1_vertex_counterterm_num(
             f"{_gamma(internal_hedge, f'{prefix}_a', _h(gluon_light_hedge))}"
             f"*{comp}"
             f"*{_gamma(f'{prefix}_b', external_hedge, slash_mu)}"
-            f"*{_signed_q(gluon_edge_id, slash_mu, gluon_momentum_sign)}"
+            f"*({gluon_momentum(slash_mu)})"
         )
         spin_part = f"({leading}-{subleading})"
     else:
         raise ValueError(f"Unknown qqbar_nX counterterm projector mode '{projector_mode}'.")
-    # Convert the DOT edge orientation to the paper's fixed kg1 orientation.
-    # The raw DOT may attach the gluon with either arrow relative to the
-    # light-line bridge inside the same canonical group.
-    orientation_factor = "1" if gluon_momentum_sign == -1 else "-1"
-    spin_part = f"({orientation_factor})*({spin_part})"
+    if gluon_momentum_template is None:
+        # Convert the DOT edge orientation to the paper's fixed kg1 orientation.
+        # The raw DOT may attach the gluon with either arrow relative to the
+        # light-line bridge inside the same canonical group.
+        orientation_factor = "1" if gluon_momentum_sign == -1 else "-1"
+        spin_part = f"({orientation_factor})*({spin_part})"
     color_part = (
         f"spenso::t({_coad(gluon_light_hedge)},{_cof(external_hedge)},"
         f"spenso::dind({_cof(internal_hedge)}))"
@@ -671,6 +687,7 @@ def _p2_vertex_counterterm_num(
     gluon_light_hedge: int,
     gluon_edge_id: int,
     gluon_momentum_sign: int,
+    gluon_momentum_template: str | None = None,
     prefix: str,
     projector_mode: str,
     use_parametric_xi: bool,
@@ -686,8 +703,14 @@ def _p2_vertex_counterterm_num(
         xi_external_id=xi_external_id,
         xi_parameter_names=xi_parameter_names,
     )
+
+    def gluon_momentum(index: str) -> str:
+        if gluon_momentum_template is not None:
+            return gluon_momentum_template.format(index=index)
+        return _signed_q(gluon_edge_id, index, gluon_momentum_sign)
+
     leading = (
-        f"-2*{_signed_q(gluon_edge_id, _h(gluon_light_hedge), gluon_momentum_sign)}"
+        f"-2*({gluon_momentum(_h(gluon_light_hedge))})"
         f"*{_spin_identity(external_hedge, internal_hedge)}"
     )
     if projector_mode == "leading":
@@ -707,16 +730,17 @@ def _p2_vertex_counterterm_num(
             f"{_gamma(external_hedge, f'{prefix}_a', _h(gluon_light_hedge))}"
             f"*{comp}"
             f"*{_gamma(f'{prefix}_b', internal_hedge, slash_mu)}"
-            f"*{_signed_q(gluon_edge_id, slash_mu, gluon_momentum_sign)}"
+            f"*({gluon_momentum(slash_mu)})"
         )
         spin_part = f"({leading}-{subleading})"
     else:
         raise ValueError(f"Unknown qqbar_nX counterterm projector mode '{projector_mode}'.")
-    # Convert the DOT edge orientation to the paper's fixed kg2 orientation.
-    # There is no extra 1/2 in Eq. (13); the finite collinear fraction is
-    # carried by the shifted CT topology and the auxiliary prefactor.
-    orientation_factor = "-1" if gluon_momentum_sign == -1 else "1"
-    spin_part = f"({orientation_factor})*({spin_part})"
+    if gluon_momentum_template is None:
+        # Convert the DOT edge orientation to the paper's fixed kg2 orientation.
+        # There is no extra 1/2 in Eq. (13); the finite collinear fraction is
+        # carried by the shifted CT topology and the auxiliary prefactor.
+        orientation_factor = "-1" if gluon_momentum_sign == -1 else "1"
+        spin_part = f"({orientation_factor})*({spin_part})"
     color_part = (
         f"spenso::t({_coad(gluon_light_hedge)},{_cof(internal_hedge)},"
         f"spenso::dind({_cof(external_hedge)}))"
@@ -2007,8 +2031,8 @@ def _make_counterterm_graph(
     # In exact-xi topology, Q(2)=Q(4) and Q(3)=Q(5) are independent in/out
     # helper pairs for the p1 and p2 collinear CTs.  Both pairs are sampled
     # directly as the paper reference vector xi; the topology inserts an
-    # explicit auxiliary propagator carrying k_g-xi, while the numerator uses
-    # the incoming helper of the active pair for p_i.xi and xi slash factors.
+    # explicit auxiliary propagator carrying k_1-xi, while the local vertex
+    # current is kept as the paper's adjacent gluon momentum k_gi.
     xi_external_id = None
     _set_edge_counterterm_num(
         copied_structure.light_edge,
@@ -2062,15 +2086,12 @@ def _make_counterterm_graph(
             remove_cancelled_denominator = False
         elif exact_xi_topology:
             # The auxiliary denominator is now carried by the DOT topology
-            # itself.  The loop basis is pinned to the light-line bridge k1,
-            # whereas the paper writes the local numerator with the adjacent
-            # collinear gluon momentum kg1.  Convert between the two leading
-            # collinear routings using spatial projections only; putting the
-            # same ratio in terms of OSEs introduces spurious CFF surfaces.
+            # itself.  With lmb_id=0 pinned to the light bridge, the adjacent
+            # gluon momentum entering the paper numerator is an affine
+            # function of K(0) and the external beam momentum; no extra spatial
+            # routing ratio belongs in graph num.
             aux_denominator_factor = "1"
-            routing_fraction = _routing_fraction_factor(
-                copied_structure, beam=1, spatial_only=True
-            )
+            routing_fraction = "1"
             auxiliary_damping = "1"
             remove_cancelled_denominator = False
         else:
@@ -2101,6 +2122,11 @@ def _make_counterterm_graph(
                 gluon_light_hedge=copied_structure.p1.gluon_light_hedge,
                 gluon_edge_id=copied_structure.p1.gluon_edge_id,
                 gluon_momentum_sign=copied_structure.p1.gluon_momentum_sign_into_loop,
+                gluon_momentum_template=(
+                    _paper_kg1_template(copied_structure.light_edge_id)
+                    if exact_xi_topology
+                    else None
+                ),
                 prefix=prefix,
                 projector_mode=projector_mode,
                 use_parametric_xi=use_parametric_xi,
@@ -2159,13 +2185,10 @@ def _make_counterterm_graph(
         elif exact_xi_topology:
             # Same exact-topology convention as in the p1 CT: the denominator
             # sign is fixed by the routed auxiliary edge and the sampled fake
-            # external momentum.  Keep loop-energy dependent denominators out
-            # of the graph-level numerator; the finite k1/kg2 routing
-            # conversion is purely spatial for CFF safety.
+            # external momentum, while the adjacent gluon momentum in the
+            # paper numerator is written as an affine function of K(0).
             aux_denominator_factor = "1"
-            routing_fraction = _routing_fraction_factor(
-                copied_structure, beam=2, spatial_only=True
-            )
+            routing_fraction = "1"
             auxiliary_damping = "1"
             remove_cancelled_denominator = False
         else:
@@ -2191,6 +2214,11 @@ def _make_counterterm_graph(
                 gluon_light_hedge=copied_structure.p2.gluon_light_hedge,
                 gluon_edge_id=copied_structure.p2.gluon_edge_id,
                 gluon_momentum_sign=copied_structure.p2.gluon_momentum_sign_into_loop,
+                gluon_momentum_template=(
+                    _paper_kg2_template(copied_structure.light_edge_id)
+                    if exact_xi_topology
+                    else None
+                ),
                 prefix=prefix,
                 projector_mode=projector_mode,
                 use_parametric_xi=use_parametric_xi,
