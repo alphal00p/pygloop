@@ -175,6 +175,12 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
         help="DY only: sample beam fractions x1 and x2 in [0,1] and use p1=(0,0,e_cm*x1), p2=(0,0,-e_cm*x2) at runtime for the zenos integrand.",
     )
     parser.add_argument(
+        "--dy-ttbar-pt-min",
+        type=float,
+        default=None,
+        help="DY ttbar only: activate a lower pT cut on the ttbar pair and use this value as the minimum pT.",
+    )
+    parser.add_argument(
         "--mUV",
         "--dy-muv",
         dest="dy_muv",
@@ -598,6 +604,8 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
         integrand_implementation["dy_accept_all_arb_retries"] = (
             args.dy_accept_all_arb_retries
         )
+        if args.dy_ttbar_pt_min is not None:
+            integrand_implementation["dy_ttbar_pt_min"] = args.dy_ttbar_pt_min
         if args.dy_muv is not None:
             integrand_implementation["mUV"] = args.dy_muv
     t_start = time.time()

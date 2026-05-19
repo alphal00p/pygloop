@@ -826,7 +826,7 @@ class DY(object):
                 observable_params = {
                     "zmin": 0.0,
                     "zmax": 1.00000,
-                    "Lambdasq": 50000,
+                    "Lambdasq": 0,
                     "mUV": 1000,
                     "mursq": 1,
                 }
@@ -1012,7 +1012,7 @@ class DY(object):
                 logger.info("Generating two-loop graphs ...")
                 if self.process_name == "tt~":
                     self.gl_worker.run(  # GL06 GL14  --select-graphs GL00 GL01 GL03 GL04 GL05 GL08 GL12
-                        f"generate xs d g > t t~ | d d~ g t t~ ghG ghG~ [{{{{2}}}} QCD=1] --only-diagrams --numerator-grouping group_identical_graphs_up_to_scalar_rescaling --symmetrize-left-right-states true --symmetrize-initial-states true --select-graphs GL02 -p {base_name} -i {graphs_process_name} --max-multiplicity-for-fast-cut-filter 99"
+                        f"generate xs d g > t t~ | d d~ g t t~ ghG ghG~ [{{{{2}}}} QCD=1] --only-diagrams --numerator-grouping group_identical_graphs_up_to_scalar_rescaling --symmetrize-left-right-states true --symmetrize-initial-states true --select-graphs GL05 -p {base_name} -i {graphs_process_name} --max-multiplicity-for-fast-cut-filter 99"
                     )
                     # self.gl_worker.run(  # GL06 GL14  --select-graphs GL14
                     #    f"generate xs d d~ > t t~ | d d~ g t t~ ghG ghG~ [{{{{2}}}} QCD=1] --only-diagrams --numerator-grouping group_identical_graphs_up_to_scalar_rescaling --symmetrize-left-right-states true --symmetrize-initial-states true --select-graphs GL00 -p {base_name} -i {graphs_process_name} --max-multiplicity-for-fast-cut-filter 99"
@@ -1508,15 +1508,22 @@ class DY(object):
                     )
                     try:
                         arb_digits = int(arb_impl["dy_rotation_check_arb_digits"])
+                        arb_terms_kwargs: dict[str, Any] = {
+                            "decimal_digit_precision": arb_digits,
+                            "theta_tolerance": float(arb_impl.get("dy_theta_tol", 0.0)),
+                            "channel_selector": channel_selector,
+                        }
+                        if arb_impl.get("dy_ttbar_pt_min") is not None:
+                            arb_terms_kwargs["ttbar_pt_min"] = (
+                                self._validate_ttbar_pt_min(arb_impl["dy_ttbar_pt_min"])
+                            )
                         arb_total, arb_terms = self.compiled_bundle.evaluate_arb_terms(
                             loop_momenta,
                             p1,
                             p2,
                             float(arb_impl.get("z", 1.0)),
                             float(arb_impl.get("mUV", 1.0)),
-                            decimal_digit_precision=arb_digits,
-                            theta_tolerance=float(arb_impl.get("dy_theta_tol", 0.0)),
-                            channel_selector=channel_selector,
+                            **arb_terms_kwargs,
                         )
                         wgt_arb = complex(float(arb_total), 0.0)
                         phase_wgt_arb = (
@@ -1702,6 +1709,13 @@ class DY(object):
             channel_selector=channel_selector,
         )
 
+    @staticmethod
+    def _validate_ttbar_pt_min(value: Any) -> float:
+        pt_min = float(value)
+        if pt_min < 0.0:
+            raise pygloopException("DY ttbar pT lower cut must be non-negative.")
+        return pt_min
+
     def zenos_integrand_with_externals(
         self,
         loop_momentum: list[Vector],
@@ -1739,16 +1753,27 @@ class DY(object):
             if theta_tol is not None:
                 theta_tolerance = float(theta_tol)
 
+        evaluate_kwargs: dict[str, Any] = {
+            "mode": evaluation_mode,
+            "decimal_digit_precision": decimal_digit_precision,
+            "theta_tolerance": theta_tolerance,
+            "channel_selector": channel_selector,
+        }
+        if (
+            integrand_implementation is not None
+            and integrand_implementation.get("dy_ttbar_pt_min") is not None
+        ):
+            evaluate_kwargs["ttbar_pt_min"] = self._validate_ttbar_pt_min(
+                integrand_implementation["dy_ttbar_pt_min"]
+            )
+
         return self.compiled_bundle.evaluate(
             loop_momentum,
             p1,
             p2,
             z,
             m_uv,
-            mode=evaluation_mode,
-            decimal_digit_precision=decimal_digit_precision,
-            theta_tolerance=theta_tolerance,
-            channel_selector=channel_selector,
+            **evaluate_kwargs,
         )
 
     def _normalize_integrand_implementation(
@@ -2021,7 +2046,9 @@ class DY(object):
         this_result.large_weight_unstable_count = (
             process_instance.large_weight_unstable_count
         )
-        this_result.large_weight_zeroed_count = process_instance.large_weight_zeroed_count
+        this_result.large_weight_zeroed_count = (
+            process_instance.large_weight_zeroed_count
+        )
         this_result.nan_weight_count = process_instance.nan_weight_count
         this_result.nan_weight_rotated_count = process_instance.nan_weight_rotated_count
         this_result.nan_weight_example = process_instance.nan_weight_example

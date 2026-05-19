@@ -134,6 +134,73 @@ class evaluate_integrand:
             expr = expr.replace(E("Nc"), E("3"))
         return expr
 
+    @staticmethod
+    def _routing_expression(edge_attributes: dict, key: str) -> Expression:
+        value = edge_attributes.get(key, "0")
+        return E(_strip_quotes(str(value)))
+
+    def _build_ttbar_pt_sq_expression(self) -> Expression | None:
+        if not _is_ttbar_process(self.process):
+            return None
+
+        graph_edges_by_id = {
+            edge.get_attributes().get("id"): edge
+            for edge in self.routed_integrand.cut_graph.graph.get_edges()
+        }
+        ttbar_momentum_components = [E("0"), E("0"), E("0")]
+        found_top_edge = False
+
+        for cut_edge in self.routed_integrand.cut_graph.final_cut:
+            cut_edge_id = cut_edge.get_attributes().get("id")
+            graph_edge = graph_edges_by_id.get(cut_edge_id, cut_edge)
+            edge_attributes = graph_edge.get_attributes()
+            particle = _strip_quotes(str(edge_attributes.get("particle", "")))
+            if particle not in {"t", "t~"}:
+                continue
+
+            found_top_edge = True
+            cut_sign_key = (
+                "is_cut_DY" if "is_cut_DY" in edge_attributes else "is_cut"
+            )
+            cut_sign = self._routing_expression(edge_attributes, cut_sign_key)
+
+            for component_index in range(1, 4):
+                momentum_component = E("0")
+                for loop_index in range(self.L):
+                    routing_key = f"routing_k{loop_index}"
+                    momentum_component += (
+                        self._routing_expression(edge_attributes, routing_key)
+                        * E("t")
+                        * E(f"k({loop_index},{component_index})")
+                    )
+                momentum_component += self._routing_expression(
+                    edge_attributes, "routing_p1"
+                ) * E(f"p(1,{component_index})")
+                momentum_component += self._routing_expression(
+                    edge_attributes, "routing_p2"
+                ) * E(f"p(2,{component_index})")
+                ttbar_momentum_components[component_index - 1] += (
+                    cut_sign * momentum_component
+                )
+
+        if not found_top_edge:
+            return None
+
+        beam_components = [
+            E(f"p(1,{component_index})") for component_index in range(1, 4)
+        ]
+        ttbar_momentum_sq = sum(
+            component**2 for component in ttbar_momentum_components
+        )
+        beam_momentum_sq = sum(component**2 for component in beam_components)
+        ttbar_dot_beam = sum(
+            ttbar_component * beam_component
+            for ttbar_component, beam_component in zip(
+                ttbar_momentum_components, beam_components, strict=True
+            )
+        )
+        return ttbar_momentum_sq - ttbar_dot_beam**2 / beam_momentum_sq
+
     def impose_rest_frame(self, integrand):
         return integrand.replace(E("p(x_,1)"), E("0")).replace(E("p(x_,2)"), E("0"))
 
@@ -342,6 +409,7 @@ class evaluate_integrand:
         self.sp3D = S("sp3D", is_linear=True, is_symmetric=True)
 
         self.e_surface = self.set_e_surface()
+        self.ttbar_pt_sq_expression = self._build_ttbar_pt_sq_expression()
 
         ht_prefactor = 2.0 / math.sqrt(math.pi)
         ht = (-(E("t") ** 2)).exp() * E(f"{ht_prefactor:.16e}")
@@ -632,6 +700,8 @@ class DYCompiledTerm:
     e_surface_evaluator: Evaluator | None = None
     theta_evaluators: list[Evaluator | None] | None = None
     integrand_evaluator: Evaluator | None = None
+    ttbar_pt_sq_expression: Expression | None = None
+    ttbar_pt_sq_evaluator: Evaluator | None = None
 
 
 class DYCompiledBundle:
@@ -923,9 +993,11 @@ class DYCompiledBundle:
             e_surface = ev.e_surface
             theta_expressions = getattr(ev, "theta_expressions", [])
             integrand_expression = getattr(ev, "integrand_expression", None)
+            ttbar_pt_sq_expression = getattr(ev, "ttbar_pt_sq_expression", None)
             e_surface_evaluator_path = None
             theta_evaluator_paths: list[str | None] = []
             integrand_evaluator_path = None
+            ttbar_pt_sq_evaluator_path = None
             if fallback_backend == "double_float":
                 e_surface_evaluator_path = cls._saved_evaluator_relpath(
                     i, "e_surface"
@@ -951,6 +1023,16 @@ class DYCompiledBundle:
                         integrand_expression,
                         fallback_params,
                     )
+                if ttbar_pt_sq_expression is not None:
+                    ttbar_pt_sq_evaluator_path = cls._saved_evaluator_relpath(
+                        i, "ttbar_pt_sq"
+                    )
+                    cls._write_saved_evaluator(
+                        out_dir,
+                        ttbar_pt_sq_evaluator_path,
+                        ttbar_pt_sq_expression,
+                        fallback_params,
+                    )
 
             terms.append(
                 DYCompiledTerm(
@@ -958,6 +1040,7 @@ class DYCompiledBundle:
                     e_surface=e_surface,
                     theta_expressions=theta_expressions,
                     integrand_expression=integrand_expression,
+                    ttbar_pt_sq_expression=ttbar_pt_sq_expression,
                     e_surface_evaluator=(
                         cls._load_saved_evaluator(out_dir, e_surface_evaluator_path)
                         if e_surface_evaluator_path is not None
@@ -970,6 +1053,13 @@ class DYCompiledBundle:
                     integrand_evaluator=(
                         cls._load_saved_evaluator(out_dir, integrand_evaluator_path)
                         if integrand_evaluator_path is not None
+                        else None
+                    ),
+                    ttbar_pt_sq_evaluator=(
+                        cls._load_saved_evaluator(
+                            out_dir, ttbar_pt_sq_evaluator_path
+                        )
+                        if ttbar_pt_sq_evaluator_path is not None
                         else None
                     ),
                     t_initial_guess=1.0,
@@ -1030,6 +1120,18 @@ class DYCompiledBundle:
                         and t.integrand_expression is not None
                         else None
                     ),
+                    "ttbar_pt_sq_expression": (
+                        t.ttbar_pt_sq_expression.to_canonical_string()
+                        if fallback_backend != "double_float"
+                        and t.ttbar_pt_sq_expression is not None
+                        else None
+                    ),
+                    "ttbar_pt_sq_evaluator": (
+                        cls._saved_evaluator_relpath(i, "ttbar_pt_sq")
+                        if fallback_backend == "double_float"
+                        and t.ttbar_pt_sq_expression is not None
+                        else None
+                    ),
                     "t_initial_guess": t.t_initial_guess,
                     "graph_group_name": t.graph_group_name,
                 }
@@ -1063,6 +1165,7 @@ class DYCompiledBundle:
             e_surface_raw = t.get("e_surface")
             theta_raw = t.get("theta_expressions", [])
             integrand_raw = t.get("integrand_expression")
+            ttbar_pt_sq_raw = t.get("ttbar_pt_sq_expression")
             terms.append(
                 DYCompiledTerm(
                     evaluator_name=name,
@@ -1083,6 +1186,12 @@ class DYCompiledBundle:
                     ],
                     integrand_evaluator=cls._load_saved_evaluator(
                         out_dir, t.get("integrand_evaluator")
+                    ),
+                    ttbar_pt_sq_expression=(
+                        E(ttbar_pt_sq_raw) if ttbar_pt_sq_raw is not None else None
+                    ),
+                    ttbar_pt_sq_evaluator=cls._load_saved_evaluator(
+                        out_dir, t.get("ttbar_pt_sq_evaluator")
                     ),
                     t_initial_guess=float(t.get("t_initial_guess", 1.0)),
                     graph_group_name=graph_group_name,
@@ -1217,6 +1326,53 @@ class DYCompiledBundle:
         if decimal_value.is_nan() or not decimal_value.is_finite():
             return None
         return decimal_value
+
+    def _ttbar_pt_cut_passes(
+        self,
+        term: DYCompiledTerm,
+        vals: dict[Expression, float],
+        ttbar_pt_min: float | None,
+    ) -> bool:
+        if ttbar_pt_min is None:
+            return True
+        if term.ttbar_pt_sq_expression is None and term.ttbar_pt_sq_evaluator is None:
+            raise pygloopException(
+                f"DY bundle '{self.integrand_name}' does not contain ttbar pT cut "
+                "metadata. Regenerate the DY bundle before using --dy-ttbar-pt-min."
+            )
+        pt_sq = self._evaluate_float_expression(
+            term.ttbar_pt_sq_expression,
+            term.ttbar_pt_sq_evaluator,
+            vals,
+        )
+        return pt_sq >= float(ttbar_pt_min) ** 2
+
+    def _ttbar_pt_cut_passes_with_prec(
+        self,
+        term: DYCompiledTerm,
+        vals: dict[Expression, Decimal],
+        ttbar_pt_min: float | None,
+        decimal_digit_precision: int,
+    ) -> bool:
+        if ttbar_pt_min is None:
+            return True
+        if term.ttbar_pt_sq_expression is None and term.ttbar_pt_sq_evaluator is None:
+            raise pygloopException(
+                f"DY bundle '{self.integrand_name}' does not contain ttbar pT cut "
+                "metadata. Regenerate the DY bundle before using --dy-ttbar-pt-min."
+            )
+        pt_sq = self._evaluate_expression_with_prec(
+            term.ttbar_pt_sq_expression,
+            term.ttbar_pt_sq_evaluator,
+            vals,
+            decimal_digit_precision,
+        )
+        if pt_sq is None:
+            raise pygloopException(
+                f"Failed to evaluate ttbar pT cut for DY term '{term.evaluator_name}'."
+            )
+        pt_min = Decimal(str(ttbar_pt_min))
+        return pt_sq >= pt_min * pt_min
 
     def supports_arb(self) -> bool:
         return all(
@@ -1672,6 +1828,7 @@ class DYCompiledBundle:
         decimal_digit_precision: int = 80,
         theta_tolerance: float = 0.0,
         channel_selector: int | None = None,
+        ttbar_pt_min: float | None = None,
     ) -> Decimal:
         total, _term_values = self.evaluate_arb_terms(
             loop_momenta,
@@ -1682,6 +1839,7 @@ class DYCompiledBundle:
             decimal_digit_precision=decimal_digit_precision,
             theta_tolerance=theta_tolerance,
             channel_selector=channel_selector,
+            ttbar_pt_min=ttbar_pt_min,
         )
         return total
 
@@ -1695,6 +1853,7 @@ class DYCompiledBundle:
         decimal_digit_precision: int = 80,
         theta_tolerance: float = 0.0,
         channel_selector: int | None = None,
+        ttbar_pt_min: float | None = None,
     ) -> tuple[Decimal, list[tuple[str, Decimal]]]:
         self.require_fallback_supported(decimal_digit_precision)
 
@@ -1725,6 +1884,14 @@ class DYCompiledBundle:
                 )
 
             dec_vals[self._t_key] = t_sol
+            if not self._ttbar_pt_cut_passes_with_prec(
+                term,
+                dec_vals,
+                ttbar_pt_min,
+                decimal_digit_precision,
+            ):
+                term_values.append((term.evaluator_name, Decimal(0)))
+                continue
 
             theta_passes = True
             theta_expressions = list(term.theta_expressions)
@@ -1772,6 +1939,7 @@ class DYCompiledBundle:
         decimal_digit_precision: int | None = None,
         theta_tolerance: float = 0.0,
         channel_selector: int | None = None,
+        ttbar_pt_min: float | None = None,
     ) -> complex:
         if mode == "arb":
             if decimal_digit_precision is None:
@@ -1787,6 +1955,7 @@ class DYCompiledBundle:
                         decimal_digit_precision=decimal_digit_precision,
                         theta_tolerance=theta_tolerance,
                         channel_selector=channel_selector,
+                        ttbar_pt_min=ttbar_pt_min,
                     )
                 ),
                 0.0,
@@ -1829,6 +1998,8 @@ class DYCompiledBundle:
                 continue
 
             vals[self._t_key] = t_sol
+            if not self._ttbar_pt_cut_passes(term, vals, ttbar_pt_min):
+                continue
 
             # print("---------------")
             theta = 1
