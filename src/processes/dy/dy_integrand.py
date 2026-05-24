@@ -72,6 +72,67 @@ def heaviside_theta(x):
         return 0
 
 
+def _series_with_large_sum_fallback(
+    expr: Expression,
+    var: Expression,
+    point: int,
+    order: int,
+) -> Expression:
+    def balanced_sum(expressions):
+        terms = list(expressions)
+        if not terms:
+            return E("0")
+        while len(terms) > 1:
+            terms = [
+                terms[i] if i + 1 == len(terms) else terms[i] + terms[i + 1]
+                for i in range(0, len(terms), 2)
+            ]
+        return terms[0]
+
+    def balanced_product(expressions):
+        factors = list(expressions)
+        if not factors:
+            return E("1")
+        while len(factors) > 1:
+            factors = [
+                factors[i]
+                if i + 1 == len(factors)
+                else factors[i] * factors[i + 1]
+                for i in range(0, len(factors), 2)
+            ]
+        return factors[0]
+
+    def split_explicit_addition_factor(expression):
+        if bool(expression.is_type(AtomType.Add)):
+            return list(expression)
+        if not bool(expression.is_type(AtomType.Mul)):
+            return None
+
+        factors = list(expression)
+        candidates = []
+        for i, factor in enumerate(factors):
+            if bool(factor.is_type(AtomType.Add)):
+                terms = list(factor)
+                candidates.append((len(terms), i, terms))
+
+        if not candidates:
+            return None
+
+        _, add_index, terms = min(candidates)
+        rest = balanced_product(
+            factor for i, factor in enumerate(factors) if i != add_index
+        )
+        return [term * rest for term in terms]
+
+    terms = split_explicit_addition_factor(expr)
+    if terms is None:
+        return expr.series(var, point, order).to_expression()
+
+    return balanced_sum(
+        term.series(var, point, order).to_expression() for term in terms
+    )
+
+
 # Little struct that makes it more manageable to deal with cut graphs
 
 
@@ -323,11 +384,19 @@ class EMRIntegrandConstructor(object):
 
     # Get the numerator of the graph
 
-    def get_numerator(self, graph) -> Expression:
+    def get_numerator(self, graph, numerator_factorisation=None) -> Expression:
         symmetry_factor = Es(graph.get("overall_factor_evaluated"))
 
-        num = _raw_graph_numerator(graph)
-        num = _rewrite_repeated_non_cut_edge_momentum_powers(num, graph)
+        numerator_graph = graph
+        post_momentum_rewrite_factor = E("1")
+        if numerator_factorisation is not None:
+            numerator_graph, post_momentum_rewrite_factor = numerator_factorisation(
+                graph
+            )
+
+        num = _raw_graph_numerator(numerator_graph)
+        num = _rewrite_repeated_non_cut_edge_momentum_powers(num, numerator_graph)
+        num *= post_momentum_rewrite_factor
 
         print("here" * 10)
 
@@ -970,14 +1039,22 @@ class EMRIntegrandConstructor(object):
 
         return num
 
-    def get_integrand(self, cut_graph: routed_cut_graph, get_residues=False):
+    def get_integrand(
+        self,
+        cut_graph: routed_cut_graph,
+        get_residues=False,
+        numerator_factorisation=None,
+    ):
 
         # Derives numerator, eliminates useless labels, get left and right graphs and further
         # splits them if they have s-channel propagators.
 
         print("got to num")
 
-        num = self.get_numerator(cut_graph.graph)
+        num = self.get_numerator(
+            cut_graph.graph,
+            numerator_factorisation=numerator_factorisation,
+        )
 
         # print(num.replace(E("sp(x_,y_)"),E("1")))
 
@@ -1220,11 +1297,23 @@ class UltraVioletSubtraction(object):
 
 
 class ThresholdSubtractor(object):
-    def __init__(self, routed_cut_graph, params, name, L, theta_support=True):
+    def __init__(
+        self,
+        routed_cut_graph,
+        params,
+        name,
+        L,
+        theta_support=True,
+        numerator_factorisation=None,
+    ):
         self.routed_cut_graph = routed_cut_graph
         self.emr_processor = EMRIntegrandConstructor(params, name, L)
         self.sp3D = S("sp3D", is_linear=True, is_symmetric=True)
-        self.residues = self.emr_processor.get_integrand(routed_cut_graph, True)
+        self.residues = self.emr_processor.get_integrand(
+            routed_cut_graph,
+            True,
+            numerator_factorisation=numerator_factorisation,
+        )
         self.L = L
         self.theta_support = theta_support
         self.name = name
@@ -1673,7 +1762,12 @@ class Approximator(object):
         # FIX ::::::::: REMEMBER TO CHANGE BACK TO -2 and overall -1 sign
         # integrand = integrand.series(lam, 0, order).to_expression().replace(lam, 1)
         print("got to expansion")
-        integrand = integrand.series(lam, 0, -2).to_expression().replace(lam, 1)
+        integrand = _series_with_large_sum_fallback(
+            integrand,
+            lam,
+            0,
+            order,
+        ).replace(lam, 1)
         print("and beyond")
 
         # Invert back the collinear parametrisation. Since s*q(i)= x*p(1)+lam*k_perp(j), we have
@@ -1714,7 +1808,12 @@ class Approximator(object):
 
         integrand = integrand.replace(E(f"k({k_id[0]})"), repl)
 
-        integrand = integrand.series(lam, 0, -3).to_expression().replace(lam, 1)
+        integrand = _series_with_large_sum_fallback(
+            integrand,
+            lam,
+            0,
+            -3,
+        ).replace(lam, 1)
 
         integrand = integrand.replace(E("qsoft"), momentum[0])
 
@@ -1849,6 +1948,115 @@ class LoopIntegrandConstructor(object):
             edge_atts["num"] = new_num
 
         return cut_graph
+
+    def external_gluon_polarisation_numerator_factorisation(self, graph):
+        numerator_graph = deepcopy(graph)
+
+        def _is_zero(value):
+            return _strip_quotes(str(value)) in ("0", "0.0")
+
+        def _is_cut_edge(edge_atts):
+            return not (
+                _is_zero(edge_atts.get("is_cut", "0"))
+                and _is_zero(edge_atts.get("is_cut_DY", "0"))
+            )
+
+        def _pure_external_direction(edge_atts):
+            if not all(
+                _is_zero(edge_atts.get(f"routing_k{i}", "0")) for i in range(self.L)
+            ):
+                return None
+            has_p1 = not _is_zero(edge_atts.get("routing_p1", "0"))
+            has_p2 = not _is_zero(edge_atts.get("routing_p2", "0"))
+            if has_p1 == has_p2:
+                return None
+            return "p1" if has_p1 else "p2"
+
+        def _edge_sort_key(edge):
+            edge_id = _strip_quotes(str(edge.get_attributes().get("id", "")))
+            try:
+                return (0, int(edge_id))
+            except ValueError:
+                return (1, edge_id)
+
+        def _select_reference_edge(edges):
+            cut_edges = [e for e in edges if _is_cut_edge(e.get_attributes())]
+            return sorted(cut_edges or edges, key=_edge_sort_key)[0]
+
+        def _mink(port):
+            return f"spenso::mink(4,hedge({_parse_port(port)}))"
+
+        def _projector(mu, nu, p1_id, p2_id):
+            denominator = f"sp({p1_id},{p2_id})"
+            return (
+                f"spenso::g({mu},{nu})"
+                f"-Q({p1_id},{mu})*Q({p2_id},{nu})/{denominator}"
+                f"-Q({p1_id},{nu})*Q({p2_id},{mu})/{denominator}"
+            )
+
+        edges_by_direction = {"p1": [], "p2": []}
+        target_edges = []
+        for edge in numerator_graph.get_edges():
+            edge_atts = edge.get_attributes()
+            direction = _pure_external_direction(edge_atts)
+            if direction is not None:
+                edges_by_direction[direction].append(edge)
+            if (
+                direction is not None
+                and _is_cut_edge(edge_atts)
+                and _strip_quotes(str(edge_atts.get("particle", ""))) == "g"
+            ):
+                target_edges.append(edge)
+
+        if not target_edges:
+            return numerator_graph, E("1")
+
+        if not edges_by_direction["p1"] or not edges_by_direction["p2"]:
+            raise ValueError(
+                "Cannot build external gluon polarisation projector without pure p1 and p2 reference edges."
+            )
+
+        p1_id = _strip_quotes(
+            str(_select_reference_edge(edges_by_direction["p1"]).get_attributes()["id"])
+        )
+        p2_id = _strip_quotes(
+            str(_select_reference_edge(edges_by_direction["p2"]).get_attributes()["id"])
+        )
+
+        post_momentum_rewrite_factor = E("1")
+        for edge in target_edges:
+            edge_atts = edge.get_attributes()
+            num = _strip_quotes(str(edge_atts.get("num", "")))
+            if not num:
+                raise ValueError(
+                    f"Cannot factor missing numerator for cut gluon edge {edge_atts.get('id')}."
+                )
+
+            source_mu = _mink(edge.get_source())
+            destination_mu = _mink(edge.get_destination())
+            metric_candidates = [
+                (
+                    f"spenso::g({destination_mu},{source_mu})",
+                    f"({_projector(destination_mu, source_mu, p1_id, p2_id)})",
+                ),
+                (
+                    f"spenso::g({source_mu},{destination_mu})",
+                    f"({_projector(source_mu, destination_mu, p1_id, p2_id)})",
+                ),
+            ]
+
+            for metric, projector in metric_candidates:
+                if metric in num:
+                    edge_atts["num"] = num.replace(metric, "1", 1)
+                    post_momentum_rewrite_factor *= Es(projector)
+                    break
+            else:
+                edge_id = _strip_quotes(str(edge_atts.get("id", "")))
+                raise ValueError(
+                    f"Could not find Lorentz metric in cut gluon edge {edge_id} numerator."
+                )
+
+        return numerator_graph, post_momentum_rewrite_factor
 
     # Replaces energies by their expression in terms of the emr momenta and particle masses
 
@@ -2825,7 +3033,6 @@ class LoopIntegrandConstructor(object):
             # Finally construct the counter-terms
             #
 
-
             for e in cut_graph.graph.get_edges():
                 e_atts = e.get_attributes()
                 if e_atts["id"] == e1_atts["id"]:
@@ -2838,7 +3045,7 @@ class LoopIntegrandConstructor(object):
                         print("- IN CUT -" * 10)
                     else:
                         e_atts["num"] = (
-                            f"-1𝑖*(spenso::g(spenso::coad(8,hedge({_parse_port(e.get_destination())})),spenso::coad(8,hedge({_parse_port(e.get_source())})))*spenso::g(spenso::mink(4,hedge({_parse_port(e.get_destination())})),spenso::mink(4,hedge({_parse_port(e.get_source())})))+(-1)*(-1)*1/({indices1[0][1]}*Q({indices1[0][0]},0)+{indices1[1][1]}*Q({indices1[1][0]},0))*Qp({e_atts['id']},spenso::mink(4,hedge({_parse_port(vertices1[1])})))*Q(1000,spenso::mink(4,hedge({_parse_port(vertices1[0])}))*spenso::g(spenso::coad(8,hedge({_parse_port(e.get_destination())})),spenso::coad(8,hedge({_parse_port(e.get_source())}))))"
+                            f"-1𝑖*(spenso::g(spenso::coad(8,hedge({_parse_port(e.get_destination())})),spenso::coad(8,hedge({_parse_port(e.get_source())})))*spenso::g(spenso::mink(4,hedge({_parse_port(e.get_destination())})),spenso::mink(4,hedge({_parse_port(e.get_source())})))+(-1)*(-1)*1/({indices1[0][1]}*Q({indices1[0][0]},0)+{indices1[1][1]}*Q({indices1[1][0]},0))*Qp({e_atts['id']},spenso::mink(4,hedge({_parse_port(vertices1[1])})))*Q(1000,spenso::mink(4,hedge({_parse_port(vertices1[0])})))*spenso::g(spenso::coad(8,hedge({_parse_port(e.get_destination())})),spenso::coad(8,hedge({_parse_port(e.get_source())}))))"
                         )
                         print("- NOT IN CUT -" * 10)
                         print("sign 1")
@@ -2853,7 +3060,7 @@ class LoopIntegrandConstructor(object):
                         print("- IN CUT -" * 10)
                     else:
                         e_atts["num"] = (
-                            f"-1𝑖*(spenso::g(spenso::coad(8,hedge({_parse_port(e.get_destination())})),spenso::coad(8,hedge({_parse_port(e.get_source())})))*spenso::g(spenso::mink(4,hedge({_parse_port(e.get_destination())})),spenso::mink(4,hedge({_parse_port(e.get_source())})))+(-1)*(1)*1/({indices2[0][1]}*Q({indices2[0][0]},0)+{indices2[1][1]}*Q({indices2[1][0]},0))*Qp({e_atts['id']},spenso::mink(4,hedge({_parse_port(vertices2[1])})))*Q(1000,spenso::mink(4,hedge({_parse_port(vertices2[0])})))*spenso::(spenso::coad(8,hedge({_parse_port(e.get_destination())})),spenso::coad(8,hedge({_parse_port(e.get_source())}))))"
+                            f"-1𝑖*(spenso::g(spenso::coad(8,hedge({_parse_port(e.get_destination())})),spenso::coad(8,hedge({_parse_port(e.get_source())})))*spenso::g(spenso::mink(4,hedge({_parse_port(e.get_destination())})),spenso::mink(4,hedge({_parse_port(e.get_source())})))+(-1)*(1)*1/({indices2[0][1]}*Q({indices2[0][0]},0)+{indices2[1][1]}*Q({indices2[1][0]},0))*Qp({e_atts['id']},spenso::mink(4,hedge({_parse_port(vertices2[1])})))*Q(1000,spenso::mink(4,hedge({_parse_port(vertices2[0])})))*spenso::g(spenso::coad(8,hedge({_parse_port(e.get_destination())})),spenso::coad(8,hedge({_parse_port(e.get_source())}))))"
                         )
                         print("- NOT IN CUT -" * 10)
                         print("sign 2")
@@ -3000,14 +3207,17 @@ class LoopIntegrandConstructor(object):
         if gluonic_t_channel:
             cut_graph = self.modify_t_channel_gluon_numerator(cut_graph)
 
+        numerator_factorisation = None
         if self.external_gluon_polarisation:
-            cut_graph = self.substitute_external_gluon_polarisation_sum(cut_graph)
-            orig_cut_graph = self.substitute_external_gluon_polarisation_sum(
-                orig_cut_graph
+            numerator_factorisation = (
+                self.external_gluon_polarisation_numerator_factorisation
             )
 
         print(cut_graph.graph)
-        emr_integrand = self.emr_processor.get_integrand(cut_graph)
+        emr_integrand = self.emr_processor.get_integrand(
+            cut_graph,
+            numerator_factorisation=numerator_factorisation,
+        )
 
         # print(emr_integrand)
 
@@ -3026,7 +3236,12 @@ class LoopIntegrandConstructor(object):
         uv_ct = uv_approximator.construct_uv_counter_terms()
 
         threshold_approximator = ThresholdSubtractor(
-            deepcopy(orig_cut_graph), self.params, self.name, self.L, theta_flag
+            deepcopy(orig_cut_graph),
+            self.params,
+            self.name,
+            self.L,
+            theta_flag,
+            numerator_factorisation=numerator_factorisation,
         )
         threshold_cts = threshold_approximator.construct_threshold_counter_terms()
 
