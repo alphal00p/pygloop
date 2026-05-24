@@ -105,8 +105,10 @@ class DY(object):
         runtime_toml_config_path: str | None = None,
         final_state: list[str] | None = None,
         process_name: str | None = None,
+        diagrams: list[str] | None = None,
         skip_ps_validation: bool = False,
         integrate_beams: bool = False,
+        external_gluon_polarisation: bool = False,
         disable_integrated_uv_cts: bool = True,
         dy_fallback_precision: int | None = None,
         skip_gl_worker_init: bool = False,
@@ -130,7 +132,9 @@ class DY(object):
             copy.deepcopy(final_state) if final_state is not None else ["a"]
         )
         self.process_name = process_name if process_name is not None else "DY"
+        self.diagrams = copy.deepcopy(diagrams) if diagrams is not None else None
         self.integrate_beams = bool(integrate_beams)
+        self.external_gluon_polarisation = bool(external_gluon_polarisation)
         self.dy_fallback_precision = (
             int(dy_fallback_precision) if dy_fallback_precision is not None else 80
         )
@@ -658,6 +662,7 @@ class DY(object):
             [],
             process_name,
             n_loops,
+            external_gluon_polarisation=self.external_gluon_polarisation,
             disable_integrated_uv_cts=self.disable_integrated_uv_cts,
         )
 
@@ -778,6 +783,7 @@ class DY(object):
             process_name,
             n_loops,
             channel=channel,
+            external_gluon_polarisation=self.external_gluon_polarisation,
             disable_integrated_uv_cts=self.disable_integrated_uv_cts,
         )
 
@@ -978,8 +984,6 @@ class DY(object):
                     self.gl_worker.run(
                         f"generate xs d g > a | d d~ g a QED^2==2 [{{{{1}}}} QCD=1] --only-diagrams --numerator-grouping only_detect_zeroes -p {base_name} -i {graphs_process_name} --max-multiplicity-for-fast-cut-filter 99"
                     )
-
-                # --select-graphs GL02
                 if self.process_name == "tt~":
                     # self.gl_worker.run(
                     #        f"generate xs d d~ > t t~ | d d~ g t t~ [{{{{1}}}} QCD=1] --only-diagrams --numerator-grouping group_identical_graphs_up_to_scalar_rescaling --symmetrize-left-right-states true --symmetrize-initial-states true -p {base_name} -i {graphs_process_name} --max-multiplicity-for-fast-cut-filter 99"
@@ -1011,8 +1015,13 @@ class DY(object):
             case 2:
                 logger.info("Generating two-loop graphs ...")
                 if self.process_name == "tt~":
+                    select_graphs = (
+                        f" --select-graphs {' '.join(self.diagrams)}"
+                        if self.diagrams
+                        else ""
+                    )
                     self.gl_worker.run(  # GL06 GL14  --select-graphs GL00 GL01 GL03 GL04 GL05 GL08 GL12
-                        f"generate xs d g > t t~ | d d~ g t t~ ghG ghG~ [{{{{2}}}} QCD=1] --only-diagrams --numerator-grouping group_identical_graphs_up_to_scalar_rescaling --symmetrize-left-right-states true --symmetrize-initial-states true --select-graphs GL05 -p {base_name} -i {graphs_process_name} --max-multiplicity-for-fast-cut-filter 99"
+                        f"generate xs d g > t t~ | d d~ g t t~ ghG ghG~ [{{{{2}}}} QCD=1] --only-diagrams --symmetrize-left-right-states true --symmetrize-initial-states true{select_graphs} -p {base_name} -i {graphs_process_name} --max-multiplicity-for-fast-cut-filter 99"
                     )
                     # self.gl_worker.run(  # GL06 GL14  --select-graphs GL14
                     #    f"generate xs d d~ > t t~ | d d~ g t t~ ghG ghG~ [{{{{2}}}} QCD=1] --only-diagrams --numerator-grouping group_identical_graphs_up_to_scalar_rescaling --symmetrize-left-right-states true --symmetrize-initial-states true --select-graphs GL00 -p {base_name} -i {graphs_process_name} --max-multiplicity-for-fast-cut-filter 99"

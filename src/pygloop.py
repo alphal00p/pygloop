@@ -60,6 +60,15 @@ def _require_process_class(process_name: str, process_class: type | None) -> typ
     return process_class
 
 
+def _parse_bool_flag(value: str) -> bool:
+    normalized = value.lower()
+    if normalized in {"true", "1", "yes", "y", "on"}:
+        return True
+    if normalized in {"false", "0", "no", "n", "off"}:
+        return False
+    raise argparse.ArgumentTypeError(f"Expected True or False, got '{value}'.")
+
+
 def main(argv: list[str] | None = None) -> dict[str, object] | int:
     # create the top-level parser
     class FloatArgParser(argparse.ArgumentParser):
@@ -167,6 +176,13 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
         type=str,
         default=None,
         help="DY only: process label passed to the downstream DY integrand/evaluator pipeline.",
+    )
+    parser.add_argument(
+        "--external_gluon_polarisation",
+        "--external-gluon-polarisation",
+        type=_parse_bool_flag,
+        default=False,
+        help="DY generation only: replace cut external p1/p2 gluon metric sums by the axial physical-polarisation projector.",
     )
     parser.add_argument(
         "--dy-integrate-beams",
@@ -562,8 +578,10 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
                 gammaloop_settings=args.gammaloop_settings,
                 final_state=args.dy_final_state,
                 process_name=args.dy_process_name,
+                diagrams=args.diagrams,
                 skip_ps_validation=args.dy_skip_ps_validation,
                 integrate_beams=args.dy_integrate_beams,
+                external_gluon_polarisation=args.external_gluon_polarisation,
                 disable_integrated_uv_cts=not getattr(
                     args, "dy_enable_integrated_uv_cts", False
                 ),

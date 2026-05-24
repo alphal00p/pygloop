@@ -1722,7 +1722,15 @@ class Approximator(object):
 
 
 class LoopIntegrandConstructor(object):
-    def __init__(self, params, name, L, channel=None, disable_integrated_uv_cts=True):
+    def __init__(
+        self,
+        params,
+        name,
+        L,
+        channel=None,
+        disable_integrated_uv_cts=True,
+        external_gluon_polarisation=False,
+    ):
         self.L = L
         self.params = params
         self.name = name
@@ -1730,7 +1738,117 @@ class LoopIntegrandConstructor(object):
         self.sp3D = S("sp3D", is_linear=True, is_symmetric=True)
         self.approximator = Approximator()
         self.channel = channel
+        self.external_gluon_polarisation = bool(external_gluon_polarisation)
         self.disable_integrated_uv_cts = bool(disable_integrated_uv_cts)
+
+    def substitute_external_gluon_polarisation_sum(self, cut_graph):
+        def _is_zero(value):
+            return _strip_quotes(str(value)) in ("0", "0.0")
+
+        def _is_cut_edge(edge_atts):
+            return not (
+                _is_zero(edge_atts.get("is_cut", "0"))
+                and _is_zero(edge_atts.get("is_cut_DY", "0"))
+            )
+
+        def _pure_external_direction(edge_atts):
+            if not all(
+                _is_zero(edge_atts.get(f"routing_k{i}", "0")) for i in range(self.L)
+            ):
+                return None
+            has_p1 = not _is_zero(edge_atts.get("routing_p1", "0"))
+            has_p2 = not _is_zero(edge_atts.get("routing_p2", "0"))
+            if has_p1 == has_p2:
+                return None
+            return "p1" if has_p1 else "p2"
+
+        def _edge_sort_key(edge):
+            edge_id = _strip_quotes(str(edge.get_attributes().get("id", "")))
+            try:
+                return (0, int(edge_id))
+            except ValueError:
+                return (1, edge_id)
+
+        def _select_reference_edge(edges):
+            cut_edges = [e for e in edges if _is_cut_edge(e.get_attributes())]
+            return sorted(cut_edges or edges, key=_edge_sort_key)[0]
+
+        def _mink(port):
+            return f"spenso::mink(4,hedge({_parse_port(port)}))"
+
+        def _projector(mu, nu, p1_id, p2_id):
+            denominator = f"sp({p1_id},{p2_id})"
+            return (
+                f"spenso::g({mu},{nu})"
+                f"-Q({p1_id},{mu})*Q({p2_id},{nu})/{denominator}"
+                f"-Q({p1_id},{nu})*Q({p2_id},{mu})/{denominator}"
+            )
+
+        edges_by_direction = {"p1": [], "p2": []}
+        target_edges = []
+        for edge in cut_graph.graph.get_edges():
+            edge_atts = edge.get_attributes()
+            direction = _pure_external_direction(edge_atts)
+            if direction is not None:
+                edges_by_direction[direction].append(edge)
+            if (
+                direction is not None
+                and _is_cut_edge(edge_atts)
+                and _strip_quotes(str(edge_atts.get("particle", ""))) == "g"
+            ):
+                target_edges.append(edge)
+
+        if not target_edges:
+            return cut_graph
+
+        if not edges_by_direction["p1"] or not edges_by_direction["p2"]:
+            raise ValueError(
+                "Cannot build external gluon polarisation projector without pure p1 and p2 reference edges."
+            )
+
+        p1_id = _strip_quotes(
+            str(_select_reference_edge(edges_by_direction["p1"]).get_attributes()["id"])
+        )
+        p2_id = _strip_quotes(
+            str(_select_reference_edge(edges_by_direction["p2"]).get_attributes()["id"])
+        )
+
+        for edge in target_edges:
+            edge_atts = edge.get_attributes()
+            num = _strip_quotes(str(edge_atts.get("num", "")))
+            if not num:
+                raise ValueError(
+                    f"Cannot replace missing numerator for cut gluon edge {edge_atts.get('id')}."
+                )
+
+            source_mu = _mink(edge.get_source())
+            destination_mu = _mink(edge.get_destination())
+            metric_candidates = [
+                (
+                    f"spenso::g({destination_mu},{source_mu})",
+                    f"({_projector(destination_mu, source_mu, p1_id, p2_id)})",
+                ),
+                (
+                    f"spenso::g({source_mu},{destination_mu})",
+                    f"({_projector(source_mu, destination_mu, p1_id, p2_id)})",
+                ),
+            ]
+
+            new_num = num
+            for metric, projector in metric_candidates:
+                if metric in new_num:
+                    new_num = new_num.replace(metric, projector)
+                    break
+
+            if new_num == num:
+                edge_id = _strip_quotes(str(edge_atts.get("id", "")))
+                raise ValueError(
+                    f"Could not find Lorentz metric in cut gluon edge {edge_id} numerator."
+                )
+
+            edge_atts["num"] = new_num
+
+        return cut_graph
 
     # Replaces energies by their expression in terms of the emr momenta and particle masses
 
@@ -2881,6 +2999,12 @@ class LoopIntegrandConstructor(object):
         print("heyyy")
         if gluonic_t_channel:
             cut_graph = self.modify_t_channel_gluon_numerator(cut_graph)
+
+        if self.external_gluon_polarisation:
+            cut_graph = self.substitute_external_gluon_polarisation_sum(cut_graph)
+            orig_cut_graph = self.substitute_external_gluon_polarisation_sum(
+                orig_cut_graph
+            )
 
         print(cut_graph.graph)
         emr_integrand = self.emr_processor.get_integrand(cut_graph)
