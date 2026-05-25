@@ -1892,7 +1892,6 @@ class LoopIntegrandConstructor(object):
                 edges_by_direction[direction].append(edge)
             if (
                 direction is not None
-                and _is_cut_edge(edge_atts)
                 and _strip_quotes(str(edge_atts.get("particle", ""))) == "g"
             ):
                 target_edges.append(edge)
@@ -2003,7 +2002,6 @@ class LoopIntegrandConstructor(object):
                 edges_by_direction[direction].append(edge)
             if (
                 direction is not None
-                and _is_cut_edge(edge_atts)
                 and _strip_quotes(str(edge_atts.get("particle", ""))) == "g"
             ):
                 target_edges.append(edge)
