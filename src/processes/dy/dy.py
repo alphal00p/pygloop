@@ -305,22 +305,24 @@ class DY(object):
         )
         return copied_self
 
-    def builder_inputs(self) -> tuple:
-        return (
-            self.m_top,
-            self.m_higgs,
-            self.ps_point,
-            self.helicities,
-            self.n_loops,
-            self.toml_config_path,
-            self.runtime_toml_config_path,
-            copy.deepcopy(self.final_state),
-            self.process_name,
-            self.skip_ps_validation,
-            self.integrate_beams,
-            self.disable_integrated_uv_cts,
-            self.dy_fallback_precision,
-        )
+    def builder_inputs(self) -> dict[str, Any]:
+        return {
+            "m_top": self.m_top,
+            "m_higgs": self.m_higgs,
+            "ps_point": self.ps_point,
+            "helicities": self.helicities,
+            "n_loops": self.n_loops,
+            "toml_config_path": self.toml_config_path,
+            "runtime_toml_config_path": self.runtime_toml_config_path,
+            "final_state": copy.deepcopy(self.final_state),
+            "process_name": self.process_name,
+            "diagrams": copy.deepcopy(self.diagrams),
+            "skip_ps_validation": self.skip_ps_validation,
+            "integrate_beams": self.integrate_beams,
+            "external_gluon_polarisation": self.external_gluon_polarisation,
+            "disable_integrated_uv_cts": self.disable_integrated_uv_cts,
+            "dy_fallback_precision": self.dy_fallback_precision,
+        }
 
     def process_uses_z(self) -> bool:
         return self.process_name.lower() == "dy"
@@ -915,17 +917,17 @@ class DY(object):
             #        -1 / math.sqrt(5),
             #    ]),
             # ]
-            # scale = 1000
-            # ks = [
-            #    # math.sqrt(z)
-            #    scale
-            #    * np.array([
-            #        0.0,
-            #        0.0,
-            #        -1 / math.sqrt(5),
-            #    ]),
-            #    scale * np.array([1 / math.sqrt(3), -1 / math.sqrt(3), 0]),
-            # ]
+            scale = 1000
+            ks = [
+                # math.sqrt(z)
+                scale
+                * np.array([
+                    0.0,
+                    0.0,
+                    -1 / math.sqrt(5),
+                ]),
+                scale * np.array([1 / math.sqrt(3), -1 / math.sqrt(3), 0]),
+            ]
             # ks = [
             #    # math.sqrt(z)
             #    scale * np.array([1 / math.sqrt(3), -1 / math.sqrt(3), 0]),
@@ -2153,7 +2155,7 @@ class DY(object):
 
     @staticmethod
     def vegas_worker(
-        process_builder_inputs: tuple[Any],
+        process_builder_inputs: dict[str, Any],
         id: int,
         all_xs: list[list[float]],
         call_args: list[Any],
@@ -2163,7 +2165,7 @@ class DY(object):
         t_start = time.time()
         all_weights = []
         process = DY(
-            *process_builder_inputs,
+            **process_builder_inputs,
             clean=False,
             logger_level=logging.CRITICAL,
             skip_gl_worker_init=skip_gl_worker_init,
@@ -2307,7 +2309,7 @@ class DY(object):
 
     @staticmethod
     def symbolica_worker(
-        process_builder_inputs: tuple[Any],
+        process_builder_inputs: dict[str, Any],
         id: int,
         multi_channeling: bool,
         all_xs: list[SymbolicaSample],
@@ -2318,7 +2320,7 @@ class DY(object):
         t_start = time.time()
         all_weights = []
         process = DY(
-            *process_builder_inputs,
+            **process_builder_inputs,
             clean=False,
             logger_level=logging.CRITICAL,
             skip_gl_worker_init=skip_gl_worker_init,
