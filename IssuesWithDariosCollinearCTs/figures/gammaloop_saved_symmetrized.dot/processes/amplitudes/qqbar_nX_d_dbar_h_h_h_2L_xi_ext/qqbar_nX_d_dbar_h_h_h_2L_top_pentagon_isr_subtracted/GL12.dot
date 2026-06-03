@@ -1,0 +1,40 @@
+digraph GL12{
+    num = "1";
+    overall_factor = "(AutG(1))^(-1)*ExternalFermionOrderingSign(-1)*InternalFermionLoopSign(-1)*NumeratorIndependentSymmetryGrouping(6)";
+    overall_factor_evaluated = "6";
+    projector = "1/3*spenso::g(spenso::cof(3,hedge(1)),spenso::dind(spenso::cof(3,hedge(0))))*u(0,spenso::bis(4,hedge(0)))*vbar(1,spenso::bis(4,hedge(1)))";
+
+	0 [dod="0" num="UFO::GC_11*spenso::gamma(spenso::bis(4,hedge(1)),spenso::bis(4,hedge(10)),spenso::mink(4,hedge(11)))*spenso::t(spenso::coad(8,hedge(11)),spenso::cof(3,hedge(10)),spenso::dind(spenso::cof(3,hedge(1))))"];
+	1 [dod="0" num="UFO::GC_11*spenso::gamma(spenso::bis(4,hedge(9)),spenso::bis(4,hedge(0)),spenso::mink(4,hedge(13)))*spenso::t(spenso::coad(8,hedge(13)),spenso::cof(3,hedge(0)),spenso::dind(spenso::cof(3,hedge(9))))"];
+	2 [dod="0" num="UFO::GC_11*spenso::gamma(spenso::bis(4,hedge(15)),spenso::bis(4,hedge(18)),spenso::mink(4,hedge(14)))*spenso::t(spenso::coad(8,hedge(14)),spenso::cof(3,hedge(18)),spenso::dind(spenso::cof(3,hedge(15))))"];
+	3 [dod="0" num="UFO::GC_11*spenso::gamma(spenso::bis(4,hedge(21)),spenso::bis(4,hedge(20)),spenso::mink(4,hedge(12)))*spenso::t(spenso::coad(8,hedge(12)),spenso::cof(3,hedge(20)),spenso::dind(spenso::cof(3,hedge(21))))"];
+	4 [dod="0" num="(spenso::projm(spenso::bis(4,hedge(19)),spenso::bis(4,hedge(24)))+spenso::projp(spenso::bis(4,hedge(19)),spenso::bis(4,hedge(24))))*UFO::GC_94*spenso::g(spenso::cof(3,hedge(24)),spenso::dind(spenso::cof(3,hedge(19))))"];
+	5 [dod="0" num="(spenso::projm(spenso::bis(4,hedge(23)),spenso::bis(4,hedge(16)))+spenso::projp(spenso::bis(4,hedge(23)),spenso::bis(4,hedge(16))))*UFO::GC_94*spenso::g(spenso::cof(3,hedge(16)),spenso::dind(spenso::cof(3,hedge(23))))"];
+	6 [dod="0" num="(spenso::projm(spenso::bis(4,hedge(17)),spenso::bis(4,hedge(22)))+spenso::projp(spenso::bis(4,hedge(17)),spenso::bis(4,hedge(22))))*UFO::GC_94*spenso::g(spenso::cof(3,hedge(22)),spenso::dind(spenso::cof(3,hedge(17))))"];
+	exte0	 [style=invis];
+	exte0	-> 1:0	 [id=0  lmb_rep="P(0,a___)" particle="d" pin="x:@-left"];
+	exte1	 [style=invis];
+	exte1	-> 0:1	 [id=1 dir=back  lmb_rep="P(1,a___)" particle="d~" pin="x:@-left"];
+	exte2	 [style=invis];
+	exte2	-> 1:2	 [id=2 dir=none  is_dummy="true" lmb_rep="0" mass="0" particle="H" pin="x:@-left"];
+	exte3	 [style=invis];
+	exte3	-> 1:3	 [id=3 dir=none  is_dummy="true" lmb_rep="0" mass="0" particle="H" pin="x:@-left"];
+	exte4	 [style=invis];
+	1:4	-> exte4	 [id=4 dir=none  is_dummy="true" lmb_rep="0" mass="0" particle="H" pin="x:@+right"];
+	exte5	 [style=invis];
+	1:5	-> exte5	 [id=5 dir=none  is_dummy="true" lmb_rep="0" mass="0" particle="H" pin="x:@+right"];
+	exte6	 [style=invis];
+	6:6	-> exte6	 [id=6 dir=none  lmb_rep="P(2,a___)" particle="H" pin="x:@+right"];
+	exte7	 [style=invis];
+	5:7	-> exte7	 [id=7 dir=none  lmb_rep="P(3,a___)" particle="H" pin="x:@+right"];
+	exte8	 [style=invis];
+	4:8	-> exte8	 [id=8 dir=none  lmb_rep="-1*P(2,a___)+-1*P(3,a___)+P(0,a___)+P(1,a___)" particle="H" pin="x:@+right"];
+	1:9	-> 0:10	 [id=9  lmb_id="0" lmb_rep="K(0,a___)" particle="d"];
+	0:11	-> 3:12	 [id=10 dir=none  lmb_rep="K(0,a___)+P(1,a___)" particle="g"];
+	1:13	-> 2:14	 [id=11 dir=none  lmb_rep="-1*K(0,a___)+P(0,a___)" particle="g"];
+	2:15	-> 5:16	 [id=12  lmb_id="1" lmb_rep="K(1,a___)" particle="t"];
+	6:17	-> 2:18	 [id=13  lmb_rep="-1*P(0,a___)+K(0,a___)+K(1,a___)" particle="t"];
+	4:19	-> 3:20	 [id=14  lmb_rep="-1*P(0,a___)+-1*P(1,a___)+K(1,a___)+P(2,a___)" particle="t"];
+	3:21	-> 6:22	 [id=15  lmb_rep="-1*P(0,a___)+K(0,a___)+K(1,a___)+P(2,a___)" particle="t"];
+	5:23	-> 4:24	 [id=16  lmb_rep="-1*P(3,a___)+K(1,a___)" particle="t"];
+}

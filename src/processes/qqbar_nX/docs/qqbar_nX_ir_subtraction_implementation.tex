@@ -112,7 +112,7 @@ symmetrize_final_states = true
 build_isr = true
 projector_mode = "leading"
 denominator_strategy = "contract"
-auxiliary_denominator_mode = "spatial_proxy"
+auxiliary_denominator_mode = "exact_xi_topology"
 global_phase = "-i"
 uv_inert_dod = -100
 use_parametric_xi = false
@@ -346,12 +346,41 @@ routing fractions are
   \label{eq:routingFractions}
 \end{equation}
 They deliberately use only spatial components and therefore introduce no
-loop-energy poles in the graph-global numerator.
+loop-energy poles in the graph-global numerator.  This was a diagnostic
+implementation used before the exact auxiliary topology was available; it is
+not the default subtraction encoded in the current \DOT{}.
 
 The current CFF-compatible auxiliary denominator mode is
-\texttt{spatial\_proxy}.  It removes the opposite gluon propagator from the CT
-topology and keeps the leading fixed-\(\zeta\) auxiliary denominator as a
-loop-energy-free graph numerator factor:
+\texttt{exact\_xi\_topology}.  Following the author-confirmed correction of
+Eqs.~(12)--(13) in Ref.~\cite{KermanschahVicini2026}, the auxiliary
+propagator is built from the adjacent gluon momentum \(k_{g_i}\), not from the
+light-bridge momentum \(k_1\).  Define
+\begin{equation}
+  A_\xi(q)\equiv (q-\xi)^2-\xi^2=q^2-2q\cdot\xi .
+  \label{eq:correctedAuxiliary}
+\end{equation}
+The light-line denominator structures are therefore
+\begin{align}
+  D_{\rm orig} &= k_1^2\,k_{g1}^2\,k_{g2}^2,\\
+  D_{\Delta_1} &= k_1^2\,k_{g1}^2\,A_\xi(k_{g1}),\\
+  D_{\Delta_2} &= k_1^2\,A_\xi(k_{g2})\,k_{g2}^2 .
+  \label{eq:correctedDenominators}
+\end{align}
+In \DOT{} form, this is realized by splitting the relevant collinear gluon
+edge.  The original gluon edge id is kept on the unshifted segment so
+\(k_{g_i}^2\) remains an ordinary topology denominator.  A new massive segment
+is inserted on the same path and the active fake in/out helper pair is attached
+around it; when the helpers are sampled as \(Q(2)=Q(4)=\xi\) for \(\Delta_1\)
+or \(Q(3)=Q(5)=\xi\) for \(\Delta_2\), GammaLoop routes this segment as
+\(k_{g_i}-\xi\).  The segment mass is the corresponding helper invariant
+\(\xi^2\), so the topology denominator is exactly \(A_\xi(k_{g_i})\).  The
+opposite gluon denominator is removed by the configured contraction strategy.
+No ratio or inverse auxiliary denominator is placed in the graph-global
+numerator in this mode.
+
+The legacy \texttt{spatial\_proxy} mode removes the opposite gluon propagator
+from the CT topology and keeps the leading fixed-\(\zeta\) auxiliary
+denominator as a loop-energy-free graph numerator factor:
 \begin{align}
   B_1(G)
   &=
@@ -364,9 +393,9 @@ loop-energy-free graph numerator factor:
   \frac{\langle q_L,p_0\rangle_3}{|p_0|_3^2}.
   \label{eq:spatialProxy}
 \end{align}
-This is the most important current engineering choice: denominators with
-actual loop-energy dependence are part of the graph topology; graph-global
-inverse factors are allowed only when they are purely spatial.
+In the current exact topology this expression is no longer part of the default
+graph numerator; it is retained only as a diagnostic of the old implementation.
+Denominators with actual loop-energy dependence are part of the graph topology.
 
 The transformation \({\cal C}_{G,b}\) acts on the original numerator as:
 \begin{itemize}[leftmargin=2em]
@@ -388,6 +417,8 @@ The transformation \({\cal C}_{G,b}\) acts on the original numerator as:
           T(A_{g_2},c_{\rm int},c_{\rm ext})\,
           [-2q_{g_2}^{\mu_{g_2}}\delta_{\rm spin}];
         \]
+  \item split the same-side collinear gluon edge to introduce the topology
+        denominator \(A_\xi(k_{g_i})\);
   \item contract the opposite gluon edge into the opposite light endpoint,
         multiplying the opposite light vertex, the opposite gluon numerator,
         and the corresponding top--gluon vertex into the graph-global
@@ -420,15 +451,15 @@ The paper writes the light-line factor schematically as
 \]
 and constructs two local operators \(\Delta_1,\Delta_2\) that replace the
 light-line numerator by the leading collinear numerator and introduce an
-auxiliary denominator built from a fixed vector.  The \qqbarNX{} code uses the
-same local leading-collinear replacement logic for the two ISR regions, but
-differs in three implementation-level ways:
+auxiliary denominator built from a fixed vector.  In the published text that
+auxiliary denominator is written with \(k_1\); the author has confirmed this is
+a typo and that the intended momenta are \(k_{g1}\) and \(k_{g2}\), as encoded
+in Eq.~\eqref{eq:correctedDenominators}.  The \qqbarNX{} code uses the same
+local leading-collinear replacement logic for the two ISR regions, but differs
+in two implementation-level ways:
 \begin{enumerate}[leftmargin=2em]
   \item the heavy subgraph is a top pentagon with three Higgs insertions;
-  \item no UV subtraction operator is generated;
-  \item the current CFF-compatible \DOT{} writes the auxiliary denominator in
-        the spatial-proxy form of Eq.~\eqref{eq:spatialProxy}, not as a
-        graph-global denominator with loop-energy dependence.
+  \item no UV subtraction operator is generated.
 \end{enumerate}
 
 \section{Original numerator topologies}

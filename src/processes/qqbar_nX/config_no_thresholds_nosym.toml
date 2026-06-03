@@ -61,9 +61,11 @@ denominator_strategy = "contract"
 # "exact_xi_topology" reserves two fake in/out helper pairs:
 # Q(2)=Q(4) for the p1-collinear CT and Q(3)=Q(5) for the p2-collinear CT.
 # It remaps the physical Higgses to Q(6),Q(7),Q(8), with Q(8) dependent,
-# and keeps the Kermanshah auxiliary denominator as an actual CT propagator
-# carrying the active fake xi shift. Original graphs receive all helpers as
-# is_dummy half-edges; CT graphs keep only their active pair non-dummy.
+# and realizes the corrected Kermanshah auxiliary denominator by splitting the
+# relevant collinear gluon edge. The original k_gi^2 gluon denominator remains
+# active, while the new massive segment carries k_gi-xi and replaces the
+# opposite gluon denominator. Original graphs receive all helpers as is_dummy
+# half-edges; CT graphs keep only their active pair non-dummy.
 auxiliary_denominator_mode = "exact_xi_topology"
 # Overall graph-global phase applied to ISR counterterm numerators only.
 # The 3D GammaLoop CFF event convention returns these CTs with an extra +i
@@ -74,6 +76,11 @@ global_phase = "-i"
 # 1 for the paper-level Feynman-integrand representation; values different from
 # 1 are useful to isolate GammaLoop CFF normalization effects.
 normalization_factor = "1"
+# Heavy-loop basis routing. "paper_heuristic" keeps the earlier topology-local
+# selection; "fixed_higgs_anchor" pins K(1) to one labelled Higgs insertion.
+heavy_lmb_strategy = "fixed_higgs_anchor"
+heavy_lmb_anchor_external_edge_id = 2
+heavy_lmb_anchor_side = "canonical_low_label"
 # Local IR CTs are UV-finite by construction here. Force all IR CT node/edge
 # DOD attributes far negative, and keep GammaLoop's own UV generation disabled
 # in the standalone run card and API generation path.
@@ -114,8 +121,8 @@ smoke_test_original_graphs = 1
 smoke_test_suffix = "_top_pentagon_isr_smoke"
 # Collinear cancellation test driven by `pygloop --process qqbar_nX test_process`.
 # The relevant gluon momentum is sent to k_gi = x p_i + k_perp. The routed
-# bridge momentum k_1 is pinned by lmb_id=0 and follows from the graph routing,
-# as assumed in Eq. (12)/(13).
+# light bridge k_1 is pinned by lmb_id=0, while the exact-xi auxiliary
+# propagator is routed as k_gi-xi.
 collinear_fraction_x = 0.3
 collinear_precision = "ArbPrec" # Double, Quad, or ArbPrec.
 collinear_lambdas = [1.0, 0.1, 0.01, 0.001, 0.0001, 0.00001, 0.000001, 0.0000001]

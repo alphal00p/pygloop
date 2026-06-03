@@ -26,6 +26,8 @@ from processes.qqbar_nX.qqbar_nX_graphs import (
     SelectionReport,
     TopologySelectorConfig,
     dot_graphs_to_string,
+    edge_particle,
+    endpoint_node,
     graph_external_edges,
     graph_internal_edges,
     graph_name,
@@ -320,6 +322,21 @@ class qqbar_nX(object):
         self.counterterm_use_parametric_xi = bool(
             counterterm_config.get("use_parametric_xi", False)
         )
+        self.counterterm_heavy_lmb_strategy = str(
+            counterterm_config.get("heavy_lmb_strategy", "paper_heuristic")
+        )
+        raw_heavy_lmb_anchor = counterterm_config.get(
+            "heavy_lmb_anchor_external_edge_id", None
+        )
+        self.counterterm_heavy_lmb_anchor_external_edge_id = (
+            None
+            if raw_heavy_lmb_anchor is None
+            or str(raw_heavy_lmb_anchor).strip().lower() in {"", "none", "null"}
+            else int(raw_heavy_lmb_anchor)
+        )
+        self.counterterm_heavy_lmb_anchor_side = str(
+            counterterm_config.get("heavy_lmb_anchor_side", "canonical_low_label")
+        )
         self.xi_parameter_names = tuple(
             counterterm_config.get(
                 "xi_parameter_names", ["xi0", "xi1", "xi2", "xi3"]
@@ -423,6 +440,9 @@ class qqbar_nX(object):
             ),
             top_gluon_vertex_id=vertex_ids.get("top_gluon", "V_137"),
             top_higgs_vertex_id=vertex_ids.get("top_higgs", "V_141"),
+            force_single_group_id=bool(
+                selection_config.get("force_single_group_id", False)
+            ),
         )
 
         self.skip_gl_worker_init = bool(skip_gl_worker_init)
@@ -1099,6 +1119,28 @@ class qqbar_nX(object):
             return {3, 5}
         return {2, 3, 4, 5}
 
+    def _exact_xi_reference_gluon_edge(self, graph: Any, auxiliary_edge: Any) -> Any | None:
+        """Return the unshifted k_gi edge paired with the exact-xi auxiliary edge."""
+        auxiliary_edge_id = int(strip_quotes(auxiliary_edge.get("id")))
+        auxiliary_source = endpoint_node(auxiliary_edge.get_source())
+        candidates: list[Any] = []
+        for edge in graph_internal_edges(graph):
+            raw_edge_id = edge.get_attributes().get("id")
+            if raw_edge_id is not None and int(strip_quotes(raw_edge_id)) == auxiliary_edge_id:
+                continue
+            if edge_particle(edge) != "g":
+                continue
+            if edge.get_attributes().get("mass") is not None:
+                continue
+            if auxiliary_source in {
+                endpoint_node(edge.get_source()),
+                endpoint_node(edge.get_destination()),
+            }:
+                candidates.append(edge)
+        if len(candidates) == 1:
+            return candidates[0]
+        return None
+
     def _external_single_p_index_by_edge_id(self, graph: Any) -> dict[int, int]:
         mapping: dict[int, int] = {}
         for edge in graph_external_edges(graph):
@@ -1121,16 +1163,29 @@ class qqbar_nX(object):
         raw_lmb_rep = auxiliary_edge.get_attributes().get("lmb_rep")
         if raw_lmb_rep is None:
             return None
+        reference_edge = self._exact_xi_reference_gluon_edge(graph, auxiliary_edge)
+        if reference_edge is None:
+            return None
+        raw_reference_lmb_rep = reference_edge.get_attributes().get("lmb_rep")
+        if raw_reference_lmb_rep is None:
+            return None
 
         coefficients = _parse_lmb_representation(strip_quotes(raw_lmb_rep))
-        loop_coefficients = {
-            index: value
-            for index, value in coefficients["K"].items()
-            if abs(value) > 1.0e-12
+        reference_coefficients = _parse_lmb_representation(
+            strip_quotes(raw_reference_lmb_rep)
+        )
+        loop_residual = {
+            index: coefficients["K"].get(index, 0.0)
+            - reference_coefficients["K"].get(index, 0.0)
+            for index in set(coefficients["K"]) | set(reference_coefficients["K"])
+            if abs(
+                coefficients["K"].get(index, 0.0)
+                - reference_coefficients["K"].get(index, 0.0)
+            )
+            > 1.0e-12
         }
-        if set(loop_coefficients) != {0}:
+        if loop_residual:
             return None
-        loop_sign = loop_coefficients[0]
         p_index_by_edge_id = self._external_single_p_index_by_edge_id(graph)
         active_fake_edge_ids = self._exact_xi_active_fake_edge_ids(graph)
         active_fake_p_indices = {
@@ -1160,9 +1215,21 @@ class qqbar_nX(object):
                 external_shift[component] += coefficient * external_momenta[p_index][
                     component
                 ]
+        reference_shift = [0.0, 0.0, 0.0, 0.0]
+        for p_index, coefficient in reference_coefficients["P"].items():
+            if abs(coefficient) < 1.0e-12:
+                continue
+            if p_index not in external_momenta:
+                return None
+            for component in range(4):
+                reference_shift[component] += coefficient * external_momenta[p_index][
+                    component
+                ]
 
         xi = self._xi_external_momentum()
-        desired_shift = [shift_sign * loop_sign * component for component in xi]
+        desired_shift = [
+            reference_shift[component] + shift_sign * component for component in xi
+        ]
         required_fake_momentum = [
             (desired_shift[component] - external_shift[component]) / fake_coefficient
             for component in range(4)
@@ -1180,12 +1247,14 @@ class qqbar_nX(object):
         return {
             "auxiliary_edge_id": int(strip_quotes(auxiliary_edge.get("id"))),
             "lmb_rep": strip_quotes(raw_lmb_rep),
-            "loop_sign": loop_sign,
+            "reference_edge_id": int(strip_quotes(reference_edge.get("id"))),
+            "reference_lmb_rep": strip_quotes(raw_reference_lmb_rep),
+            "loop_residual_to_reference": loop_residual,
             "fake_coefficient": fake_coefficient,
             "external_shift": external_shift,
             "target_non_loop_shift": desired_shift,
             "solved_non_loop_shift": solved_shift,
-            "residual_to_k0_minus_xi": residual,
+            "residual_to_reference_minus_xi": residual,
             "max_abs_residual": max(abs(component) for component in residual),
             "active_fake_edge_ids": sorted(active_fake_edge_ids),
             "active_fake_p_indices": sorted(active_fake_p_indices),
@@ -1305,7 +1374,7 @@ class qqbar_nX(object):
                             "graph": name,
                             "auxiliary_edge_id": None,
                             "lmb_rep": None,
-                            "matches_k1_minus_xi": False,
+                            "matches_kgi_minus_xi": False,
                             "reason": (
                                 "expected exactly one massive fake-xi auxiliary "
                                 f"edge, found {len(mass_edges)}"
@@ -1323,22 +1392,18 @@ class qqbar_nX(object):
                 )
                 auxiliary_edge_id = int(strip_quotes(auxiliary_edge.get("id")))
                 reference_lmb_rep = None
+                reference_edge_id = None
                 loop_residual: dict[int, float] | None = None
                 shift_residual = None
                 direct_matches = False
                 reason = None
-                reference_edges = [
-                    edge
-                    for edge in graph_internal_edges(graph)
-                    if strip_quotes(edge.get_attributes().get("lmb_id", "")) == "0"
-                ]
-                if len(reference_edges) != 1:
-                    reason = (
-                        "expected exactly one CT light edge with lmb_id=0, "
-                        f"found {len(reference_edges)}"
-                    )
+                reference_edge = self._exact_xi_reference_gluon_edge(
+                    graph, auxiliary_edge
+                )
+                if reference_edge is None:
+                    reason = "could not identify the unshifted k_gi edge paired with the auxiliary edge"
                 else:
-                    reference_edge = reference_edges[0]
+                    reference_edge_id = int(strip_quotes(reference_edge.get("id")))
                     reference_lmb_rep = strip_quotes(reference_edge.get_attributes().get("lmb_rep", ""))
                     ct_loop = self._lmb_rep_loop_coefficients(lmb_rep)
                     reference_loop = self._lmb_rep_loop_coefficients(reference_lmb_rep)
@@ -1371,7 +1436,7 @@ class qqbar_nX(object):
                         )
                         if not direct_matches:
                             reason = (
-                                "shifted edge does not equal the pinned light-edge "
+                                "shifted edge does not equal the unshifted k_gi edge "
                                 "signature minus xi"
                             )
                 entry = {
@@ -1380,10 +1445,11 @@ class qqbar_nX(object):
                     "auxiliary_edge_id": auxiliary_edge_id,
                     "lmb_rep": lmb_rep,
                     "original_graph": original_name,
-                    "reference_light_edge_lmb_rep": reference_lmb_rep,
+                    "reference_gluon_edge_id": reference_edge_id,
+                    "reference_gluon_edge_lmb_rep": reference_lmb_rep,
                     "direct_signature_with_helpers_set_to_xi": direct_matches,
-                    "loop_residual_to_light_edge": loop_residual,
-                    "residual_to_light_edge_minus_xi": shift_residual,
+                    "loop_residual_to_reference_gluon": loop_residual,
+                    "residual_to_reference_gluon_minus_xi": shift_residual,
                     "active_fake_edge_ids": sorted(
                         self._exact_xi_active_fake_edge_ids(graph)
                     ),
@@ -1399,7 +1465,7 @@ class qqbar_nX(object):
         if failing:
             logger.warning(
                 "Exact-xi CT routing does not directly reproduce the paper "
-                "auxiliary denominator with all helper pairs set to xi. "
+                "auxiliary k_gi-xi denominator with all helper pairs set to xi. "
                 "Mismatches:\n%s",
                 pformat(failing),
             )
@@ -1502,15 +1568,260 @@ class qqbar_nX(object):
     def write_gammaloop_run_card(
         self, dot_path: str, *, integrand_name: str | None = None
     ) -> str:
-        subtracted_name = integrand_name or self.get_subtracted_integrand_name()
-        process_name = self.get_subtracted_process_name()
-        run_card_path = pjoin(self.dot_folder, f"{subtracted_name}.toml")
-        state_folder = self.get_standalone_state_folder(subtracted_name)
+        subtracted_file_name = integrand_name or self.get_subtracted_integrand_name()
+        generated_process_name = self.get_subtracted_process_name()
+        process_name = (
+            "qqbar_hhh"
+            if tuple(self.final_state) == ("h", "h", "h")
+            else generated_process_name
+        )
+        subtracted_name = "subtracted"
+        run_card_path = pjoin(self.dot_folder, f"{subtracted_file_name}.toml")
+        state_folder = self.get_standalone_state_folder(subtracted_file_name)
         momenta = self._standalone_momenta_toml()
         helicities = ", ".join(str(h) for h in self._helicities_for_current_externals())
         additional_param_values = self._standalone_additional_param_values_toml()
         pm_helicities = self._helicities_for_current_externals([1, -1, 0, 0, 0])
         pp_helicities = self._helicities_for_current_externals([1, 1, 0, 0, 0])
+
+        grouped_originals = self._original_graphs_by_group_from_dot(dot_path)
+        abs_dot_path = os.path.abspath(dot_path)
+        abs_state_folder = os.path.abspath(state_folder)
+        abs_dot_folder = os.path.abspath(self.dot_folder)
+
+        def command_block_toml(name: str, commands: list[str]) -> str:
+            return (
+                f'[[command_blocks]]\nname = "{name}"\ncommands = [\n'
+                f"    {self._commands_toml_array(commands)}\n]\n"
+            )
+
+        def process_string_command(fragment: str) -> str:
+            return (
+                f"set process -p {process_name} -i {subtracted_name} string "
+                f"'\n{fragment}'"
+            )
+
+        def process_defaults_commands(*, threshold: bool, helicities_for_block: list[int]) -> list[str]:
+            return [
+                f"set process -p {process_name} -i {subtracted_name} defaults",
+                (
+                    f"set process -p {process_name} -i {subtracted_name} kv "
+                    f"subtraction.disable_threshold_subtraction={str((not threshold)).lower()}"
+                ),
+                self._set_process_helicities_command(
+                    process_name, subtracted_name, helicities_for_block
+                ),
+            ]
+
+        def generation_settings_commands(*, threshold: bool) -> list[str]:
+            return [
+                "set global kv global.generation.override_lmb_heuristics=true",
+                "set global kv global.generation.uv.subtract_uv=false",
+                "set global kv global.generation.uv.generate_integrated=false",
+                "set global kv global.generation.uv.local_uv_cts_from_expanded_4d_integrands=false",
+                (
+                    "set global kv "
+                    f"global.generation.threshold_subtraction.enable_thresholds={str(threshold).lower()}"
+                ),
+                "set global kv global.generation.threshold_subtraction.check_esurface_at_generation=false",
+                "set global kv global.generation.threshold_subtraction.assume_positive_external_energies=false",
+            ]
+
+        def load_commands(*, threshold: bool, m_top_value: float) -> list[str]:
+            return [
+                *generation_settings_commands(threshold=threshold),
+                f"import model {self.model}",
+                f"set model MT={m_top_value:.16f}",
+                f"set model MH={self.m_higgs:.16f}",
+                "set model WT=0.0",
+                "set model WH=0.0",
+                f"set model ymt={m_top_value:.16f}",
+                f"remove processes -p {process_name}",
+                f"import graphs {abs_dot_path} -p {process_name} -i {subtracted_name}",
+            ]
+
+        def generate_commands(*, threshold: bool) -> list[str]:
+            return [
+                *generation_settings_commands(threshold=threshold),
+                f"generate existing -p {process_name} -i {subtracted_name}",
+            ]
+
+        def generate_ltd_commands(*, threshold: bool) -> list[str]:
+            return [
+                *generation_settings_commands(threshold=threshold),
+                "set global kv global.3d_representation=LTD",
+                "set global kv global.generation.explicit_orientation_sum_only=true",
+                f"generate existing -p {process_name} -i {subtracted_name}",
+            ]
+
+        inspect_sampling_fragment = (
+            "[sampling]\n"
+            'graphs = "monte_carlo"\n'
+            'orientations = "summed"\n'
+            "lmb_multichanneling = false\n"
+            'lmb_channels = "summed"\n'
+            'coordinate_system = "spherical"\n'
+            'mapping = "linear"\n'
+            "b = 1.0\n"
+        )
+        integration_sampling_fragment = (
+            "[sampling]\n"
+            'graphs = "monte_carlo"\n'
+            'orientations = "summed"\n'
+            "lmb_multichanneling = true\n"
+            'lmb_channels = "monte_carlo"\n'
+            'coordinate_system = "spherical"\n'
+            'mapping = "linear"\n'
+            "b = 1.0\n"
+        )
+
+        def common_inspect_setup(*, threshold: bool) -> list[str]:
+            return [
+                *process_defaults_commands(
+                    threshold=threshold, helicities_for_block=pm_helicities
+                ),
+                process_string_command(self._external_momenta_toml_fragment()),
+                process_string_command(inspect_sampling_fragment),
+            ]
+
+        def collinear_test_commands(*, threshold: bool, use_arb_prec: bool = True) -> list[str]:
+            commands = common_inspect_setup(threshold=threshold)
+            precision_flag = "-f " if use_arb_prec else ""
+            for beam in ("p1", "p2"):
+                for group_id, graph in grouped_originals:
+                    for lambda_value in self.collinear_lambdas:
+                        xs = self._format_xs(
+                            self._collinear_xs_from_graph_fractional(
+                                graph,
+                                beam=beam,
+                                x_fraction=self.collinear_fraction_x,
+                                lambda_value=lambda_value,
+                            )
+                        )
+                        commands.append(
+                            f"inspect -p {process_name} -i {subtracted_name} "
+                            f"--discrete-dim {group_id} {precision_flag}-m -x {' '.join(xs)}"
+                        )
+            return commands
+
+        def soft_collinear_test_commands(*, threshold: bool, use_arb_prec: bool = True) -> list[str]:
+            commands = common_inspect_setup(threshold=threshold)
+            precision_flag = "-f " if use_arb_prec else ""
+            e_cm = self._center_of_mass_energy()
+            spectator_loop_3d = [250.0, 125.0, -375.0]
+            for beam in ("p1", "p2"):
+                for group_id, _graph in grouped_originals:
+                    for lambda_value in self.collinear_lambdas:
+                        soft_scale = lambda_value * e_cm
+                        xs = self._format_xs(
+                            [soft_scale, 0.0, soft_scale, *spectator_loop_3d]
+                        )
+                        commands.append(
+                            f"inspect -p {process_name} -i {subtracted_name} "
+                            f"--discrete-dim {group_id} {precision_flag}-m -x {' '.join(xs)}"
+                        )
+            return commands
+
+        def integrate_commands(
+            *,
+            threshold: bool,
+            helicities_for_block: list[int],
+            workspace_name: str,
+            fast: bool,
+        ) -> list[str]:
+            if fast:
+                n_start = self.low_stat_n_start
+                n_max = self.low_stat_n_max
+                n_cores = self.low_stat_n_cores
+                batch_size = self.low_stat_batch_size
+            else:
+                n_start = 10000
+                n_max = 100000000
+                n_cores = 10
+                batch_size = 1000
+            workspace_path = pjoin(abs_dot_folder, workspace_name)
+            return [
+                *process_defaults_commands(
+                    threshold=threshold, helicities_for_block=helicities_for_block
+                ),
+                (
+                    f"set process -p {process_name} -i {subtracted_name} kv "
+                    f"integrator.n_start={n_start} "
+                    "integrator.n_increase=0 "
+                    f"integrator.n_max={n_max} "
+                    "integrator.seed=1337 "
+                    'integrator.integrated_phase="real"'
+                ),
+                process_string_command(integration_sampling_fragment),
+                (
+                    f"integrate -p {process_name} -i {subtracted_name} "
+                    f"--n-cores {n_cores} --batch-size {batch_size} "
+                    f"--workspace-path {workspace_path} --restart"
+                ),
+            ]
+
+        threshold_m_top = 173.0
+        base_threshold = self.enable_threshold_subtraction
+        base_m_top = self.m_top
+        run_card = f"""# Intentionally empty: loading this card should only apply settings and
+# register command blocks. Use `run <block-name>` explicitly to load,
+# generate, inspect, or integrate.
+commands = []
+
+[cli_settings]
+[cli_settings.state]
+folder = {json.dumps(abs_state_folder)}
+name = {json.dumps(subtracted_file_name)}
+
+{command_block_toml("load", load_commands(threshold=base_threshold, m_top_value=base_m_top))}
+{command_block_toml("generate", generate_commands(threshold=base_threshold))}
+{command_block_toml("generate_ltd", generate_ltd_commands(threshold=base_threshold))}
+{command_block_toml("collinear_test", collinear_test_commands(threshold=base_threshold))}
+{command_block_toml("soft_collinear_test", soft_collinear_test_commands(threshold=base_threshold))}
+{command_block_toml("integrate_fast", integrate_commands(threshold=base_threshold, helicities_for_block=pm_helicities, workspace_name=f"{subtracted_name}_integration_fast_pm", fast=True))}
+{command_block_toml("integrate_fast_pp", integrate_commands(threshold=base_threshold, helicities_for_block=pp_helicities, workspace_name=f"{subtracted_name}_integration_fast_pp", fast=True))}
+{command_block_toml("integrate", integrate_commands(threshold=base_threshold, helicities_for_block=pm_helicities, workspace_name=f"{subtracted_name}_integration_pm", fast=False))}
+{command_block_toml("integrate_pp", integrate_commands(threshold=base_threshold, helicities_for_block=pp_helicities, workspace_name=f"{subtracted_name}_integration_pp", fast=False))}
+{command_block_toml("load_with_thresholds", load_commands(threshold=True, m_top_value=threshold_m_top))}
+{command_block_toml("generate_with_thresholds", generate_commands(threshold=True))}
+{command_block_toml("generate_ltd_with_thresholds", generate_ltd_commands(threshold=True))}
+{command_block_toml("collinear_test_with_thresholds", collinear_test_commands(threshold=True))}
+{command_block_toml("soft_collinear_test_with_thresholds", soft_collinear_test_commands(threshold=True))}
+{command_block_toml("integrate_with_thresholds", integrate_commands(threshold=True, helicities_for_block=pm_helicities, workspace_name=f"{subtracted_name}_integration_threshold_pm", fast=True))}
+{command_block_toml("integrate_with_thresholds_pp", integrate_commands(threshold=True, helicities_for_block=pp_helicities, workspace_name=f"{subtracted_name}_integration_threshold_pp", fast=True))}
+{command_block_toml("demo", ["run load", "run generate", "run collinear_test", "run soft_collinear_test", "run integrate_fast"])}
+{command_block_toml("demo_with_thresholds", ["run load_with_thresholds", "run generate_with_thresholds", "run collinear_test_with_thresholds", "run soft_collinear_test_with_thresholds", "run integrate_with_thresholds"])}
+
+[default_runtime_settings.kinematics]
+e_cm = 1000.0
+
+[default_runtime_settings.kinematics.externals]
+type = "constant"
+
+[default_runtime_settings.kinematics.externals.data]
+momenta = [
+    {momenta}
+]
+helicities = [{helicities}]
+
+[default_runtime_settings.general]
+{additional_param_values}
+[cli_settings.global.generation]
+override_lmb_heuristics = true
+
+[cli_settings.global.generation.uv]
+subtract_uv = false
+generate_integrated = false
+local_uv_cts_from_expanded_4d_integrands = false
+
+[cli_settings.global.generation.threshold_subtraction]
+enable_thresholds = {str(base_threshold).lower()}
+check_esurface_at_generation = false
+assume_positive_external_energies = false
+"""
+        write_text_with_dirs(run_card_path, run_card)
+        return run_card_path
+
         template_process_name = "{process_name}"
         template_integrand_name = "{integrand_name}"
         template_dot_path = "{dot_path}"
@@ -1561,6 +1872,7 @@ class qqbar_nX(object):
             "b = 1.0\n"
         )
         uv_disabled_commands = [
+            "set global kv global.generation.override_lmb_heuristics=true",
             "set global kv global.generation.uv.subtract_uv=false",
             "set global kv global.generation.uv.generate_integrated=false",
             "set global kv global.generation.uv.local_uv_cts_from_expanded_4d_integrands=false",
@@ -1657,6 +1969,37 @@ class qqbar_nX(object):
                 )
             return commands
 
+        def inspect_soft_collinear_group_commands(
+            *,
+            beam: str,
+            group_id: int,
+            use_arb_prec: bool,
+        ) -> list[str]:
+            momenta_fragment = self._external_momenta_toml_fragment()
+            commands = [
+                f"run _generate_subtracted_integrand {template_define_args}",
+                f"set process -p {template_process_name} -i {template_integrand_name} defaults",
+                runtime_subtraction_command,
+                self._set_process_helicities_command(
+                    template_process_name, template_integrand_name, pm_helicities
+                ),
+                set_process_sampling_command(momenta_fragment),
+                set_process_sampling_command(inspect_sampling_fragment),
+            ]
+            precision_flag = "-f " if use_arb_prec else ""
+            e_cm = self._center_of_mass_energy()
+            spectator_loop_3d = [250.0, 125.0, -375.0]
+            for lambda_value in self.collinear_lambdas:
+                soft_scale = lambda_value * e_cm
+                xs = self._format_xs(
+                    [soft_scale, 0.0, soft_scale, *spectator_loop_3d]
+                )
+                commands.append(
+                    f"inspect -p {template_process_name} -i {template_integrand_name} "
+                    f"--discrete-dim {group_id} {precision_flag}-m -x {' '.join(xs)}"
+                )
+            return commands
+
         def command_block_toml(name: str, commands: list[str]) -> str:
             return (
                 f'[[command_blocks]]\nname = "{name}"\ncommands = [\n'
@@ -1703,6 +2046,7 @@ class qqbar_nX(object):
             )
 
         inspect_group_blocks: list[str] = []
+        inspect_soft_collinear_group_blocks: list[str] = []
         for beam in ("p1", "p2"):
             for group_id, graph in grouped_originals:
                 for use_arb_prec in (False, True):
@@ -1726,6 +2070,26 @@ class qqbar_nX(object):
                             [default_run_command(template_block_name)],
                         )
                     )
+                    soft_block_name = (
+                        f"inspect_soft_collinear_{beam}_group{group_id}{suffix}"
+                    )
+                    soft_template_block_name = f"_{soft_block_name}"
+                    inspect_soft_collinear_group_blocks.append(
+                        command_block_toml(
+                            soft_template_block_name,
+                            inspect_soft_collinear_group_commands(
+                                beam=beam,
+                                group_id=group_id,
+                                use_arb_prec=use_arb_prec,
+                            ),
+                        )
+                    )
+                    inspect_soft_collinear_group_blocks.append(
+                        command_block_toml(
+                            soft_block_name,
+                            [default_run_command(soft_template_block_name)],
+                        )
+                    )
 
         inspect_p1_commands = [
             f"run inspect_collinear_p1_group{group_id}"
@@ -1741,6 +2105,22 @@ class qqbar_nX(object):
         ]
         inspect_p2_arb_commands = [
             f"run inspect_collinear_p2_group{group_id}_arb"
+            for group_id, _graph in grouped_originals
+        ]
+        inspect_soft_p1_commands = [
+            f"run inspect_soft_collinear_p1_group{group_id}"
+            for group_id, _graph in grouped_originals
+        ]
+        inspect_soft_p1_arb_commands = [
+            f"run inspect_soft_collinear_p1_group{group_id}_arb"
+            for group_id, _graph in grouped_originals
+        ]
+        inspect_soft_p2_commands = [
+            f"run inspect_soft_collinear_p2_group{group_id}"
+            for group_id, _graph in grouped_originals
+        ]
+        inspect_soft_p2_arb_commands = [
+            f"run inspect_soft_collinear_p2_group{group_id}_arb"
             for group_id, _graph in grouped_originals
         ]
 
@@ -1868,6 +2248,31 @@ commands = [
 
 {''.join(inspect_group_blocks)}
 [[command_blocks]]
+name = "inspect_soft_collinear_p1"
+commands = [
+    {self._commands_toml_array(inspect_soft_p1_commands)}
+]
+
+[[command_blocks]]
+name = "inspect_soft_collinear_p1_arb"
+commands = [
+    {self._commands_toml_array(inspect_soft_p1_arb_commands)}
+]
+
+[[command_blocks]]
+name = "inspect_soft_collinear_p2"
+commands = [
+    {self._commands_toml_array(inspect_soft_p2_commands)}
+]
+
+[[command_blocks]]
+name = "inspect_soft_collinear_p2_arb"
+commands = [
+    {self._commands_toml_array(inspect_soft_p2_arb_commands)}
+]
+
+{''.join(inspect_soft_collinear_group_blocks)}
+[[command_blocks]]
 name = "_low_stat_integrate_pm"
 commands = [
     {self._commands_toml_array(integrate_pm_commands)}
@@ -1949,6 +2354,9 @@ enable_thresholds = {str(self.enable_threshold_subtraction).lower()}
 check_esurface_at_generation = {str(self.check_esurface_at_generation).lower()}
 assume_positive_external_energies = {str(self.assume_positive_external_energies).lower()}
 
+[cli_settings.global.generation]
+override_lmb_heuristics = true
+
 [cli_settings.global.generation.uv]
 subtract_uv = false
 generate_integrated = false
@@ -2016,6 +2424,11 @@ integrate = {self.low_stat_n_cores}
             use_parametric_xi=self.counterterm_use_parametric_xi,
             xi_parameter_names=self.xi_parameter_names,  # type: ignore[arg-type]
             xi_default_values=self.xi_default_values,  # type: ignore[arg-type]
+            heavy_lmb_strategy=self.counterterm_heavy_lmb_strategy,
+            heavy_lmb_anchor_external_edge_id=(
+                self.counterterm_heavy_lmb_anchor_external_edge_id
+            ),
+            heavy_lmb_anchor_side=self.counterterm_heavy_lmb_anchor_side,
         )
         minimise_edge_attributes_for_import(subtracted_graphs)
         subtracted_dot = dot_graphs_to_string(subtracted_graphs)

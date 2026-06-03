@@ -241,14 +241,73 @@ def _spatial_q_replacements(max_edge_id: int) -> list[Replacement]:
     return replacements
 
 
+def _external_q_replacements(dot_graph: pydot.Dot) -> list[Replacement]:
+    graph = DotGraph(dot_graph)
+    lmb_external_edge_map: dict[int, int] = {}
+    for edge in graph.get_external_edges():
+        if _is_dummy_edge(edge):
+            continue
+        edge_id = int(strip_quotes(edge.get("id")))
+        coeffs = _parse_lmb_representation(edge.get_attributes().get("lmb_rep", "0"))
+        if len(coeffs["P"]) == 1 and not coeffs["K"]:
+            ((external_id, coeff),) = coeffs["P"].items()
+            if abs(coeff - 1.0) < 1.0e-12:
+                lmb_external_edge_map[external_id] = edge_id
+
+    replacements: list[Replacement] = []
+    for edge in graph.get_external_edges():
+        edge_id = int(strip_quotes(edge.get("id")))
+        coeffs = _parse_lmb_representation(edge.get_attributes().get("lmb_rep", "0"))
+        if coeffs["K"]:
+            raise pygloopException(
+                f"CFF external edge e{edge_id} has loop-dependent lmb_rep "
+                f"{edge.get_attributes().get('lmb_rep')!r}."
+            )
+        for component in range(4):
+            expression = E("0")
+            for lmb_external_id, coeff in coeffs["P"].items():
+                try:
+                    external_edge_id = lmb_external_edge_map[lmb_external_id]
+                except KeyError as exc:
+                    raise pygloopException(
+                        f"CFF external edge e{edge_id} depends on unresolved "
+                        f"LMB external P({lmb_external_id})."
+                    ) from exc
+                expression += E(str(coeff)) * _external_symbol(
+                    external_edge_id, component
+                )
+            replacements.append(
+                Replacement(
+                    E(f"gammalooprs::Q({edge_id},{component})"),
+                    expression,
+                )
+            )
+            replacements.append(
+                Replacement(
+                    E(f"gammalooprs::Q({edge_id},spenso::cind({component}))"),
+                    expression,
+                )
+            )
+    return replacements
+
+
 def _cff_weight_for_variant(
     cff: CFFMetaExpression, variant: dict[str, Any]
 ) -> Expression:
+    def linear_surface_id(surface_ref: Any) -> int:
+        if isinstance(surface_ref, dict):
+            if "Linear" in surface_ref:
+                return int(surface_ref["Linear"])
+            raise pygloopException(
+                f"Unsupported CFF numerator surface reference: {surface_ref!r}"
+            )
+        return int(surface_ref)
+
     weight = Es(str(variant.get("prefactor", "1")))
     for edge_id in variant.get("half_edges", []):
         weight /= E("2") * _energy_symbol(int(edge_id))
-    for surface_id in variant.get("numerator_surfaces", []):
-        weight *= cff.surface_expr(int(surface_id))
+    for surface_ref in variant.get("numerator_surfaces", []):
+        weight *= cff.surface_expr(linear_surface_id(surface_ref))
     weight *= cff.denominator_tree_inverse(variant.get("denominator", {"nodes": []}))
     uniform_power = int(variant.get("uniform_scale_power", 0))
     if uniform_power:
@@ -270,6 +329,9 @@ def build_cff_integrand_expression(
         default=0,
     )
     numerator = _graph_scalar_numerator(dot_graph)
+    numerator = numerator.replace_multiple(
+        _external_q_replacements(dot_graph), repeat=True
+    )
     numerator = numerator.replace_multiple(
         _spatial_q_replacements(max_internal_edge_id), repeat=True
     )

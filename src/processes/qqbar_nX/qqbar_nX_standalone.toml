@@ -14,6 +14,7 @@ name = "qqbar_nX_standalone_demo"
 [[command_blocks]]
 name = "_load_subtracted_dot"
 commands = [
+    "set global kv global.generation.override_lmb_heuristics=true",
     "set global kv global.generation.uv.subtract_uv=false",
     "set global kv global.generation.uv.generate_integrated=false",
     "set global kv global.generation.uv.local_uv_cts_from_expanded_4d_integrands=false",
@@ -34,6 +35,7 @@ commands = [
 name = "_generate_subtracted_integrand"
 commands = [
     "run _load_subtracted_dot -D process_name={process_name} -D integrand_name={integrand_name} -D dot_path={dot_path} -D m_top={m_top} -D m_higgs={m_higgs} -D ymt={ymt} -D enable_thresholds={enable_thresholds} -D check_esurface_at_generation={check_esurface_at_generation} -D assume_positive_external_energies={assume_positive_external_energies} -D disable_threshold_subtraction={disable_threshold_subtraction}",
+    "set global kv global.generation.override_lmb_heuristics=true",
     "set global kv global.generation.uv.subtract_uv=false",
     "set global kv global.generation.uv.generate_integrated=false",
     "set global kv global.generation.uv.local_uv_cts_from_expanded_4d_integrands=false",
@@ -47,6 +49,7 @@ commands = [
 name = "_generate_subtracted_integrand_ltd"
 commands = [
     "run _load_subtracted_dot -D process_name={process_name} -D integrand_name={integrand_name} -D dot_path={dot_path} -D m_top={m_top} -D m_higgs={m_higgs} -D ymt={ymt} -D enable_thresholds={enable_thresholds} -D check_esurface_at_generation={check_esurface_at_generation} -D assume_positive_external_energies={assume_positive_external_energies} -D disable_threshold_subtraction={disable_threshold_subtraction}",
+    "set global kv global.generation.override_lmb_heuristics=true",
     "set global kv global.generation.uv.subtract_uv=false",
     "set global kv global.generation.uv.generate_integrated=false",
     "set global kv global.generation.uv.local_uv_cts_from_expanded_4d_integrands=false",
@@ -380,6 +383,9 @@ disable_threshold_subtraction = true
 enable_thresholds = false
 check_esurface_at_generation = false
 assume_positive_external_energies = false
+
+[cli_settings.global.generation]
+override_lmb_heuristics = true
 
 [cli_settings.global.generation.uv]
 subtract_uv = false

@@ -151,6 +151,7 @@ class TopologySelectorConfig:
     light_quark_particles: tuple[str, ...] = ("d", "d~")
     gluon_particle: str = "g"
     top_particles: tuple[str, ...] = ("t", "t~")
+    force_single_group_id: bool = False
 
     @property
     def final_state_normalised(self) -> tuple[str, ...]:
@@ -418,9 +419,16 @@ def select_top_pentagon_isr_graphs(
             )
         )
 
-    accepted_by_key: dict[str, list[GraphSelection]] = {}
-    for accepted in report.accepted:
-        accepted_by_key.setdefault(accepted.canonical_key, []).append(accepted)
+    if selector_config.force_single_group_id:
+        accepted_by_key: dict[str, list[GraphSelection]] = {
+            "ward_complete_group": sorted(
+                report.accepted, key=lambda item: graph_name(item.graph)
+            )
+        }
+    else:
+        accepted_by_key = {}
+        for accepted in report.accepted:
+            accepted_by_key.setdefault(accepted.canonical_key, []).append(accepted)
 
     for group_id, canonical_key in enumerate(sorted(accepted_by_key)):
         group = sorted(accepted_by_key[canonical_key], key=lambda item: graph_name(item.graph))

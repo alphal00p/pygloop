@@ -827,6 +827,9 @@ class CountertermReport:
     use_parametric_xi: bool = False
     xi_parameter_names: tuple[str, str, str, str] = ("xi0", "xi1", "xi2", "xi3")
     xi_default_values: tuple[float, float, float, float] = (1000.0, 0.0, 0.0, 100.0)
+    heavy_lmb_strategy: str = "paper_heuristic"
+    heavy_lmb_anchor_external_edge_id: int | None = None
+    heavy_lmb_anchor_side: str = "canonical_low_label"
 
     def manifest(self) -> dict[str, Any]:
         return {
@@ -843,6 +846,9 @@ class CountertermReport:
             "xi_default_values": list(self.xi_default_values)
             if self.use_parametric_xi
             else [],
+            "heavy_lmb_strategy": self.heavy_lmb_strategy,
+            "heavy_lmb_anchor_external_edge_id": self.heavy_lmb_anchor_external_edge_id,
+            "heavy_lmb_anchor_side": self.heavy_lmb_anchor_side,
             "counts": {
                 "original_graphs": len(self.original_graphs),
                 "counterterm_graphs": len(self.counterterms),
@@ -1258,7 +1264,7 @@ def _add_fake_xi_edge(
     )
 
 
-def _split_light_bridge_with_exact_xi_auxiliary(
+def _split_collinear_gluon_with_exact_xi_auxiliary(
     graph: pydot.Dot,
     *,
     structure: LightLineStructure,
@@ -1268,47 +1274,55 @@ def _split_light_bridge_with_exact_xi_auxiliary(
     denominator_strategy: str,
     prefix: str,
 ) -> int:
-    """Add the paper auxiliary propagator as a shifted light-line segment.
+    """Add the corrected Kermanshah auxiliary propagator.
 
-    The exact Kermanshah denominator is represented by splitting the pinned
-    massless light bridge into a massless segment carrying K(0) and a massive
-    auxiliary segment.  The fake incoming xi edge enters at the far side of the
-    auxiliary segment, and the fake outgoing xi edge leaves at the split node.
-    With GammaLoop's incoming-external sign convention the auxiliary segment is
-    routed as K(0)-P(xi), directly matching the paper shift once the active
-    helper pair is sampled as the auxiliary xi momentum.
+    The corrected denominator is not built from the bridge momentum k1, but
+    from the gluon momentum k_gi adjacent to the collinear beam:
+
+        Delta_1: ((k_g1 - xi)^2 - xi^2)^(-1),
+        Delta_2: ((k_g2 - xi)^2 - xi^2)^(-1).
+
+    We therefore split the relevant collinear gluon edge, keep the original
+    edge id on the unshifted segment so the k_gi^2 propagator remains present,
+    and make the new massive segment carry the active fake-xi shift.  The
+    opposite gluon propagator is removed/contracted, so the auxiliary segment
+    replaces the same denominator slot as in the paper's local CT.
     """
     if counterterm not in {"isr_p1", "isr_p2"}:
         raise ValueError(f"Unknown qqbar_nX counterterm '{counterterm}'.")
     incoming_id, outgoing_id = FAKE_XI_PAIR_IDS[counterterm]
 
-    light_edge = _edge_by_id(graph, structure.light_edge_id)
     if counterterm == "isr_p1":
+        collinear_gluon = structure.p1.gluon_edge
         replaced_gluon = structure.p2.gluon_edge
         keep_replaced_gluon_vertex = structure.p2.vertex
     else:
+        collinear_gluon = structure.p2.gluon_edge
         replaced_gluon = structure.p1.gluon_edge
         keep_replaced_gluon_vertex = structure.p1.vertex
-    source, source_hedge, destination, destination_hedge = _edge_endpoints(light_edge)
+    source, source_hedge, destination, destination_hedge = _edge_endpoints(
+        collinear_gluon
+    )
     split_node = _next_internal_node_id(graph)
-    light_split_hedge = _next_hedge_id(graph)
-    auxiliary_split_hedge = light_split_hedge + 1
+    collinear_split_hedge = _next_hedge_id(graph)
+    auxiliary_split_hedge = collinear_split_hedge + 1
     auxiliary_edge_id = _next_edge_id(graph)
 
-    light_attributes = dict(light_edge.get_attributes())
-    _delete_edge(graph, light_edge)
+    collinear_attributes = dict(collinear_gluon.get_attributes())
+    collinear_edge_id = _edge_id(collinear_gluon)
+    _delete_edge(graph, collinear_gluon)
     graph.add_node(pydot.Node(split_node, dod="0", num="1"))
 
-    # Keep the original light-edge id and orientation on the massless segment
-    # so lmb_id=0 continues to pin K(0) to the collinear light momentum.
-    light_attributes["id"] = str(structure.light_edge_id)
-    _update_edge_name(light_attributes, structure.light_edge_id, structure.light_edge_id)
-    light_attributes.pop("mass", None)
+    # Keep the original gluon-edge id and orientation on the unshifted segment
+    # so the paper's k_gi^2 denominator remains part of the CT topology.
+    collinear_attributes["id"] = str(collinear_edge_id)
+    _update_edge_name(collinear_attributes, collinear_edge_id, collinear_edge_id)
+    collinear_attributes.pop("mass", None)
     graph.add_edge(
         pydot.Edge(
             f"{source}:{source_hedge}",
-            f"{split_node}:{light_split_hedge}",
-            **light_attributes,
+            f"{split_node}:{collinear_split_hedge}",
+            **collinear_attributes,
         )
     )
 
@@ -1373,8 +1387,7 @@ def _attach_exact_xi_pair_around_edge(
     Q(2)=Q(4) for the p1 CT and Q(3)=Q(5) for the p2 CT.  The pair is attached
     on the two endpoints of the explicit Kermanshah auxiliary propagator, so
     setting the active helper pair directly to the reference vector xi shifts
-    that propagator as k1 -> k1 - xi.  The inactive helper pair stays present
-    but dummy.
+    that propagator by xi.  The inactive helper pair stays present but dummy.
     """
     if counterterm not in FAKE_XI_PAIR_IDS:
         raise ValueError(f"Unknown qqbar_nX counterterm '{counterterm}'.")
@@ -1888,14 +1901,169 @@ def _external_higgs_edge_id_for_vertex(graph: pydot.Dot, vertex: str) -> int | N
     return None
 
 
+def _heavy_loop_vertex_label(
+    graph: pydot.Dot,
+    vertex: str,
+    *,
+    p1_top_vertex: str,
+    p2_top_vertex: str,
+) -> str:
+    if vertex == p1_top_vertex:
+        return "G1"
+    if vertex == p2_top_vertex:
+        return "G2"
+    higgs_edge_id = _external_higgs_edge_id_for_vertex(graph, vertex)
+    if higgs_edge_id is not None:
+        return f"H{higgs_edge_id}"
+    nodes = graph_internal_nodes(graph)
+    return node_int_id(nodes[vertex]) or vertex
+
+
+def _heavy_loop_label_sort_key(label: str) -> tuple[int, int | str]:
+    if label.startswith("G"):
+        try:
+            return (0, int(label[1:]))
+        except ValueError:
+            return (0, label)
+    if label.startswith("H"):
+        try:
+            return (1, int(label[1:]))
+        except ValueError:
+            return (1, label)
+    return (2, label)
+
+
+def _heavy_loop_top_edges(graph: pydot.Dot) -> list[pydot.Edge]:
+    return [
+        edge for edge in graph_internal_edges(graph) if edge_particle(edge) in {"t", "t~"}
+    ]
+
+
+def _heavy_loop_anchor_vertex(
+    graph: pydot.Dot,
+    *,
+    anchor_external_edge_id: int | None,
+) -> tuple[str, int]:
+    higgs_edges = [
+        edge for edge in graph_external_edges(graph) if edge_particle(edge) == "h"
+    ]
+    if not higgs_edges:
+        raise ValueError(f"Could not find Higgs external edges in {graph_name(graph)}.")
+
+    requested_ids: list[int]
+    if anchor_external_edge_id is None:
+        requested_ids = [min(_edge_id(edge) for edge in higgs_edges)]
+    else:
+        # The original graphs use physical Higgs ids 2,3,4.  In exact-xi mode
+        # they are shifted to 6,7,8 after reserving helper external ids 2..5.
+        requested_ids = [anchor_external_edge_id]
+        if anchor_external_edge_id <= 4:
+            requested_ids.append(anchor_external_edge_id + 4)
+
+    for requested_id in requested_ids:
+        for edge in higgs_edges:
+            if _edge_id(edge) != requested_id:
+                continue
+            vertex = non_external_endpoint(edge)
+            if vertex is None:
+                break
+            return vertex, requested_id
+
+    available = ", ".join(str(_edge_id(edge)) for edge in sorted(higgs_edges, key=_edge_id))
+    raise ValueError(
+        f"Could not anchor heavy-loop LMB to Higgs edge {anchor_external_edge_id} "
+        f"in {graph_name(graph)}. Available Higgs edge ids: {available}."
+    )
+
+
+def _anchored_heavy_basis_edge_id(
+    graph: pydot.Dot,
+    *,
+    anchor_external_edge_id: int | None,
+    anchor_side: str,
+) -> int:
+    """Pin k2 at a labelled Higgs insertion with a reproducible orientation.
+
+    The paper fixes one loop momentum on the heavy fermion loop.  For the
+    three-Higgs generalisation, the least ambiguous extension is to choose a
+    labelled Higgs insertion as the origin and then pick one of the two adjacent
+    top propagators by labels, not by the arbitrary graph name.  The
+    ``canonical_low_label``/``canonical_high_label`` modes are deliberately
+    independent of the fermion-flow arrow; the two charge-flow copies therefore
+    select the same labelled segment even when the DOT edge arrow runs in the
+    opposite direction on one copy.
+    """
+    anchor_vertex, _resolved_anchor_id = _heavy_loop_anchor_vertex(
+        graph, anchor_external_edge_id=anchor_external_edge_id
+    )
+    top_edges = _heavy_loop_top_edges(graph)
+    incident: list[tuple[pydot.Edge, str, str]] = []
+    for edge in top_edges:
+        source = endpoint_node(edge.get_source())
+        destination = endpoint_node(edge.get_destination())
+        if anchor_vertex == source:
+            incident.append((edge, destination, "outgoing"))
+        elif anchor_vertex == destination:
+            incident.append((edge, source, "incoming"))
+    if len(incident) != 2:
+        raise ValueError(
+            f"Expected the anchored Higgs vertex {anchor_vertex} in {graph_name(graph)} "
+            f"to have exactly two heavy-loop neighbours, found {len(incident)}."
+        )
+
+    normalized_side = anchor_side.strip().lower().replace("-", "_")
+    if normalized_side in {"outgoing", "after", "after_fermion_flow", "fermion_flow_outgoing"}:
+        outgoing = [item for item in incident if item[2] == "outgoing"]
+        if len(outgoing) != 1:
+            raise ValueError(
+                f"Could not find a unique outgoing heavy edge from anchored vertex "
+                f"{anchor_vertex} in {graph_name(graph)}."
+            )
+        return _edge_id(outgoing[0][0])
+    if normalized_side in {"incoming", "before", "before_fermion_flow", "fermion_flow_incoming"}:
+        incoming = [item for item in incident if item[2] == "incoming"]
+        if len(incoming) != 1:
+            raise ValueError(
+                f"Could not find a unique incoming heavy edge into anchored vertex "
+                f"{anchor_vertex} in {graph_name(graph)}."
+            )
+        return _edge_id(incoming[0][0])
+
+    structure = identify_light_line_structure(graph)
+    p1_top_vertex = _top_gluon_vertex_for_edge(graph, structure.p1.gluon_edge)
+    p2_top_vertex = _top_gluon_vertex_for_edge(graph, structure.p2.gluon_edge)
+
+    labelled_incident = [
+        (
+            _heavy_loop_label_sort_key(
+                _heavy_loop_vertex_label(
+                    graph,
+                    neighbour,
+                    p1_top_vertex=p1_top_vertex,
+                    p2_top_vertex=p2_top_vertex,
+                )
+            ),
+            _edge_id(edge),
+            edge,
+        )
+        for edge, neighbour, _direction in incident
+    ]
+    if normalized_side in {"canonical_low_label", "canonical_forward", "label_low"}:
+        return _edge_id(min(labelled_incident, key=lambda item: (item[0], item[1]))[2])
+    if normalized_side in {"canonical_high_label", "canonical_backward", "label_high"}:
+        return _edge_id(max(labelled_incident, key=lambda item: (item[0], -item[1]))[2])
+    raise ValueError(
+        "counterterms.heavy_lmb_anchor_side must be one of "
+        "'canonical_low_label', 'canonical_high_label', 'outgoing' or 'incoming'."
+    )
+
+
 def _paper_heavy_basis_edge_id(graph: pydot.Dot) -> int:
     """Pick a stable heavy-loop basis edge shared by graphs in one topology group."""
     structure = identify_light_line_structure(graph)
     p1_top_vertex = _top_gluon_vertex_for_edge(graph, structure.p1.gluon_edge)
     p2_top_vertex = _top_gluon_vertex_for_edge(graph, structure.p2.gluon_edge)
-    top_edges = [
-        edge for edge in graph_internal_edges(graph) if edge_particle(edge) in {"t", "t~"}
-    ]
+    top_edges = _heavy_loop_top_edges(graph)
 
     bridge_candidates = [
         edge
@@ -1926,6 +2094,32 @@ def _paper_heavy_basis_edge_id(graph: pydot.Dot) -> int:
     if not top_edges:
         raise ValueError(f"Could not find a heavy-loop edge in {graph_name(graph)}.")
     return _edge_id(min(top_edges, key=_edge_id))
+
+
+def _heavy_basis_edge_id(
+    graph: pydot.Dot,
+    *,
+    strategy: str,
+    anchor_external_edge_id: int | None,
+    anchor_side: str,
+) -> int:
+    normalized_strategy = strategy.strip().lower().replace("-", "_")
+    if normalized_strategy in {"paper_heuristic", "legacy", "paper"}:
+        return _paper_heavy_basis_edge_id(graph)
+    if normalized_strategy in {
+        "fixed_higgs_anchor",
+        "higgs_anchor",
+        "labelled_higgs_anchor",
+    }:
+        return _anchored_heavy_basis_edge_id(
+            graph,
+            anchor_external_edge_id=anchor_external_edge_id,
+            anchor_side=anchor_side,
+        )
+    raise ValueError(
+        "counterterms.heavy_lmb_strategy must be either 'paper_heuristic' "
+        "or 'fixed_higgs_anchor'."
+    )
 
 
 def _pin_paper_loop_momentum_basis(
@@ -2041,8 +2235,8 @@ def _make_counterterm_graph(
     # In exact-xi topology, Q(2)=Q(4) and Q(3)=Q(5) are independent in/out
     # helper pairs for the p1 and p2 collinear CTs.  Both pairs are sampled
     # directly as the paper reference vector xi; the topology inserts an
-    # explicit auxiliary propagator carrying k_1-xi, while the local vertex
-    # current is kept as the paper's adjacent gluon momentum k_gi.
+    # explicit auxiliary propagator carrying k_gi-xi, while the local vertex
+    # current is kept as the same adjacent gluon momentum k_gi.
     xi_external_id = None
     _set_edge_counterterm_num(
         copied_structure.light_edge,
@@ -2069,9 +2263,7 @@ def _make_counterterm_graph(
             xi_parameter_names=xi_parameter_names,
         )
         if auxiliary_denominator_mode == "global":
-            routing_fraction = _routing_fraction_factor(
-                copied_structure, beam=1, prefix=f"{prefix}_p1_rf"
-            )
+            routing_fraction = "1"
             aux_denominator_factor = f"(({aux_denominator})^(-1))"
             auxiliary_damping = "1"
             remove_cancelled_denominator = True
@@ -2080,13 +2272,8 @@ def _make_counterterm_graph(
             # denominator is leading-power equal to minus the opposite shifted
             # light-line denominator.  Keep that denominator in the CT topology
             # so CFF sees the loop-energy pole instead of hiding it in num.
-            # The finite routing fraction is written with spatial projections
-            # only; it matches the exact paper projector in the collinear limit
-            # without introducing loop-energy denominators in graph num.
             aux_denominator_factor = "-1"
-            routing_fraction = _routing_fraction_factor(
-                copied_structure, beam=1, spatial_only=True
-            )
+            routing_fraction = "1"
             auxiliary_damping = _opposite_topology_auxiliary_damping(
                 opposite_edge_id=copied_structure.p2.gluon_edge_id,
                 light_edge_id=copied_structure.light_edge_id,
@@ -2096,16 +2283,11 @@ def _make_counterterm_graph(
             remove_cancelled_denominator = False
         elif exact_xi_topology:
             # The auxiliary denominator is now carried by the DOT topology
-            # itself.  With lmb_id=0 pinned to the light bridge, the adjacent
-            # gluon momentum entering the paper numerator is an affine
-            # function of K(0) and the external beam momentum.  The finite
-            # spatial factor converts the routed light-bridge current used by
-            # the parsed DOT numerator to this paper gluon-current convention
-            # without introducing loop-energy denominators.
+            # itself.  It is routed from the same adjacent gluon momentum that
+            # appears in the paper numerator, shifted by xi.  No finite routing
+            # ratio is inserted in num.
             aux_denominator_factor = "1"
-            routing_fraction = _routing_fraction_factor(
-                copied_structure, beam=1, spatial_only=True
-            )
+            routing_fraction = "1"
             auxiliary_damping = "1"
             remove_cancelled_denominator = False
         else:
@@ -2118,9 +2300,7 @@ def _make_counterterm_graph(
                 copied_structure.light_edge_id,
                 beam=1,
             )
-            routing_fraction = _routing_fraction_factor(
-                copied_structure, beam=1, spatial_only=True
-            )
+            routing_fraction = "1"
             auxiliary_damping = "1"
             remove_cancelled_denominator = True
         graph.set(
@@ -2175,9 +2355,7 @@ def _make_counterterm_graph(
             xi_parameter_names=xi_parameter_names,
         )
         if auxiliary_denominator_mode == "global":
-            routing_fraction = _routing_fraction_factor(
-                copied_structure, beam=2, prefix=f"{prefix}_p2_rf"
-            )
+            routing_fraction = "1"
             aux_denominator_factor = f"(({aux_denominator})^(-1))"
             auxiliary_damping = "1"
             remove_cancelled_denominator = True
@@ -2186,9 +2364,7 @@ def _make_counterterm_graph(
             # is leading-power equal to the opposite shifted light-line
             # denominator, so no extra sign is required.
             aux_denominator_factor = "1"
-            routing_fraction = _routing_fraction_factor(
-                copied_structure, beam=2, spatial_only=True
-            )
+            routing_fraction = "1"
             auxiliary_damping = _opposite_topology_auxiliary_damping(
                 opposite_edge_id=copied_structure.p1.gluon_edge_id,
                 light_edge_id=copied_structure.light_edge_id,
@@ -2200,13 +2376,10 @@ def _make_counterterm_graph(
             # Same exact-topology convention as in the p1 CT: the denominator
             # sign is fixed by the routed auxiliary edge and the sampled fake
             # external momentum, while the adjacent gluon momentum in the
-            # paper numerator is written as an affine function of K(0).  Keep
-            # the finite light-bridge/gluon-current conversion spatial-only so
-            # CFF does not see any extra loop-energy pole in graph num.
+            # paper numerator is the same k_gi used for the auxiliary shift.
+            # No finite routing ratio is inserted in num.
             aux_denominator_factor = "1"
-            routing_fraction = _routing_fraction_factor(
-                copied_structure, beam=2, spatial_only=True
-            )
+            routing_fraction = "1"
             auxiliary_damping = "1"
             remove_cancelled_denominator = False
         else:
@@ -2214,9 +2387,7 @@ def _make_counterterm_graph(
                 copied_structure.light_edge_id,
                 beam=2,
             )
-            routing_fraction = _routing_fraction_factor(
-                copied_structure, beam=2, spatial_only=True
-            )
+            routing_fraction = "1"
             auxiliary_damping = "1"
             remove_cancelled_denominator = True
         graph.set(
@@ -2255,7 +2426,7 @@ def _make_counterterm_graph(
         collinear_gluon_edge_id = copied_structure.p2.gluon_edge_id
 
     if exact_xi_topology:
-        auxiliary_edge_id = _split_light_bridge_with_exact_xi_auxiliary(
+        auxiliary_edge_id = _split_collinear_gluon_with_exact_xi_auxiliary(
             graph,
             structure=copied_structure,
             counterterm=counterterm,
@@ -2381,6 +2552,9 @@ def build_isr_counterterm_graphs(
     use_parametric_xi: bool = False,
     xi_parameter_names: tuple[str, str, str, str] = ("xi0", "xi1", "xi2", "xi3"),
     xi_default_values: tuple[float, float, float, float] = (1000.0, 0.0, 0.0, 100.0),
+    heavy_lmb_strategy: str = "paper_heuristic",
+    heavy_lmb_anchor_external_edge_id: int | None = None,
+    heavy_lmb_anchor_side: str = "canonical_low_label",
 ) -> tuple[list[pydot.Dot], CountertermReport]:
     if projector_mode not in {"leading", "full"}:
         raise ValueError(
@@ -2414,6 +2588,9 @@ def build_isr_counterterm_graphs(
         use_parametric_xi=use_parametric_xi,
         xi_parameter_names=xi_parameter_names,
         xi_default_values=xi_default_values,
+        heavy_lmb_strategy=heavy_lmb_strategy,
+        heavy_lmb_anchor_external_edge_id=heavy_lmb_anchor_external_edge_id,
+        heavy_lmb_anchor_side=heavy_lmb_anchor_side,
     )
     out: list[pydot.Dot] = []
     for graph in graphs:
@@ -2421,7 +2598,12 @@ def build_isr_counterterm_graphs(
         if use_parametric_xi:
             _set_graph_additional_params(original_copy, xi_parameter_names)
         structure = identify_light_line_structure(graph)
-        heavy_edge_id = _paper_heavy_basis_edge_id(graph)
+        heavy_edge_id = _heavy_basis_edge_id(
+            graph,
+            strategy=heavy_lmb_strategy,
+            anchor_external_edge_id=heavy_lmb_anchor_external_edge_id,
+            anchor_side=heavy_lmb_anchor_side,
+        )
         if auxiliary_denominator_mode == EXACT_XI_AUXILIARY_MODE:
             original_copy, fake_xi_edge_mapping = _with_fake_xi_externals(
                 original_copy,

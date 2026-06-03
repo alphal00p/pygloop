@@ -28,7 +28,7 @@ subtracted DOT construction is independent of it.
 
 The exact-xi mode adds two dummy in/out helper pairs to every graph, so the
 GammaLoop externals are ordered as
-`Q(0) Q(1) Q(2) Q(4) -> Q(3) Q(5) Q(6) Q(7) Q(8)`. The physical process is
+`Q(0) Q(1) Q(2) Q(3) -> Q(4) Q(5) Q(6) Q(7) Q(8)`. The physical process is
 still `Q(0) Q(1) -> Q(6) Q(7) Q(8)`, with `Q(8)` dependent. The first
 collinear counterterm uses only the helper pair `Q(2)=Q(4)=xi`; the second uses
 only `Q(3)=Q(5)=xi`. The originals carry all four helper externals as dummy
@@ -105,6 +105,11 @@ This writes the non-symmetrized DOT/TOML pair with the
 The generated TOML deliberately has `commands = []`: loading it only registers
 settings and command blocks. Nothing is imported or generated until a block is
 run explicitly.
+
+All generated and checked-in steering cards set
+`global.generation.override_lmb_heuristics=true` before `generate existing`.
+This disables GammaLoop's channel-selection heuristic and keeps every generated
+loop-momentum basis as an LMB multichanneling channel.
 
 The universal checked-in card is
 `src/processes/qqbar_nX/qqbar_nX_standalone.toml`. It is not emitted from
