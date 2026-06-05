@@ -720,6 +720,11 @@ class DY(object):
                     )
                     evaluator.source_graph_name = str(graph.dot.get_name()).strip('"')
                     evaluator.routed_graph_name = str(gg[3].get_name()).strip('"')
+                    evaluator.approximation_type = getattr(
+                        term_integrand,
+                        "approximation_type",
+                        None,
+                    )
                     evaluators.append(evaluator)
 
             all_routed_integrands.extend(routed_integrands)
@@ -777,7 +782,7 @@ class DY(object):
         print("############################")
 
         channel = (1, 0)  # (1, -1)
-        # channel = (1, -1)
+        channel = (1, -1)
 
         processor = EMRIntegrandConstructor([], process_name, n_loops)
         loop_processor = LoopIntegrandConstructor(
@@ -834,8 +839,8 @@ class DY(object):
                 observable_params = {
                     "zmin": 0.0,
                     "zmax": 1.00000,
-                    "Lambdasq": 0,
-                    "mUV": 1000,
+                    "Lambdasq": 50000,
+                    "mUV": 100,
                     "mursq": 1,
                 }
 
@@ -855,6 +860,11 @@ class DY(object):
                     )
                     evaluator.source_graph_name = str(graph.dot.get_name()).strip('"')
                     evaluator.routed_graph_name = str(gg[3].get_name()).strip('"')
+                    evaluator.approximation_type = getattr(
+                        term_integrand,
+                        "approximation_type",
+                        None,
+                    )
                     evaluators.append(evaluator)
                 print("constructed evaluators")
 
@@ -1022,12 +1032,12 @@ class DY(object):
                         if self.diagrams
                         else ""
                     )
-                    self.gl_worker.run(  # GL06 GL14  --select-graphs GL00 GL01 GL03 GL04 GL05 GL08 GL12
-                        f"generate xs d g > t t~ | d d~ g t t~ ghG ghG~ [{{{{2}}}} QCD=1] --only-diagrams --symmetrize-left-right-states true --symmetrize-initial-states true{select_graphs} -p {base_name} -i {graphs_process_name} --max-multiplicity-for-fast-cut-filter 99"
-                    )
-                    # self.gl_worker.run(  # GL06 GL14  --select-graphs GL14
-                    #    f"generate xs d d~ > t t~ | d d~ g t t~ ghG ghG~ [{{{{2}}}} QCD=1] --only-diagrams --numerator-grouping group_identical_graphs_up_to_scalar_rescaling --symmetrize-left-right-states true --symmetrize-initial-states true --select-graphs GL00 -p {base_name} -i {graphs_process_name} --max-multiplicity-for-fast-cut-filter 99"
+                    # self.gl_worker.run(  # GL06 GL14  --select-graphs GL00 GL01 GL03 GL04 GL05 GL08 GL12
+                    #    f"generate xs d g > t t~ | d d~ g t t~ ghG ghG~ [{{{{2}}}} QCD=1] --only-diagrams --symmetrize-left-right-states true --symmetrize-initial-states true{select_graphs} -p {base_name} -i {graphs_process_name} --max-multiplicity-for-fast-cut-filter 99"
                     # )
+                    self.gl_worker.run(  # GL06 GL14  --select-graphs GL14
+                        f"generate xs d d~ > t t~ | d d~ g t t~ ghG ghG~ [{{{{2}}}} QCD=1] --only-diagrams --numerator-grouping group_identical_graphs_up_to_scalar_rescaling --symmetrize-left-right-states true --symmetrize-initial-states true{select_graphs} -p {base_name} -i {graphs_process_name} --max-multiplicity-for-fast-cut-filter 99"
+                    )
                 else:
                     raise ValueError(
                         "t t~ is the only implemented process at two loops"
@@ -1524,6 +1534,16 @@ class DY(object):
                             "theta_tolerance": float(arb_impl.get("dy_theta_tol", 0.0)),
                             "channel_selector": channel_selector,
                         }
+                        integrated_uv_ct_filter = arb_impl.get(
+                            "dy_integrated_uv_ct_filter"
+                        )
+                        if (
+                            integrated_uv_ct_filter is not None
+                            and str(integrated_uv_ct_filter).replace("-", "_") != "all"
+                        ):
+                            arb_terms_kwargs["integrated_uv_ct_filter"] = (
+                                integrated_uv_ct_filter
+                            )
                         if arb_impl.get("dy_ttbar_pt_min") is not None:
                             arb_terms_kwargs["ttbar_pt_min"] = (
                                 self._validate_ttbar_pt_min(arb_impl["dy_ttbar_pt_min"])
@@ -1770,6 +1790,16 @@ class DY(object):
             "theta_tolerance": theta_tolerance,
             "channel_selector": channel_selector,
         }
+        integrated_uv_ct_filter = (
+            integrand_implementation.get("dy_integrated_uv_ct_filter")
+            if integrand_implementation is not None
+            else None
+        )
+        if (
+            integrated_uv_ct_filter is not None
+            and str(integrated_uv_ct_filter).replace("-", "_") != "all"
+        ):
+            evaluate_kwargs["integrated_uv_ct_filter"] = integrated_uv_ct_filter
         if (
             integrand_implementation is not None
             and integrand_implementation.get("dy_ttbar_pt_min") is not None

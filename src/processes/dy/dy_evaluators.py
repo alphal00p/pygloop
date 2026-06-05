@@ -702,6 +702,7 @@ class DYCompiledTerm:
     integrand_evaluator: Evaluator | None = None
     ttbar_pt_sq_expression: Expression | None = None
     ttbar_pt_sq_evaluator: Evaluator | None = None
+    approximation_type: str | None = None
 
 
 class DYCompiledBundle:
@@ -905,15 +906,61 @@ class DYCompiledBundle:
     def graph_channel_count(self) -> int:
         return len(self._graph_group_names)
 
-    def terms_for_channel(self, channel_selector: int | None) -> list[DYCompiledTerm]:
-        if channel_selector is None:
-            return self.terms
-        if channel_selector < 0 or channel_selector >= self.graph_channel_count():
+    @staticmethod
+    def _normalise_integrated_uv_ct_filter(value: str | None) -> str:
+        if value is None:
+            return "all"
+        normalised = str(value).replace("-", "_")
+        if normalised not in {"all", "only", "exclude"}:
             raise pygloopException(
-                f"DY graph channel {channel_selector} out of range for bundle "
-                f"'{self.integrand_name}' with {self.graph_channel_count()} channels."
+                "DY integrated UV counterterm filter must be one of "
+                "'all', 'only', or 'exclude'."
             )
-        return self._graph_group_terms[self._graph_group_names[channel_selector]]
+        return normalised
+
+    def _filter_terms_by_approximation_type(
+        self,
+        terms: list[DYCompiledTerm],
+        integrated_uv_ct_filter: str | None,
+    ) -> list[DYCompiledTerm]:
+        integrated_uv_ct_filter = self._normalise_integrated_uv_ct_filter(
+            integrated_uv_ct_filter
+        )
+        if integrated_uv_ct_filter == "all":
+            return terms
+
+        missing = [
+            term.evaluator_name for term in terms if term.approximation_type is None
+        ]
+        if missing:
+            raise pygloopException(
+                "DY integrated UV counterterm filtering requires term "
+                "approximation metadata. Regenerate the compiled DY bundle. "
+                f"Missing metadata for: {', '.join(missing[:8])}"
+            )
+
+        if integrated_uv_ct_filter == "only":
+            return [term for term in terms if term.approximation_type == "uv_int"]
+        return [term for term in terms if term.approximation_type != "uv_int"]
+
+    def terms_for_channel(
+        self,
+        channel_selector: int | None,
+        integrated_uv_ct_filter: str | None = "all",
+    ) -> list[DYCompiledTerm]:
+        if channel_selector is None:
+            terms = self.terms
+        else:
+            if channel_selector < 0 or channel_selector >= self.graph_channel_count():
+                raise pygloopException(
+                    f"DY graph channel {channel_selector} out of range for bundle "
+                    f"'{self.integrand_name}' with {self.graph_channel_count()} channels."
+                )
+            terms = self._graph_group_terms[self._graph_group_names[channel_selector]]
+        return self._filter_terms_by_approximation_type(
+            terms,
+            integrated_uv_ct_filter,
+        )
 
     @classmethod
     def create_from_evaluators(
@@ -969,6 +1016,10 @@ class DYCompiledBundle:
             routed_graph_name = getattr(ev, "routed_graph_name", None)
             if routed_graph_name is not None:
                 additional_data["routed_graph_name"] = routed_graph_name
+            approximation_type = getattr(ev, "approximation_type", None)
+            if approximation_type is not None:
+                approximation_type = str(approximation_type)
+                additional_data["approximation_type"] = approximation_type
 
             pe = PygloopEvaluator(
                 evaluator=ev.evaluator,
@@ -1064,6 +1115,7 @@ class DYCompiledBundle:
                     ),
                     t_initial_guess=1.0,
                     graph_group_name=graph_group_name,
+                    approximation_type=approximation_type,
                 )
             )
 
@@ -1134,6 +1186,7 @@ class DYCompiledBundle:
                     ),
                     "t_initial_guess": t.t_initial_guess,
                     "graph_group_name": t.graph_group_name,
+                    "approximation_type": t.approximation_type,
                 }
                 for i, t in enumerate(terms)
             ],
@@ -1162,6 +1215,11 @@ class DYCompiledBundle:
             graph_group_name = t.get("graph_group_name")
             if graph_group_name is None:
                 graph_group_name = cls._graph_group_name_from_evaluator_name(name)
+            approximation_type = t.get("approximation_type")
+            if approximation_type is None:
+                approximation_type = evaluators[name].additional_data.get(
+                    "approximation_type"
+                )
             e_surface_raw = t.get("e_surface")
             theta_raw = t.get("theta_expressions", [])
             integrand_raw = t.get("integrand_expression")
@@ -1195,6 +1253,11 @@ class DYCompiledBundle:
                     ),
                     t_initial_guess=float(t.get("t_initial_guess", 1.0)),
                     graph_group_name=graph_group_name,
+                    approximation_type=(
+                        str(approximation_type)
+                        if approximation_type is not None
+                        else None
+                    ),
                 )
             )
 
@@ -1829,6 +1892,7 @@ class DYCompiledBundle:
         theta_tolerance: float = 0.0,
         channel_selector: int | None = None,
         ttbar_pt_min: float | None = None,
+        integrated_uv_ct_filter: str | None = "all",
     ) -> Decimal:
         total, _term_values = self.evaluate_arb_terms(
             loop_momenta,
@@ -1840,6 +1904,7 @@ class DYCompiledBundle:
             theta_tolerance=theta_tolerance,
             channel_selector=channel_selector,
             ttbar_pt_min=ttbar_pt_min,
+            integrated_uv_ct_filter=integrated_uv_ct_filter,
         )
         return total
 
@@ -1854,6 +1919,7 @@ class DYCompiledBundle:
         theta_tolerance: float = 0.0,
         channel_selector: int | None = None,
         ttbar_pt_min: float | None = None,
+        integrated_uv_ct_filter: str | None = "all",
     ) -> tuple[Decimal, list[tuple[str, Decimal]]]:
         self.require_fallback_supported(decimal_digit_precision)
 
@@ -1867,7 +1933,7 @@ class DYCompiledBundle:
         term_values: list[tuple[str, Decimal]] = []
         theta_tol = self._decimal_from_number(theta_tolerance)
 
-        for term in self.terms_for_channel(channel_selector):
+        for term in self.terms_for_channel(channel_selector, integrated_uv_ct_filter):
             my_t0 = self._initial_t_guess(term, vals, p1x, p1y, p1z)
             t_sol = self.solve_t_convex_bisect_prec(
                 term.e_surface,
@@ -1940,6 +2006,7 @@ class DYCompiledBundle:
         theta_tolerance: float = 0.0,
         channel_selector: int | None = None,
         ttbar_pt_min: float | None = None,
+        integrated_uv_ct_filter: str | None = "all",
     ) -> complex:
         if mode == "arb":
             if decimal_digit_precision is None:
@@ -1956,6 +2023,7 @@ class DYCompiledBundle:
                         theta_tolerance=theta_tolerance,
                         channel_selector=channel_selector,
                         ttbar_pt_min=ttbar_pt_min,
+                        integrated_uv_ct_filter=integrated_uv_ct_filter,
                     )
                 ),
                 0.0,
@@ -1971,7 +2039,7 @@ class DYCompiledBundle:
         theta_tol = float(theta_tolerance)
 
         # Sum over all cut graphs
-        for term in self.terms_for_channel(channel_selector):
+        for term in self.terms_for_channel(channel_selector, integrated_uv_ct_filter):
             my_t0 = self._initial_t_guess(term, vals, p1x, p1y, p1z)
 
             t_sol = self.solve_t_newton_bisect(

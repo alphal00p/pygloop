@@ -159,6 +159,16 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
         help="DY only: set final weighted samples above --dy-large-weight-threshold to zero.",
     )
     parser.add_argument(
+        "--dy-integrated-uv-ct-filter",
+        choices=["all", "only", "exclude"],
+        default="all",
+        help=(
+            "DY zenos integration only: select integrated UV counterterm terms. "
+            "'all' integrates every term, 'only' integrates only integrated UV "
+            "counterterms, and 'exclude' integrates everything except them."
+        ),
+    )
+    parser.add_argument(
         "--dy-accept-all-arb-retries",
         action="store_true",
         default=False,
@@ -337,6 +347,16 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
     parser_integrate.add_argument("--run-workspace-name", "-rn", type=str, default=None,
         help="Name of the workspace to use for this run. Default = %(default)s",
     )  # fmt: off
+    parser_integrate.add_argument(
+        "--dy-integrated-uv-ct-filter",
+        choices=["all", "only", "exclude"],
+        default=argparse.SUPPRESS,
+        help=(
+            "DY zenos integration only: select integrated UV counterterm terms. "
+            "'all' integrates every term, 'only' integrates only integrated UV "
+            "counterterms, and 'exclude' integrates everything except them."
+        ),
+    )
 
     # Create the parser for the "plot" command
     parser_plot = subparsers.add_parser("plot", help="Plot the integrand.")
@@ -618,6 +638,9 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
         )
         integrand_implementation["dy_zero_large_weight_samples"] = (
             args.dy_zero_large_weight_samples
+        )
+        integrand_implementation["dy_integrated_uv_ct_filter"] = (
+            args.dy_integrated_uv_ct_filter
         )
         integrand_implementation["dy_accept_all_arb_retries"] = (
             args.dy_accept_all_arb_retries

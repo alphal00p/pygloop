@@ -2,11 +2,13 @@ import json
 import os
 import re
 from copy import deepcopy
+from fractions import Fraction
 from functools import lru_cache
 
 import pydot
-from symbolica import AtomType, E, Expression, S  # pyright: ignore
+from symbolica import AtomType, E, Expression, Replacement, S  # pyright: ignore
 from symbolica.community.idenso import (  # pyright: ignore
+    simplify_color,
     simplify_gamma,
     simplify_metrics,
 )
@@ -46,6 +48,8 @@ def _normalise_uv_external_particle(particle: str) -> str:
         return "ghG"
     if particle == "ghG~":
         return "ghG"
+    if particle == "t~":
+        return "t"
     return particle
 
 
@@ -71,8 +75,12 @@ def _external_particles_from_process(process: str) -> list[str]:
         return ["g", "g"]
     if process == "d > d":
         return ["d", "d"]
+    if process == "t > t":
+        return ["t", "t"]
     if process == "d d~ > g":
         return ["d", "d~", "g"]
+    if process == "t t~ > g":
+        return ["t", "t~", "g"]
     return []
 
 
@@ -231,8 +239,19 @@ def _uv_process_from_external_particles(particles: list[str]) -> str | None:
         and _uv_particle_multiset(particles, _normalise_uv_particle) == ("d", "d")
     ):
         return "d > d"
+    if (
+        len(particles) == 2
+        and _uv_particle_multiset(particles, _normalise_uv_particle) == ("t", "t")
+    ):
+        return "t > t"
     if external_multiset == ("d", "d~", "g"):
         return "d d~ > g"
+    if (
+        len(particles) == 3
+        and _uv_particle_multiset(particles, _normalise_uv_particle)
+        == ("g", "t", "t")
+    ):
+        return "t t~ > g"
     return None
 
 
@@ -339,38 +358,57 @@ def _remap_external_hedges(
 
 
 def _contract_lorentz_metrics(expr: Expression) -> Expression:
-    replacements = [
-        (
-            E("g(mink(4,left_),mink(4,right_))*gamma(a_,b_,mink(4,right_))"),
-            E("gamma(a_,b_,mink(4,left_))"),
-        ),
-        (
-            E("g(mink(4,left_),mink(4,right_))*gamma(a_,b_,mink(4,left_))"),
-            E("gamma(a_,b_,mink(4,right_))"),
-        ),
-        (
-            E("g(mink(4,left_),mink(4,right_))*Q(edge_,mink(4,right_))"),
-            E("Q(edge_,mink(4,left_))"),
-        ),
-        (
-            E("g(mink(4,left_),mink(4,right_))*Q(edge_,mink(4,left_))"),
-            E("Q(edge_,mink(4,right_))"),
-        ),
-        (
-            E(
-                "g(mink(4,left_),mink(4,right_))"
-                "*g(mink(4,right_),mink(4,other_))"
-            ),
-            E("g(mink(4,left_),mink(4,other_))"),
-        ),
-        (
-            E(
-                "g(mink(4,left_),mink(4,right_))"
-                "*g(mink(4,left_),mink(4,other_))"
-            ),
-            E("g(mink(4,right_),mink(4,other_))"),
-        ),
-    ]
+    replacements = []
+    for prefix in ["", "spenso::"]:
+        g = f"{prefix}g"
+        mink = f"{prefix}mink"
+        gamma = f"{prefix}gamma"
+        replacements.extend(
+            [
+                (
+                    E(
+                        f"{g}({mink}(4,left_),{mink}(4,right_))"
+                        f"*{gamma}(a_,b_,{mink}(4,right_))"
+                    ),
+                    E(f"{gamma}(a_,b_,{mink}(4,left_))"),
+                ),
+                (
+                    E(
+                        f"{g}({mink}(4,left_),{mink}(4,right_))"
+                        f"*{gamma}(a_,b_,{mink}(4,left_))"
+                    ),
+                    E(f"{gamma}(a_,b_,{mink}(4,right_))"),
+                ),
+                (
+                    E(
+                        f"{g}({mink}(4,left_),{mink}(4,right_))"
+                        f"*Q(edge_,{mink}(4,right_))"
+                    ),
+                    E(f"Q(edge_,{mink}(4,left_))"),
+                ),
+                (
+                    E(
+                        f"{g}({mink}(4,left_),{mink}(4,right_))"
+                        f"*Q(edge_,{mink}(4,left_))"
+                    ),
+                    E(f"Q(edge_,{mink}(4,right_))"),
+                ),
+                (
+                    E(
+                        f"{g}({mink}(4,left_),{mink}(4,right_))"
+                        f"*{g}({mink}(4,right_),{mink}(4,other_))"
+                    ),
+                    E(f"{g}({mink}(4,left_),{mink}(4,other_))"),
+                ),
+                (
+                    E(
+                        f"{g}({mink}(4,left_),{mink}(4,right_))"
+                        f"*{g}({mink}(4,left_),{mink}(4,other_))"
+                    ),
+                    E(f"{g}({mink}(4,right_),{mink}(4,other_))"),
+                ),
+            ]
+        )
 
     for _ in range(8):
         previous = expr.to_canonical_string()
@@ -379,6 +417,113 @@ def _contract_lorentz_metrics(expr: Expression) -> Expression:
         if expr.to_canonical_string() == previous:
             break
     return expr.expand()
+
+
+def _strip_namespaces_structurally(expr: Expression) -> Expression:
+    args__ = S("args__")
+    atom_repls = []
+    seen = set()
+
+    for sym in expr.get_all_symbols():
+        full = sym.get_name()
+        if "::" not in full:
+            continue
+        if full.startswith("symbolica::"):
+            continue
+        if full in seen:
+            continue
+        seen.add(full)
+
+        short = full.rsplit("::", 1)[-1]
+        old = S(full)
+        new = S(short)
+        expr = expr.replace(
+            old(args__),
+            new(args__),
+            allow_new_wildcards_on_rhs=True,
+        )
+        atom_repls.append(Replacement(old, new))
+
+    if atom_repls:
+        expr = expr.replace_multiple(atom_repls)
+
+    return expr
+
+
+def _contract_lorentz_momentum_pairs(expr: Expression) -> Expression:
+    expr = expr.replace(
+        E("Q(y_,mink(4,x_))") * E("Q(z_,mink(4,x_))"),
+        E("sp(y_,z_)"),
+        repeat=True,
+    )
+    expr = expr.replace(
+        E("Qp(y_,mink(4,x_))") * E("Q(z_,mink(4,x_))"),
+        E("spp(qp(y_),z_)"),
+        repeat=True,
+    )
+    return expr.replace(
+        E("Qp(y_,mink(4,x_))") * E("Qp(z_,mink(4,x_))"),
+        E("spp(qp(y_),qp(z_))"),
+        repeat=True,
+    )
+
+
+def _raw_uv_int_graph_numerator(graph) -> Expression:
+    numerator = E("1")
+    for node in graph.get_nodes():
+        if node.get_name() in ["edge", "node"]:
+            continue
+        node_numerator = node.get("num")
+        if node_numerator:
+            numerator *= Es(node_numerator)
+    for edge in graph.get_edges():
+        edge_numerator = edge.get("num")
+        if edge_numerator:
+            numerator *= Es(edge_numerator)
+    return numerator
+
+
+def _graph_without_numerators(graph):
+    graph_without_numerators = deepcopy(graph)
+    for node in graph_without_numerators.get_nodes():
+        node.get_attributes().pop("num", None)
+    for edge in graph_without_numerators.get_edges():
+        edge.get_attributes().pop("num", None)
+    return graph_without_numerators
+
+
+def _close_uv_int_tensor_numerator(expr: Expression) -> Expression:
+    for _ in range(8):
+        previous = expr.to_canonical_string()
+        expr = _contract_lorentz_metrics(expr)
+        expr = simplify_metrics(simplify_gamma(simplify_color(expr))).expand()
+        expr = _contract_lorentz_metrics(expr)
+        if expr.to_canonical_string() == previous:
+            break
+    expr = _strip_namespaces_structurally(expr)
+    expr = _contract_lorentz_metrics(expr)
+    expr = _contract_lorentz_momentum_pairs(expr).expand()
+    return expr
+
+
+def _open_lorentz_momenta(expr: Expression) -> list[str]:
+    momenta = []
+    for pattern in [
+        E("Q(edge_,mink(4,slot_))"),
+        E("Qp(edge_,mink(4,slot_))"),
+    ]:
+        for match in expr.match(pattern):
+            edge = match[S("edge_")].to_canonical_string()
+            slot = match[S("slot_")].to_canonical_string()
+            momenta.append(f"{edge}:{slot}")
+    return list(dict.fromkeys(momenta))
+
+
+def _uv_int_numerator_factorisation(graph):
+    closed_numerator = _close_uv_int_tensor_numerator(
+        _raw_uv_int_graph_numerator(graph)
+    )
+    return _graph_without_numerators(graph), closed_numerator
 
 
 def _match_uv_external_edges(reference_edges, surviving_ports, boundary_edges):
@@ -401,6 +546,31 @@ def _match_uv_external_edges(reference_edges, surviving_ports, boundary_edges):
         _normalise_uv_external_particle(edge.get("particle", ""))
         for edge in reference_edges
     ]
+    if (
+        len(reference_particles) == 3
+        and reference_particles.count("t") == 2
+        and reference_particles.count("g") == 1
+    ):
+        actual_t_edges = [edge for edge in actual_edges if edge["particle"] == "t"]
+        actual_g_edges = [edge for edge in actual_edges if edge["particle"] == "g"]
+        if len(actual_t_edges) != 2 or len(actual_g_edges) != 1:
+            return None
+
+        top_edges = iter(actual_t_edges)
+        external_mappings = []
+        for reference_edge, reference_particle in zip(
+            reference_edges, reference_particles, strict=True
+        ):
+            actual_edge = actual_g_edges[0] if reference_particle == "g" else next(top_edges)
+            external_mappings.append(
+                {
+                    "reference": reference_edge,
+                    "actual_port": actual_edge["port"],
+                    "actual_edge": actual_edge["edge"],
+                }
+            )
+        return external_mappings
+
     if len(reference_particles) == len(set(reference_particles)):
         actual_by_particle = {edge["particle"]: edge for edge in actual_edges}
         if set(actual_by_particle) != set(reference_particles):
@@ -452,9 +622,54 @@ def _remap_uv_integrated_expression(expr: Expression, external_mappings) -> Expr
     return _contract_lorentz_metrics(expr)
 
 
-def _compact_label_maps(external_mappings):
+_COMPACT_FREE_LORENTZ_LABELS = ("mu", "nu", "rho", "sigma", "alpha", "beta")
+
+
+def _port_suffix(endpoint: object) -> str | None:
+    endpoint = str(endpoint)
+    if ":" not in endpoint:
+        return None
+    return endpoint.split(":", 1)[1]
+
+
+def _compact_fermion_color_slot(edge, actual_port: str) -> str:
+    if _port_suffix(edge.get_destination()) == actual_port:
+        return f"cof(3,hedge({actual_port}))"
+    return f"dind(cof(3,hedge({actual_port})))"
+
+
+def _external_routing_component(edge, key: str) -> Fraction:
+    value = _strip_quotes(str(edge.get_attributes().get(key, "0"))).strip()
+    if value in {"", "+0", "-0"}:
+        value = "0"
+    return Fraction(value)
+
+
+def _external_edges_have_opposite_routing(edge_a, edge_b) -> bool:
+    edge_a_atts = edge_a.get_attributes()
+    edge_b_atts = edge_b.get_attributes()
+    routing_keys = sorted(
+        {
+            key
+            for key in set(edge_a_atts) | set(edge_b_atts)
+            if key.startswith("routing_k") or key in {"routing_p1", "routing_p2"}
+        }
+    )
+    if not routing_keys:
+        return False
+    return all(
+        _external_routing_component(edge_a, key)
+        == -_external_routing_component(edge_b, key)
+        for key in routing_keys
+    )
+
+
+def _compact_remapping_maps(external_mappings):
     index_slots = {}
     momentum_edges = {}
+    momentum_edge_by_slot = {}
+    momentum_actual_edges = {}
+    momentum_slots = {}
 
     for mapping in external_mappings:
         reference = mapping["reference"]
@@ -467,40 +682,132 @@ def _compact_label_maps(external_mappings):
 
         if particle == "g" and len(labels) >= 3:
             index_slots[str(labels[0])] = f"mink(4,hedge({actual_port}))"
-            momentum_edges.setdefault(str(labels[1]), edge_id)
+            momentum_edges.setdefault(str(labels[1]), []).append(edge_id)
+            momentum_actual_edges.setdefault(str(labels[1]), []).append(
+                mapping["actual_edge"]
+            )
+            momentum_slots.setdefault(str(labels[1]), []).append(str(labels[0]))
+            momentum_edge_by_slot[(str(labels[1]), str(labels[0]))] = edge_id
             index_slots[str(labels[2])] = f"coad(8,hedge({actual_port}))"
         elif particle == "d" and len(labels) >= 3:
             index_slots[str(labels[0])] = f"bis(4,hedge({actual_port}))"
-            momentum_edges.setdefault(str(labels[1]), edge_id)
+            momentum_edges.setdefault(str(labels[1]), []).append(edge_id)
+            momentum_actual_edges.setdefault(str(labels[1]), []).append(
+                mapping["actual_edge"]
+            )
+            momentum_slots.setdefault(str(labels[1]), []).append(str(labels[0]))
+            momentum_edge_by_slot[(str(labels[1]), str(labels[0]))] = edge_id
             index_slots[str(labels[2])] = f"cof(3,hedge({actual_port}))"
+        elif particle == "t" and len(labels) >= 3:
+            index_slots[str(labels[0])] = f"bis(4,hedge({actual_port}))"
+            momentum_edges.setdefault(str(labels[1]), []).append(edge_id)
+            momentum_actual_edges.setdefault(str(labels[1]), []).append(
+                mapping["actual_edge"]
+            )
+            momentum_slots.setdefault(str(labels[1]), []).append(str(labels[0]))
+            momentum_edge_by_slot[(str(labels[1]), str(labels[0]))] = edge_id
+            index_slots[str(labels[2])] = _compact_fermion_color_slot(
+                mapping["actual_edge"],
+                actual_port,
+            )
         elif particle == "d~" and len(labels) >= 3:
             index_slots[str(labels[0])] = f"bis(4,hedge({actual_port}))"
-            momentum_edges.setdefault(str(labels[1]), edge_id)
+            momentum_edges.setdefault(str(labels[1]), []).append(edge_id)
+            momentum_actual_edges.setdefault(str(labels[1]), []).append(
+                mapping["actual_edge"]
+            )
+            momentum_slots.setdefault(str(labels[1]), []).append(str(labels[0]))
+            momentum_edge_by_slot[(str(labels[1]), str(labels[0]))] = edge_id
             index_slots[str(labels[2])] = f"dind(cof(3,hedge({actual_port})))"
 
-    return index_slots, momentum_edges
+    momentum_signs = {}
+    momentum_factors = {}
+    for momentum_label, edge_ids in momentum_edges.items():
+        signs = [1] * len(edge_ids)
+        actual_edges = momentum_actual_edges.get(momentum_label, [])
+        if (
+            len(edge_ids) == 2
+            and len(actual_edges) == 2
+            and _external_edges_have_opposite_routing(actual_edges[0], actual_edges[1])
+        ):
+            signs[1] = -1
+        momentum_factors[momentum_label] = list(zip(edge_ids, signs, strict=True))
+        for slot_label, sign in zip(
+            momentum_slots.get(momentum_label, []),
+            signs,
+            strict=True,
+        ):
+            momentum_signs[(momentum_label, slot_label)] = sign
+
+    return index_slots, momentum_factors, momentum_edge_by_slot, momentum_signs
+
+
+def _compact_label_maps(external_mappings):
+    (
+        index_slots,
+        momentum_factors,
+        _momentum_edge_by_slot,
+        _momentum_signs,
+    ) = _compact_remapping_maps(external_mappings)
+    return index_slots, {
+        momentum_label: factors[0][0]
+        for momentum_label, factors in momentum_factors.items()
+    }
+
+
+def _signed_compact_q(edge_id: str, slot: str, sign: int) -> Expression:
+    q = Eu(f"Q({edge_id},{slot})")
+    if sign < 0:
+        return E("-1") * q
+    return q
 
 
 def _replace_compact_momentum_functions(
     expr: Expression,
     index_slots: dict[str, str],
-    momentum_edges: dict[str, str],
+    momentum_factors: dict[str, list[tuple[str, int]]],
+    momentum_edge_by_slot: dict[tuple[str, str], str],
+    momentum_signs: dict[tuple[str, str], int],
 ) -> Expression:
-    for momentum_label, edge_id in momentum_edges.items():
+    for momentum_label, factors in momentum_factors.items():
+        fallback_edge_id, fallback_sign = factors[0]
         for slot_label, slot in index_slots.items():
+            edge_id = momentum_edge_by_slot.get(
+                (momentum_label, slot_label),
+                fallback_edge_id,
+            )
+            sign = momentum_signs.get((momentum_label, slot_label), fallback_sign)
             expr = expr.replace(
                 Eu(f"{momentum_label}({slot_label})"),
-                Eu(f"Q({edge_id},{slot})"),
+                _signed_compact_q(edge_id, slot, sign),
+                repeat=True,
+            )
+        for lorentz_label in _COMPACT_FREE_LORENTZ_LABELS:
+            expr = expr.replace(
+                Eu(f"{momentum_label}({lorentz_label})"),
+                _signed_compact_q(
+                    fallback_edge_id,
+                    f"mink(4,{lorentz_label})",
+                    fallback_sign,
+                ),
                 repeat=True,
             )
 
-    for left_label, left_edge in momentum_edges.items():
-        for right_label, right_edge in momentum_edges.items():
+    for left_label, left_factors in momentum_factors.items():
+        for right_label, right_factors in momentum_factors.items():
+            left_edge, left_sign = left_factors[0]
+            right_edge, right_sign = right_factors[0]
+            if left_label == right_label and len(left_factors) >= 2:
+                right_edge, right_sign = left_factors[1]
             expr = expr.replace(
                 Eu(f"sp({left_label},{right_label})"),
-                Eu(
-                    f"Q({left_edge},mink(4,rho))*"
-                    f"Q({right_edge},mink(4,rho))"
+                (
+                    _signed_compact_q(left_edge, "mink(4,rho)", left_sign)
+                    * _signed_compact_q(
+                        right_edge,
+                        "mink(4,rho)",
+                        right_sign,
+                    )
                 ),
                 repeat=True,
             )
@@ -510,29 +817,72 @@ def _replace_compact_momentum_functions(
 def _replace_compact_spin_color_functions(
     expr: Expression,
     index_slots: dict[str, str],
+    transpose_gamma_spinors: bool = False,
+    transpose_color_spinors: bool = False,
+    replace_free_lorentz_gamma: bool = False,
+    replace_spin_delta: bool = False,
 ) -> Expression:
     labels = set(index_slots)
     for first in labels:
         for second in labels:
             for third in labels:
-                expr = expr.replace(
-                    Eu(f"gamma({first},{second},{third})"),
-                    Eu(
+                if transpose_gamma_spinors:
+                    gamma_replacement = Eu(
+                        f"gamma({index_slots[first]},"
+                        f"{index_slots[third]},"
+                        f"{index_slots[second]})"
+                    )
+                else:
+                    gamma_replacement = Eu(
                         f"gamma({index_slots[third]},"
                         f"{index_slots[first]},"
                         f"{index_slots[second]})"
-                    ),
+                    )
+                expr = expr.replace(
+                    Eu(f"gamma({first},{second},{third})"),
+                    gamma_replacement,
                     repeat=True,
                 )
                 expr = expr.replace(
                     Eu(f"T({first},{second},{third})"),
-                    Eu(
-                        f"t({index_slots[second]},"
-                        f"{index_slots[first]},"
-                        f"{index_slots[third]})"
+                    (
+                        Eu(
+                            f"t({index_slots[second]},"
+                            f"{index_slots[third]},"
+                            f"{index_slots[first]})"
+                        )
+                        if transpose_color_spinors
+                        else Eu(
+                            f"t({index_slots[second]},"
+                            f"{index_slots[first]},"
+                            f"{index_slots[third]})"
+                        )
                     ),
                     repeat=True,
                 )
+        if replace_spin_delta and index_slots[first].startswith("bis("):
+            for second in labels:
+                if not index_slots[second].startswith("bis("):
+                    continue
+                expr = expr.replace(
+                    Eu(f"delta({first},{second})"),
+                    Eu(f"g({index_slots[first]},{index_slots[second]})"),
+                    repeat=True,
+                )
+        if replace_free_lorentz_gamma and index_slots[first].startswith("bis("):
+            for third in labels:
+                if not index_slots[third].startswith("bis("):
+                    continue
+                for lorentz_label in _COMPACT_FREE_LORENTZ_LABELS:
+                    expr = expr.replace(
+                        Eu(f"gamma({first},{lorentz_label},{third})"),
+                        Eu(
+                            f"gamma({index_slots[first]},"
+                            f"{index_slots[third]},"
+                            f"mink(4,{lorentz_label}))"
+                        ),
+                        repeat=True,
+                    )
     return expr
 
 
@@ -547,12 +897,62 @@ def _replace_compact_index_labels(
     return expr
 
 
+def _actual_port_is_source(mapping) -> bool:
+    return _port_suffix(mapping["actual_edge"].get_source()) == str(
+        mapping["actual_port"]
+    )
+
+
+def _actual_port_is_destination(mapping) -> bool:
+    return _port_suffix(mapping["actual_edge"].get_destination()) == str(
+        mapping["actual_port"]
+    )
+
+
+def _transpose_compact_top_gluon_spinors(external_mappings) -> bool:
+    external_particles = tuple(
+        _normalise_uv_external_particle(mapping["reference"].get("particle", ""))
+        for mapping in external_mappings
+    )
+    return (
+        external_particles == ("t", "t", "g")
+        and _actual_port_is_source(external_mappings[0])
+        and _actual_port_is_destination(external_mappings[1])
+    )
+
+
 def _remap_compact_uv_integrated_expression(
     expr: Expression, external_mappings
 ) -> Expression:
-    index_slots, momentum_edges = _compact_label_maps(external_mappings)
-    expr = _replace_compact_momentum_functions(expr, index_slots, momentum_edges)
-    expr = _replace_compact_spin_color_functions(expr, index_slots)
+    (
+        index_slots,
+        momentum_factors,
+        momentum_edge_by_slot,
+        momentum_signs,
+    ) = _compact_remapping_maps(external_mappings)
+    expr = _replace_compact_momentum_functions(
+        expr,
+        index_slots,
+        momentum_factors,
+        momentum_edge_by_slot,
+        momentum_signs,
+    )
+    external_particles = tuple(
+        _normalise_uv_external_particle(mapping["reference"].get("particle", ""))
+        for mapping in external_mappings
+    )
+    transpose_top_gluon_spinors = _transpose_compact_top_gluon_spinors(
+        external_mappings
+    )
+    expr = _replace_compact_spin_color_functions(
+        expr,
+        index_slots,
+        transpose_gamma_spinors=external_particles == ("d", "d~", "g")
+        or transpose_top_gluon_spinors,
+        transpose_color_spinors=transpose_top_gluon_spinors,
+        replace_free_lorentz_gamma=external_particles == ("t", "t"),
+        replace_spin_delta=external_particles == ("t", "t"),
+    )
     expr = _replace_compact_index_labels(expr, index_slots)
     return _contract_lorentz_metrics(expr)
 
@@ -610,6 +1010,126 @@ def _format_compact_uv_integrated_numerator(expr: Expression) -> str:
         expr_str,
     )
     return expr_str.replace("+-", "-")
+
+
+def _edge_loop_indices(edge, n_loops: int) -> set[int]:
+    edge_atts = edge.get_attributes()
+    loop_indices = set()
+    for i in range(n_loops):
+        value = edge_atts.get(f"routing_k{i}")
+        if value is None:
+            continue
+        if _strip_quotes(str(value)).strip() in {"0", "+0", "-0"}:
+            continue
+        loop_indices.add(i)
+    return loop_indices
+
+
+def _common_uv_loop_indices(cycle, n_loops: int) -> list[int]:
+    common_indices = None
+    for edge in cycle:
+        edge_indices = _edge_loop_indices(edge, n_loops)
+        common_indices = (
+            set(edge_indices)
+            if common_indices is None
+            else common_indices & edge_indices
+        )
+    return sorted(common_indices or [])
+
+
+def _routing_component(edge, key: str) -> str:
+    return _strip_quotes(str(edge.get_attributes().get(key, "0"))).strip()
+
+
+def _same_routing(edge_a, edge_b, n_loops: int) -> bool:
+    keys = [f"routing_k{i}" for i in range(n_loops + 1)]
+    keys.extend(["routing_p1", "routing_p2"])
+    return all(
+        _routing_component(edge_a, key) == _routing_component(edge_b, key)
+        for key in keys
+    )
+
+
+def _repeated_top_two_point_edges(external_mappings, n_loops: int):
+    if len(external_mappings) != 2:
+        return None
+    particles = [
+        _normalise_uv_external_particle(mapping["reference"].get("particle", ""))
+        for mapping in external_mappings
+    ]
+    if particles != ["t", "t"]:
+        return None
+
+    edges = [mapping["actual_edge"] for mapping in external_mappings]
+    if not _same_routing(edges[0], edges[1], n_loops):
+        return None
+    return tuple(
+        _strip_quotes(str(edge.get_attributes()["id"]))
+        for edge in edges
+    )
+
+
+def _regularise_repeated_two_point_integrated_ct(
+    expr: Expression,
+    external_mappings,
+    n_loops: int,
+    cut_graph=None,
+) -> Expression:
+    repeated_edges = _repeated_top_two_point_edges(external_mappings, n_loops)
+    if repeated_edges is None:
+        return expr
+
+    repeated_id, other_id = repeated_edges
+    cut_repeated_ids = []
+    if cut_graph is not None:
+        cut_ids = {
+            _strip_quotes(str(edge.get_attributes()["id"]))
+            for edge in list(cut_graph.initial_cut) + list(cut_graph.final_cut)
+        }
+        cut_repeated_ids = [
+            edge_id for edge_id in repeated_edges if edge_id in cut_ids
+        ]
+        if len(cut_repeated_ids) == 1:
+            repeated_id = cut_repeated_ids[0]
+            other_id = (
+                repeated_edges[1]
+                if repeated_id == repeated_edges[0]
+                else repeated_edges[0]
+            )
+
+    same = E("__uv_int_same")
+    repeated_energy = E(f"E({repeated_id})")
+    other_energy = E(f"E({other_id})")
+    expr = (
+        (expr * (repeated_energy - other_energy) * (E("2") * repeated_energy))
+        .replace(repeated_energy, other_energy + same)
+        .series(same, 0, 0)
+        .to_expression()
+    )
+    if cut_graph is None or len(cut_repeated_ids) != 1:
+        return expr
+
+    initial_cut_ids = [
+        _strip_quotes(str(edge.get_attributes()["id"]))
+        for edge in cut_graph.initial_cut
+    ]
+    final_cut_ids = [
+        _strip_quotes(str(edge.get_attributes()["id"]))
+        for edge in cut_graph.final_cut
+    ]
+    replacement = (
+        sum(E(f"E({edge_id})") for edge_id in initial_cut_ids)
+        - sum(
+            E(f"E({edge_id})")
+            for edge_id in final_cut_ids
+            if edge_id != repeated_id
+        )
+    ).expand()
+
+    expr = -expr.replace(E(f"E({other_id})"), replacement)
+    expr = -expr.replace(E(f"En({repeated_id})"), replacement)
+    expr = -expr.replace(E(f"En({other_id})"), replacement)
+    return expr / E(f"E({repeated_id})")
 
 
 def construct_integrated_counter_term(
@@ -782,8 +1302,24 @@ def construct_integrated_counter_term(
         contraction_cut_graph.partition,
     )
     contracted_emr = subtraction.emr_processor.get_integrand(
-        deepcopy(contracted_cut_graph)
+        deepcopy(contracted_cut_graph),
+        numerator_factorisation=_uv_int_numerator_factorisation,
     )
+    contracted_emr = _regularise_repeated_two_point_integrated_ct(
+        contracted_emr,
+        external_mappings,
+        subtraction.L,
+        contracted_cut_graph,
+    )
+    open_lorentz_momenta = _open_lorentz_momenta(contracted_emr)
+    if open_lorentz_momenta:
+        graph_name = contracted_graph.get("base_graph_name") or contracted_graph.get_name()
+        raise ValueError(
+            "Integrated UV counterterm numerator for "
+            f"{graph_name} still contains open Lorentz momentum components "
+            "after EMR construction: "
+            f"{', '.join(open_lorentz_momenta[:8])}"
+        )
     routed_integrand = subtraction.replace_energies(contracted_emr, contracted_graph)
     routed_integrand = subtraction.route_integrand(routed_integrand, contracted_graph)
 
@@ -796,15 +1332,7 @@ def construct_integrated_counter_term(
             mass = E(f"m({e_particle})")
         routed_integrand = routed_integrand.replace(E(f"m({e_atts['id']})"), mass)
 
-    uv_loop_momentum = min(
-        cycle, key=lambda e: int(_strip_quotes(str(e.get_attributes()["id"])))
-    )
-    uv_loop_atts = uv_loop_momentum.get_attributes()
-    uv_loop_indices = [
-        i
-        for i in range(subtraction.L)
-        if uv_loop_atts.get(f"routing_k{i}") not in [None, "0"]
-    ]
+    uv_loop_indices = _common_uv_loop_indices(cycle, subtraction.L)
     if len(uv_loop_indices) != 1:
         return None
 
@@ -817,7 +1345,7 @@ def construct_integrated_counter_term(
         + E("mUV") ** 2
     )**2
 
-    routed_integrand *= normalising_tadpole
+    routed_integrand *= -normalising_tadpole / E("4")
 
     return routed_integrand_cls(
         routed_integrand,
