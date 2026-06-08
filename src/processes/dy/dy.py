@@ -840,7 +840,7 @@ class DY(object):
                     "zmin": 0.0,
                     "zmax": 1.00000,
                     "Lambdasq": 50000,
-                    "mUV": 100,
+                    "mUV": 2000,
                     "mursq": 1,
                 }
 

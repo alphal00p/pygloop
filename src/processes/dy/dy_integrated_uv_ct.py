@@ -798,7 +798,10 @@ def _replace_compact_momentum_functions(
             left_edge, left_sign = left_factors[0]
             right_edge, right_sign = right_factors[0]
             if left_label == right_label and len(left_factors) >= 2:
-                right_edge, right_sign = left_factors[1]
+                if left_factors[0][1] == left_factors[1][1]:
+                    right_edge, right_sign = left_factors[0]
+                else:
+                    right_edge, right_sign = left_factors[1]
             expr = expr.replace(
                 Eu(f"sp({left_label},{right_label})"),
                 (
@@ -1082,13 +1085,24 @@ def _regularise_repeated_two_point_integrated_ct(
     repeated_id, other_id = repeated_edges
     cut_repeated_ids = []
     if cut_graph is not None:
-        cut_ids = {
-            _strip_quotes(str(edge.get_attributes()["id"]))
-            for edge in list(cut_graph.initial_cut) + list(cut_graph.final_cut)
+        edge_by_id = {
+            _strip_quotes(str(edge.get_attributes()["id"])): edge
+            for edge in cut_graph.graph.get_edges()
         }
         cut_repeated_ids = [
-            edge_id for edge_id in repeated_edges if edge_id in cut_ids
+            edge_id
+            for edge_id in repeated_edges
+            if edge_by_id[edge_id].get_attributes().get("is_cut_DY") is not None
         ]
+        if len(cut_repeated_ids) != 1:
+            cut_repeated_ids = [
+                edge_id
+                for edge_id in repeated_edges
+                if _strip_quotes(
+                    str(edge_by_id[edge_id].get_attributes().get("is_cut", "0"))
+                )
+                not in {"", "0", "None"}
+            ]
         if len(cut_repeated_ids) == 1:
             repeated_id = cut_repeated_ids[0]
             other_id = (
