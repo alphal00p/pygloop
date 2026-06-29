@@ -783,6 +783,7 @@ class DY(object):
 
         channel = (1, 0)  # (1, -1)
         channel = (1, -1)
+        channel = (0, 0)
 
         processor = EMRIntegrandConstructor([], process_name, n_loops)
         loop_processor = LoopIntegrandConstructor(
@@ -1035,8 +1036,11 @@ class DY(object):
                     # self.gl_worker.run(  # GL06 GL14  --select-graphs GL00 GL01 GL03 GL04 GL05 GL08 GL12
                     #    f"generate xs d g > t t~ | d d~ g t t~ ghG ghG~ [{{{{2}}}} QCD=1] --only-diagrams --symmetrize-left-right-states true --symmetrize-initial-states true{select_graphs} -p {base_name} -i {graphs_process_name} --max-multiplicity-for-fast-cut-filter 99"
                     # )
+                    #self.gl_worker.run(  # GL06 GL14  --select-graphs GL14
+                    #    f"generate xs d d~ > t t~ | d d~ g t t~ ghG ghG~ [{{{{2}}}} QCD=1] --only-diagrams --numerator-grouping group_identical_graphs_up_to_scalar_rescaling --symmetrize-left-right-states true --symmetrize-initial-states true{select_graphs} -p {base_name} -i {graphs_process_name} --max-multiplicity-for-fast-cut-filter 99"
+                    #)
                     self.gl_worker.run(  # GL06 GL14  --select-graphs GL14
-                        f"generate xs d d~ > t t~ | d d~ g t t~ ghG ghG~ [{{{{2}}}} QCD=1] --only-diagrams --numerator-grouping group_identical_graphs_up_to_scalar_rescaling --symmetrize-left-right-states true --symmetrize-initial-states true{select_graphs} -p {base_name} -i {graphs_process_name} --max-multiplicity-for-fast-cut-filter 99"
+                        f"generate xs g g > t t~ | d d~ g t t~ ghG ghG~ [{{{{2}}}} QCD=1] --only-diagrams --numerator-grouping group_identical_graphs_up_to_scalar_rescaling --symmetrize-left-right-states true --symmetrize-initial-states true{select_graphs} -p {base_name} -i {graphs_process_name} --max-multiplicity-for-fast-cut-filter 99"
                     )
                 else:
                     raise ValueError(

@@ -3194,6 +3194,48 @@ class LoopIntegrandConstructor(object):
                                 lmb_choice.append(e_atts["id"])
                                 d_count += 1
 
+                if self.channel == (0, 0):
+                    base_graph_name = _strip_quotes(
+                        str(cut_graph.graph.get("base_graph_name"))
+                    )
+
+                    if base_graph_name in ["GL000", "GL002", "GL004", "GL006", "GL008", "GL010", "GL011", "GL012", "GL013", "GL014","GL015","GL016","GL018","GL020","GL021","GL023","GL024","GL026","GL027","GL029","GL035","GL039","GL041","GL047","GL079","GL081","GL085","GL087","GL097"]:
+                        theta_flag = False
+                        lmb_choice = [2, 7]
+
+                        if base_graph_name in ["GL010", "GL011","GL018"]:
+                            theta_flag = True
+
+                    if base_graph_name in ["GL017","GL019","GL022","GL031","GL033","GL043","GL045","GL051","GL053","GL055","GL057","GL059","GL061","GL063","GL094","GL096","GL101","GL113"]:
+                        theta_flag = False
+                        lmb_choice = [2, 6]
+
+                    if base_graph_name in ["GL065"]:
+                        theta_flag = False
+                        lmb_choice = [2, 5]
+
+                    if base_graph_name in ["GL067","GL073","GL075","GL083","GL093","GL099"]:
+                        theta_flag = False
+                        lmb_choice = [2, 8]
+
+                    if base_graph_name in ["GL071","GL077"]:
+                        theta_flag = True
+                        lmb_choice = [2, 3]
+
+                    if base_graph_name in ["GL091"]:
+                        theta_flag = False
+                        lmb_choice = [5, 8]
+
+                    if base_graph_name in ["GL0105","GL107","GL109","GL111","GL115","GL117","GL119","GL123"]:
+                        theta_flag = False
+                        lmb_choice = [3,6]
+
+                        if base_graph_name in ["GL109","GL111","GL115"]:
+                            theta_flag = True
+
+
+
+
             print(lmb_choice)
             # lmb_choice = [7, 2]
             # lmb_choice = [2, 7]
