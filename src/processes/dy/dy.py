@@ -839,9 +839,9 @@ class DY(object):
                 observable_params = {
                     "zmin": 0.0,
                     "zmax": 1.00000,
-                    "Lambdasq": 50000,
-                    "mUV": 250,
-                    "mursq": 1,
+                    "Lambdasq": 10000,
+                    "mUV": 2000,
+                    "mursq": 50000,
                 }
 
                 print("reached evaluator stage")
