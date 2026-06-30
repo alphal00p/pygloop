@@ -643,8 +643,10 @@ class VacuumDotGraph:
                 base_charge = 1
             elif particle == "d~":
                 base_charge = -1
-            elif particle in {"g", "ghG", "ghG~"}:
+            elif particle == "g":
                 return 0
+            elif particle in {"ghG", "ghG~"}:
+                return 1000
             else:
                 raise ValueError(
                     f"Unsupported particle '{particle}' in partition channel assignment"

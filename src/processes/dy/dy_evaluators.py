@@ -96,7 +96,7 @@ def _sm_ttbar_couplings() -> dict[str, Expression]:
         wrap_indices_in_lorentz_structures=False,
     )
 
-    coupling_names = {"GC_1", "GC_10", "GC_11"}
+    coupling_names = {"GC_1", "GC_10", "GC_11", "GC_12"}
     couplings: dict[str, Expression] = {}
     for coupling in model.couplings:
         if coupling.name in coupling_names:

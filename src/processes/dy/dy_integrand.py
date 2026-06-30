@@ -1,7 +1,7 @@
 import json
 import os
 import re
-from collections import Counter
+from collections import Counter, deque
 from copy import deepcopy
 from itertools import product
 
@@ -95,9 +95,7 @@ def _series_with_large_sum_fallback(
             return E("1")
         while len(factors) > 1:
             factors = [
-                factors[i]
-                if i + 1 == len(factors)
-                else factors[i] * factors[i + 1]
+                factors[i] if i + 1 == len(factors) else factors[i] * factors[i + 1]
                 for i in range(0, len(factors), 2)
             ]
         return factors[0]
@@ -209,12 +207,31 @@ def _rewrite_repeated_non_cut_edge_momentum_powers(
     edge_by_id = {
         _strip_quotes(str(e.get_attributes()["id"])): e for e in graph.get_edges()
     }
+
+    def is_zero(value) -> bool:
+        return _strip_quotes(str(value)) in {"0", "0.0"}
+
     non_cut_ids = {
         eid
         for eid, e in edge_by_id.items()
         if all(
-            _strip_quotes(str(e.get_attributes().get(key, "0"))) in ["0", "0.0"]
-            for key in ["is_cut", "is_cut_DY"]
+            is_zero(e.get_attributes().get(key, "0")) for key in ["is_cut", "is_cut_DY"]
+        )
+    }
+    loop_keys = sorted(
+        {
+            key
+            for edge in graph.get_edges()
+            for key in edge.get_attributes()
+            if key.startswith("routing_k")
+        },
+        key=lambda key: int(key.replace("routing_k", "")),
+    )
+    forbidden_ids = {
+        eid
+        for eid in non_cut_ids
+        if not all(
+            is_zero(edge_by_id[eid].get_attributes().get(key, "0")) for key in loop_keys
         )
     }
     incident = {}
@@ -240,6 +257,7 @@ def _rewrite_repeated_non_cut_edge_momentum_powers(
             others = [e for e in incident[node] if edge_id(e) != edge]
             if not others:
                 continue
+            other_ids = [edge_id(e) for e in others]
 
             def rhs(slot, node=node, others=others, target=target):
                 repl = E("0")
@@ -250,11 +268,16 @@ def _rewrite_repeated_non_cut_edge_momentum_powers(
                     repl = -repl
                 return repl
 
-            out.append(rhs)
+            out.append((
+                sum(oid in forbidden_ids for oid in other_ids),
+                len(other_ids),
+                rhs,
+            ))
         if not out:
             raise ValueError(f"No momentum-conservation rule for edge {edge}.")
+        out.sort(key=lambda rule: (rule[0], rule[1]))
         shift = choice_offset % len(out)
-        return out[shift:] + out[:shift]
+        return [rule[2] for rule in out[shift:] + out[:shift]]
 
     def terms(expr):
         expr = expr.expand()
@@ -290,29 +313,36 @@ def _rewrite_repeated_non_cut_edge_momentum_powers(
         edge, slot = match
         return edge, slot, 1
 
-    def first_repeat(expr):
-        for term in terms(expr):
-            term_factors = factors(term)
-            infos = []
-            counts = Counter()
-            for i, factor in enumerate(term_factors):
-                info = q_power(factor)
-                if info is None:
-                    continue
-                edge, slot, power = info
-                infos.append((i, edge, slot, power))
-                counts[edge] += power
-            repeated = {
-                edge
-                for edge, count in counts.items()
-                if count > 1 and edge in non_cut_ids
-            }
-            for info in infos:
-                if info[1] in repeated:
-                    return term, term_factors, info
+    def repeated_factor(term):
+        term_factors = factors(term)
+        infos = []
+        counts = Counter()
+        for i, factor in enumerate(term_factors):
+            info = q_power(factor)
+            if info is None:
+                continue
+            edge, slot, power = info
+            infos.append((i, edge, slot, power))
+            counts[edge] += power
+        repeated = {
+            edge
+            for edge, count in counts.items()
+            if count > 1 and edge in forbidden_ids
+        }
+        for info in infos:
+            if info[1] in repeated:
+                return term_factors, info
         return None
 
-    def replace_factor(expr, term, term_factors, info, replacement):
+    def term_measure(term):
+        counts = Counter()
+        for factor in factors(term):
+            info = q_power(factor)
+            if info is not None:
+                counts[info[0]] += info[2]
+        return sum(max(0, counts[eid] - 1) for eid in forbidden_ids)
+
+    def replace_factor(term_factors, info, replacement):
         factor_index, edge, slot, power = info
         new_factor = replacement
         if power > 1:
@@ -320,30 +350,38 @@ def _rewrite_repeated_non_cut_edge_momentum_powers(
         out = E("1")
         for i, factor in enumerate(term_factors):
             out *= new_factor if i == factor_index else factor
-        return (expr - term + out).expand()
+        return terms(out)
 
-    def solve(expr, depth, seen):
-        if depth > 512:
-            raise ValueError("Could not remove repeated non-cut edge momenta.")
-        repeat = first_repeat(expr)
+    queue = deque(terms(numerator.expand()))
+    rewritten_terms = []
+    while queue:
+        term = queue.popleft()
+        repeat = repeated_factor(term)
         if repeat is None:
-            return expr
-        term, term_factors, info = repeat
+            rewritten_terms.append(term)
+            continue
+        term_factors, info = repeat
+        old_measure = term_measure(term)
+        accepted = False
         edge = info[1]
         for rule in rules_for(edge):
-            candidate = replace_factor(expr, term, term_factors, info, rule(info[2]))
-            key = candidate.to_canonical_string()
-            if key in seen:
-                continue
-            seen.add(key)
-            try:
-                return solve(candidate, depth + 1, seen)
-            except ValueError:
-                continue
-        raise ValueError(f"Could not remove repeated non-cut edge momentum {edge}.")
+            new_terms = replace_factor(term_factors, info, rule(info[2]))
+            if new_terms and all(
+                term_measure(new_term) < old_measure for new_term in new_terms
+            ):
+                queue.extend(new_terms)
+                accepted = True
+                break
+        if not accepted:
+            raise ValueError(
+                f"Could not remove repeated non-cut edge momentum {info[1]} "
+                "with a decreasing momentum-conservation rule."
+            )
 
-    numerator = numerator.expand()
-    return solve(numerator, 0, {numerator.to_canonical_string()})
+    out = E("0")
+    for term in rewritten_terms:
+        out += term
+    return out.expand()
 
 
 class RoutedIntegrand(object):
@@ -769,6 +807,9 @@ class EMRIntegrandConstructor(object):
         cut_g_edges = sorted(
             cut_graph.graph.get_edges(), key=lambda e: int(e.get_attributes()["id"])
         )
+        cut_g_edges_by_id = {
+            _strip_quotes(str(e.get_attributes()["id"])): e for e in cut_g_edges
+        }
 
         # We only derive the CFF of graphs that have more than one node. It's trivial otherwise
         # and the CFF generator crashes for these graphs for some reason.
@@ -821,8 +862,8 @@ class EMRIntegrandConstructor(object):
                 # print("len:", len(cffterm.orientation))
                 for o, i in zip(cffterm.orientation, range(len(cffterm.orientation))):
                     id_in_original_graph = g_rep[i][1]
-                    this_e_atts = cut_g_edges[
-                        int(id_in_original_graph)
+                    this_e_atts = cut_g_edges_by_id[
+                        _strip_quotes(str(id_in_original_graph))
                     ].get_attributes()
                     if o.is_reversed():
                         cff_term = cff_term.replace(
@@ -3199,14 +3240,70 @@ class LoopIntegrandConstructor(object):
                         str(cut_graph.graph.get("base_graph_name"))
                     )
 
-                    if base_graph_name in ["GL000", "GL002", "GL004", "GL006", "GL008", "GL010", "GL011", "GL012", "GL013", "GL014","GL015","GL016","GL018","GL020","GL021","GL023","GL024","GL026","GL027","GL029","GL035","GL039","GL041","GL047","GL079","GL081","GL085","GL087","GL097"]:
+                    if base_graph_name in [
+                        "GL000",
+                        "GL002",
+                        "GL004",
+                        "GL006",
+                        "GL008",
+                        "GL012",
+                        "GL013",
+                        "GL014",
+                        "GL015",
+                        "GL016",
+                        "GL020",
+                        "GL021",
+                        "GL023",
+                        "GL024",
+                        "GL026",
+                        "GL027",
+                        "GL029",
+                        "GL035",
+                        "GL039",
+                        "GL041",
+                        "GL047",
+                        "GL079",
+                        "GL081",
+                        "GL085",
+                        "GL087",
+                        "GL097",
+                    ]:
                         theta_flag = False
                         lmb_choice = [2, 7]
 
-                        if base_graph_name in ["GL010", "GL011","GL018"]:
-                            theta_flag = True
+                        partition_ids = {
+                            tuple(
+                                _strip_quotes(str(e.get_attributes().get("id", "")))
+                                for e in side
+                            )
+                            for side in cut_graph.partition
+                        }
+                        if base_graph_name == "GL020" and partition_ids == {
+                            ("6",),
+                            ("7",),
+                        }:
+                            lmb_choice = [2, 1]
 
-                    if base_graph_name in ["GL017","GL019","GL022","GL031","GL033","GL043","GL045","GL051","GL053","GL055","GL057","GL059","GL061","GL063","GL094","GL096","GL101","GL113"]:
+                    if base_graph_name in [
+                        "GL017",
+                        "GL019",
+                        "GL022",
+                        "GL031",
+                        "GL033",
+                        "GL043",
+                        "GL045",
+                        "GL051",
+                        "GL053",
+                        "GL055",
+                        "GL057",
+                        "GL059",
+                        "GL061",
+                        "GL063",
+                        "GL094",
+                        "GL096",
+                        "GL101",
+                        "GL113",
+                    ]:
                         theta_flag = False
                         lmb_choice = [2, 6]
 
@@ -3214,11 +3311,24 @@ class LoopIntegrandConstructor(object):
                         theta_flag = False
                         lmb_choice = [2, 5]
 
-                    if base_graph_name in ["GL067","GL073","GL075","GL083","GL093","GL099"]:
+                    if base_graph_name in [
+                        "GL067",
+                        "GL073",
+                        "GL075",
+                        "GL083",
+                        "GL093",
+                        "GL099",
+                        "GL010",
+                        "GL011",
+                        "GL018",
+                    ]:
                         theta_flag = False
                         lmb_choice = [2, 8]
 
-                    if base_graph_name in ["GL071","GL077"]:
+                        if base_graph_name in ["GL010", "GL011", "GL018"]:
+                            theta_flag = True
+
+                    if base_graph_name in ["GL071", "GL077"]:
                         theta_flag = True
                         lmb_choice = [2, 3]
 
@@ -3226,15 +3336,21 @@ class LoopIntegrandConstructor(object):
                         theta_flag = False
                         lmb_choice = [5, 8]
 
-                    if base_graph_name in ["GL0105","GL107","GL109","GL111","GL115","GL117","GL119","GL123"]:
+                    if base_graph_name in [
+                        "GL0105",
+                        "GL107",
+                        "GL109",
+                        "GL111",
+                        "GL115",
+                        "GL117",
+                        "GL119",
+                        "GL123",
+                    ]:
                         theta_flag = False
-                        lmb_choice = [3,6]
+                        lmb_choice = [3, 6]
 
-                        if base_graph_name in ["GL109","GL111","GL115"]:
+                        if base_graph_name in ["GL109", "GL111", "GL115"]:
                             theta_flag = True
-
-
-
 
             print(lmb_choice)
             # lmb_choice = [7, 2]
