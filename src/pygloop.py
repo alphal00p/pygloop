@@ -188,6 +188,14 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
         help="DY only: process label passed to the downstream DY integrand/evaluator pipeline.",
     )
     parser.add_argument(
+        "--dy-channel",
+        type=int,
+        nargs=2,
+        default=None,
+        metavar=("IN1", "IN2"),
+        help="DY two-loop generation only: partonic channel to generate/process, e.g. --dy-channel 0 0 for gg, 0 1 for qg, or 1 -1 for qq~.",
+    )
+    parser.add_argument(
         "--external_gluon_polarisation",
         "--external-gluon-polarisation",
         type=_parse_bool_flag,
@@ -599,6 +607,7 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
                 final_state=args.dy_final_state,
                 process_name=args.dy_process_name,
                 diagrams=args.diagrams,
+                dy_channel=args.dy_channel,
                 skip_ps_validation=args.dy_skip_ps_validation,
                 integrate_beams=args.dy_integrate_beams,
                 external_gluon_polarisation=args.external_gluon_polarisation,

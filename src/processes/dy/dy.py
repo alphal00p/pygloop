@@ -106,6 +106,7 @@ class DY(object):
         final_state: list[str] | None = None,
         process_name: str | None = None,
         diagrams: list[str] | None = None,
+        dy_channel: tuple[int, int] | list[int] | None = None,
         skip_ps_validation: bool = False,
         integrate_beams: bool = False,
         external_gluon_polarisation: bool = False,
@@ -133,6 +134,17 @@ class DY(object):
         )
         self.process_name = process_name if process_name is not None else "DY"
         self.diagrams = copy.deepcopy(diagrams) if diagrams is not None else None
+        self.dy_channel = (
+            tuple(int(parton) for parton in dy_channel)
+            if dy_channel is not None
+            else (1, -1)
+        )
+        if self.dy_channel not in {(0, 0), (0, 1), (1, 0), (1, -1), (-1, 1)}:
+            raise ValueError(
+                "Unsupported DY two-loop channel "
+                f"{self.dy_channel}; supported channels are (0,0), (0,1), "
+                "(1,0), (1,-1), and (-1,1)."
+            )
         self.integrate_beams = bool(integrate_beams)
         self.external_gluon_polarisation = bool(external_gluon_polarisation)
         self.dy_fallback_precision = (
@@ -295,6 +307,7 @@ class DY(object):
             self.runtime_toml_config_path,
             copy.deepcopy(self.final_state, _memo),
             self.process_name,
+            dy_channel=self.dy_channel,
             clean=False,
             logger_level=logging.CRITICAL,
             skip_ps_validation=self.skip_ps_validation,
@@ -317,6 +330,7 @@ class DY(object):
             "final_state": copy.deepcopy(self.final_state),
             "process_name": self.process_name,
             "diagrams": copy.deepcopy(self.diagrams),
+            "dy_channel": self.dy_channel,
             "skip_ps_validation": self.skip_ps_validation,
             "integrate_beams": self.integrate_beams,
             "external_gluon_polarisation": self.external_gluon_polarisation,
@@ -781,8 +795,7 @@ class DY(object):
         print("Filtered graphs: ", len(filtered_graphs))
         print("############################")
 
-        channel = (1, 0)  # (1, -1)
-        channel = (1, -1)
+        channel = self.dy_channel
 
         processor = EMRIntegrandConstructor([], process_name, n_loops)
         loop_processor = LoopIntegrandConstructor(
@@ -839,7 +852,7 @@ class DY(object):
                 observable_params = {
                     "zmin": 0.0,
                     "zmax": 1.00000,
-                    "Lambdasq": 10000,
+                    "Lambdasq": 50000,
                     "mUV": 2000,
                     "mursq": 50000,
                 }
@@ -1032,11 +1045,23 @@ class DY(object):
                         if self.diagrams
                         else ""
                     )
+                    initial_state_by_channel = {
+                        (0, 0): "g g",
+                        (0, 1): "d g",
+                        (1, 0): "d g",
+                        (1, -1): "d d~",
+                        (-1, 1): "d d~",
+                    }
+                    numerator_grouping = (
+                        " --numerator-grouping group_identical_graphs_up_to_scalar_rescaling"
+                        if self.dy_channel in {(0, 0), (1, -1), (-1, 1)}
+                        else ""
+                    )
                     # self.gl_worker.run(  # GL06 GL14  --select-graphs GL00 GL01 GL03 GL04 GL05 GL08 GL12
                     #    f"generate xs d g > t t~ | d d~ g t t~ ghG ghG~ [{{{{2}}}} QCD=1] --only-diagrams --symmetrize-left-right-states true --symmetrize-initial-states true{select_graphs} -p {base_name} -i {graphs_process_name} --max-multiplicity-for-fast-cut-filter 99"
                     # )
                     self.gl_worker.run(  # GL06 GL14  --select-graphs GL14
-                        f"generate xs d d~ > t t~ | d d~ g t t~ ghG ghG~ [{{{{2}}}} QCD=1] --only-diagrams --numerator-grouping group_identical_graphs_up_to_scalar_rescaling --symmetrize-left-right-states true --symmetrize-initial-states true{select_graphs} -p {base_name} -i {graphs_process_name} --max-multiplicity-for-fast-cut-filter 99"
+                        f"generate xs {initial_state_by_channel[self.dy_channel]} > t t~ | d d~ g t t~ ghG ghG~ [{{{{2}}}} QCD=1] --only-diagrams{numerator_grouping} --symmetrize-left-right-states true --symmetrize-initial-states true{select_graphs} -p {base_name} -i {graphs_process_name} --max-multiplicity-for-fast-cut-filter 99"
                     )
                 else:
                     raise ValueError(
