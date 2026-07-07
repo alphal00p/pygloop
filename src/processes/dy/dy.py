@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import concurrent.futures
+import contextlib
 import copy
+import io
 import json
 import logging
 import math
@@ -9,6 +12,7 @@ import os
 import random
 import shutil
 import time
+import traceback
 from copy import deepcopy
 from decimal import Decimal
 from itertools import product  # noqa: F401
@@ -88,6 +92,81 @@ pjoin = os.path.join
 
 TOLERANCE: float = 1e-10
 
+
+def _dy_process_2l_graph_worker(task: dict[str, Any]) -> dict[str, Any]:
+    worker_name = task["worker_name"]
+    log_path = task["log_path"]
+    start = time.monotonic()
+    os.makedirs(os.path.dirname(log_path), exist_ok=True)
+
+    try:
+        with open(log_path, "w", encoding="utf-8", buffering=1) as log_handle:
+            with contextlib.redirect_stdout(log_handle), contextlib.redirect_stderr(
+                log_handle
+            ):
+                worker_cls = type(
+                    f"{worker_name}Process",
+                    (DY,),
+                    {"name": worker_name},
+                )
+                worker = worker_cls(
+                    m_top=task["m_top"],
+                    m_higgs=task["m_higgs"],
+                    ps_point=task["ps_point"],
+                    helicities=task["helicities"],
+                    n_loops=2,
+                    toml_config_path=task["toml_config_path"],
+                    runtime_toml_config_path=task["runtime_toml_config_path"],
+                    final_state=task["final_state"],
+                    process_name=task["process_name"],
+                    dy_channel=task["dy_channel"],
+                    skip_ps_validation=True,
+                    integrate_beams=task["integrate_beams"],
+                    external_gluon_polarisation=task[
+                        "external_gluon_polarisation"
+                    ],
+                    disable_integrated_uv_cts=task["disable_integrated_uv_cts"],
+                    dy_check_generation_limits=task["dy_check_generation_limits"],
+                    dy_fallback_precision=task["dy_fallback_precision"],
+                    dy_parallel_graphs=1,
+                    skip_gl_worker_init=True,
+                    load_compiled_bundle=False,
+                    clean=True,
+                    logger_level=logging.CRITICAL,
+                )
+                worker.dy_graph_index_offset = int(task["graph_index"])
+                worker.dy_emr_state_name = worker_name
+                processed_graphs = worker.process_2L_generated_graphs(
+                    DYDotGraphs(dot_str=task["graph_dot"])
+                )
+                processed_dot = "\n\n".join(g.to_string() for g in processed_graphs)
+        return {
+            "ok": True,
+            "graph_index": int(task["graph_index"]),
+            "graph_name": task["graph_name"],
+            "worker_name": worker_name,
+            "bundle_name": f"{worker_name}_2L_processed",
+            "processed_dot": processed_dot,
+            "log_path": log_path,
+            "elapsed": time.monotonic() - start,
+        }
+    except BaseException as exc:
+        if isinstance(exc, (KeyboardInterrupt, SystemExit)):
+            raise
+        with open(log_path, "a", encoding="utf-8") as log_handle:
+            log_handle.write("\nDY parallel graph worker failed:\n")
+            log_handle.write(traceback.format_exc())
+        return {
+            "ok": False,
+            "graph_index": int(task["graph_index"]),
+            "graph_name": task.get("graph_name"),
+            "worker_name": worker_name,
+            "log_path": log_path,
+            "elapsed": time.monotonic() - start,
+            "error": repr(exc),
+            "traceback": traceback.format_exc(),
+        }
+
 RESCALING: float = 1.0
 
 
@@ -111,6 +190,8 @@ class DY(object):
         integrate_beams: bool = False,
         external_gluon_polarisation: bool = False,
         disable_integrated_uv_cts: bool = True,
+        dy_check_generation_limits: bool = False,
+        dy_parallel_graphs: int = 1,
         dy_fallback_precision: int | None = None,
         skip_gl_worker_init: bool = False,
         load_compiled_bundle: bool = True,
@@ -156,6 +237,10 @@ class DY(object):
         self.skip_gl_worker_init = bool(skip_gl_worker_init)
         self.load_compiled_bundle = bool(load_compiled_bundle)
         self.disable_integrated_uv_cts = bool(disable_integrated_uv_cts)
+        self.dy_check_generation_limits = bool(dy_check_generation_limits)
+        self.dy_parallel_graphs = max(1, int(dy_parallel_graphs))
+        self.dy_graph_index_offset = 0
+        self.dy_emr_state_name = None
 
         self.skip_ps_validation = bool(skip_ps_validation)
         if not self.skip_ps_validation:
@@ -312,6 +397,8 @@ class DY(object):
             logger_level=logging.CRITICAL,
             skip_ps_validation=self.skip_ps_validation,
             integrate_beams=self.integrate_beams,
+            dy_check_generation_limits=self.dy_check_generation_limits,
+            dy_parallel_graphs=self.dy_parallel_graphs,
             dy_fallback_precision=self.dy_fallback_precision,
             skip_gl_worker_init=self.skip_gl_worker_init,
             load_compiled_bundle=self.load_compiled_bundle,
@@ -335,6 +422,8 @@ class DY(object):
             "integrate_beams": self.integrate_beams,
             "external_gluon_polarisation": self.external_gluon_polarisation,
             "disable_integrated_uv_cts": self.disable_integrated_uv_cts,
+            "dy_check_generation_limits": self.dy_check_generation_limits,
+            "dy_parallel_graphs": self.dy_parallel_graphs,
             "dy_fallback_precision": self.dy_fallback_precision,
         }
 
@@ -673,7 +762,9 @@ class DY(object):
         print("Filtered graphs: ", len(filtered_graphs))
         print("############################")
 
-        processor = EMRIntegrandConstructor([], process_name, n_loops)
+        processor = EMRIntegrandConstructor(
+            [], process_name, n_loops, state_name=self.dy_emr_state_name
+        )
         loop_processor = LoopIntegrandConstructor(
             [],
             process_name,
@@ -709,7 +800,8 @@ class DY(object):
                 print(cut_graph.graph)
                 term_integrands = loop_processor.get_integrand(deepcopy(cut_graph))
 
-                routed_integrands.extend(deepcopy(term_integrands))
+                if self.dy_check_generation_limits:
+                    routed_integrands.extend(deepcopy(term_integrands))
 
                 observable_params = {
                     "zmin": 0.0,
@@ -741,10 +833,11 @@ class DY(object):
                     )
                     evaluators.append(evaluator)
 
-            all_routed_integrands.extend(routed_integrands)
+            if self.dy_check_generation_limits:
+                all_routed_integrands.extend(routed_integrands)
             all_evaluators.extend(evaluators)
 
-        if all_routed_integrands:
+        if self.dy_check_generation_limits and all_routed_integrands:
             approach_limit = approach_point(
                 n_loops, process_name, all_routed_integrands
             )
@@ -795,9 +888,14 @@ class DY(object):
         print("Filtered graphs: ", len(filtered_graphs))
         print("############################")
 
+        if self.dy_parallel_graphs > 1 and len(filtered_graphs) > 1:
+            return self._process_2L_generated_graphs_parallel(filtered_graphs)
+
         channel = self.dy_channel
 
-        processor = EMRIntegrandConstructor([], process_name, n_loops)
+        processor = EMRIntegrandConstructor(
+            [], process_name, n_loops, state_name=self.dy_emr_state_name
+        )
         loop_processor = LoopIntegrandConstructor(
             [],
             process_name,
@@ -805,12 +903,14 @@ class DY(object):
             channel=channel,
             external_gluon_polarisation=self.external_gluon_polarisation,
             disable_integrated_uv_cts=self.disable_integrated_uv_cts,
+            emr_state_name=self.dy_emr_state_name,
         )
 
         all_routed_integrands = []
         all_evaluators = []
 
-        for graph_index, graph in enumerate(filtered_graphs):
+        for local_graph_index, graph in enumerate(filtered_graphs):
+            graph_index = self.dy_graph_index_offset + local_graph_index
             vac_g = canonicalise_vacuum_graph(copy.deepcopy(graph))
 
             vacuum_g = VacuumDotGraph(copy.deepcopy(vac_g.dot))
@@ -847,7 +947,8 @@ class DY(object):
                 # print(cut_graph.graph)
                 term_integrands = loop_processor.get_integrand(deepcopy(cut_graph))
 
-                routed_integrands.extend(deepcopy(term_integrands))
+                if self.dy_check_generation_limits:
+                    routed_integrands.extend(deepcopy(term_integrands))
 
                 observable_params = {
                     "zmin": 0.0,
@@ -881,12 +982,13 @@ class DY(object):
                     evaluators.append(evaluator)
                 print("constructed evaluators")
 
-            all_routed_integrands.extend(routed_integrands)
+            if self.dy_check_generation_limits:
+                all_routed_integrands.extend(routed_integrands)
             all_evaluators.extend(evaluators)
 
             print("added up evaluators")
 
-        if all_routed_integrands:
+        if self.dy_check_generation_limits and all_routed_integrands:
             print("pre limit taker")
             approach_limit = approach_point(
                 n_loops, process_name, all_routed_integrands
@@ -985,6 +1087,109 @@ class DY(object):
         print("Processed graphs: ", len(routed_graphs))
         print("############################")
 
+        return processed_graphs
+
+    def _process_2L_generated_graphs_parallel(
+        self, filtered_graphs: DYDotGraphs
+    ) -> DYDotGraphs:
+        start = time.monotonic()
+        integrand_name = self.get_integrand_name()
+        run_id = f"{os.getpid()}_{time.monotonic_ns()}"
+        worker_count = min(self.dy_parallel_graphs, len(filtered_graphs))
+        log_dir = pjoin(
+            OUTPUTS_FOLDER,
+            "parallel_graph_logs",
+            self.name,
+            f"{integrand_name}_{run_id}",
+        )
+
+        tasks = []
+        for graph_index, graph in enumerate(filtered_graphs):
+            graph_name = _strip_quotes(str(graph.dot.get_name()))
+            safe_graph_name = "".join(
+                c if c.isalnum() or c in ("_", "-") else "_" for c in graph_name
+            )
+            worker_name = (
+                f"{self.name}_par_{run_id}_graph_{graph_index:04d}_{safe_graph_name}"
+            )
+            tasks.append({
+                "graph_index": graph_index,
+                "graph_name": graph_name,
+                "graph_dot": graph.to_string(),
+                "worker_name": worker_name,
+                "log_path": pjoin(log_dir, f"{worker_name}.log"),
+                "m_top": self.m_top,
+                "m_higgs": self.m_higgs,
+                "ps_point": self.ps_point,
+                "helicities": self.helicities,
+                "toml_config_path": self.toml_config_path,
+                "runtime_toml_config_path": self.runtime_toml_config_path,
+                "final_state": self.final_state,
+                "process_name": self.process_name,
+                "dy_channel": self.dy_channel,
+                "integrate_beams": self.integrate_beams,
+                "external_gluon_polarisation": self.external_gluon_polarisation,
+                "disable_integrated_uv_cts": self.disable_integrated_uv_cts,
+                "dy_check_generation_limits": self.dy_check_generation_limits,
+                "dy_fallback_precision": self.dy_fallback_precision,
+            })
+
+        print(
+            "DY_PARALLEL_GRAPHS "
+            f"workers={worker_count} graphs={len(tasks)} log_dir={log_dir}"
+        )
+
+        ctx = multiprocessing.get_context("spawn")
+        results = []
+        with concurrent.futures.ProcessPoolExecutor(
+            max_workers=worker_count,
+            mp_context=ctx,
+        ) as executor:
+            future_to_task = {
+                executor.submit(_dy_process_2l_graph_worker, task): task
+                for task in tasks
+            }
+            for future in concurrent.futures.as_completed(future_to_task):
+                result = future.result()
+                results.append(result)
+                status = "ok" if result.get("ok") else "failed"
+                print(
+                    "DY_PARALLEL_GRAPH_DONE "
+                    f"status={status} graph_index={result.get('graph_index')} "
+                    f"graph={result.get('graph_name')} "
+                    f"elapsed={float(result.get('elapsed', 0.0)):.3f}s "
+                    f"log={result.get('log_path')}"
+                )
+
+        failures = [result for result in results if not result.get("ok")]
+        if failures:
+            details = "\n".join(
+                f"graph_index={failure.get('graph_index')} "
+                f"graph={failure.get('graph_name')} "
+                f"error={failure.get('error')} "
+                f"log={failure.get('log_path')}"
+                for failure in failures
+            )
+            raise pygloopException(f"Parallel DY graph generation failed:\n{details}")
+
+        results.sort(key=lambda result: int(result["graph_index"]))
+        DYCompiledBundle.merge_existing_bundles(
+            process=self.process_name,
+            integrand_name=integrand_name,
+            n_loops=self.n_loops,
+            source_integrand_names=[result["bundle_name"] for result in results],
+        )
+
+        processed_graphs = DYDotGraphs()
+        for result in results:
+            if result["processed_dot"].strip():
+                processed_graphs.extend(DYDotGraphs(dot_str=result["processed_dot"]))
+
+        print(
+            "DY_PARALLEL_GRAPHS_DONE "
+            f"graphs={len(tasks)} workers={worker_count} "
+            f"elapsed={time.monotonic() - start:.3f}s"
+        )
         return processed_graphs
 
     def generate_graphs(self) -> None:

@@ -203,6 +203,12 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
         help="DY generation only: replace cut external p1/p2 gluon metric sums by the axial physical-polarisation projector.",
     )
     parser.add_argument(
+        "--dy-parallel-graphs",
+        type=int,
+        default=1,
+        help="DY two-loop generation only: process this many source graphs in parallel. Default 1 preserves serial generation.",
+    )
+    parser.add_argument(
         "--dy-integrate-beams",
         action="store_true",
         default=False,
@@ -307,6 +313,12 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
         action="store_true",
         default=False,
         help="DY generation only: enable integrated UV counterterms. Disabled by default.",
+    )
+    parser_generate.add_argument(
+        "--dy-check-generation-limits",
+        action="store_true",
+        default=False,
+        help="DY generation only: construct limit-check evaluators and approach a test limit. Disabled by default.",
     )
 
     # create the parser for the "inspect" command
@@ -614,6 +626,10 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
                 disable_integrated_uv_cts=not getattr(
                     args, "dy_enable_integrated_uv_cts", False
                 ),
+                dy_check_generation_limits=getattr(
+                    args, "dy_check_generation_limits", False
+                ),
+                dy_parallel_graphs=args.dy_parallel_graphs,
                 dy_fallback_precision=(
                     args.dy_fallback_precision
                     if args.dy_fallback_precision is not None

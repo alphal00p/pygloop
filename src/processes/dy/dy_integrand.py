@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import time
 from collections import Counter
 from copy import deepcopy
 from itertools import product
@@ -133,6 +134,14 @@ def _series_with_large_sum_fallback(
     )
 
 
+def _edge_id_sort_key(edge_id):
+    edge_id = _strip_quotes(str(edge_id))
+    try:
+        return (0, int(edge_id))
+    except ValueError:
+        return (1, edge_id)
+
+
 # Little struct that makes it more manageable to deal with cut graphs
 
 
@@ -203,147 +212,431 @@ def _raw_graph_numerator(graph) -> Expression:
     return numerator
 
 
+def _has_internal_gluon_propagator_touching_three_gluon_vertex(graph) -> bool:
+    def is_zero(value) -> bool:
+        return _strip_quotes(str(value)) in ["0", "0.0"]
+
+    def is_cut_edge(attrs) -> bool:
+        return not (
+            is_zero(attrs.get("is_cut", "0"))
+            and is_zero(attrs.get("is_cut_DY", "0"))
+        )
+
+    node_by_name = {
+        _strip_quotes(str(node.get_name())): node for node in graph.get_nodes()
+    }
+
+    def is_three_gluon_vertex(node_name: str) -> bool:
+        node = node_by_name.get(node_name)
+        if node is None:
+            return False
+        int_id = _strip_quotes(str(node.get_attributes().get("int_id", "")))
+        return int_id == "V_36"
+
+    for edge in graph.get_edges():
+        attrs = edge.get_attributes()
+        if _strip_quotes(str(attrs.get("particle", ""))) != "g":
+            continue
+        if is_cut_edge(attrs):
+            continue
+
+        source = _base_node(edge.get_source())
+        destination = _base_node(edge.get_destination())
+        if source.startswith("ext") or destination.startswith("ext"):
+            continue
+        if is_three_gluon_vertex(source) or is_three_gluon_vertex(destination):
+            return True
+
+    return False
+
+
+def _is_zero_cut_value(value) -> bool:
+    return _strip_quotes(str(value)) in ["0", "0.0"]
+
+
+def _cut_edge_ids(cut_graph) -> set[str]:
+    cut_ids = {
+        _strip_quotes(str(edge.get_attributes()["id"]))
+        for edge in list(cut_graph.initial_cut) + list(cut_graph.final_cut)
+    }
+    for edge in cut_graph.graph.get_edges():
+        attrs = edge.get_attributes()
+        if not (
+            _is_zero_cut_value(attrs.get("is_cut", "0"))
+            and _is_zero_cut_value(attrs.get("is_cut_DY", "0"))
+        ):
+            cut_ids.add(_strip_quotes(str(attrs["id"])))
+    return cut_ids
+
+
+def _post_cut_graph_has_loop(cut_graph) -> bool:
+    cut_ids = _cut_edge_ids(cut_graph)
+    parent = {}
+
+    def find(node):
+        parent.setdefault(node, node)
+        if parent[node] != node:
+            parent[node] = find(parent[node])
+        return parent[node]
+
+    def union(node_a, node_b) -> bool:
+        root_a = find(node_a)
+        root_b = find(node_b)
+        if root_a == root_b:
+            return False
+        parent[root_b] = root_a
+        return True
+
+    for edge in cut_graph.graph.get_edges():
+        attrs = edge.get_attributes()
+        if _strip_quotes(str(attrs.get("id", ""))) in cut_ids:
+            continue
+        source = _base_node(edge.get_source())
+        destination = _base_node(edge.get_destination())
+        if not union(source, destination):
+            return True
+
+    return False
+
+
 def _rewrite_repeated_non_cut_edge_momentum_powers(
     numerator: Expression, graph, choice_offset: int = 0
 ) -> Expression:
+    from itertools import combinations
+
+    from processes.dy.dy_graph_utils import is_connected
+
     edge_by_id = {
         _strip_quotes(str(e.get_attributes()["id"])): e for e in graph.get_edges()
     }
-    non_cut_ids = {
-        eid
-        for eid, e in edge_by_id.items()
-        if all(
-            _strip_quotes(str(e.get_attributes().get(key, "0"))) in ["0", "0.0"]
-            for key in ["is_cut", "is_cut_DY"]
-        )
-    }
-    incident = {}
-    for edge in graph.get_edges():
-        incident.setdefault(_base_node(edge.get_source()), []).append(edge)
-        incident.setdefault(_base_node(edge.get_destination()), []).append(edge)
 
     def edge_id(edge) -> str:
         return _strip_quotes(str(edge.get_attributes()["id"]))
 
-    def q(edge: str, slot: Expression) -> Expression:
-        return Es(f"Q({edge},{slot.to_canonical_string()})")
+    def momentum(head: str, edge: str, slot: Expression) -> Expression:
+        return Es(f"{head}({edge},{slot.to_canonical_string()})")
 
-    def rules_for(edge: str):
-        out = []
-        target = edge_by_id[edge]
-        for node in [
-            _base_node(target.get_source()),
-            _base_node(target.get_destination()),
-        ]:
-            if node.startswith("ext"):
-                continue
-            others = [e for e in incident[node] if edge_id(e) != edge]
-            if not others:
-                continue
+    def is_zero(value) -> bool:
+        return _strip_quotes(str(value)) in ["0", "0.0"]
 
-            def rhs(slot, node=node, others=others, target=target):
-                repl = E("0")
-                for other in others:
-                    sign = 1 if _base_node(other.get_source()) == node else -1
-                    repl += sign * q(edge_id(other), slot)
-                if _base_node(target.get_source()) == node:
-                    repl = -repl
-                return repl
+    def is_pure_initial_external_edge(edge: str) -> bool:
+        graph_edge = edge_by_id.get(edge)
+        if graph_edge is None:
+            return False
+        attrs = graph_edge.get_attributes()
+        routing_k_keys = [key for key in attrs if str(key).startswith("routing_k")]
+        has_no_loop_momentum = all(
+            is_zero(attrs.get(key, "0")) for key in routing_k_keys
+        )
+        has_p1 = not is_zero(attrs.get("routing_p1", "0"))
+        has_p2 = not is_zero(attrs.get("routing_p2", "0"))
+        return has_no_loop_momentum and has_p1 != has_p2
 
-            out.append(rhs)
-        if not out:
-            raise ValueError(f"No momentum-conservation rule for edge {edge}.")
-        shift = choice_offset % len(out)
-        return out[shift:] + out[:shift]
+    def is_cut_edge(edge: str) -> bool:
+        graph_edge = edge_by_id.get(edge)
+        if graph_edge is None:
+            return False
+        attrs = graph_edge.get_attributes()
+        return not (
+            is_zero(attrs.get("is_cut", "0"))
+            and is_zero(attrs.get("is_cut_DY", "0"))
+        )
 
-    def terms(expr):
-        expr = expr.expand()
-        return list(expr) if bool(expr.is_type(AtomType.Add)) else [expr]
+    def is_exempt_edge(edge: str) -> bool:
+        return is_cut_edge(edge) or is_pure_initial_external_edge(edge)
+
+    def internal_nodes() -> set[str]:
+        nodes = set()
+        for node in graph.get_nodes():
+            name = _strip_quotes(str(node.get_name()))
+            if name not in ["node", "edge", "graph"]:
+                nodes.add(name)
+        for edge in graph.get_edges():
+            nodes.add(_base_node(edge.get_source()))
+            nodes.add(_base_node(edge.get_destination()))
+        return {node for node in nodes if not node.startswith("ext")}
+
+    graph_internal_nodes = internal_nodes()
+
+    def expanded_terms(expr):
+        expanded = expr.expand()
+        terms = list(expanded) if bool(expanded.is_type(AtomType.Add)) else [expanded]
+        return expanded, terms
 
     def factors(term):
         return list(term) if bool(term.is_type(AtomType.Mul)) else [term]
 
-    def match_q(expr):
-        for pattern, edge_key, slot_key in [
-            (Es("Q(edge_,slot_)"), S("gammalooprs::edge_"), S("gammalooprs::slot_")),
-            (E("Q(edge_,slot_)"), S("edge_"), S("slot_")),
-        ]:
+    momentum_patterns = [
+        (
+            "Q",
+            Es("Q(edge_,slot_)"),
+            S("gammalooprs::edge_"),
+            S("gammalooprs::slot_"),
+        ),
+        ("Q", E("Q(edge_,slot_)"), S("edge_"), S("slot_")),
+        (
+            "Qp",
+            Es("Qp(edge_,slot_)"),
+            S("gammalooprs::edge_"),
+            S("gammalooprs::slot_"),
+        ),
+        ("Qp", E("Qp(edge_,slot_)"), S("edge_"), S("slot_")),
+    ]
+
+    def match_momentum(expr):
+        for head, pattern, edge_key, slot_key in momentum_patterns:
             match = next(iter(expr.match(pattern)), None)
             if match is not None:
-                return match[edge_key].to_canonical_string(), match[slot_key]
+                return head, match[edge_key].to_canonical_string(), match[slot_key]
         return None
 
-    def q_power(factor):
+    def compute_momentum_power(factor):
         if bool(factor.is_type(AtomType.Pow)):
             base, power = list(factor)
-            match = match_q(base)
+            match = match_momentum(base)
             if match is None:
                 return None
             power = int(power.to_canonical_string())
             if power <= 0:
                 return None
-            edge, slot = match
-            return edge, slot, power
-        match = match_q(factor)
+            head, edge, slot = match
+            return head, edge, slot, power
+        match = match_momentum(factor)
         if match is None:
             return None
-        edge, slot = match
-        return edge, slot, 1
+        head, edge, slot = match
+        return head, edge, slot, 1
 
-    def first_repeat(expr):
-        for term in terms(expr):
-            term_factors = factors(term)
-            infos = []
-            counts = Counter()
-            for i, factor in enumerate(term_factors):
-                info = q_power(factor)
-                if info is None:
-                    continue
-                edge, slot, power = info
-                infos.append((i, edge, slot, power))
+    momentum_power_cache = {}
+
+    def momentum_power(factor):
+        try:
+            if factor in momentum_power_cache:
+                return momentum_power_cache[factor]
+        except TypeError:
+            return compute_momentum_power(factor)
+
+        info = compute_momentum_power(factor)
+        momentum_power_cache[factor] = info
+        return info
+
+    def repeat_in_term(term):
+        term_factors = factors(term)
+        infos = []
+        counts = Counter()
+        for i, factor in enumerate(term_factors):
+            info = momentum_power(factor)
+            if info is None:
+                continue
+            head, edge, slot, power = info
+            if edge not in edge_by_id:
+                continue
+            is_exempt = is_exempt_edge(edge)
+            infos.append((i, head, edge, slot, power, is_exempt))
+            if not is_exempt:
                 counts[edge] += power
-            repeated = {
-                edge
-                for edge, count in counts.items()
-                if count > 1 and edge in non_cut_ids
-            }
-            for info in infos:
-                if info[1] in repeated:
-                    return term, term_factors, info
-        return None
 
-    def replace_factor(expr, term, term_factors, info, replacement):
-        factor_index, edge, slot, power = info
+        repeated = {edge for edge, count in counts.items() if count > 1}
+        for preferred_head in ["Q", "Qp"]:
+            for info in infos:
+                if (
+                    info[1] == preferred_head
+                    and info[2] in repeated
+                    and not info[5]
+                ):
+                    protected = {
+                        other[2]
+                        for other in infos
+                        if other[2] != info[2] and not other[5]
+                    }
+                    return term_factors, info[:5], protected
+        return term_factors, None, set()
+
+    def replace_factor(term_factors, info, replacement):
+        factor_index, head, edge, slot, power = info
         new_factor = replacement
         if power > 1:
-            new_factor *= q(edge, slot) ** E(str(power - 1))
+            new_factor *= momentum(head, edge, slot) ** E(str(power - 1))
         out = E("1")
         for i, factor in enumerate(term_factors):
             out *= new_factor if i == factor_index else factor
-        return (expr - term + out).expand()
+        return out
 
-    def solve(expr, depth, seen):
-        if depth > 512:
-            raise ValueError("Could not remove repeated non-cut edge momenta.")
-        repeat = first_repeat(expr)
-        if repeat is None:
-            return expr
-        term, term_factors, info = repeat
-        edge = info[1]
-        for rule in rules_for(edge):
-            candidate = replace_factor(expr, term, term_factors, info, rule(info[2]))
-            key = candidate.to_canonical_string()
-            if key in seen:
+    def connected_cuts_containing_one_endpoint(edge):
+        target = edge_by_id.get(edge)
+        if target is None:
+            raise ValueError(f"Repeated momentum edge {edge} is not in the graph.")
+
+        endpoints = [
+            _base_node(target.get_source()),
+            _base_node(target.get_destination()),
+        ]
+        for required, forbidden in [
+            endpoints,
+            [endpoints[1], endpoints[0]],
+        ]:
+            if required.startswith("ext") or required not in graph_internal_nodes:
                 continue
-            seen.add(key)
-            try:
-                return solve(candidate, depth + 1, seen)
-            except ValueError:
+            forbidden_set = (
+                {forbidden}
+                if not forbidden.startswith("ext") and forbidden in graph_internal_nodes
+                else set()
+            )
+            rest = sorted(graph_internal_nodes - {required} - forbidden_set)
+            for size in range(len(rest) + 1):
+                for combo in combinations(rest, size):
+                    cut = {required, *combo}
+                    if forbidden_set.intersection(cut):
+                        continue
+                    if is_connected(graph, cut):
+                        yield cut
+
+    def replacement_from_cut(
+        head: str, edge: str, slot: Expression, cut: set[str]
+    ) -> Expression:
+        target = edge_by_id[edge]
+        replacement = E("0")
+        for boundary_edge in boundary_edges(graph, cut):
+            if edge_id(boundary_edge) == edge:
                 continue
-        raise ValueError(f"Could not remove repeated non-cut edge momentum {edge}.")
+            sign = 1 if _base_node(boundary_edge.get_source()) in cut else -1
+            replacement += sign * momentum(head, edge_id(boundary_edge), slot)
+        if _base_node(target.get_source()) in cut:
+            replacement = -replacement
+        return replacement
+
+    def find_cut(edge: str, protected_edges: set[str]):
+        for cut in connected_cuts_containing_one_endpoint(edge):
+            boundary_ids = {
+                edge_id(boundary_edge) for boundary_edge in boundary_edges(graph, cut)
+            }
+            if edge not in boundary_ids:
+                continue
+            if boundary_ids.intersection(protected_edges):
+                continue
+            return cut
+        return None
+
+    cut_cache = {}
+
+    def combine_terms(term_list, chunk_size: int = 128):
+        if not term_list:
+            return E("0")
+
+        current = term_list
+        while len(current) > 1:
+            combined = []
+            for start in range(0, len(current), chunk_size):
+                subtotal = E("0")
+                for term in current[start : start + chunk_size]:
+                    subtotal += term
+                combined.append(subtotal)
+            current = combined
+        return current[0]
+
+    def rewrite_pass(expr):
+        expanded, term_list = expanded_terms(expr)
+        changed = False
+        rewritten_terms = []
+
+        for term in term_list:
+            term_factors, info, protected_edges = repeat_in_term(term)
+            if info is None:
+                rewritten_terms.append(term)
+                continue
+
+            edge = info[2]
+            cut_key = (edge, tuple(sorted(protected_edges)))
+            if cut_key not in cut_cache:
+                cut_cache[cut_key] = find_cut(edge, protected_edges)
+            cut = cut_cache[cut_key]
+            if cut is None:
+                raise ValueError(
+                    "Could not find a momentum-conservation cut for repeated edge "
+                    f"{edge} avoiding protected edges {sorted(protected_edges)} in "
+                    f"monomial {term.to_canonical_string()}."
+                )
+
+            replacement = replacement_from_cut(info[1], edge, info[3], cut)
+            rewritten_terms.append(replace_factor(term_factors, info, replacement))
+            changed = True
+
+        if not changed:
+            return expanded, False
+        return combine_terms(rewritten_terms).expand(), True
 
     numerator = numerator.expand()
-    return solve(numerator, 0, {numerator.to_canonical_string()})
+    seen = {numerator.to_canonical_string()}
+    while True:
+        rewritten, changed = rewrite_pass(numerator)
+        if not changed:
+            return rewritten
+        key = rewritten.to_canonical_string()
+        if key in seen:
+            raise ValueError(
+                "Repeated non-exempt edge momentum rewrite cycled on expression "
+                f"{key}."
+            )
+        seen.add(key)
+        numerator = rewritten
+
+
+_OPEN_LORENTZ_COMPONENT_PATTERNS = (
+    re.compile(r"(?:^|::)Q\([^,\)]*,[^)]*mink\(4,"),
+    re.compile(r"(?:^|::)Qp\([^,\)]*,[^)]*mink\(4,"),
+    re.compile(r"(?:^|::)g\([^)]*mink\(4,"),
+)
+
+
+def _contract_open_lorentz_metric_components(expr: Expression) -> Expression:
+    for head in ["Q", "Qp"]:
+        expr = expr.replace(
+            E(f"g(mink(4,x_),mink(4,y_))*{head}(edge_,mink(4,x_))"),
+            E(f"{head}(edge_,mink(4,y_))"),
+            repeat=True,
+        )
+        expr = expr.replace(
+            E(f"g(mink(4,x_),mink(4,y_))*{head}(edge_,mink(4,y_))"),
+            E(f"{head}(edge_,mink(4,x_))"),
+            repeat=True,
+        )
+
+    metric_contractions = [
+        (
+            "g(mink(4,x_),mink(4,y_))*g(mink(4,x_),mink(4,z_))",
+            "g(mink(4,y_),mink(4,z_))",
+        ),
+        (
+            "g(mink(4,x_),mink(4,y_))*g(mink(4,z_),mink(4,x_))",
+            "g(mink(4,y_),mink(4,z_))",
+        ),
+        (
+            "g(mink(4,x_),mink(4,y_))*g(mink(4,y_),mink(4,z_))",
+            "g(mink(4,x_),mink(4,z_))",
+        ),
+        (
+            "g(mink(4,x_),mink(4,y_))*g(mink(4,z_),mink(4,y_))",
+            "g(mink(4,x_),mink(4,z_))",
+        ),
+    ]
+    for pattern, replacement in metric_contractions:
+        expr = expr.replace(E(pattern), E(replacement), repeat=True)
+
+    expr = expr.replace(E("g(mink(4,x_),mink(4,y_))^2"), E("4"), repeat=True)
+    return expr.replace(E("g(mink(4,x_),mink(4,x_))"), E("4"), repeat=True)
+
+
+def _assert_no_open_lorentz_components(expr: Expression) -> None:
+    text = expr.to_canonical_string()
+    for pattern in _OPEN_LORENTZ_COMPONENT_PATTERNS:
+        match = pattern.search(text)
+        if match is not None:
+            sample_start = max(0, match.start() - 120)
+            sample_end = min(len(text), match.end() + 240)
+            raise ValueError(
+                "Numerator still contains open Lorentz momentum or metric components "
+                f"after projector contraction: {text[sample_start:sample_end]}"
+            )
 
 
 class RoutedIntegrand(object):
@@ -356,6 +649,7 @@ class RoutedIntegrand(object):
         type,
         ir_limit,
         t_derivative=False,
+        theta_expressions=None,
     ):
         self.emr_integrand = emr_integrand
         self.integrand = integrand
@@ -364,18 +658,22 @@ class RoutedIntegrand(object):
         self.approximation_type = type
         self.ir_limit = ir_limit
         self.t_derivative = t_derivative
+        self.theta_expressions = (
+            list(theta_expressions) if theta_expressions is not None else None
+        )
 
 
 # This class is responsible for generating the CFF representation of the cut graph
 
 
 class EMRIntegrandConstructor(object):
-    def __init__(self, params, name, L):
+    def __init__(self, params, name, L, state_name=None):
         self.L = L
         self.params = params
         self.name = name
+        state_name = state_name if state_name is not None else name
         self.gl_worker = GammaLoopAPI(
-            pjoin(PYGLOOP_FOLDER, "outputs", "gammaloop_states", self.name),
+            pjoin(PYGLOOP_FOLDER, "outputs", "gammaloop_states", state_name),
             # log_file_name=self.name,
             # log_level=gl_log_level,
         )
@@ -395,17 +693,16 @@ class EMRIntegrandConstructor(object):
             )
 
         num = _raw_graph_numerator(numerator_graph)
-        num = _rewrite_repeated_non_cut_edge_momentum_powers(num, numerator_graph)
+        num = simplify_color(num)
+        num = simplify_gamma(num)
+        num = simplify_metrics(num).expand()
+        if _has_internal_gluon_propagator_touching_three_gluon_vertex(numerator_graph):
+            num = _rewrite_repeated_non_cut_edge_momentum_powers(num, numerator_graph)
         num *= post_momentum_rewrite_factor
+        num = simplify_metrics(num).expand()
 
-        print("here" * 10)
-
-        num = num
-
-        # print("now here" * 10)
-        simplified = simplify_metrics(simplify_gamma(simplify_color(num))).expand()
-        # print(simplified)
-        res = _strip_namespaces_structurally(simplified)
+        res = _strip_namespaces_structurally(num)
+        res = _contract_open_lorentz_metric_components(res)
         res = substitute_process_couplings(res, self.name, self.L).expand()
 
         # res = E(_canonicalize_symbolica_display_string(str(simplified)))
@@ -428,6 +725,15 @@ class EMRIntegrandConstructor(object):
         # out = out.replace(E("sp(0,7)"), E("0"))
 
         return symmetry_factor * out
+
+    def prepare_numerator(self, graph, numerator_factorisation=None) -> Expression:
+        num = self.get_numerator(
+            graph,
+            numerator_factorisation=numerator_factorisation,
+        )
+        num = num.replace(E("Q(x_,mink(y_,z_))^2"), E("sp(x_,x_)"))
+        _assert_no_open_lorentz_components(num)
+        return num
 
     # Get cff of a graph; the dependence on subgraph_as_nodes and reversed_edge_flows_ids
     # is explicit but is not used for the rest of the code. All graphs are amplitude graphs now.
@@ -721,6 +1027,245 @@ class EMRIntegrandConstructor(object):
 
         return s_split_graphs, s_channel_edges_copy
 
+    def _cff_numerator_variables(self, numerator):
+        numerator = numerator.replace(
+            E("spp(qp(x_),qp(y_))"),
+            E("sigma(x_)*sigma(y_)*En(x_)*En(y_)-sp3(q(x_),q(y_))"),
+        )
+        numerator = numerator.replace(
+            E("spp(qp(x_),y_)"), E("sigma(x_)*sigma(y_)*En(x_)*En(y_)-sp3(q(x_),q(y_))")
+        )
+        numerator = numerator.replace(
+            E("sp(x_,y_)"), E("sigma(x_)*sigma(y_)*En(x_)*En(y_)-sp3(q(x_),q(y_))")
+        )
+        numerator = numerator.replace(E("sigma(1000)"), E("1"))
+        numerator = numerator.replace(E("sp3(q(1000), x___)"), E("0"))
+        numerator = numerator.replace(E("sp3(x___, q(1000))"), E("0"))
+        numerator = numerator.replace(E("En(1000)"), E("1"))
+        return numerator
+
+    def _cff_nontrivial_split_graphs(self, s_split_graphs):
+        split_graphs_gt2_non_ext = []
+        for g in s_split_graphs:
+            non_ext_count = 0
+            for v in g.graph.get_nodes():
+                name = _strip_quotes(v.get_name())
+                is_ext = name.startswith("ext") and name[3:].isdigit()
+                if not is_ext:
+                    non_ext_count += 1
+            if non_ext_count > 1:
+                split_graphs_gt2_non_ext.append(g)
+        return split_graphs_gt2_non_ext
+
+    def _factorized_cff_terms_from_splits(
+        self,
+        cut_graph,
+        s_split_graphs,
+        s_channel_edges,
+        numerator,
+    ):
+        numerator = self._cff_numerator_variables(numerator)
+
+        cut_g_edge_by_id = {
+            _strip_quotes(str(e.get_attributes()["id"])): e
+            for e in cut_graph.graph.get_edges()
+        }
+
+        states = [((), E("1"))]
+        edges_to_reverse = set()
+
+        for g in self._cff_nontrivial_split_graphs(s_split_graphs):
+            cff_g = self.get_CFF(g.graph, [], [])
+            g_rep = g.replacements
+            new_states = []
+
+            for sign_map, previous_cff in states:
+                base_sign_map = dict(sign_map)
+                for cffterm in cff_g.expressions:
+                    cff_term = previous_cff * cffterm.expression
+                    term_sign_map = dict(base_sign_map)
+
+                    for o, i in zip(cffterm.orientation, range(len(cffterm.orientation))):
+                        id_in_original_graph = _strip_quotes(str(g_rep[i][1]))
+                        this_e = cut_g_edge_by_id.get(id_in_original_graph)
+                        if this_e is None:
+                            raise ValueError(
+                                "Could not find original edge "
+                                f"{id_in_original_graph} in cut graph CFF lookup."
+                            )
+                        this_e_atts = this_e.get_attributes()
+                        if o.is_reversed():
+                            term_sign_map.setdefault(id_in_original_graph, -1)
+                            cff_term = cff_term.replace(
+                                E(f"sigma({id_in_original_graph})"), E("-1")
+                            )
+                        if o.is_default():
+                            term_sign_map.setdefault(id_in_original_graph, 1)
+                            cff_term = cff_term.replace(
+                                E(f"sigma({id_in_original_graph})"), E("1")
+                            )
+                        if this_e_atts.get("is_cut_DY", 0) == -1:
+                            edges_to_reverse.add(id_in_original_graph)
+
+                    for etas in cff_g.e_surfaces:
+                        eta = etas.expression
+                        for rep in g.replacements:
+                            eta = eta.replace(E(f"pygloop::E({rep[0]})"), E(f"E({rep[1]})"))
+                        cff_term = cff_term.replace(E(f"pygloop::η({etas.id})"), -eta)
+
+                    new_states.append(
+                        (
+                            tuple(
+                                sorted(
+                                    term_sign_map.items(),
+                                    key=lambda item: _edge_id_sort_key(item[0]),
+                                )
+                            ),
+                            cff_term,
+                        )
+                    )
+
+            states = new_states
+
+        for id in sorted(edges_to_reverse, key=_edge_id_sort_key):
+            numerator = numerator.replace(E(f"E({id})"), E(f"-E({id})"))
+            numerator = numerator.replace(E(f"En({id})"), E(f"-En({id})"))
+            states = [
+                (
+                    sign_map,
+                    cff_term.replace(E(f"E({id})"), E(f"-E({id})")).replace(
+                        E(f"En({id})"), E(f"-En({id})")
+                    ),
+                )
+                for sign_map, cff_term in states
+            ]
+
+        def _is_exact_zero(expr):
+            return str(expr.expand()) == "0"
+
+        def _replacement_edge_id(g, edge_id):
+            return g.replacements[int(edge_id)][1]
+
+        fixed_sigma = {}
+        popping_edges = deepcopy(s_channel_edges)
+        while len(popping_edges) > 0:
+            current_s_edge = popping_edges.pop()
+            s_edge_atts = current_s_edge.get_attributes()
+            candidates = []
+            for g in s_split_graphs:
+                for e in g.graph.get_edges():
+                    e_atts = e.get_attributes()
+                    e_src = e.get_source()
+                    if s_edge_atts["name"] != e_atts["name"]:
+                        continue
+
+                    denom = E("0")
+                    denom_num = E("0")
+                    for ep in g.graph.get_edges():
+                        ep_src = ep.get_source()
+                        ep_dest = ep.get_destination()
+                        ep_atts = ep.get_attributes()
+                        if ep_src.startswith("ext") and ep != e:
+                            cut_sign = ep_atts.get("is_cut_DY", 0)
+                            denom += cut_sign * E(
+                                f"E({_replacement_edge_id(g, ep_atts['id'])})"
+                            )
+                            denom_num += cut_sign * E(
+                                f"En({_replacement_edge_id(g, ep_atts['id'])})"
+                            )
+                        if ep_dest.startswith("ext") and ep != e:
+                            cut_sign = ep_atts.get("is_cut_DY", 0)
+                            denom -= cut_sign * E(
+                                f"E({_replacement_edge_id(g, ep_atts['id'])})"
+                            )
+                            denom_num -= cut_sign * E(
+                                f"En({_replacement_edge_id(g, ep_atts['id'])})"
+                            )
+                    candidates.append((g, e_atts, e_src, denom, denom_num))
+
+            selected_candidate = None
+            for candidate in candidates:
+                if not _is_exact_zero(candidate[3]):
+                    selected_candidate = candidate
+                    break
+
+            if selected_candidate is None:
+                denom_report = [str(candidate[3].expand()) for candidate in candidates]
+                raise ValueError(
+                    "Could not reconstruct nonzero s-channel denominator for "
+                    f"{s_edge_atts.get('name')}; candidates={denom_report}"
+                )
+
+            g, e_atts, e_src, denom, denom_num = selected_candidate
+            target_id = _strip_quotes(str(_replacement_edge_id(g, e_atts["id"])))
+            denominator = denom if e_atts.get("is_cut_DY", None) is not None else denom**2
+
+            sign = 1 if e_src.startswith("ext") else -1
+            if e_atts.get("is_cut_DY") is not None:
+                sign = e_atts.get("is_cut_DY") * sign
+
+            energy_replacement = -sign * denom
+            numeric_energy_replacement = -sign * denom_num
+            numerator = numerator.replace(E(f"E({target_id})"), energy_replacement)
+            numerator = numerator.replace(
+                E(f"En({target_id})"), numeric_energy_replacement
+            )
+            fixed_sigma[target_id] = 1
+
+            states = [
+                (
+                    sign_map,
+                    (
+                        cff_term
+                        / denominator
+                    )
+                    .replace(E(f"E({target_id})"), energy_replacement)
+                    .replace(E(f"En({target_id})"), numeric_energy_replacement)
+                    .replace(E(f"sigma({target_id})"), E("1")),
+                )
+                for sign_map, cff_term in states
+            ]
+
+        energies = E("1")
+        for e in cut_graph.graph.get_edges():
+            e_atts = e.get_attributes()
+            cut_val = e_atts.get("is_cut_DY", None)
+
+            if e not in s_channel_edges:
+                energies *= 1 / E(f"2*E({e_atts['id']})")
+
+            if cut_val is not None:
+                fixed_sigma[_strip_quotes(str(e_atts["id"]))] = cut_val
+                states = [
+                    (
+                        sign_map,
+                        cff_term.replace(E(f"sigma({e_atts['id']})"), E(str(cut_val))),
+                    )
+                    for sign_map, cff_term in states
+                ]
+
+        states = [
+            (sign_map, (cff_term * energies).replace(E("Q(x_,0)"), E("E(x_)")))
+            for sign_map, cff_term in states
+        ]
+        numerator = numerator.replace(E("Q(x_,0)"), E("E(x_)"))
+
+        return numerator, states, fixed_sigma
+
+    def get_factorized_cff_terms(self, cut_graph, numerator):
+        self.normalise_graph(cut_graph.graph)
+
+        graph_L, graph_R = self.get_LR_graphs(cut_graph)
+        s_split_graphs_L, s_channel_edges_L = self.split_s_channels(graph_L)
+        s_split_graphs_R, s_channel_edges_R = self.split_s_channels(graph_R)
+
+        return self._factorized_cff_terms_from_splits(
+            cut_graph,
+            s_split_graphs_L + s_split_graphs_R,
+            s_channel_edges_L + s_channel_edges_R,
+            numerator,
+        )
+
     # This function takes a bunch of graphs, contained in s_split_graphs, and constructs the
     # cff for the product of these graphs assuming the numerator is num. It multiplies this by
     # the inverse energies for all edges in the initial and final state cuts (members of cut_graph)
@@ -732,16 +1277,7 @@ class EMRIntegrandConstructor(object):
 
         # print("numerator here" * 5)
         # print(numerator)
-        numerator = numerator.replace(
-            E("spp(qp(x_),qp(y_))"),
-            E("sigma(x_)*sigma(y_)*En(x_)*En(y_)-sp3(q(x_),q(y_))"),
-        )
-        numerator = numerator.replace(
-            E("spp(qp(x_),y_)"), E("sigma(x_)*sigma(y_)*En(x_)*En(y_)-sp3(q(x_),q(y_))")
-        )
-        numerator = numerator.replace(
-            E("sp(x_,y_)"), E("sigma(x_)*sigma(y_)*En(x_)*En(y_)-sp3(q(x_),q(y_))")
-        )
+        numerator = self._cff_numerator_variables(numerator)
         #
         # numerator = numerator.replace(
         #    E("spp(qp(x_),qp(y_))"),
@@ -754,11 +1290,6 @@ class EMRIntegrandConstructor(object):
         #    E("sp(x_,y_)"), E("sigma(x_)*sigma(y_)*E(x_)*E(y_)-sp3(q(x_),q(y_))")
         # )
 
-        numerator = numerator.replace(E("sigma(1000)"), E("1"))
-        numerator = numerator.replace(E("sp3(q(1000), x___)"), E("0"))
-        numerator = numerator.replace(E("sp3(x___, q(1000))"), E("0"))
-        numerator = numerator.replace(E("En(1000)"), E("1"))
-
         # numerator = numerator.replace(E("sigma(6)"), E("-sigma(6)"))
 
         # if len(cut_graph.partition[1]) == 2:
@@ -766,23 +1297,15 @@ class EMRIntegrandConstructor(object):
 
         # print(numerator)
 
-        cut_g_edges = sorted(
-            cut_graph.graph.get_edges(), key=lambda e: int(e.get_attributes()["id"])
-        )
+        cut_g_edge_by_id = {
+            _strip_quotes(str(e.get_attributes()["id"])): e
+            for e in cut_graph.graph.get_edges()
+        }
 
         # We only derive the CFF of graphs that have more than one node. It's trivial otherwise
         # and the CFF generator crashes for these graphs for some reason.
 
-        split_graphs_gt2_non_ext = []
-        for g in s_split_graphs:
-            non_ext_count = 0
-            for v in g.graph.get_nodes():
-                name = _strip_quotes(v.get_name())
-                is_ext = name.startswith("ext") and name[3:].isdigit()
-                if not is_ext:
-                    non_ext_count += 1
-            if non_ext_count > 1:
-                split_graphs_gt2_non_ext.append(g)
+        split_graphs_gt2_non_ext = self._cff_nontrivial_split_graphs(s_split_graphs)
 
         # Constructs the product of CFF representations obtained from all the subgraphs obtained
         # by deleting s-channel edges and cut edges. Also reverses sign of external edges that
@@ -820,10 +1343,14 @@ class EMRIntegrandConstructor(object):
                 # print("n_graph:", n_graph)
                 # print("len:", len(cffterm.orientation))
                 for o, i in zip(cffterm.orientation, range(len(cffterm.orientation))):
-                    id_in_original_graph = g_rep[i][1]
-                    this_e_atts = cut_g_edges[
-                        int(id_in_original_graph)
-                    ].get_attributes()
+                    id_in_original_graph = _strip_quotes(str(g_rep[i][1]))
+                    this_e = cut_g_edge_by_id.get(id_in_original_graph)
+                    if this_e is None:
+                        raise ValueError(
+                            "Could not find original edge "
+                            f"{id_in_original_graph} in cut graph CFF lookup."
+                        )
+                    this_e_atts = this_e.get_attributes()
                     if o.is_reversed():
                         cff_term = cff_term.replace(
                             E(f"sigma({id_in_original_graph})"), E("-1")
@@ -1044,6 +1571,7 @@ class EMRIntegrandConstructor(object):
         cut_graph: routed_cut_graph,
         get_residues=False,
         numerator_factorisation=None,
+        prepared_numerator=None,
     ):
 
         # Derives numerator, eliminates useless labels, get left and right graphs and further
@@ -1051,18 +1579,19 @@ class EMRIntegrandConstructor(object):
 
         print("got to num")
 
-        num = self.get_numerator(
-            cut_graph.graph,
-            numerator_factorisation=numerator_factorisation,
-        )
+        if prepared_numerator is None:
+            num = self.prepare_numerator(
+                cut_graph.graph,
+                numerator_factorisation=numerator_factorisation,
+            )
+        else:
+            num = prepared_numerator
 
         # print(num.replace(E("sp(x_,y_)"),E("1")))
 
         print("and beyond num")
 
         # print("NUM before contraction:   " , num)
-
-        num = num.replace(E("Q(x_,mink(y_,z_))^2"), E("sp(x_,x_)"))  # * E("1i")
 
         self.normalise_graph(cut_graph.graph)
 
@@ -1305,14 +1834,19 @@ class ThresholdSubtractor(object):
         L,
         theta_support=True,
         numerator_factorisation=None,
+        prepared_numerator=None,
+        emr_state_name=None,
     ):
         self.routed_cut_graph = routed_cut_graph
-        self.emr_processor = EMRIntegrandConstructor(params, name, L)
+        self.emr_processor = EMRIntegrandConstructor(
+            params, name, L, state_name=emr_state_name
+        )
         self.sp3D = S("sp3D", is_linear=True, is_symmetric=True)
         self.residues = self.emr_processor.get_integrand(
             routed_cut_graph,
             True,
             numerator_factorisation=numerator_factorisation,
+            prepared_numerator=prepared_numerator,
         )
         self.L = L
         self.theta_support = theta_support
@@ -1829,16 +2363,20 @@ class LoopIntegrandConstructor(object):
         channel=None,
         disable_integrated_uv_cts=True,
         external_gluon_polarisation=False,
+        emr_state_name=None,
     ):
         self.L = L
         self.params = params
         self.name = name
-        self.emr_processor = EMRIntegrandConstructor(params, name, L)
+        self.emr_processor = EMRIntegrandConstructor(
+            params, name, L, state_name=emr_state_name
+        )
         self.sp3D = S("sp3D", is_linear=True, is_symmetric=True)
         self.approximator = Approximator()
         self.channel = channel
         self.external_gluon_polarisation = bool(external_gluon_polarisation)
         self.disable_integrated_uv_cts = bool(disable_integrated_uv_cts)
+        self.emr_state_name = emr_state_name
 
     def substitute_external_gluon_polarisation_sum(self, cut_graph):
         def _is_zero(value):
@@ -2058,8 +2596,8 @@ class LoopIntegrandConstructor(object):
 
     # Replaces energies by their expression in terms of the emr momenta and particle masses
 
-    def replace_energies(self, integrand, cut_graph):
-
+    def _energy_replacements(self, cut_graph):
+        replacements = []
         for e in cut_graph.graph.get_edges():
             e_atts = e.get_attributes()
             eid_raw = e_atts["id"]
@@ -2097,8 +2635,14 @@ class LoopIntegrandConstructor(object):
                     "1/2"
                 )
 
+            replacements.append((target, replacement))
+            replacements.append((target_num, replacement_num))
+
+        return replacements
+
+    def replace_energies(self, integrand, cut_graph):
+        for target, replacement in self._energy_replacements(cut_graph):
             integrand = integrand.replace(target, replacement)
-            integrand = integrand.replace(target_num, replacement_num)
 
         return integrand
 
@@ -2147,17 +2691,9 @@ class LoopIntegrandConstructor(object):
 
     # Changes the routing of a graph based on an input lmb choice.
 
-    def canonicalise_energies(self, integrand, cut_graph):
-
-        rep = E("0")
-
+    def _canonical_energy_replacement(self, cut_graph):
         f_cut_set = set(cut_graph.final_cut)
         i_cut_set = set(cut_graph.initial_cut)
-        cut_union = f_cut_set.union(i_cut_set)
-        cut_intersection = f_cut_set.intersection(i_cut_set)
-
-        first_f = True
-        patt = None
 
         e_to_sub = next(iter(f_cut_set - i_cut_set))
 
@@ -2174,6 +2710,11 @@ class LoopIntegrandConstructor(object):
         e_to_sub_atts = e_to_sub.get_attributes()
         patt = E(f"E({e_to_sub_atts['id']})")
         rep = rep + E(f"E({e_to_sub_atts['id']})")
+        return patt, rep
+
+    def canonicalise_energies(self, integrand, cut_graph):
+
+        patt, rep = self._canonical_energy_replacement(cut_graph)
 
         print("canoniucalisation: replacing ", patt, " by ", rep)
 
@@ -2188,13 +2729,264 @@ class LoopIntegrandConstructor(object):
             E("w_(x_,1)*z_(y_,1)+w_(x_,2)*z_(y_,2)+w_(x_,3)*z_(y_,3)"),
         )
 
+    def _replace_factorized_energies(self, numerator, states, cut_graph):
+        for pattern, replacement in self._energy_replacements(cut_graph):
+            numerator = numerator.replace(pattern, replacement)
+            states = self._replace_factorized_states(states, pattern, replacement)
+        return numerator, states
+
+    def _apply_factorized_signs(self, expr, sign_map, fixed_sigma):
+        for edge_id, value in sorted(
+            fixed_sigma.items(), key=lambda item: _edge_id_sort_key(item[0])
+        ):
+            expr = expr.replace(E(f"sigma({edge_id})"), E(str(value)))
+        for edge_id, value in sign_map:
+            expr = expr.replace(E(f"sigma({edge_id})"), E(str(value)))
+        return expr
+
+    def _lambda_power_coefficients(self, expr, lam):
+        coefficients = {}
+        for monomial, coefficient in expr.coefficient_list(lam):
+            monomial_string = str(monomial)
+            lam_string = str(lam)
+            if monomial_string == "1":
+                power = 0
+            elif monomial_string == lam_string:
+                power = 1
+            elif monomial_string == f"1/{lam_string}":
+                power = -1
+            elif monomial_string.startswith(f"{lam_string}^"):
+                power = int(monomial_string.split("^", 1)[1])
+            elif monomial_string.startswith(f"1/{lam_string}^"):
+                power = -int(monomial_string.split("^", 1)[1])
+            else:
+                raise ValueError(f"Could not parse lambda monomial {monomial_string}.")
+            coefficients[power] = coefficients.get(power, E("0")) + coefficient
+        return coefficients
+
+    def _numerator_lambda_coefficients(self, expr, lam, order):
+        coefficients = {}
+        derivative = expr
+        factorial = 1
+        for power in range(order + 1):
+            if power > 0:
+                derivative = derivative.derivative(lam)
+                factorial *= power
+            coefficient = derivative.replace(lam, E("0"))
+            if factorial != 1:
+                coefficient = coefficient / E(str(factorial))
+            if str(coefficient) != "0":
+                coefficients[power] = coefficient
+        return coefficients
+
+    def _is_single_collinear_partition(self, cut_graph) -> bool:
+        partition = cut_graph.partition
+        return (len(partition[0]) > 1 and len(partition[1]) == 1) or (
+            len(partition[0]) == 1 and len(partition[1]) > 1
+        )
+
+    def _factorized_collinear_transform(self, expr, cut_graph, k_id, repl):
+        expr = expr.replace(E("p1sq"), E("0"))
+        expr = expr.replace(E("p2sq"), E("0"))
+        expr = self.route_integrand(expr, cut_graph)
+        expr = expr.replace(E(f"k({k_id[0]})"), repl)
+        expr = expr.replace(
+            self.sp3D(E(f"k_perp({k_id[0]})"), E("p(x_)")), E("0")
+        )
+        return expr
+
+    def _find_collinear_momentum(self, cut_graph, side):
+        first = True
+        momentum = E("0")
+        k_id = None
+        for ep in side:
+            ep_atts = ep.get_attributes()
+            edge_id = ep_atts["id"]
+            for e in cut_graph.graph.get_edges():
+                e_atts = e.get_attributes()
+                if e_atts["id"] != edge_id or not first:
+                    continue
+                k_keys = ["routing_k" + str(i) for i in range(self.L)]
+                loop_coeff = [E(e_atts[rout]) for rout in k_keys]
+                k_id = next(
+                    (i, c) for i, c in enumerate(loop_coeff) if str(c) != "0"
+                )
+                momentum = [
+                    (
+                        sum(loop_coeff[i] * E(f"k({i})") for i in range(self.L))
+                        + E(e_atts["routing_p1"]) * E("p(1)")
+                        + E(e_atts["routing_p2"]) * E("p(2)")
+                    ),
+                    e_atts["is_cut_DY"],
+                ]
+                first = False
+        if k_id is None:
+            raise ValueError("Could not find collinear loop momentum.")
+        return momentum, k_id
+
+    def _factorized_collinear_raised_expansion(
+        self,
+        emr_integrand,
+        cut_graph,
+        raised_cut,
+        factorized_raised,
+        side_index,
+        direction,
+        derivative_variable,
+        approximation_type,
+    ):
+        return self._factorized_collinear_expansion(
+            emr_integrand,
+            cut_graph,
+            factorized_raised,
+            side_index,
+            direction,
+            approximation_type,
+            derivative_variable=derivative_variable,
+        )
+
+    def _factorized_collinear_expansion(
+        self,
+        emr_integrand,
+        cut_graph,
+        factorized_payload,
+        side_index,
+        direction,
+        approximation_type,
+        derivative_variable=None,
+    ):
+        x = S("x", is_scalar=True, is_positive=True)
+        lam = S("λ", is_scalar=True)
+
+        numerator = factorized_payload["numerator"]
+        states = factorized_payload["cff_states"]
+        fixed_sigma = factorized_payload["fixed_sigma"]
+
+        momentum, k_id = self._find_collinear_momentum(
+            cut_graph, cut_graph.partition[side_index]
+        )
+
+        pattern, replacement = self._canonical_energy_replacement(cut_graph)
+        numerator = numerator.replace(pattern, replacement)
+        states = self._replace_factorized_states(states, pattern, replacement)
+        numerator, states = self._replace_factorized_energies(
+            numerator, states, cut_graph
+        )
+
+        if derivative_variable is None:
+            branches = [("n_c", numerator, False)]
+        else:
+            prefactor = E("1/2") * (self.sp3D(direction, direction)) ** E("1/2")
+            branches = []
+            numerator_derivative = numerator.derivative(derivative_variable)
+            if str(numerator_derivative.expand()) != "0":
+                branches.append(("dn", prefactor * numerator_derivative, False))
+            branches.append(("n_dc", prefactor * numerator, True))
+
+        if derivative_variable is None:
+            cff_for_branch = lambda cff_term, _differentiate_cff: cff_term
+        else:
+            cff_for_branch = (
+                lambda cff_term, differentiate_cff: (
+                    cff_term.derivative(derivative_variable)
+                    if differentiate_cff
+                    else cff_term
+                )
+            )
+
+        repl = k_id[1] * (
+            momentum[1] * x * direction
+            - (momentum[0] - k_id[1] * E(f"k({k_id[0]})"))
+            + lam * E(f"k_perp({k_id[0]})")
+        )
+        repl_x = (
+            momentum[1] * self.sp3D(momentum[0], direction)
+            / self.sp3D(direction, direction)
+        )
+        repl_kperp = -momentum[1] * x * direction + momentum[0]
+
+        integrand = E("0")
+        numerator_cache = {}
+        for sign_map, cff_term in states:
+            for branch_label, numerator_branch, differentiate_cff in branches:
+                cff_branch = cff_for_branch(cff_term, differentiate_cff)
+                if str(cff_branch.expand()) == "0":
+                    continue
+                cff_branch = self._apply_factorized_signs(
+                    cff_branch, sign_map, fixed_sigma
+                )
+                cff_branch = self._factorized_collinear_transform(
+                    cff_branch, cut_graph, k_id, repl
+                )
+                cff_series = _series_with_large_sum_fallback(
+                    cff_branch, lam, 0, -2
+                )
+                cff_coefficients = {
+                    power: coefficient
+                    for power, coefficient in self._lambda_power_coefficients(
+                        cff_series, lam
+                    ).items()
+                    if power <= -2 and str(coefficient.expand()) != "0"
+                }
+                if not cff_coefficients:
+                    continue
+
+                needed_order = max(-2 - power for power in cff_coefficients)
+                numerator_key = (branch_label, needed_order, sign_map)
+                if numerator_key not in numerator_cache:
+                    signed_numerator = self._apply_factorized_signs(
+                        numerator_branch, sign_map, fixed_sigma
+                    )
+                    signed_numerator = self._factorized_collinear_transform(
+                        signed_numerator, cut_graph, k_id, repl
+                    )
+                    numerator_cache[numerator_key] = (
+                        self._numerator_lambda_coefficients(
+                            signed_numerator, lam, needed_order
+                        )
+                    )
+
+                numerator_coefficients = numerator_cache[numerator_key]
+                for cff_power, cff_coefficient in cff_coefficients.items():
+                    for numerator_power, numerator_coefficient in (
+                        numerator_coefficients.items()
+                    ):
+                        if cff_power + numerator_power <= -2:
+                            integrand += numerator_coefficient * cff_coefficient
+
+        integrand = integrand.replace(E(f"k_perp({k_id[0]})"), repl_kperp)
+        integrand = integrand.replace(x, repl_x)
+
+        theta_expressions = [
+            repl_x,
+            E("1") - repl_x,
+            (E(f"Lambdasq-({self.sp3D(repl_kperp, repl_kperp)})/(x*(1-x))")).replace(
+                x, repl_x
+            ),
+        ]
+
+        replacement_at_limit = repl.replace(x, repl_x).series(
+            lam, 0, 0
+        ).to_expression()
+        return RoutedIntegrand(
+            integrand,
+            cut_graph,
+            [E(f"k({k_id[0]})"), replacement_at_limit],
+            emr_integrand,
+            approximation_type,
+            [E(f"k({k_id[0]})"), replacement_at_limit],
+            theta_expressions=theta_expressions,
+        )
+
     # Approximates the integrand at leading virtuality. For parton model diagrams, it simply replaces the
     # energies and routes the integrand, giving an expression in terms of loop momenta. No approximation is
     # performed. For partitions of the type [i_1]_[i_2,i_3,...], takes the limit p2sq->0 by setting i_2,i_3,...
     # collinear to p2 and expanding for small transverse momenta around this collinear configuration. Same for
     # [i_2,i_3,...]_[i_1] with p2sq substituted with p1sq.
 
-    def leading_virtuality_expansion(self, integrand, cut_graph, raised_cut):
+    def leading_virtuality_expansion(
+        self, integrand, cut_graph, raised_cut, factorized_raised=None
+    ):
         emr_integrand = deepcopy(integrand)
         partition = cut_graph.partition
 
@@ -2247,6 +3039,21 @@ class LoopIntegrandConstructor(object):
                                 e_atts["is_cut_DY"],
                             ]
                             first = False
+
+            if factorized_raised is not None:
+                derivative_variable = E("p1sq") if len(raised_cut) > 0 else None
+                routed_integrands.append(
+                    self._factorized_collinear_expansion(
+                        emr_integrand,
+                        cut_graph,
+                        factorized_raised,
+                        0,
+                        E("p(1)"),
+                        "collinear",
+                        derivative_variable=derivative_variable,
+                    )
+                )
+                return routed_integrands
 
             # In order to make the collinear replacement always work, replace a final-state energy
             # by energy conservation.
@@ -2344,6 +3151,21 @@ class LoopIntegrandConstructor(object):
                                 e_atts["is_cut_DY"],
                             ]
                             first = False
+
+            if factorized_raised is not None:
+                derivative_variable = E("p2sq") if len(raised_cut) > 0 else None
+                routed_integrands.append(
+                    self._factorized_collinear_expansion(
+                        emr_integrand,
+                        cut_graph,
+                        factorized_raised,
+                        1,
+                        E("p(2)"),
+                        "anti-collinear",
+                        derivative_variable=derivative_variable,
+                    )
+                )
+                return routed_integrands
 
             # In order to make the collinear replacement always work, replace a final-state energy
             # by energy conservation.
@@ -2632,11 +3454,20 @@ class LoopIntegrandConstructor(object):
 
     # Eliminates raised propagators by multiplying the relevant diagrams by the raised denominator
 
-    def eliminate_raised_cuts(self, emr_representation, cut_graph):
+    def _is_cut_for_raised_detection(self, edge_atts):
+        def is_nonzero(value):
+            return _strip_quotes(str(value)) not in ("0", "0.0", "None")
 
+        if edge_atts.get("is_cut_DY", None) is not None:
+            return is_nonzero(edge_atts.get("is_cut_DY"))
+        return is_nonzero(edge_atts.get("is_cut", "0"))
+
+    def _detect_raised_cuts(self, cut_graph):
         raised_cut = []
         g_edges = cut_graph.graph.get_edges()
-        init_cut_ids = [e.get_attributes()["id"] for e in cut_graph.initial_cut]
+        init_cut_ids = {
+            _strip_quotes(str(e.get_attributes()["id"])) for e in cut_graph.initial_cut
+        }
         for e, i in zip(g_edges, range(len(g_edges))):
             e_atts = e.get_attributes()
             for ep, j in zip(g_edges, range(len(g_edges))):
@@ -2646,11 +3477,11 @@ class LoopIntegrandConstructor(object):
                     j > i
                     and relation is not None
                     and (
-                        e_atts.get("is_cut_DY", None) is not None
-                        or ep_atts.get("is_cut_DY", None) is not None
+                        self._is_cut_for_raised_detection(e_atts)
+                        or self._is_cut_for_raised_detection(ep_atts)
                     )
                 ):
-                    if e_atts["id"] not in init_cut_ids:
+                    if _strip_quotes(str(e_atts["id"])) not in init_cut_ids:
                         raised_cut.append([
                             e_atts["id"],
                             ep_atts["id"],
@@ -2664,10 +3495,9 @@ class LoopIntegrandConstructor(object):
                             relation,
                             _strip_quotes(str(e_atts["particle"])),
                         ])
+        return raised_cut
 
-        print("RAISED CUTS ARE: ", raised_cut)
-
-        # compute energy conservation condition (specialised to "DY")
+    def _raised_energy_conservation_replacement(self, raised_cut, cut_graph):
         initial_cut_ids = [e.get_attributes()["id"] for e in cut_graph.initial_cut]
         final_cut_ids = [e.get_attributes()["id"] for e in cut_graph.final_cut]
 
@@ -2688,43 +3518,267 @@ class LoopIntegrandConstructor(object):
                 - sum(E(f"E({id})") for id in final_cut_ids)
                 + E(f"E({photon_id[0]})")
             ).expand()
+            return photon_id[0], repl
 
-            emr_representation = emr_representation.replace(
-                E(f"E({photon_id[0]})"), repl
+        if self.name == "tt~" and len(raised_cut) > 0:
+            if raised_cut[0][3] not in ["t", "t~"]:
+                tt_id = [
+                    e.get_attributes()["id"]
+                    for e in cut_graph.final_cut
+                    if _strip_quotes(str(e.get_attributes()["particle"])) == "t"
+                    or _strip_quotes(str(e.get_attributes()["particle"])) == "t~"
+                ]
+
+                if len(tt_id) != 2:
+                    raise ValueError("problem with final state tt in raised cut treatment")
+
+                repl = (
+                    sum(E(f"E({id})") for id in initial_cut_ids)
+                    - sum(E(f"E({id})") for id in final_cut_ids)
+                    + E(f"E({tt_id[0]})")
+                ).expand()
+                return tt_id[0], repl
+
+            repl = (
+                sum(E(f"E({id})") for id in initial_cut_ids)
+                - sum(E(f"E({id})") for id in final_cut_ids)
+                + E(f"E({initial_cut_ids[0]})")
+            ).expand()
+            return initial_cut_ids[0], repl
+
+        return None, None
+
+    def _replace_factorized_states(self, states, pattern, replacement):
+        return [
+            (sign_map, cff_term.replace(pattern, replacement))
+            for sign_map, cff_term in states
+        ]
+
+    def _series_factorized_states(self, states, multiplier, pattern, replacement):
+        same = E("same")
+        return [
+            (
+                sign_map,
+                (cff_term * multiplier)
+                .replace(pattern, replacement)
+                .series(same, 0, 0)
+                .to_expression(),
             )
+            for sign_map, cff_term in states
+        ]
 
-        if self.name == "tt~":
-            if len(raised_cut) > 0:
-                if raised_cut[0][3] not in ["t", "t~"]:
-                    tt_id = [
-                        e.get_attributes()["id"]
-                        for e in cut_graph.final_cut
-                        if _strip_quotes(str(e.get_attributes()["particle"])) == "t"
-                        or _strip_quotes(str(e.get_attributes()["particle"])) == "t~"
+    def _evaluate_factorized_numerator(self, numerator, states, fixed_sigma):
+        numerator = numerator
+        for edge_id, value in sorted(fixed_sigma.items(), key=lambda item: _edge_id_sort_key(item[0])):
+            numerator = numerator.replace(E(f"sigma({edge_id})"), E(str(value)))
+
+        state_maps = []
+        for sign_map, _cff_term in states:
+            current = dict(sign_map)
+            for edge_id in fixed_sigma:
+                current.pop(edge_id, None)
+            state_maps.append(current)
+
+        all_edge_ids = sorted(
+            {edge_id for state_map in state_maps for edge_id in state_map},
+            key=_edge_id_sort_key,
+        )
+        constant_signs = {}
+        varying_edge_ids = []
+        for edge_id in all_edge_ids:
+            values = {state_map.get(edge_id) for state_map in state_maps}
+            if len(values) == 1 and None not in values:
+                constant_signs[edge_id] = next(iter(values))
+            else:
+                varying_edge_ids.append(edge_id)
+
+        for edge_id, value in constant_signs.items():
+            numerator = numerator.replace(E(f"sigma({edge_id})"), E(str(value)))
+
+        wanted_keys = {
+            tuple((edge_id, state_map.get(edge_id)) for edge_id in varying_edge_ids)
+            for state_map in state_maps
+        }
+        evaluated = {}
+
+        def evaluate_tree(index, current, assignments):
+            if index == len(varying_edge_ids):
+                key = tuple(assignments)
+                if key in wanted_keys:
+                    evaluated[key] = current
+                return
+
+            edge_id = varying_edge_ids[index]
+            values = sorted(
+                {state_map.get(edge_id) for state_map in state_maps},
+                key=lambda value: (value is None, value),
+            )
+            for value in values:
+                if value is None:
+                    next_current = current
+                else:
+                    next_current = current.replace(E(f"sigma({edge_id})"), E(str(value)))
+                evaluate_tree(index + 1, next_current, assignments + [(edge_id, value)])
+
+        evaluate_tree(0, numerator, [])
+        return evaluated, varying_edge_ids, state_maps
+
+    def _recombine_factorized_integrand(self, numerator, states, fixed_sigma):
+        evaluated, varying_edge_ids, state_maps = self._evaluate_factorized_numerator(
+            numerator, states, fixed_sigma
+        )
+        out = E("0")
+        for state_map, (_sign_map, cff_term) in zip(state_maps, states):
+            key = tuple((edge_id, state_map.get(edge_id)) for edge_id in varying_edge_ids)
+            out += evaluated[key] * cff_term
+        return out
+
+    def eliminate_raised_cuts_factorized(self, cut_graph, prepared_numerator):
+        raised_cut = self._detect_raised_cuts(cut_graph)
+
+        if any(cut[3] != "g" for cut in raised_cut):
+            loop_integrand, raised_cut, is_final_raised = self.eliminate_raised_cuts(
+                self.emr_processor.get_integrand(
+                    cut_graph,
+                    prepared_numerator=prepared_numerator,
+                ),
+                cut_graph,
+            )
+            return loop_integrand, raised_cut, is_final_raised, None
+
+        numerator, cff_states, fixed_sigma = self.emr_processor.get_factorized_cff_terms(
+            cut_graph, prepared_numerator
+        )
+        raised_cut = self._detect_raised_cuts(cut_graph)
+
+        print("RAISED CUTS ARE: ", raised_cut)
+
+        energy_target, energy_repl = self._raised_energy_conservation_replacement(
+            raised_cut, cut_graph
+        )
+        if energy_target is not None:
+            pattern = E(f"E({energy_target})")
+            numerator = numerator.replace(pattern, energy_repl)
+            cff_states = self._replace_factorized_states(cff_states, pattern, energy_repl)
+
+        initial_cut_ids = [e.get_attributes()["id"] for e in cut_graph.initial_cut]
+        final_cut_ids = [e.get_attributes()["id"] for e in cut_graph.final_cut]
+        base_graph_name = _strip_quotes(str(cut_graph.graph.get("base_graph_name")))
+        edge_by_id = {e.get_attributes()["id"]: e for e in cut_graph.graph.get_edges()}
+        is_final_raised = False
+
+        for cut in raised_cut:
+            if cut[2] == "opp" and cut[3] != "g":
+                if not (
+                    self.L == 2
+                    and (self.channel == (-1, 1) or self.channel == (1, -1))
+                    and base_graph_name in ["GL06", "GL08"]
+                ):
+                    q_pattern = E(f"q({cut[0]})")
+                    q_replacement = -E(f"q({cut[0]})")
+                    numerator = numerator.replace(q_pattern, q_replacement)
+                    cff_states = [
+                        (sign_map, -cff_term.replace(q_pattern, q_replacement))
+                        for sign_map, cff_term in cff_states
                     ]
 
-                    if len(tt_id) != 2:
-                        raise ValueError(
-                            "problem with final state tt in raised cut treatment"
-                        )
+            if cut[3] in ["t", "t~"]:
+                print("HEREEEEEEE" * 10)
+                print(cut)
+                cut_repeated_ids = [
+                    eid
+                    for eid in [cut[0], cut[1]]
+                    if edge_by_id[eid].get_attributes().get("is_cut_DY") is not None
+                ]
+                cut_repeated_id = cut[0]
+                other_repeated_id = cut[1]
+                if len(cut_repeated_ids) == 1:
+                    cut_repeated_id = cut_repeated_ids[0]
+                    other_repeated_id = (
+                        cut[1] if cut_repeated_id == cut[0] else cut[0]
+                    )
 
+                multiplier = (
+                    (E(f"E({cut_repeated_id})") - E(f"E({other_repeated_id})"))
+                    * (2 * E(f"E({cut_repeated_id})"))
+                )
+                cff_states = self._series_factorized_states(
+                    cff_states,
+                    multiplier,
+                    E(f"E({cut_repeated_id})"),
+                    E(f"E({other_repeated_id})") + E("same"),
+                )
+                numerator = numerator.replace(
+                    E(f"E({cut_repeated_id})"), E(f"E({other_repeated_id})")
+                )
+                is_final_raised = True
+
+                if len(cut_repeated_ids) == 1:
                     repl = (
                         sum(E(f"E({id})") for id in initial_cut_ids)
-                        - sum(E(f"E({id})") for id in final_cut_ids)
-                        + E(f"E({tt_id[0]})")
+                        - sum(
+                            E(f"E({id})")
+                            for id in final_cut_ids
+                            if id != cut_repeated_id
+                        )
                     ).expand()
-                    emr_representation = emr_representation.replace(
-                        E(f"E({tt_id[0]})"), repl
-                    )
-                else:
-                    repl = (
-                        sum(E(f"E({id})") for id in initial_cut_ids)
-                        - sum(E(f"E({id})") for id in final_cut_ids)
-                        + E(f"E({initial_cut_ids[0]})")
-                    ).expand()
-                    emr_representation = emr_representation.replace(
-                        E(f"E({initial_cut_ids[0]})"), repl
-                    )
+                    replacements = [
+                        (E(f"E({other_repeated_id})"), repl),
+                        (E(f"En({cut_repeated_id})"), repl),
+                        (E(f"En({other_repeated_id})"), repl),
+                    ]
+                    for pattern, replacement in replacements:
+                        numerator = numerator.replace(pattern, replacement)
+                        cff_states = self._replace_factorized_states(
+                            cff_states, pattern, replacement
+                        )
+                    cff_states = [
+                        (
+                            sign_map,
+                            -cff_term / E(f"E({cut_repeated_id})"),
+                        )
+                        for sign_map, cff_term in cff_states
+                    ]
+            else:
+                print("HEREEEWWWWWW" * 10)
+                print(cut)
+                cff_states = self._series_factorized_states(
+                    cff_states,
+                    (E(f"E({cut[0]})") - E(f"E({cut[1]})")) * 2,
+                    E(f"E({cut[0]})"),
+                    E(f"E({cut[1]})") + E("same"),
+                )
+                numerator = numerator.replace(E(f"E({cut[0]})"), E(f"E({cut[1]})"))
+
+        factorized_raised = {
+            "numerator": numerator,
+            "cff_states": cff_states,
+            "fixed_sigma": fixed_sigma,
+        }
+        return (
+            self._recombine_factorized_integrand(numerator, cff_states, fixed_sigma),
+            raised_cut,
+            is_final_raised,
+            factorized_raised,
+        )
+
+    def eliminate_raised_cuts(self, emr_representation, cut_graph):
+
+        raised_cut = self._detect_raised_cuts(cut_graph)
+
+        print("RAISED CUTS ARE: ", raised_cut)
+
+        # compute energy conservation condition (specialised to "DY")
+        initial_cut_ids = [e.get_attributes()["id"] for e in cut_graph.initial_cut]
+        final_cut_ids = [e.get_attributes()["id"] for e in cut_graph.final_cut]
+
+        energy_target, energy_repl = self._raised_energy_conservation_replacement(
+            raised_cut, cut_graph
+        )
+        if energy_target is not None:
+            emr_representation = emr_representation.replace(
+                E(f"E({energy_target})"), energy_repl
+            )
 
         base_graph_name = _strip_quotes(str(cut_graph.graph.get("base_graph_name")))
         edge_by_id = {e.get_attributes()["id"]: e for e in cut_graph.graph.get_edges()}
@@ -3194,6 +4248,61 @@ class LoopIntegrandConstructor(object):
                                 lmb_choice.append(e_atts["id"])
                                 d_count += 1
 
+                if self.channel == (0, 0):
+                    base_graph_name = _strip_quotes(
+                        str(cut_graph.graph.get("base_graph_name"))
+                    )
+
+                    if base_graph_name in ["GL000", "GL002", "GL004", "GL006", "GL008", "GL011", "GL012", "GL013", "GL014","GL015","GL016","GL020","GL021","GL023","GL024","GL026","GL027","GL029","GL035","GL039","GL041","GL047","GL079","GL081","GL085","GL087","GL097"]:
+                        theta_flag = False
+                        lmb_choice = [2, 7]
+
+                        if base_graph_name in ["GL010", "GL011"]:
+                            theta_flag = True
+
+                    if base_graph_name in ["GL020", "GL021"]:
+                        cut_ids = {
+                            _strip_quotes(str(e.get_attributes()["id"]))
+                            for side in cut_graph.partition
+                            for e in side
+                        }
+                        if cut_ids == {"6", "7"}:
+                            lmb_choice = [0, 2]
+                        elif cut_ids == {"0", "1"}:
+                            lmb_choice = [2, 7]
+
+                    if base_graph_name in ["GL017","GL019","GL022","GL031","GL033","GL043","GL045","GL051","GL053","GL055","GL057","GL059","GL061","GL063","GL094","GL096","GL101","GL113"]:
+                        theta_flag = False
+                        lmb_choice = [2, 6]
+
+                    if base_graph_name in ["GL065"]:
+                        theta_flag = False
+                        lmb_choice = [2, 5]
+
+                    if base_graph_name in ["GL010","GL018","GL067","GL073","GL075","GL083","GL093","GL099"]:
+                        theta_flag = False
+                        lmb_choice = [2, 8]
+
+                        if base_graph_name in ["GL010","GL018"]:
+                            theta_flag = True
+
+                    if base_graph_name in ["GL071","GL077"]:
+                        theta_flag = True
+                        lmb_choice = [2, 3]
+
+                    if base_graph_name in ["GL091"]:
+                        theta_flag = False
+                        lmb_choice = [5, 8]
+
+                    if base_graph_name in ["GL0105","GL107","GL109","GL111","GL115","GL117","GL119","GL123"]:
+                        theta_flag = False
+                        lmb_choice = [3,6]
+
+                        if base_graph_name in ["GL109","GL111","GL115"]:
+                            theta_flag = True
+
+
+
             print(lmb_choice)
             # lmb_choice = [7, 2]
             # lmb_choice = [2, 7]
@@ -3211,18 +4320,94 @@ class LoopIntegrandConstructor(object):
                 self.external_gluon_polarisation_numerator_factorisation
             )
 
-        print(cut_graph.graph)
-        emr_integrand = self.emr_processor.get_integrand(
-            cut_graph,
+        production_stage_graph_name = _strip_quotes(
+            str(cut_graph.graph.get("base_graph_name"))
+        )
+        production_stage_partition_ids = [
+            [_strip_quotes(str(e.get_attributes()["id"])) for e in side]
+            for side in cut_graph.partition
+        ]
+
+        production_stage_start = time.monotonic()
+        prepared_numerator = self.emr_processor.prepare_numerator(
+            cut_graph.graph,
             numerator_factorisation=numerator_factorisation,
         )
-
-        # print(emr_integrand)
-
-        loop_integrand, raised_cut, is_final_raised = self.eliminate_raised_cuts(
-            emr_integrand, cut_graph
+        print(
+            "PRODUCTION_STAGE_TIMING "
+            f"graph={production_stage_graph_name} "
+            f"partition={production_stage_partition_ids} "
+            f"stage=prepare_numerator "
+            f"elapsed={time.monotonic() - production_stage_start:.3f}s"
         )
 
+        print(cut_graph.graph)
+        factorized_raised = None
+        raised_cut = self._detect_raised_cuts(cut_graph)
+        if raised_cut:
+            production_stage_start = time.monotonic()
+            loop_integrand, raised_cut, is_final_raised, factorized_raised = (
+                self.eliminate_raised_cuts_factorized(
+                    cut_graph,
+                    prepared_numerator,
+                )
+            )
+            print(
+                "PRODUCTION_STAGE_TIMING "
+                f"graph={production_stage_graph_name} "
+                f"partition={production_stage_partition_ids} "
+                f"stage=raised_factorized "
+                f"elapsed={time.monotonic() - production_stage_start:.3f}s"
+            )
+        elif self.L >= 2 and self._is_single_collinear_partition(cut_graph):
+            production_stage_start = time.monotonic()
+            numerator, cff_states, fixed_sigma = (
+                self.emr_processor.get_factorized_cff_terms(
+                    cut_graph,
+                    prepared_numerator,
+                )
+            )
+            factorized_raised = {
+                "numerator": numerator,
+                "cff_states": cff_states,
+                "fixed_sigma": fixed_sigma,
+            }
+            loop_integrand = self._recombine_factorized_integrand(
+                numerator,
+                cff_states,
+                fixed_sigma,
+            )
+            raised_cut = []
+            is_final_raised = False
+            print(
+                "PRODUCTION_STAGE_TIMING "
+                f"graph={production_stage_graph_name} "
+                f"partition={production_stage_partition_ids} "
+                f"stage=plain_factorized "
+                f"elapsed={time.monotonic() - production_stage_start:.3f}s"
+            )
+        else:
+            production_stage_start = time.monotonic()
+            emr_integrand = self.emr_processor.get_integrand(
+                cut_graph,
+                numerator_factorisation=numerator_factorisation,
+                prepared_numerator=prepared_numerator,
+            )
+
+            # print(emr_integrand)
+
+            loop_integrand, raised_cut, is_final_raised = self.eliminate_raised_cuts(
+                emr_integrand, cut_graph
+            )
+            print(
+                "PRODUCTION_STAGE_TIMING "
+                f"graph={production_stage_graph_name} "
+                f"partition={production_stage_partition_ids} "
+                f"stage=emr_integrand "
+                f"elapsed={time.monotonic() - production_stage_start:.3f}s"
+            )
+
+        production_stage_start = time.monotonic()
         uv_approximator = UltraVioletSubtraction(
             loop_integrand,
             deepcopy(cut_graph),
@@ -3232,24 +4417,54 @@ class LoopIntegrandConstructor(object):
             disable_integrated_uv_cts=self.disable_integrated_uv_cts,
         )
         uv_ct = uv_approximator.construct_uv_counter_terms()
-
-        threshold_approximator = ThresholdSubtractor(
-            deepcopy(orig_cut_graph),
-            self.params,
-            self.name,
-            self.L,
-            theta_flag,
-            numerator_factorisation=numerator_factorisation,
+        print(
+            "PRODUCTION_STAGE_TIMING "
+            f"graph={production_stage_graph_name} "
+            f"partition={production_stage_partition_ids} "
+            f"stage=uv_ct "
+            f"elapsed={time.monotonic() - production_stage_start:.3f}s"
         )
-        threshold_cts = threshold_approximator.construct_threshold_counter_terms()
 
+        production_stage_start = time.monotonic()
+        threshold_cts = []
+        threshold_stage = "threshold_ct"
         if skip_threshold_cts:
-            threshold_cts = []
+            threshold_stage = "threshold_ct_skipped_flag"
+        elif not _post_cut_graph_has_loop(orig_cut_graph):
+            threshold_stage = "threshold_ct_skipped_no_loop"
+        else:
+            threshold_approximator = ThresholdSubtractor(
+                deepcopy(orig_cut_graph),
+                self.params,
+                self.name,
+                self.L,
+                theta_flag,
+                numerator_factorisation=numerator_factorisation,
+                prepared_numerator=prepared_numerator,
+                emr_state_name=self.emr_state_name,
+            )
+            threshold_cts = threshold_approximator.construct_threshold_counter_terms()
+        print(
+            "PRODUCTION_STAGE_TIMING "
+            f"graph={production_stage_graph_name} "
+            f"partition={production_stage_partition_ids} "
+            f"stage={threshold_stage} "
+            f"elapsed={time.monotonic() - production_stage_start:.3f}s"
+        )
+
         # print("this emr")
         # print(emr_integrand)
 
+        leading_virtuality_start = time.monotonic()
         loop_integrand = self.leading_virtuality_expansion(
-            loop_integrand, cut_graph, raised_cut
+            loop_integrand, cut_graph, raised_cut, factorized_raised
+        )
+        print(
+            "LEADING_VIRTUALITY_EXPANSION_TIMING "
+            f"graph={production_stage_graph_name} "
+            f"partition={production_stage_partition_ids} "
+            f"raised={raised_cut} terms={len(loop_integrand)} "
+            f"elapsed={time.monotonic() - leading_virtuality_start:.3f}s"
         )
 
         print(len(loop_integrand))

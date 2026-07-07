@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import math
 import os
+import pickle
 import shutil
 import time
 from copy import deepcopy
@@ -96,7 +97,7 @@ def _sm_ttbar_couplings() -> dict[str, Expression]:
         wrap_indices_in_lorentz_structures=False,
     )
 
-    coupling_names = {"GC_1", "GC_10", "GC_11"}
+    coupling_names = {"GC_1", "GC_10", "GC_11", "GC_12"}
     couplings: dict[str, Expression] = {}
     for coupling in model.couplings:
         if coupling.name in coupling_names:
@@ -124,6 +125,7 @@ def substitute_process_couplings(expr: Expression, process: str, L: int) -> Expr
     expr = expr.replace(E("GC_11"), E("1"))
     expr = expr.replace(E("GC_1"), E("1"))
     expr = expr.replace(E("GC_10"), E("1"))
+    expr = expr.replace(E("GC_12"), E("1"))
     return expr
 
 
@@ -382,15 +384,44 @@ class evaluate_integrand:
 
         self.observable_params = observable_params
 
-        theta_x = self.routed_integrand.integrand.match(E("Θ(x___)"))
         self.theta_expressions: list[Expression] = []
         self.theta_val = []
 
-        if theta_x is not None:
-            for th in theta_x:
-                theta_expr = th[E("x___")]
+        def prepare_theta_expression(theta_expr):
+            theta_expr = self.concretise_scalar_products(theta_expr)
+            theta_expr = self.t_parametrise(theta_expr)
+            theta_expr = self._replace_couplings(theta_expr, include_tr=True)
+            theta_expr = theta_expr.replace(E("m(t)"), E(str(MT)))
+            theta_expr = theta_expr.replace(E("MT"), E(str(MT)))
+            theta_expr = theta_expr.replace(
+                E("Lambdasq"), E(str(observable_params["Lambdasq"]))
+            )
+            theta_expr = theta_expr.replace(
+                E("mUV"), E(str(observable_params.get("mUV", 1.0)))
+            )
+            theta_expr = theta_expr.replace(
+                E("mursq"), E(str(observable_params.get("mursq", 1.0)))
+            )
+            return theta_expr.replace(
+                E("𝜋"), E("3.141592653589793238462643383279502884")
+            )
+
+        supplied_theta_expressions = getattr(
+            self.routed_integrand, "theta_expressions", None
+        )
+        if supplied_theta_expressions is not None:
+            for theta_expr in supplied_theta_expressions:
+                theta_expr = prepare_theta_expression(theta_expr)
                 self.theta_expressions.append(theta_expr)
                 self.theta_val.append(theta_expr.evaluator({}, {}, self.symbols))
+        else:
+            theta_x = self.routed_integrand.integrand.match(E("Θ(x___)"))
+
+            if theta_x is not None:
+                for th in theta_x:
+                    theta_expr = th[E("x___")]
+                    self.theta_expressions.append(theta_expr)
+                    self.theta_val.append(theta_expr.evaluator({}, {}, self.symbols))
 
         if len(self.routed_integrand.cut_graph.final_cut) > 1 and self.process == "DY":
             theta_zmin_expr = E("t^2*z") - E(str(observable_params["zmin"]))
@@ -700,6 +731,7 @@ class DYCompiledTerm:
     e_surface_evaluator: Evaluator | None = None
     theta_evaluators: list[Evaluator | None] | None = None
     integrand_evaluator: Evaluator | None = None
+    integrand_evaluator_parameter_order: list[Expression] | None = None
     ttbar_pt_sq_expression: Expression | None = None
     ttbar_pt_sq_evaluator: Evaluator | None = None
     approximation_type: str | None = None
@@ -707,7 +739,7 @@ class DYCompiledTerm:
 
 class DYCompiledBundle:
     METADATA_FILE = "bundle_metadata.json"
-    BUNDLE_FORMAT_VERSION = 3
+    BUNDLE_FORMAT_VERSION = 4
     DOUBLE_FLOAT_PRECISION = 32
 
     def __init__(
@@ -795,6 +827,162 @@ class DYCompiledBundle:
         return pjoin(EVALUATORS_FOLDER, process, integrand_name)
 
     @staticmethod
+    def _copy_if_present(src: str, dst: str) -> None:
+        if os.path.exists(src):
+            os.makedirs(os.path.dirname(dst), exist_ok=True)
+            shutil.copy2(src, dst)
+
+    @classmethod
+    def merge_existing_bundles(
+        cls,
+        process: str,
+        integrand_name: str,
+        n_loops: int,
+        source_integrand_names: list[str],
+    ) -> "DYCompiledBundle":
+        if not source_integrand_names:
+            raise pygloopException("Cannot merge an empty list of DY bundles.")
+
+        final_dir = cls._bundle_dir(process, integrand_name)
+        staging_dir = f"{final_dir}.tmp_merge_{os.getpid()}_{time.monotonic_ns()}"
+        if os.path.isdir(staging_dir):
+            shutil.rmtree(staging_dir)
+        os.makedirs(staging_dir, exist_ok=True)
+
+        final_terms = []
+        fallback_precision = None
+        fallback_backend = None
+        fallback_parameter_order = None
+        global_term_index = 0
+        try:
+            for source_integrand_name in source_integrand_names:
+                source_dir = cls._bundle_dir(process, source_integrand_name)
+                source_metadata_path = pjoin(source_dir, cls.METADATA_FILE)
+                if not os.path.isfile(source_metadata_path):
+                    raise pygloopException(
+                        f"Missing source DY bundle metadata: {source_metadata_path}"
+                    )
+
+                with open(source_metadata_path, "r", encoding="utf-8") as f:
+                    source_metadata = json.load(f)
+
+                if source_metadata.get("process") != process:
+                    raise pygloopException(
+                        f"Cannot merge DY bundle '{source_integrand_name}' for "
+                        f"process '{source_metadata.get('process')}' into '{process}'."
+                    )
+                if int(source_metadata.get("n_loops", -1)) != int(n_loops):
+                    raise pygloopException(
+                        f"Cannot merge DY bundle '{source_integrand_name}' with "
+                        f"n_loops={source_metadata.get('n_loops')} into n_loops={n_loops}."
+                    )
+
+                source_fallback_precision = int(
+                    source_metadata.get("fallback_precision", 80)
+                )
+                source_fallback_backend = source_metadata.get("fallback_backend", "arb")
+                source_fallback_order = source_metadata.get(
+                    "fallback_parameter_order", []
+                )
+                if fallback_precision is None:
+                    fallback_precision = source_fallback_precision
+                    fallback_backend = source_fallback_backend
+                    fallback_parameter_order = source_fallback_order
+                elif (
+                    fallback_precision != source_fallback_precision
+                    or fallback_backend != source_fallback_backend
+                    or fallback_parameter_order != source_fallback_order
+                ):
+                    raise pygloopException(
+                        f"Cannot merge DY bundle '{source_integrand_name}' with "
+                        "different fallback metadata."
+                    )
+
+                for term in source_metadata["terms"]:
+                    evaluator_name = term["evaluator_name"]
+                    for suffix in (
+                        ".cpp",
+                        ".so",
+                        "_param_builder.json",
+                    ):
+                        cls._copy_if_present(
+                            pjoin(source_dir, f"{evaluator_name}{suffix}"),
+                            pjoin(staging_dir, f"{evaluator_name}{suffix}"),
+                        )
+
+                    source_additional_data = pjoin(
+                        source_dir, f"{evaluator_name}_additional_data.pkl"
+                    )
+                    final_additional_data = pjoin(
+                        staging_dir, f"{evaluator_name}_additional_data.pkl"
+                    )
+                    if os.path.exists(source_additional_data):
+                        with open(source_additional_data, "rb") as handle:
+                            additional_data = pickle.load(handle)
+                        if isinstance(additional_data, dict):
+                            additional_data = dict(additional_data)
+                            additional_data["integrand_name"] = integrand_name
+                            additional_data["term_id"] = global_term_index
+                        os.makedirs(os.path.dirname(final_additional_data), exist_ok=True)
+                        with open(final_additional_data, "wb") as handle:
+                            pickle.dump(additional_data, handle)
+
+                    merged_term = dict(term)
+
+                    def copy_saved_evaluator(relpath, kind, theta_index=None):
+                        if relpath is None:
+                            return None
+                        final_relpath = cls._saved_evaluator_relpath(
+                            global_term_index, kind, theta_index
+                        )
+                        cls._copy_if_present(
+                            pjoin(source_dir, relpath),
+                            pjoin(staging_dir, final_relpath),
+                        )
+                        return final_relpath
+
+                    merged_term["e_surface_evaluator"] = copy_saved_evaluator(
+                        term.get("e_surface_evaluator"), "e_surface"
+                    )
+                    merged_term["integrand_evaluator"] = copy_saved_evaluator(
+                        term.get("integrand_evaluator"), "integrand"
+                    )
+                    merged_term["ttbar_pt_sq_evaluator"] = copy_saved_evaluator(
+                        term.get("ttbar_pt_sq_evaluator"), "ttbar_pt_sq"
+                    )
+                    merged_term["theta_evaluators"] = [
+                        copy_saved_evaluator(relpath, "theta", theta_index)
+                        for theta_index, relpath in enumerate(
+                            term.get("theta_evaluators", [])
+                        )
+                    ]
+                    final_terms.append(merged_term)
+                    global_term_index += 1
+
+            metadata = {
+                "bundle_format_version": cls.BUNDLE_FORMAT_VERSION,
+                "process": process,
+                "integrand_name": integrand_name,
+                "n_loops": n_loops,
+                "fallback_precision": fallback_precision,
+                "fallback_backend": fallback_backend,
+                "fallback_parameter_order": fallback_parameter_order,
+                "terms": final_terms,
+            }
+            with open(pjoin(staging_dir, cls.METADATA_FILE), "w", encoding="utf-8") as f:
+                json.dump(metadata, f, indent=2)
+
+            if os.path.isdir(final_dir):
+                shutil.rmtree(final_dir)
+            os.replace(staging_dir, final_dir)
+        except Exception:
+            if os.path.isdir(staging_dir):
+                shutil.rmtree(staging_dir)
+            raise
+
+        return cls.load(process, integrand_name)
+
+    @staticmethod
     def _fallback_params_for_n_loops(n_loops: int) -> list[Expression]:
         params: list[Expression] = []
         for i in range(n_loops):
@@ -831,6 +1019,17 @@ class DYCompiledBundle:
         path = pjoin(out_dir, relpath)
         os.makedirs(os.path.dirname(path), exist_ok=True)
         evaluator = expr.evaluator({}, {}, fallback_params)
+        with open(path, "wb") as handle:
+            handle.write(evaluator.save())
+
+    @staticmethod
+    def _write_existing_evaluator(
+        out_dir: str,
+        relpath: str,
+        evaluator: Evaluator,
+    ) -> None:
+        path = pjoin(out_dir, relpath)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "wb") as handle:
             handle.write(evaluator.save())
 
@@ -1048,6 +1247,7 @@ class DYCompiledBundle:
             e_surface_evaluator_path = None
             theta_evaluator_paths: list[str | None] = []
             integrand_evaluator_path = None
+            integrand_evaluator_parameter_order = None
             ttbar_pt_sq_evaluator_path = None
             if fallback_backend == "double_float":
                 e_surface_evaluator_path = cls._saved_evaluator_relpath(
@@ -1068,12 +1268,10 @@ class DYCompiledBundle:
                     integrand_evaluator_path = cls._saved_evaluator_relpath(
                         i, "integrand"
                     )
-                    cls._write_saved_evaluator(
-                        out_dir,
-                        integrand_evaluator_path,
-                        integrand_expression,
-                        fallback_params,
+                    cls._write_existing_evaluator(
+                        out_dir, integrand_evaluator_path, ev.evaluator
                     )
+                    integrand_evaluator_parameter_order = list(ev.symbols)
                 if ttbar_pt_sq_expression is not None:
                     ttbar_pt_sq_evaluator_path = cls._saved_evaluator_relpath(
                         i, "ttbar_pt_sq"
@@ -1105,6 +1303,9 @@ class DYCompiledBundle:
                         cls._load_saved_evaluator(out_dir, integrand_evaluator_path)
                         if integrand_evaluator_path is not None
                         else None
+                    ),
+                    integrand_evaluator_parameter_order=(
+                        integrand_evaluator_parameter_order
                     ),
                     ttbar_pt_sq_evaluator=(
                         cls._load_saved_evaluator(
@@ -1172,6 +1373,15 @@ class DYCompiledBundle:
                         and t.integrand_expression is not None
                         else None
                     ),
+                    "integrand_evaluator_parameter_order": (
+                        [
+                            param.to_canonical_string()
+                            for param in t.integrand_evaluator_parameter_order
+                        ]
+                        if fallback_backend == "double_float"
+                        and t.integrand_evaluator_parameter_order is not None
+                        else None
+                    ),
                     "ttbar_pt_sq_expression": (
                         t.ttbar_pt_sq_expression.to_canonical_string()
                         if fallback_backend != "double_float"
@@ -1223,6 +1433,9 @@ class DYCompiledBundle:
             e_surface_raw = t.get("e_surface")
             theta_raw = t.get("theta_expressions", [])
             integrand_raw = t.get("integrand_expression")
+            integrand_evaluator_parameter_order_raw = t.get(
+                "integrand_evaluator_parameter_order"
+            )
             ttbar_pt_sq_raw = t.get("ttbar_pt_sq_expression")
             terms.append(
                 DYCompiledTerm(
@@ -1244,6 +1457,14 @@ class DYCompiledBundle:
                     ],
                     integrand_evaluator=cls._load_saved_evaluator(
                         out_dir, t.get("integrand_evaluator")
+                    ),
+                    integrand_evaluator_parameter_order=(
+                        [
+                            E(param)
+                            for param in integrand_evaluator_parameter_order_raw
+                        ]
+                        if integrand_evaluator_parameter_order_raw is not None
+                        else None
                     ),
                     ttbar_pt_sq_expression=(
                         E(ttbar_pt_sq_raw) if ttbar_pt_sq_raw is not None else None
@@ -1302,6 +1523,23 @@ class DYCompiledBundle:
     ) -> list[float | Decimal]:
         return [values[param] for param in self._fallback_param_order]
 
+    def _fallback_input_values_for_order(
+        self,
+        values: dict[Expression, float | Decimal],
+        parameter_order: list[Expression],
+    ) -> list[float | Decimal]:
+        ordered_values = []
+        for param in parameter_order:
+            key = self._normalize_symbol_key(param.to_canonical_string())
+            value_key = self._value_key_by_name.get(key)
+            if value_key is None or value_key not in values:
+                raise pygloopException(
+                    f"Missing runtime value for fallback evaluator symbol "
+                    f"'{param.to_canonical_string()}'."
+                )
+            ordered_values.append(values[value_key])
+        return ordered_values
+
     @staticmethod
     def _single_evaluator_output(value):
         if isinstance(value, (list, tuple)):
@@ -1342,6 +1580,7 @@ class DYCompiledBundle:
         evaluator: Evaluator | None,
         values: dict[Expression, Decimal],
         decimal_digit_precision: int,
+        evaluator_parameter_order: list[Expression] | None = None,
     ) -> Decimal | None:
         if decimal_digit_precision == self.DOUBLE_FLOAT_PRECISION:
             if evaluator is None:
@@ -1349,10 +1588,17 @@ class DYCompiledBundle:
                     "No DoubleFloat fallback evaluator data is present in this DY "
                     "bundle. Regenerate the bundle with --dy-fallback-precision 32."
                 )
+            input_values = (
+                self._fallback_input_values_for_order(
+                    values, evaluator_parameter_order
+                )
+                if evaluator_parameter_order is not None
+                else self._fallback_input_values(values)
+            )
             try:
                 value = self._single_evaluator_output(
                     evaluator.evaluate_with_prec(
-                        self._fallback_input_values(values),
+                        input_values,
                         self.DOUBLE_FLOAT_PRECISION,
                     )
                 )
@@ -1984,6 +2230,7 @@ class DYCompiledBundle:
                 term.integrand_evaluator,
                 dec_vals,
                 decimal_digit_precision,
+                term.integrand_evaluator_parameter_order,
             )
             if term_value is None:
                 raise pygloopException(
