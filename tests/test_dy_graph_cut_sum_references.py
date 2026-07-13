@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import contextlib
 import io
 import logging
@@ -200,8 +201,41 @@ TT_TWO_LOOP_POINT = {
     "z": POINT_Z,
     "m_uv": 2000.0,
 }
+TT_TWO_LOOP_QQBAR_PROBE_POINTS = {
+    "collinear_anti_collinear": {
+        "ks": [Vector(0.01, 0.0025, -65.0), Vector(-70.0, 120.0, -160.0)],
+        "p1": Vector(0.0, 0.0, 500.0),
+        "p2": Vector(0.0, 0.0, -500.0),
+        "z": 0.25,
+        "m_uv": 2000.0,
+    },
+    "soft": {
+        "ks": [Vector(0.01, 0.002, 0.003), Vector(-70.0, 120.0, -160.0)],
+        "p1": Vector(0.0, 0.0, 500.0),
+        "p2": Vector(0.0, 0.0, -500.0),
+        "z": POINT_Z,
+        "m_uv": 2000.0,
+    },
+}
+TT_TWO_LOOP_QG_PROBE_POINTS = {
+    "collinear": {
+        "ks": [Vector(0.01, 0.0025, 185.0), Vector(-70.0, 120.0, -160.0)],
+        "p1": Vector(0.0, 0.0, 500.0),
+        "p2": Vector(0.0, 0.0, -500.0),
+        "z": POINT_Z,
+        "m_uv": 2000.0,
+    },
+    "anti_collinear": {
+        "ks": [Vector(0.01, 0.0025, -65.0), Vector(-70.0, 120.0, -160.0)],
+        "p1": Vector(0.0, 0.0, 500.0),
+        "p2": Vector(0.0, 0.0, -500.0),
+        "z": 0.25,
+        "m_uv": 2000.0,
+    },
+}
 TT_TWO_LOOP_CHANNEL_NAMES = tuple(f"graph_{index}" for index in range(16))
 TT_TWO_LOOP_QG_CHANNEL_NAMES = tuple(f"graph_{index}" for index in range(11))
+TwoLoopStableTermKey = tuple[str, str, tuple[tuple[str, ...], ...]]
 TT_TWO_LOOP_REFERENCE_TERMS: dict[str, Decimal] = {
     "graph_0_cut_3_term_0_integrand": Decimal("2.564934270982978362558987076623E-22"),
     "graph_0_cut_3_term_1_integrand": Decimal("-1.663339937854731049099220197308E-22"),
@@ -334,6 +368,292 @@ TT_TWO_LOOP_QG_REFERENCE_TERMS: dict[str, Decimal] = {
     "graph_10_cut_1_term_0_integrand": Decimal("0"),
     "graph_10_cut_2_term_0_integrand": Decimal("2.230405092540014639811067394671E-19"),
     "graph_10_cut_5_term_0_integrand": Decimal("0"),
+}
+TT_TWO_LOOP_QQBAR_SINGLE_CUT_REFERENCE_TERMS: dict[TwoLoopStableTermKey, Decimal] = {
+    ("GL00", "PM", (("0",), ("1",))): Decimal(
+        "2.564934270982978362558987077E-22"
+    ),
+    ("GL00", "threshold", (("0",), ("1",))): Decimal(
+        "-1.663339937854731049099220197E-22"
+    ),
+    ("GL00", "uv", (("0",), ("1",))): Decimal(
+        "-3.211818454038580202478615000E-24"
+    ),
+    ("GL00", "uv_int", (("0",), ("1",))): Decimal(
+        "-1.525525757370483854323889844E-22"
+    ),
+    ("GL01", "PM", (("0",), ("1",))): Decimal(
+        "3.005649832397274938443490561E-21"
+    ),
+    ("GL02", "PM", (("0",), ("1",))): Decimal(
+        "-3.038825330624469579374345246E-21"
+    ),
+    ("GL02", "anti-collinear", (("0",), ("6", "8"))): Decimal("0"),
+    ("GL03", "PM", (("0",), ("1",))): Decimal(
+        "-2.246598835620985116738360359E-20"
+    ),
+    ("GL03", "collinear", (("1",), ("6", "8"))): Decimal("0"),
+    ("GL04", "PM", (("0",), ("1",))): Decimal(
+        "-3.563233685485752405164429907E-21"
+    ),
+    ("GL04", "anti-collinear", (("0",), ("7", "8"))): Decimal("0"),
+    ("GL04", "collinear", (("1",), ("6", "8"))): Decimal("0"),
+    ("GL04", "threshold", (("0",), ("1",))): Decimal(
+        "4.934358776777936739552483039E-22"
+    ),
+    ("GL04", "uv", (("0",), ("1",))): Decimal(
+        "3.329362655651698603590808121E-23"
+    ),
+    ("GL04", "uv_int", (("0",), ("1",))): Decimal(
+        "4.884584595917869163451666014E-22"
+    ),
+    ("GL05", "PM", (("0",), ("1",))): Decimal(
+        "-3.654984385592332288387655741E-20"
+    ),
+    ("GL05", "threshold", (("0",), ("1",))): Decimal(
+        "3.442020125877740895747976446E-20"
+    ),
+    ("GL05", "uv", (("0",), ("1",))): Decimal(
+        "-5.312825197190258050623963111E-22"
+    ),
+    ("GL05", "uv_int", (("0",), ("1",))): Decimal(
+        "-7.457315340715731118170756226E-22"
+    ),
+    ("GL06", "PM", (("0",), ("1",))): Decimal(
+        "-1.089377818897777092597997971E-20"
+    ),
+    ("GL06", "anti-collinear", (("0",), ("6", "7"))): Decimal("0"),
+    ("GL06", "anti-collinear", (("0",), ("7", "8"))): Decimal("0"),
+    ("GL07", "PM", (("0",), ("1",))): Decimal(
+        "5.525196313866040811599398990E-21"
+    ),
+    ("GL07", "anti-collinear", (("0",), ("7", "8"))): Decimal("0"),
+    ("GL07", "collinear", (("1",), ("6", "7"))): Decimal("0"),
+    ("GL07", "soft", (("6", "7"), ("7", "8"))): Decimal("0"),
+    ("GL07", "soft-anti-collinear", (("6", "7"), ("7", "8"))): Decimal("0"),
+    ("GL07", "soft-collinear", (("6", "7"), ("7", "8"))): Decimal("0"),
+    ("GL08", "PM", (("0",), ("1",))): Decimal(
+        "-4.366014594668096655144365910E-22"
+    ),
+    ("GL08", "collinear", (("1",), ("6", "7"))): Decimal("0"),
+    ("GL08", "collinear", (("1",), ("7", "8"))): Decimal("0"),
+    ("GL09", "PM", (("0",), ("1",))): Decimal(
+        "6.608178683235815854427477140E-22"
+    ),
+    ("GL09", "PM", (("6",), ("7",))): Decimal(
+        "-1.320946037728080752156242061E-21"
+    ),
+    ("GL09", "anti-collinear", (("0",), ("7", "8"))): Decimal("0"),
+    ("GL09", "anti-collinear", (("1", "8"), ("6",))): Decimal("0"),
+    ("GL09", "collinear", (("0", "8"), ("7",))): Decimal("0"),
+    ("GL09", "collinear", (("1",), ("6", "8"))): Decimal("0"),
+    ("GL09", "soft", (("0", "8"), ("7", "8"))): Decimal("0"),
+    ("GL09", "soft", (("1", "8"), ("6", "8"))): Decimal("0"),
+    ("GL09", "soft-anti-collinear", (("0", "8"), ("7", "8"))): Decimal("0"),
+    ("GL09", "soft-anti-collinear", (("1", "8"), ("6", "8"))): Decimal("0"),
+    ("GL09", "soft-collinear", (("0", "8"), ("7", "8"))): Decimal("0"),
+    ("GL09", "soft-collinear", (("1", "8"), ("6", "8"))): Decimal("0"),
+    ("GL09", "threshold", (("0",), ("1",))): Decimal(
+        "-1.516154645692777678835814949E-21"
+    ),
+    ("GL09", "threshold", (("6",), ("7",))): Decimal(
+        "1.375339753513663681966068215E-21"
+    ),
+    ("GL09", "uv", (("0",), ("1",))): Decimal(
+        "-3.851990052356234492219057607E-24"
+    ),
+    ("GL09", "uv", (("6",), ("7",))): Decimal(
+        "-3.184567265424894901331183372E-24"
+    ),
+    ("GL09", "uv_int", (("0",), ("1",))): Decimal(
+        "-4.573761247209048215782700343E-23"
+    ),
+    ("GL10", "PM", (("0",), ("1",))): Decimal(
+        "-5.016857409659023892861433949E-21"
+    ),
+    ("GL10", "PM", (("6",), ("7",))): Decimal(
+        "8.717966039232527296676493224E-21"
+    ),
+    ("GL10", "threshold", (("0",), ("1",))): Decimal(
+        "1.050269863882578175602206284E-20"
+    ),
+    ("GL10", "threshold", (("6",), ("7",))): Decimal(
+        "-5.653533212903497492135157459E-21"
+    ),
+    ("GL10", "uv", (("0",), ("1",))): Decimal(
+        "-5.879753724216092717881308646E-22"
+    ),
+    ("GL10", "uv", (("6",), ("7",))): Decimal(
+        "-5.148941299851106949762318680E-22"
+    ),
+    ("GL10", "uv_int", (("0",), ("1",))): Decimal(
+        "-3.087280396105554915100382199E-22"
+    ),
+    ("GL10", "uv_int", (("6",), ("7",))): Decimal(
+        "-2.419744185225200642016213919E-22"
+    ),
+    ("GL11", "PM", (("0",), ("1",))): Decimal(
+        "-3.284739651210990541431726813E-20"
+    ),
+    ("GL11", "threshold", (("0",), ("1",))): Decimal(
+        "-3.883713797912208321015756661E-21"
+    ),
+    ("GL11", "uv", (("0",), ("1",))): Decimal(
+        "3.078603767202858722146739418E-23"
+    ),
+    ("GL11", "uv_int", (("0",), ("1",))): Decimal(
+        "4.884584595917869143398958793E-22"
+    ),
+    ("GL13", "PM", (("0",), ("1",))): Decimal(
+        "-3.168507357686517808776348496E-21"
+    ),
+    ("GL13", "anti-collinear", (("0",), ("6", "8"))): Decimal("0"),
+    ("GL13", "collinear", (("1",), ("7", "8"))): Decimal("0"),
+    ("GL13", "threshold", (("0",), ("1",))): Decimal(
+        "3.224333870065831183111888173E-21"
+    ),
+    ("GL15", "PM", (("0",), ("1",))): Decimal(
+        "-8.527338959586739758087825535E-21"
+    ),
+    ("GL15", "uv", (("0",), ("1",))): Decimal(
+        "2.112782693338624605885823206E-22"
+    ),
+    ("GL15", "uv_int", (("0",), ("1",))): Decimal(
+        "-1.181956937538955576796158337E-23"
+    ),
+    ("GL17", "PM", (("0",), ("1",))): Decimal(
+        "4.928830535107888943017536152E-23"
+    ),
+    ("GL17", "uv", (("0",), ("1",))): Decimal(
+        "-3.762512922830888527111973019E-24"
+    ),
+    ("GL17", "uv_int", (("0",), ("1",))): Decimal(
+        "-2.602322155717267036262632568E-23"
+    ),
+    ("GL18", "PM", (("0",), ("1",))): Decimal(
+        "-6.079789072214330064551277412E-22"
+    ),
+    ("GL18", "threshold", (("0",), ("1",))): Decimal(
+        "4.959356732853394776159479951E-21"
+    ),
+    ("GL18", "uv", (("0",), ("1",))): Decimal(
+        "-5.524481424918017008809399257E-22"
+    ),
+    ("GL18", "uv_int", (("0",), ("1",))): Decimal(
+        "-2.738867745114538102007662321E-22"
+    ),
+}
+TT_TWO_LOOP_QQBAR_COLLINEAR_REFERENCE_TERMS: dict[TwoLoopStableTermKey, Decimal] = {
+    ("GL04", "collinear", (("1",), ("6", "8"))): Decimal(
+        "7.628105502159485966771295864E-12"
+    ),
+    ("GL07", "collinear", (("1",), ("6", "7"))): Decimal(
+        "-5.188756155721537388198338262E-12"
+    ),
+    ("GL08", "collinear", (("1",), ("6", "7"))): Decimal(
+        "1.042382186581516850904888815E-12"
+    ),
+    ("GL08", "collinear", (("1",), ("7", "8"))): Decimal(
+        "1.042382186581516850904889692E-12"
+    ),
+    ("GL09", "collinear", (("1",), ("6", "8"))): Decimal(
+        "2.097346550277158898464725974E-12"
+    ),
+    ("GL13", "collinear", (("1",), ("7", "8"))): Decimal(
+        "7.554890778756194532480068586E-12"
+    ),
+}
+TT_TWO_LOOP_QQBAR_ANTI_COLLINEAR_REFERENCE_TERMS: dict[
+    TwoLoopStableTermKey, Decimal
+] = {
+    ("GL02", "anti-collinear", (("0",), ("6", "8"))): Decimal(
+        "1.263969016808372857623376992E-11"
+    ),
+    ("GL04", "anti-collinear", (("0",), ("7", "8"))): Decimal(
+        "7.628105502159485966771295864E-12"
+    ),
+    ("GL09", "anti-collinear", (("0",), ("7", "8"))): Decimal(
+        "2.097346550277158898464725974E-12"
+    ),
+    ("GL13", "anti-collinear", (("0",), ("6", "8"))): Decimal(
+        "7.554890778756195479545998151E-12"
+    ),
+}
+TT_TWO_LOOP_QQBAR_SOFT_REFERENCE_TERMS: dict[TwoLoopStableTermKey, Decimal] = {
+    ("GL07", "soft", (("6", "7"), ("7", "8"))): Decimal(
+        "-1.889442430165611184266423204E-8"
+    ),
+    ("GL09", "soft", (("0", "8"), ("7", "8"))): Decimal(
+        "1.889442430165611184266423204E-8"
+    ),
+    ("GL09", "soft", (("1", "8"), ("6", "8"))): Decimal(
+        "1.889442430165611184266423204E-8"
+    ),
+}
+TT_TWO_LOOP_QQBAR_SOFT_ANTI_COLLINEAR_REFERENCE_TERMS: dict[
+    TwoLoopStableTermKey, Decimal
+] = {
+    ("GL07", "soft-anti-collinear", (("6", "7"), ("7", "8"))): Decimal(
+        "6.695016179142717319873222485E-8"
+    ),
+    ("GL09", "soft-anti-collinear", (("1", "8"), ("6", "8"))): Decimal(
+        "-6.695016179142717319873222485E-8"
+    ),
+}
+TT_TWO_LOOP_QQBAR_SOFT_COLLINEAR_REFERENCE_TERMS: dict[
+    TwoLoopStableTermKey, Decimal
+] = {
+    ("GL09", "soft-collinear", (("0", "8"), ("7", "8"))): Decimal(
+        "-6.695016179142717319873222485E-8"
+    ),
+}
+TT_TWO_LOOP_QG_COLLINEAR_REFERENCE_TERMS: dict[TwoLoopStableTermKey, Decimal] = {
+    ("GL01", "collinear", (("1",), ("6", "7"))): Decimal(
+        "-2.417805977402003581681108060E-11"
+    ),
+    ("GL02", "collinear", (("1",), ("6", "7"))): Decimal(
+        "-5.822151515639001639740207557E-12"
+    ),
+    ("GL02", "collinear", (("1",), ("7", "8"))): Decimal(
+        "-5.822151515639001639737656550E-12"
+    ),
+    ("GL04", "collinear", (("1",), ("6", "8"))): Decimal(
+        "4.388531129978856262186577392E-11"
+    ),
+    ("GL06", "collinear", (("1",), ("3", "7"))): Decimal(
+        "-9.089253434562675967356486797E-11"
+    ),
+    ("GL08", "collinear", (("0", "3"), ("5",))): Decimal(
+        "7.061221102857132658099698176E-11"
+    ),
+    ("GL08", "collinear", (("1",), ("3", "8"))): Decimal(
+        "7.061221102857133742920880353E-11"
+    ),
+    ("GL10", "collinear", (("0", "3"), ("5",))): Decimal(
+        "1.279638059666248667205162782E-10"
+    ),
+    ("GL10", "collinear", (("0", "7"), ("5",))): Decimal(
+        "1.279638059666248667205147677E-10"
+    ),
+    ("GL12", "collinear", (("0", "3"), ("5",))): Decimal(
+        "-1.063111863696687186947233226E-11"
+    ),
+    ("GL12", "collinear", (("1",), ("3", "7"))): Decimal(
+        "-1.063111863696687265985814000E-11"
+    ),
+    ("GL14", "collinear", (("1",), ("3", "8"))): Decimal(
+        "1.313408775677294365276743504E-12"
+    ),
+}
+TT_TWO_LOOP_QG_ANTI_COLLINEAR_REFERENCE_TERMS: dict[
+    TwoLoopStableTermKey, Decimal
+] = {
+    ("GL00", "anti-collinear", (("0",), ("6", "7"))): Decimal(
+        "-2.330708725018462936142540531E-12"
+    ),
+    ("GL00", "anti-collinear", (("0",), ("7", "8"))): Decimal(
+        "-2.330708725018462936142540531E-12"
+    ),
 }
 
 
@@ -577,6 +897,7 @@ def _build_2l_ttbar_process() -> TTTwoLoopChannelReferenceProcess:
             dy_fallback_precision=32,
             external_gluon_polarisation=True,
             disable_integrated_uv_cts=False,
+            dy_parallel_graphs=16,
             load_compiled_bundle=False,
         )
 
@@ -599,46 +920,110 @@ def _build_2l_ttbar_qg_process() -> TTTwoLoopQGChannelReferenceProcess:
             dy_fallback_precision=32,
             external_gluon_polarisation=True,
             disable_integrated_uv_cts=False,
+            dy_parallel_graphs=11,
             load_compiled_bundle=False,
         )
 
 
 @lru_cache(maxsize=1)
-def _current_2l_ttbar_cut_terms() -> tuple[list[str], dict[str, Decimal]]:
+def _current_2l_ttbar_bundle() -> DYCompiledBundle:
     process = _build_2l_ttbar_process()
     with contextlib.redirect_stdout(io.StringIO()):
         process.generate_graphs()
 
-    bundle = DYCompiledBundle.load("tt~", process.get_integrand_name())
+    return DYCompiledBundle.load("tt~", process.get_integrand_name())
+
+
+def _evaluate_2l_ttbar_cut_terms(
+    point: dict[str, object],
+) -> tuple[list[str], dict[str, Decimal], dict[TwoLoopStableTermKey, Decimal]]:
+    bundle = _current_2l_ttbar_bundle()
     total, terms = bundle.evaluate_arb_terms(
-        TT_TWO_LOOP_POINT["ks"],
-        TT_TWO_LOOP_POINT["p1"],
-        TT_TWO_LOOP_POINT["p2"],
-        TT_TWO_LOOP_POINT["z"],
-        m_uv=TT_TWO_LOOP_POINT["m_uv"],
+        point["ks"],
+        point["p1"],
+        point["p2"],
+        point["z"],
+        m_uv=point["m_uv"],
         decimal_digit_precision=32,
     )
     assert total == sum(value for _name, value in terms)
-    return bundle.graph_channel_names(), dict(terms)
+    stable_terms = _stable_two_loop_terms(bundle, terms)
+    return bundle.graph_channel_names(), dict(terms), stable_terms
 
 
 @lru_cache(maxsize=1)
-def _current_2l_ttbar_qg_cut_terms() -> tuple[list[str], dict[str, Decimal]]:
+def _current_2l_ttbar_cut_data() -> (
+    tuple[list[str], dict[str, Decimal], dict[TwoLoopStableTermKey, Decimal]]
+):
+    return _evaluate_2l_ttbar_cut_terms(TT_TWO_LOOP_POINT)
+
+
+@lru_cache(maxsize=1)
+def _current_2l_ttbar_cut_terms() -> tuple[list[str], dict[str, Decimal]]:
+    channel_names, terms, _stable_terms = _current_2l_ttbar_cut_data()
+    return channel_names, terms
+
+
+@lru_cache(maxsize=1)
+def _current_2l_ttbar_single_cut_terms() -> (
+    tuple[list[str], dict[TwoLoopStableTermKey, Decimal]]
+):
+    channel_names, _terms, stable_terms = _current_2l_ttbar_cut_data()
+    return channel_names, stable_terms
+
+
+@lru_cache(maxsize=None)
+def _current_2l_ttbar_probe_cut_terms(
+    point_name: str,
+) -> tuple[list[str], dict[TwoLoopStableTermKey, Decimal]]:
+    channel_names, _terms, stable_terms = _evaluate_2l_ttbar_cut_terms(
+        TT_TWO_LOOP_QQBAR_PROBE_POINTS[point_name]
+    )
+    return channel_names, stable_terms
+
+
+@lru_cache(maxsize=1)
+def _current_2l_ttbar_qg_bundle() -> DYCompiledBundle:
     process = _build_2l_ttbar_qg_process()
     with contextlib.redirect_stdout(io.StringIO()):
         process.generate_graphs()
 
-    bundle = DYCompiledBundle.load("tt~", process.get_integrand_name())
+    return DYCompiledBundle.load("tt~", process.get_integrand_name())
+
+
+def _evaluate_2l_ttbar_qg_cut_terms(
+    point: dict[str, object],
+) -> tuple[list[str], dict[str, Decimal], dict[TwoLoopStableTermKey, Decimal]]:
+    bundle = _current_2l_ttbar_qg_bundle()
     total, terms = bundle.evaluate_arb_terms(
-        TT_TWO_LOOP_POINT["ks"],
-        TT_TWO_LOOP_POINT["p1"],
-        TT_TWO_LOOP_POINT["p2"],
-        TT_TWO_LOOP_POINT["z"],
-        m_uv=TT_TWO_LOOP_POINT["m_uv"],
+        point["ks"],
+        point["p1"],
+        point["p2"],
+        point["z"],
+        m_uv=point["m_uv"],
         decimal_digit_precision=32,
     )
     assert total == sum(value for _name, value in terms)
-    return bundle.graph_channel_names(), dict(terms)
+    stable_terms = _stable_two_loop_terms(bundle, terms)
+    return bundle.graph_channel_names(), dict(terms), stable_terms
+
+
+@lru_cache(maxsize=1)
+def _current_2l_ttbar_qg_cut_terms() -> tuple[list[str], dict[str, Decimal]]:
+    channel_names, terms, _stable_terms = _evaluate_2l_ttbar_qg_cut_terms(
+        TT_TWO_LOOP_POINT
+    )
+    return channel_names, terms
+
+
+@lru_cache(maxsize=None)
+def _current_2l_ttbar_qg_probe_cut_terms(
+    point_name: str,
+) -> tuple[list[str], dict[TwoLoopStableTermKey, Decimal]]:
+    channel_names, _terms, stable_terms = _evaluate_2l_ttbar_qg_cut_terms(
+        TT_TWO_LOOP_QG_PROBE_POINTS[point_name]
+    )
+    return channel_names, stable_terms
 
 
 def _assert_small_decimal_close(actual: Decimal, expected: Decimal) -> None:
@@ -672,6 +1057,65 @@ def _two_loop_terms_by_graph(terms: dict[str, Decimal]) -> dict[str, list[Decima
     return terms_by_graph
 
 
+def _stable_two_loop_partition(
+    routed_graph_name: str,
+) -> tuple[tuple[str, ...], ...]:
+    marker = "_partition_"
+    if marker not in routed_graph_name:
+        raise AssertionError(
+            f"Missing partition in routed graph name: {routed_graph_name}"
+        )
+    partition_text = routed_graph_name.split(marker, 1)[1]
+    left_raw, separator, right_raw = partition_text.partition("_")
+    if separator == "":
+        raise AssertionError(
+            f"Unexpected routed graph partition name: {routed_graph_name}"
+        )
+
+    sides = []
+    for raw_side in (left_raw, right_raw):
+        side = ast.literal_eval(raw_side)
+        if not isinstance(side, list):
+            raise AssertionError(
+                f"Unexpected routed graph partition side: {routed_graph_name}"
+            )
+        sides.append(tuple(sorted(str(edge_id) for edge_id in side)))
+    return tuple(sorted(sides))
+
+
+def _stable_two_loop_term_key(
+    bundle: DYCompiledBundle, term
+) -> TwoLoopStableTermKey:
+    evaluator = bundle.evaluators[term.evaluator_name]
+    source_graph_name = evaluator.additional_data.get("source_graph_name")
+    routed_graph_name = evaluator.additional_data.get("routed_graph_name")
+    approximation_type = term.approximation_type
+    if source_graph_name is None or routed_graph_name is None:
+        raise AssertionError(
+            f"Missing stable metadata for term '{term.evaluator_name}'."
+        )
+    if approximation_type is None:
+        raise AssertionError(
+            f"Missing approximation type for term '{term.evaluator_name}'."
+        )
+    return (
+        str(source_graph_name),
+        str(approximation_type),
+        _stable_two_loop_partition(str(routed_graph_name)),
+    )
+
+
+def _stable_two_loop_terms(
+    bundle: DYCompiledBundle, terms: list[tuple[str, Decimal]]
+) -> dict[TwoLoopStableTermKey, Decimal]:
+    term_by_name = {term.evaluator_name: term for term in bundle.terms}
+    stable_terms: dict[TwoLoopStableTermKey, Decimal] = {}
+    for term_name, value in terms:
+        key = _stable_two_loop_term_key(bundle, term_by_name[term_name])
+        stable_terms[key] = stable_terms.get(key, Decimal(0)) + value
+    return stable_terms
+
+
 def _assert_two_loop_graph_terms_close(
     graph_name: str, actual_values: list[Decimal], expected_values: list[Decimal]
 ) -> None:
@@ -683,6 +1127,26 @@ def _assert_two_loop_graph_terms_close(
         sorted(actual_values), sorted(expected_values), strict=True
     ):
         _assert_tiny_decimal_close(actual_value, expected_value)
+
+
+def _assert_selected_two_loop_terms_close(
+    actual_terms: dict[TwoLoopStableTermKey, Decimal],
+    expected_terms: dict[TwoLoopStableTermKey, Decimal],
+) -> None:
+    assert expected_terms
+    for term_key, expected_value in expected_terms.items():
+        assert expected_value != 0
+        assert term_key in actual_terms
+        _assert_tiny_decimal_close(actual_terms[term_key], expected_value)
+
+
+def _assert_all_two_loop_terms_close(
+    actual_terms: dict[TwoLoopStableTermKey, Decimal],
+    expected_terms: dict[TwoLoopStableTermKey, Decimal],
+) -> None:
+    assert set(actual_terms) == set(expected_terms)
+    for term_key, expected_value in expected_terms.items():
+        _assert_tiny_decimal_close(actual_terms[term_key], expected_value)
 
 
 @pytest.mark.slow
@@ -726,6 +1190,42 @@ def test_2l_ttbar_qqbar_cut_terms_match_references():
             expected_terms_by_graph[graph_name],
         )
 
+    single_cut_channel_names, single_cut_terms = _current_2l_ttbar_single_cut_terms()
+    assert tuple(single_cut_channel_names) == TT_TWO_LOOP_CHANNEL_NAMES
+    _assert_all_two_loop_terms_close(
+        single_cut_terms,
+        TT_TWO_LOOP_QQBAR_SINGLE_CUT_REFERENCE_TERMS,
+    )
+
+    probe_checks = [
+        (
+            "collinear_anti_collinear",
+            TT_TWO_LOOP_QQBAR_COLLINEAR_REFERENCE_TERMS,
+        ),
+        (
+            "collinear_anti_collinear",
+            TT_TWO_LOOP_QQBAR_ANTI_COLLINEAR_REFERENCE_TERMS,
+        ),
+        (
+            "soft",
+            TT_TWO_LOOP_QQBAR_SOFT_REFERENCE_TERMS,
+        ),
+        (
+            "soft",
+            TT_TWO_LOOP_QQBAR_SOFT_COLLINEAR_REFERENCE_TERMS,
+        ),
+        (
+            "soft",
+            TT_TWO_LOOP_QQBAR_SOFT_ANTI_COLLINEAR_REFERENCE_TERMS,
+        ),
+    ]
+    for point_name, expected_terms in probe_checks:
+        probe_channel_names, probe_terms = _current_2l_ttbar_probe_cut_terms(
+            point_name
+        )
+        assert tuple(probe_channel_names) == TT_TWO_LOOP_CHANNEL_NAMES
+        _assert_selected_two_loop_terms_close(probe_terms, expected_terms)
+
 
 @pytest.mark.slow
 @pytest.mark.skipif(
@@ -746,4 +1246,24 @@ def test_2l_ttbar_qg_cut_terms_match_references():
             graph_name,
             actual_terms_by_graph[graph_name],
             expected_terms_by_graph[graph_name],
+        )
+
+    probe_checks = [
+        (
+            "collinear",
+            TT_TWO_LOOP_QG_COLLINEAR_REFERENCE_TERMS,
+        ),
+        (
+            "anti_collinear",
+            TT_TWO_LOOP_QG_ANTI_COLLINEAR_REFERENCE_TERMS,
+        ),
+    ]
+    for point_name, expected_terms in probe_checks:
+        probe_channel_names, probe_terms = _current_2l_ttbar_qg_probe_cut_terms(
+            point_name
+        )
+        assert tuple(probe_channel_names) == TT_TWO_LOOP_QG_CHANNEL_NAMES
+        _assert_selected_two_loop_terms_close(
+            probe_terms,
+            expected_terms,
         )
