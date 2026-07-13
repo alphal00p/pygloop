@@ -73,6 +73,8 @@ def _uv_particle_multiset(particles, normalizer) -> tuple[str, ...]:
 def _external_particles_from_process(process: str) -> list[str]:
     if process == "g > g":
         return ["g", "g"]
+    if process == "g g > g":
+        return ["g", "g", "g"]
     if process == "d > d":
         return ["d", "d"]
     if process == "t > t":
@@ -234,6 +236,8 @@ def _uv_process_from_external_particles(particles: list[str]) -> str | None:
     )
     if external_multiset == ("g", "g"):
         return "g > g"
+    if external_multiset == ("g", "g", "g"):
+        return "g g > g"
     if (
         len(particles) == 2
         and _uv_particle_multiset(particles, _normalise_uv_particle) == ("d", "d")
@@ -968,7 +972,7 @@ def _format_uv_integrated_numerator(expr: Expression) -> str:
     )
 
     args__ = S("args__")
-    spenso_functions = ["g", "mink", "coad", "cof", "dind", "bis", "gamma", "t"]
+    spenso_functions = ["g", "mink", "coad", "cof", "dind", "bis", "gamma", "t", "f"]
     for function_name in spenso_functions:
         placeholder = S(f"uv_spenso_{function_name}")
         expr = expr.replace(
@@ -1000,7 +1004,7 @@ def _format_compact_uv_integrated_numerator(expr: Expression) -> str:
     ):
         expr_str = expr_str.replace(prefix, replacement)
 
-    for function_name in ["gamma", "mink", "coad", "cof", "dind", "bis", "g", "t"]:
+    for function_name in ["gamma", "mink", "coad", "cof", "dind", "bis", "g", "t", "f"]:
         expr_str = re.sub(
             rf"(?<![A-Za-z0-9_:]){function_name}\(",
             f"spenso::{function_name}(",

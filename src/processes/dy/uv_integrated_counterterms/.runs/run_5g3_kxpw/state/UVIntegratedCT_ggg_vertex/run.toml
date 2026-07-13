@@ -1,0 +1,6 @@
+#:schema https://raw.githubusercontent.com/alphal00p/gammaloop/refs/heads/main/assets/schemas/runhistory.json
+commands = [
+    "set global file /home/zeno/DY/pygloop_6c15087/configs/DY/generate.toml",
+    "import model sm-default.json",
+    "generate amp g g > g | d d~ t t~ g ghG ghG~ [{{1}} QCD=1] --only-diagrams --numerator-grouping group_identical_graphs_up_to_scalar_rescaling -p UVIntegratedCT -i UVIntegratedCT_ggg_vertex",
+]

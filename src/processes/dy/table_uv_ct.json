@@ -74,5 +74,50 @@
         ],
         "internal_particles": ["g", "t", "t"],
         "integrated_ct": "GC_10**3*Pi*(-(gamma(i,mu,j)*T(i1,a,j1)*(2 + log(muvsq/mursq))))/3"
+    },
+    {
+        "external_particles": [
+            ["g", ["mu", "p1", "a"]],
+            ["g", ["nu", "p2", "b"]],
+            ["g", ["rho", "p3", "c"]]
+        ],
+        "internal_particles": ["g", "g", "g"],
+        "integrated_ct": "GC_10**3*Pi*1/8*f(a, b, c)*(22 + 39*log(muvsq/mursq))*(g(nu,rho)*(p1(mu) + 2*p2(mu))- g(mu, rho)*(2*p1(nu) + p2(nu)) + g(mu, nu)*(p1(rho) - p2(rho)))"
+    },
+    {
+        "external_particles": [
+            ["g", ["mu", "p1", "a"]],
+            ["g", ["nu", "p2", "b"]],
+            ["g", ["rho", "p3", "c"]]
+        ],
+        "internal_particles": ["d", "d", "d"],
+        "integrated_ct": "-GC_10**3*Pi*(2/3)*f(a, b, c)*(1 + log(muvsq/mursq))*(g(nu,rho)*(p1(mu) + 2*p2(mu)) - g(mu,rho)*(2*p1(nu) + p2(nu)) + g(mu,nu)*(p1(rho) - p2(rho)))"
+    },
+    {
+        "external_particles": [
+            ["g", ["mu", "p1", "a"]],
+            ["g", ["nu", "p2", "b"]],
+            ["g", ["rho", "p3", "c"]]
+        ],
+        "internal_particles": ["t", "t", "t"],
+        "integrated_ct": "-GC_10**3*Pi*(2/3)*f(a, b, c)*(1 + log(muvsq/mursq))*(g(nu,rho)*(p1(mu) + 2*p2(mu)) - g(mu,rho)*(2*p1(nu) + p2(nu)) + g(mu,nu)*(p1(rho) - p2(rho)))"
+    },
+    {
+        "external_particles": [
+            ["g", ["mu", "p1", "a"]],
+            ["g", ["nu", "p2", "b"]],
+            ["g", ["rho", "p3", "c"]]
+        ],
+        "internal_particles": ["gh", "gh", "gh"],
+        "integrated_ct": "GC_10**3*Pi*1/8*f(a,b,c)*log(muvsq/mursq)*(-g(nu,rho)*(p1(mu) + 2*p2(mu)) + g(mu,rho)*(2*p1(nu) + p2(nu)) + g(mu,nu)*(-p1(rho) + p2(rho)))"
+    },
+    {
+        "external_particles": [
+            ["g", ["mu", "p1", "a"]],
+            ["g", ["nu", "p2", "b"]],
+            ["g", ["rho", "p3", "c"]]
+        ],
+        "internal_particles": ["g", "g"],
+        "integrated_ct": "GC_10**3*Pi*9/8*3*f(a,b,c)*log(muvsq/mursq)*(-g(nu,rho)*(p1(mu) + p2(mu)) + g(mu,rho)*(p1(nu) + p2(nu)))"
     }
 ]

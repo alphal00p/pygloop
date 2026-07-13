@@ -79,6 +79,76 @@ def _edge_is_cut_value(e: pydot.Edge) -> int:
     return int(_strip_quotes(str(val)))
 
 
+def _edge_ids(edges):
+    return {_strip_quotes(str(e.get_attributes()["id"])) for e in edges}
+
+
+def _partition_key(partition):
+    return tuple(frozenset(_edge_ids(side)) for side in partition)
+
+
+def select_gl081_lmb_choice(cut_graph, default_lmb_choice):
+    partition_ids = {
+        _strip_quotes(str(e.get_attributes()["id"]))
+        for side in cut_graph.partition
+        for e in side
+    }
+    final_cut_ids = _edge_ids(cut_graph.final_cut)
+
+    if partition_ids == {"0", "1"}:
+        if {"2", "3"}.issubset(final_cut_ids):
+            return [2, 4]
+        if {"5", "6"}.issubset(final_cut_ids):
+            return [7, 6]
+
+    if partition_ids == {"4", "7"}:
+        if {"2", "5"}.issubset(final_cut_ids):
+            return [0, 2]
+        if {"3", "6"}.issubset(final_cut_ids):
+            return [1, 6]
+
+    return default_lmb_choice
+
+
+def select_gl101_lmb_choice(cut_graph, default_lmb_choice):
+    initial_cut_ids = _edge_ids(cut_graph.initial_cut)
+    final_cut_ids = _edge_ids(cut_graph.final_cut)
+    partition_key = _partition_key(cut_graph.partition)
+    unordered_partition_key = frozenset(partition_key)
+
+    if initial_cut_ids == {"0", "1"}:
+        if {"3", "4"}.issubset(final_cut_ids):
+            return [2, 4], 1
+        if {"6", "7"}.issubset(final_cut_ids):
+            return [5, 6], -1
+
+    if initial_cut_ids == {"2", "5"}:
+        if {"4", "7"}.issubset(final_cut_ids):
+            return [4, 1], -1
+        if {"3", "6"}.issubset(final_cut_ids):
+            return [6, 0], 1
+
+    ordinary_partition_cases = {
+        frozenset({frozenset({"2", "8"}), frozenset({"0"})}): ([2, 4], 1),
+        frozenset({frozenset({"5", "8"}), frozenset({"1"})}): ([5, 6], -1),
+        frozenset({frozenset({"1", "8"}), frozenset({"5"})}): ([6, 0], 1),
+        frozenset({frozenset({"0", "8"}), frozenset({"2"})}): ([4, 1], -1),
+    }
+    if unordered_partition_key in ordinary_partition_cases:
+        return ordinary_partition_cases[unordered_partition_key]
+
+    soft_partition_cases = {
+        (frozenset({"2", "8"}), frozenset({"0", "8"})): ([5, 6], -1),
+        (frozenset({"0", "8"}), frozenset({"2", "8"})): ([4, 1], -1),
+        (frozenset({"5", "8"}), frozenset({"1", "8"})): ([2, 4], 1),
+        (frozenset({"1", "8"}), frozenset({"5", "8"})): ([6, 0], 1),
+    }
+    if partition_key in soft_partition_cases:
+        return soft_partition_cases[partition_key]
+
+    return default_lmb_choice, None
+
+
 # Return e.get_attributes()["particle"] as an int (defaults to 0), stripping quotes if needed.
 def _edge_particle(e: pydot.Edge) -> str:
     attrs = e.get_attributes() or {}

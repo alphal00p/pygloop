@@ -228,6 +228,18 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
         default=None,
         help="DY only: UV mass parameter passed to the zenos runtime evaluator.",
     )
+    parser.add_argument(
+        "--dy-lambda-sq",
+        type=float,
+        default=None,
+        help="DY only: generation-time Lambdasq value used in generated DY evaluators.",
+    )
+    parser.add_argument(
+        "--dy-mur-sq",
+        type=float,
+        default=None,
+        help="DY only: generation-time mursq value used in generated DY evaluators.",
+    )
 
     parser.add_argument("--gammaloop-configuration", "-f", default=None,
         help="Specify a toml file containing the gammaloop configuration desired. Default = ./configs/<PROCESS_NAME>/generate.toml",
@@ -635,6 +647,9 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
                     if args.dy_fallback_precision is not None
                     else args.dy_rotation_check_arb_digits
                 ),
+                dy_lambda_sq=args.dy_lambda_sq,
+                dy_mur_sq=args.dy_mur_sq,
+                dy_observable_muv=args.dy_muv,
                 load_compiled_bundle=args.command != "generate",
             )
         case _:

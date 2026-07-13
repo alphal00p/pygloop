@@ -128,6 +128,9 @@ def _dy_process_2l_graph_worker(task: dict[str, Any]) -> dict[str, Any]:
                     disable_integrated_uv_cts=task["disable_integrated_uv_cts"],
                     dy_check_generation_limits=task["dy_check_generation_limits"],
                     dy_fallback_precision=task["dy_fallback_precision"],
+                    dy_lambda_sq=task["dy_lambda_sq"],
+                    dy_mur_sq=task["dy_mur_sq"],
+                    dy_observable_muv=task["dy_observable_muv"],
                     dy_parallel_graphs=1,
                     skip_gl_worker_init=True,
                     load_compiled_bundle=False,
@@ -193,6 +196,9 @@ class DY(object):
         dy_check_generation_limits: bool = False,
         dy_parallel_graphs: int = 1,
         dy_fallback_precision: int | None = None,
+        dy_lambda_sq: float | None = None,
+        dy_mur_sq: float | None = None,
+        dy_observable_muv: float | None = None,
         skip_gl_worker_init: bool = False,
         load_compiled_bundle: bool = True,
         clean=True,
@@ -241,6 +247,11 @@ class DY(object):
         self.dy_parallel_graphs = max(1, int(dy_parallel_graphs))
         self.dy_graph_index_offset = 0
         self.dy_emr_state_name = None
+        self.dy_lambda_sq = float(dy_lambda_sq) if dy_lambda_sq is not None else None
+        self.dy_mur_sq = float(dy_mur_sq) if dy_mur_sq is not None else None
+        self.dy_observable_muv = (
+            float(dy_observable_muv) if dy_observable_muv is not None else None
+        )
 
         self.skip_ps_validation = bool(skip_ps_validation)
         if not self.skip_ps_validation:
@@ -400,6 +411,9 @@ class DY(object):
             dy_check_generation_limits=self.dy_check_generation_limits,
             dy_parallel_graphs=self.dy_parallel_graphs,
             dy_fallback_precision=self.dy_fallback_precision,
+            dy_lambda_sq=self.dy_lambda_sq,
+            dy_mur_sq=self.dy_mur_sq,
+            dy_observable_muv=self.dy_observable_muv,
             skip_gl_worker_init=self.skip_gl_worker_init,
             load_compiled_bundle=self.load_compiled_bundle,
         )
@@ -425,10 +439,35 @@ class DY(object):
             "dy_check_generation_limits": self.dy_check_generation_limits,
             "dy_parallel_graphs": self.dy_parallel_graphs,
             "dy_fallback_precision": self.dy_fallback_precision,
+            "dy_lambda_sq": self.dy_lambda_sq,
+            "dy_mur_sq": self.dy_mur_sq,
+            "dy_observable_muv": self.dy_observable_muv,
         }
 
     def process_uses_z(self) -> bool:
         return self.process_name.lower() == "dy"
+
+    def dy_observable_params(
+        self,
+        default_lambda_sq: float,
+        default_muv: float,
+        default_mur_sq: float,
+    ) -> dict[str, float]:
+        return {
+            "zmin": 0.0,
+            "zmax": 1.0,
+            "Lambdasq": (
+                self.dy_lambda_sq
+                if self.dy_lambda_sq is not None
+                else default_lambda_sq
+            ),
+            "mUV": (
+                self.dy_observable_muv
+                if self.dy_observable_muv is not None
+                else default_muv
+            ),
+            "mursq": self.dy_mur_sq if self.dy_mur_sq is not None else default_mur_sq,
+        }
 
     def sampled_uses_z(self, integrand_implementation: dict[str, Any] | str) -> bool:
         integrand_implementation = self._normalize_integrand_implementation(
@@ -803,13 +842,11 @@ class DY(object):
                 if self.dy_check_generation_limits:
                     routed_integrands.extend(deepcopy(term_integrands))
 
-                observable_params = {
-                    "zmin": 0.0,
-                    "zmax": 1.00000,
-                    "Lambdasq": 2,
-                    "mUV": 1,
-                    "mursq": 1,
-                }
+                observable_params = self.dy_observable_params(
+                    default_lambda_sq=2,
+                    default_muv=1,
+                    default_mur_sq=1,
+                )
 
                 for term_index, term_integrand in enumerate(term_integrands):
                     evaluator = evaluate_integrand(
@@ -950,13 +987,11 @@ class DY(object):
                 if self.dy_check_generation_limits:
                     routed_integrands.extend(deepcopy(term_integrands))
 
-                observable_params = {
-                    "zmin": 0.0,
-                    "zmax": 1.00000,
-                    "Lambdasq": 50000,
-                    "mUV": 2000,
-                    "mursq": 50000,
-                }
+                observable_params = self.dy_observable_params(
+                    default_lambda_sq=50000,
+                    default_muv=2000,
+                    default_mur_sq=50000,
+                )
 
                 print("reached evaluator stage")
                 for term_index, term_integrand in enumerate(term_integrands):
@@ -1132,6 +1167,9 @@ class DY(object):
                 "disable_integrated_uv_cts": self.disable_integrated_uv_cts,
                 "dy_check_generation_limits": self.dy_check_generation_limits,
                 "dy_fallback_precision": self.dy_fallback_precision,
+                "dy_lambda_sq": self.dy_lambda_sq,
+                "dy_mur_sq": self.dy_mur_sq,
+                "dy_observable_muv": self.dy_observable_muv,
             })
 
         print(
@@ -1619,6 +1657,14 @@ class DY(object):
             # print("-" * 15)
             # print("parametrisation time:", t1 - t0)
 
+            is_zenos = impl.get("integrand_type") == "zenos"
+            n_digits = impl.get("dy_rotation_check_digits")
+            rotation_check_enabled = False
+            n_digits_int = 0
+            if is_zenos and n_digits is not None:
+                n_digits_int = int(n_digits)
+                rotation_check_enabled = n_digits_int > 0
+
             if expects_beam_fractions:
                 wgt = self.zenos_integrand_with_externals(
                     loop_momenta,
@@ -1631,99 +1677,152 @@ class DY(object):
                 wgt = self.integrand(
                     loop_momenta, impl, channel_selector=channel_selector
                 )
-            wgt = self._sanitize_integrand_weight(
-                wgt, xs, momentum_point, rotated=False
-            )
             wgt_in_arb = str(impl.get("dy_evaluation_mode", "compiled")) == "arb"
-            is_zenos = impl.get("integrand_type") == "zenos"
 
-            n_digits = impl.get("dy_rotation_check_digits")
-            if is_zenos and n_digits is not None:
-                n_digits_int = int(n_digits)
-                if n_digits_int > 0:
-                    eps = float(impl.get("dy_rotation_check_eps", 1e-15))
-                    rmat = self._rotation_matrix_from_xs(xs)
-                    rk = [self._rotate_vec(k_loop, rmat) for k_loop in loop_momenta]
-                    rp1 = self._rotate_vec(p1, rmat)
-                    rp2 = self._rotate_vec(p2, rmat)
-                    wgt_rot = self.zenos_integrand_with_externals(
-                        rk, rp1, rp2, impl, channel_selector=channel_selector
-                    )
-                    wgt_rot = self._sanitize_integrand_weight(
-                        wgt_rot, xs, momentum_point, rotated=True
-                    )
-                    rel = self._integrand_weight_rel(wgt, wgt_rot, eps)
-                    if rel > 10.0 ** (-n_digits_int):
-                        self.rotation_hp_retry_count += 1
-                        if self.rotation_hp_retry_example is None:
-                            self.rotation_hp_retry_example = list(xs)
-                            self.rotation_hp_retry_example_momentum_point = (
-                                momentum_point
+            if rotation_check_enabled:
+                eps = float(impl.get("dy_rotation_check_eps", 1e-15))
+                rotation_check_abs_floor = max(
+                    abs(eps),
+                    abs(
+                        float(
+                            impl.get(
+                                "dy_rotation_check_abs_floor",
+                                10.0 ** (-(n_digits_int + 3)),
                             )
-                            self.rotation_hp_retry_example_rel = rel
-                        fallback_precision = self._dy_fallback_precision(impl)
-                        arb_digits = (
-                            fallback_precision
-                            if fallback_precision
-                            == DYCompiledBundle.DOUBLE_FLOAT_PRECISION
-                            else max(fallback_precision, n_digits_int + 20)
                         )
+                    ),
+                )
+                tolerance = 10.0 ** (-n_digits_int)
+                rmat = self._rotation_matrix_from_xs(xs)
+                rk = [self._rotate_vec(k_loop, rmat) for k_loop in loop_momenta]
+                rp1 = self._rotate_vec(p1, rmat)
+                rp2 = self._rotate_vec(p2, rmat)
+                wgt_rot = self.zenos_integrand_with_externals(
+                    rk, rp1, rp2, impl, channel_selector=channel_selector
+                )
+                pair_is_finite = self._integrand_weight_real_is_finite(
+                    wgt
+                ) and self._integrand_weight_real_is_finite(wgt_rot)
+                rel = (
+                    self._integrand_weight_rel(
+                        wgt, wgt_rot, rotation_check_abs_floor
+                    )
+                    if pair_is_finite
+                    else math.inf
+                )
+                if not pair_is_finite or rel > tolerance:
+                    self.rotation_hp_retry_count += 1
+                    if self.rotation_hp_retry_example is None:
+                        self.rotation_hp_retry_example = list(xs)
+                        self.rotation_hp_retry_example_momentum_point = momentum_point
+                        self.rotation_hp_retry_example_rel = rel
+                    fallback_precision = self._dy_fallback_precision(impl)
+                    escalated_digits = max(
+                        fallback_precision,
+                        int(impl.get("dy_rotation_check_min_arb_digits", 50)),
+                        n_digits_int + 20,
+                    )
+                    assert self.compiled_bundle is not None
+                    candidate_digits: list[int] = []
+
+                    def add_candidate(digits: int) -> None:
+                        digits = int(digits)
+                        if digits not in candidate_digits:
+                            candidate_digits.append(digits)
+
+                    add_candidate(fallback_precision)
+                    if (
+                        escalated_digits == fallback_precision
+                        or self.compiled_bundle.supports_arb()
+                    ):
+                        add_candidate(escalated_digits)
+
+                    arb_eps = max(
+                        abs(Decimal(str(rotation_check_abs_floor))),
+                        abs(
+                            Decimal(
+                                str(
+                                    impl.get(
+                                        "dy_rotation_check_arb_abs_floor",
+                                        Decimal(1).scaleb(-(n_digits_int + 6)),
+                                    )
+                                )
+                            )
+                        ),
+                    )
+                    arb_tolerance = Decimal(1).scaleb(-n_digits_int)
+                    accepted_wgt: complex | None = None
+                    for arb_digits in candidate_digits:
                         arb_impl = dict(impl)
                         arb_impl["dy_evaluation_mode"] = "arb"
                         arb_impl["dy_rotation_check_arb_digits"] = arb_digits
                         arb_impl["dy_fallback_precision"] = arb_digits
-                        assert self.compiled_bundle is not None
-                        self.compiled_bundle.require_fallback_supported(arb_digits)
                         try:
-                            wgt_arb = self.zenos_integrand_with_externals(
+                            self.compiled_bundle.require_fallback_supported(arb_digits)
+                            wgt_arb, terms_arb = self._zenos_arb_terms_with_externals(
                                 loop_momenta,
                                 p1,
                                 p2,
                                 arb_impl,
+                                arb_digits,
                                 channel_selector=channel_selector,
                             )
-                            wgt_arb = self._sanitize_integrand_weight(
-                                wgt_arb, xs, momentum_point, rotated=False
+                            (
+                                wgt_rot_arb,
+                                terms_rot_arb,
+                            ) = self._zenos_arb_terms_with_externals(
+                                rk,
+                                rp1,
+                                rp2,
+                                arb_impl,
+                                arb_digits,
+                                channel_selector=channel_selector,
                             )
-                            if bool(impl.get("dy_accept_all_arb_retries", False)):
-                                self.rotation_hp_salvaged_count += 1
-                                wgt = wgt_arb
-                                wgt_in_arb = True
-                            else:
-                                wgt_rot_arb = self.zenos_integrand_with_externals(
-                                    rk,
-                                    rp1,
-                                    rp2,
-                                    arb_impl,
-                                    channel_selector=channel_selector,
-                                )
-                                wgt_rot_arb = self._sanitize_integrand_weight(
+                            arb_pair_is_finite = self._integrand_decimal_is_finite(
+                                wgt_arb
+                            ) and self._integrand_decimal_is_finite(wgt_rot_arb)
+                            rel_arb = (
+                                self._integrand_weight_decimal_rel(
+                                    wgt_arb,
                                     wgt_rot_arb,
-                                    xs,
-                                    momentum_point,
-                                    rotated=True,
+                                    arb_eps,
+                                    max(
+                                        (
+                                            abs(term_value)
+                                            for _name, term_value in (
+                                                terms_arb + terms_rot_arb
+                                            )
+                                        ),
+                                        default=Decimal(0),
+                                    ),
                                 )
-                                rel_arb = self._integrand_weight_rel(
-                                    wgt_arb, wgt_rot_arb, eps
-                                )
-                                if rel_arb <= 10.0 ** (-n_digits_int):
-                                    self.rotation_hp_salvaged_count += 1
-                                    wgt = wgt_arb
-                                    wgt_in_arb = True
-                                else:
-                                    self.rotation_unstable_count += 1
-                                    if self.rotation_unstable_example is None:
-                                        self.rotation_unstable_example = list(xs)
-                                        self.rotation_unstable_example_momentum_point = momentum_point
-                                    wgt = 0.0 + 0.0j
+                                if arb_pair_is_finite
+                                else Decimal("Infinity")
+                            )
+                            if arb_pair_is_finite and rel_arb <= arb_tolerance:
+                                accepted_wgt = complex(float(wgt_arb), 0.0)
+                                break
                         except Exception:
-                            self.rotation_unstable_count += 1
-                            if self.rotation_unstable_example is None:
-                                self.rotation_unstable_example = list(xs)
-                                self.rotation_unstable_example_momentum_point = (
-                                    momentum_point
-                                )
-                            wgt = 0.0 + 0.0j
+                            continue
+
+                    if accepted_wgt is not None:
+                        self.rotation_hp_salvaged_count += 1
+                        wgt = accepted_wgt
+                        wgt_in_arb = True
+                    else:
+                        self.rotation_unstable_count += 1
+                        if self.rotation_unstable_example is None:
+                            self.rotation_unstable_example = list(xs)
+                            self.rotation_unstable_example_momentum_point = (
+                                momentum_point
+                            )
+                        wgt = 0.0 + 0.0j
+                else:
+                    wgt = complex(complex(wgt).real, 0.0)
+            else:
+                wgt = self._sanitize_integrand_weight(
+                    wgt, xs, momentum_point, rotated=False
+                )
 
             large_weight_threshold = impl.get("dy_large_weight_threshold")
             if (
@@ -1759,32 +1858,13 @@ class DY(object):
                     )
                     try:
                         arb_digits = int(arb_impl["dy_rotation_check_arb_digits"])
-                        arb_terms_kwargs: dict[str, Any] = {
-                            "decimal_digit_precision": arb_digits,
-                            "theta_tolerance": float(arb_impl.get("dy_theta_tol", 0.0)),
-                            "channel_selector": channel_selector,
-                        }
-                        integrated_uv_ct_filter = arb_impl.get(
-                            "dy_integrated_uv_ct_filter"
-                        )
-                        if (
-                            integrated_uv_ct_filter is not None
-                            and str(integrated_uv_ct_filter).replace("-", "_") != "all"
-                        ):
-                            arb_terms_kwargs["integrated_uv_ct_filter"] = (
-                                integrated_uv_ct_filter
-                            )
-                        if arb_impl.get("dy_ttbar_pt_min") is not None:
-                            arb_terms_kwargs["ttbar_pt_min"] = (
-                                self._validate_ttbar_pt_min(arb_impl["dy_ttbar_pt_min"])
-                            )
-                        arb_total, arb_terms = self.compiled_bundle.evaluate_arb_terms(
+                        arb_total, arb_terms = self._zenos_arb_terms_with_externals(
                             loop_momenta,
                             p1,
                             p2,
-                            float(arb_impl.get("z", 1.0)),
-                            float(arb_impl.get("mUV", 1.0)),
-                            **arb_terms_kwargs,
+                            arb_impl,
+                            arb_digits,
+                            channel_selector=channel_selector,
                         )
                         wgt_arb = complex(float(arb_total), 0.0)
                         phase_wgt_arb = (
@@ -2047,6 +2127,80 @@ class DY(object):
             **evaluate_kwargs,
         )
 
+    def _zenos_arb_terms_with_externals(
+        self,
+        loop_momentum: list[Vector],
+        p1: Vector,
+        p2: Vector,
+        integrand_implementation: dict[str, Any] | None,
+        decimal_digit_precision: int,
+        channel_selector: int | None = None,
+    ) -> tuple[Decimal, list[tuple[str, Decimal]]]:
+        if self.compiled_bundle is None:
+            raise pygloopException(
+                f"No compiled DY bundle loaded for integrand '{self.get_integrand_name()}'."
+            )
+
+        z = 1.0
+        m_uv = 1.0
+        if integrand_implementation is not None:
+            m_uv = float(integrand_implementation.get("mUV", m_uv))
+            if self.process_uses_z():
+                z = float(integrand_implementation.get("z", z))
+
+        evaluate_kwargs: dict[str, Any] = {
+            "decimal_digit_precision": decimal_digit_precision,
+            "theta_tolerance": float(
+                (integrand_implementation or {}).get("dy_theta_tol", 0.0)
+            ),
+            "channel_selector": channel_selector,
+        }
+        integrated_uv_ct_filter = (
+            integrand_implementation.get("dy_integrated_uv_ct_filter")
+            if integrand_implementation is not None
+            else None
+        )
+        if (
+            integrated_uv_ct_filter is not None
+            and str(integrated_uv_ct_filter).replace("-", "_") != "all"
+        ):
+            evaluate_kwargs["integrated_uv_ct_filter"] = integrated_uv_ct_filter
+        if (
+            integrand_implementation is not None
+            and integrand_implementation.get("dy_ttbar_pt_min") is not None
+        ):
+            evaluate_kwargs["ttbar_pt_min"] = self._validate_ttbar_pt_min(
+                integrand_implementation["dy_ttbar_pt_min"]
+            )
+
+        return self.compiled_bundle.evaluate_arb_terms(
+            loop_momentum,
+            p1,
+            p2,
+            z,
+            m_uv,
+            **evaluate_kwargs,
+        )
+
+    def _zenos_arb_total_with_externals(
+        self,
+        loop_momentum: list[Vector],
+        p1: Vector,
+        p2: Vector,
+        integrand_implementation: dict[str, Any] | None,
+        decimal_digit_precision: int,
+        channel_selector: int | None = None,
+    ) -> Decimal:
+        total, _terms = self._zenos_arb_terms_with_externals(
+            loop_momentum,
+            p1,
+            p2,
+            integrand_implementation,
+            decimal_digit_precision,
+            channel_selector=channel_selector,
+        )
+        return total
+
     def _normalize_integrand_implementation(
         self, integrand_implementation: dict[str, Any] | str
     ) -> dict[str, Any]:
@@ -2075,6 +2229,18 @@ class DY(object):
         )
 
     @staticmethod
+    def _integrand_weight_real_is_finite(value: complex) -> bool:
+        try:
+            z = complex(value)
+        except (OverflowError, TypeError, ValueError):
+            return False
+        return math.isfinite(z.real)
+
+    @staticmethod
+    def _integrand_decimal_is_finite(value: Decimal) -> bool:
+        return value.is_finite()
+
+    @staticmethod
     def _integrand_weight_rel(
         wgt: complex,
         wgt_rot: complex,
@@ -2083,17 +2249,28 @@ class DY(object):
         try:
             z = complex(wgt)
             z_rot = complex(wgt_rot)
-            dz = z - z_rot
-            numerator = math.hypot(dz.real, dz.imag)
-            denominator = (
-                math.hypot(z.real, z.imag)
-                + math.hypot(z_rot.real, z_rot.imag)
-                + abs(eps)
-            )
+            numerator = abs(z.real - z_rot.real)
+            denominator = abs(z.real) + abs(z_rot.real) + abs(eps)
             rel = numerator / denominator
         except (OverflowError, TypeError, ValueError, ZeroDivisionError):
             return math.inf
         return rel if math.isfinite(rel) else math.inf
+
+    @staticmethod
+    def _integrand_weight_decimal_rel(
+        wgt: Decimal,
+        wgt_rot: Decimal,
+        eps: Decimal,
+        scale_floor: Decimal = Decimal(0),
+    ) -> Decimal:
+        if not wgt.is_finite() or not wgt_rot.is_finite():
+            return Decimal("Infinity")
+        numerator = abs(wgt - wgt_rot)
+        denominator = max(abs(wgt) + abs(wgt_rot) + abs(eps), abs(scale_floor))
+        if denominator.is_zero():
+            return Decimal(0) if numerator.is_zero() else Decimal("Infinity")
+        rel = numerator / denominator
+        return rel if rel.is_finite() else Decimal("Infinity")
 
     def _sanitize_integrand_weight(
         self,

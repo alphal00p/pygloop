@@ -1707,9 +1707,12 @@ class DYCompiledBundle:
         )
 
     def require_fallback_supported(self, decimal_digit_precision: int) -> None:
+        if (
+            decimal_digit_precision == self.DOUBLE_FLOAT_PRECISION
+            and self.supports_double_float_fallback()
+        ):
+            return
         if decimal_digit_precision == self.DOUBLE_FLOAT_PRECISION:
-            if self.supports_double_float_fallback():
-                return
             raise pygloopException(
                 "No DoubleFloat fallback evaluator data is present in this DY "
                 "bundle. Regenerate the bundle with --dy-fallback-precision 32."
