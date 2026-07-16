@@ -1171,6 +1171,17 @@ class EMRIntegrandConstructor(object):
             _strip_quotes(str(node.get_name())): node for node in graph.graph.get_nodes()
         }
         replacement_map = self._replacement_map(graph)
+        highest_ext = 0
+        for node in graph.graph.get_nodes():
+            name = _strip_quotes(str(node.get_name()))
+            if name.startswith("ext") and name[3:].isdigit():
+                highest_ext = max(highest_ext, int(name[3:]))
+        for edge in graph.graph.get_edges():
+            for endpoint in (edge.get_source(), edge.get_destination()):
+                node = _base_node(endpoint)
+                if node.startswith("ext") and node[3:].isdigit():
+                    highest_ext = max(highest_ext, int(node[3:]))
+
         loop_graphs = []
         for component in components:
             component_edges = [
@@ -1188,6 +1199,13 @@ class EMRIntegrandConstructor(object):
             if len(non_ext_nodes) <= 1 or len(internal_edges) < len(non_ext_nodes):
                 continue
 
+            boundary_tree_edges = []
+            for edge in tree_edges:
+                source = _base_node(edge.get_source())
+                destination = _base_node(edge.get_destination())
+                if (source in component) != (destination in component):
+                    boundary_tree_edges.append(edge)
+
             graph_type = graph.graph.get_type() or "digraph"
             new_graph = pydot.Dot(graph_type=graph_type)
             for key, value in graph.graph.get_attributes().items():
@@ -1200,14 +1218,27 @@ class EMRIntegrandConstructor(object):
                     new_graph.add_node(deepcopy(node))
 
             replacements = []
+            ext_counter = 1
             for new_id, edge in enumerate(
-                sorted(component_edges, key=self._edge_sort_key)
+                sorted(component_edges + boundary_tree_edges, key=self._edge_sort_key)
             ):
                 old_id = self._edge_local_id(edge)
                 attrs = deepcopy(edge.get_attributes())
                 attrs["id"] = new_id
+                source = edge.get_source()
+                destination = edge.get_destination()
+                source_node = _base_node(source)
+                destination_node = _base_node(destination)
+                if source_node not in component:
+                    source = f"ext{highest_ext + ext_counter}"
+                    new_graph.add_node(pydot.Node(source, style="invis"))
+                    ext_counter += 1
+                if destination_node not in component:
+                    destination = f"ext{highest_ext + ext_counter}"
+                    new_graph.add_node(pydot.Node(destination, style="invis"))
+                    ext_counter += 1
                 new_graph.add_edge(
-                    pydot.Edge(edge.get_source(), edge.get_destination(), **attrs)
+                    pydot.Edge(source, destination, **attrs)
                 )
                 replacements.append([new_id, replacement_map[old_id]])
 
@@ -1433,6 +1464,7 @@ class EMRIntegrandConstructor(object):
         )
 
         tree_factor = E("1")
+        delayed_tree_replacements = []
         tree_energy_constraints = self._tree_energy_constraints(
             cut_graph, amplitude_graphs
         )
@@ -1448,15 +1480,15 @@ class EMRIntegrandConstructor(object):
                 denominator_energy_sum, energy_replacement = tree_energy_constraints[
                     original_id
                 ]
-                numerator = numerator.replace(
-                    E(f"En({original_id})"), energy_replacement
+                delayed_tree_replacements.append(
+                    (original_id, denominator_energy_sum, energy_replacement)
                 )
                 tree_factor *= E("1") / (
                     denominator_energy_sum**2 - E(f"E({original_id})") ** 2
                 )
 
         e_surfaces = set()
-        previous_cff = numerator * tree_factor
+        previous_cff = numerator
         cut_energy_reversal_ids = {
             _strip_quotes(str(edge.get_attributes()["id"]))
             for edge in cut_graph.graph.get_edges()
@@ -1479,7 +1511,6 @@ class EMRIntegrandConstructor(object):
                             f"Could not find original edge {original_edge_id} "
                             "in cut graph CFF lookup."
                         )
-                    this_e_atts = original_edge.get_attributes()
                     if o.is_reversed():
                         cff_term = cff_term.replace(
                             E(f"sigma({id_in_original_graph})"), E("-1")
@@ -1506,6 +1537,23 @@ class EMRIntegrandConstructor(object):
 
             previous_cff = new_cff
 
+        for (
+            original_id,
+            denominator_energy_sum,
+            energy_replacement,
+        ) in delayed_tree_replacements:
+            previous_cff = previous_cff.replace(
+                E(f"E({original_id})"), denominator_energy_sum
+            )
+            previous_cff = previous_cff.replace(
+                E(f"En({original_id})"), energy_replacement
+            )
+            if get_residues:
+                e_surfaces = {
+                    eta.replace(E(f"E({original_id})"), denominator_energy_sum)
+                    for eta in e_surfaces
+                }
+
         # Multiplies by inverse cut energies for non-tree propagators.
 
         energies = E("1")
@@ -1514,16 +1562,21 @@ class EMRIntegrandConstructor(object):
             edge_id = _strip_quotes(str(e_atts["id"]))
 
             if edge_id not in tree_original_ids:
-                energies *= 1 / E(f"2*E({e_atts['id']})")
+                energies *= E("1") / E(f"2*E({e_atts['id']})")
 
-        total_cff = previous_cff * energies
+        total_cff = previous_cff * tree_factor * energies
 
         if get_residues:
             delta = E("δ")
             residues = []
             for eta in e_surfaces:
-                energies = list(eta) if eta.is_type(AtomType.Add) else [eta]
-                eN = eta.replace(E("E(x___)"), E("1"))
+                eta_for_residue = eta.expand()
+                energies = (
+                    list(eta_for_residue)
+                    if eta_for_residue.is_type(AtomType.Add)
+                    else [eta_for_residue]
+                )
+                eN = eta_for_residue.replace(E("E(x___)"), E("1"))
                 if len(energies) > 1 and eN < len(energies):
                     pivot = energies[0]
                     # if pivot.match(E("-E(x___)")) is not None:
@@ -1541,7 +1594,7 @@ class EMRIntegrandConstructor(object):
                         .to_expression()
                         .replace(delta, E("1"))
                     )
-                    residues.append((eta, res_i))
+                    residues.append((eta_for_residue, res_i))
                 elif eN > len(energies):
                     raise ValueError("really weird stuff happening with e surfaces")
             return residues
