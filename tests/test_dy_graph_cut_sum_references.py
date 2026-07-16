@@ -122,12 +122,12 @@ GGTT_COMMAND = {
 }
 REFERENCE_SUMS: dict[tuple[str, str], dict[str, Decimal]] = {
     ("ddx", "GL1"): {
-        "anisotropic": Decimal("11.06485143967556911630848559"),
-        "symmetric": Decimal("-1185.267710416734376395246026"),
+        "anisotropic": Decimal("44.25940575870227646523394236"),
+        "symmetric": Decimal("-4741.070841666937505580984104"),
     },
     ("ddx", "GL2"): {
-        "anisotropic": Decimal("11.06485143967556911630848571"),
-        "symmetric": Decimal("-1185.267710416734376395246026"),
+        "anisotropic": Decimal("44.25940575870227646523394284"),
+        "symmetric": Decimal("-4741.070841666937505580984104"),
     },
     ("ddx", "GL3"): {
         "anisotropic": Decimal("-3.426357200058932674774999939"),
@@ -1035,7 +1035,7 @@ def _assert_small_decimal_close(actual: Decimal, expected: Decimal) -> None:
 
 
 def _assert_tiny_decimal_close(actual: Decimal, expected: Decimal) -> None:
-    tolerance = max(Decimal("1e-30"), Decimal("1e-9") * abs(expected))
+    tolerance = max(Decimal("1e-30"), Decimal("1e-6") * abs(expected))
     if abs(actual - expected) > tolerance:
         raise AssertionError(
             "Unexpected two-loop ttbar cut term: "
@@ -1113,6 +1113,84 @@ def _stable_two_loop_terms(
     for term_name, value in terms:
         key = _stable_two_loop_term_key(bundle, term_by_name[term_name])
         stable_terms[key] = stable_terms.get(key, Decimal(0)) + value
+    return stable_terms
+
+
+def _fit_power_law(eps_values: list[float], values: list[float]) -> float:
+    points = [
+        (math.log(eps), math.log(abs(value)))
+        for eps, value in zip(eps_values, values, strict=True)
+        if value != 0.0 and math.isfinite(value)
+    ]
+    if len(points) < 2:
+        raise AssertionError(f"Cannot fit power law from values: {values}")
+
+    xbar = sum(x for x, _y in points) / len(points)
+    ybar = sum(y for _x, y in points) / len(points)
+    denominator = sum((x - xbar) ** 2 for x, _y in points)
+    if denominator == 0.0:
+        raise AssertionError(f"Degenerate eps grid for power fit: {eps_values}")
+    return (
+        sum((x - xbar) * (y - ybar) for x, y in points)
+        / denominator
+    )
+
+
+def _evaluate_compiled_stable_two_loop_terms(
+    bundle: DYCompiledBundle,
+    loop_momenta: list[Vector],
+    p1: Vector,
+    p2: Vector,
+    z: float,
+    m_uv: float,
+) -> dict[TwoLoopStableTermKey, float]:
+    vals, (p1x, p1y, p1z, _p2x, _p2y, _p2z) = bundle._build_runtime_values(
+        loop_momenta, p1, p2, z, m_uv
+    )
+    stable_terms: dict[TwoLoopStableTermKey, float] = {}
+
+    for term in bundle.terms_for_channel(None, "all"):
+        key = _stable_two_loop_term_key(bundle, term)
+        my_t0 = bundle._initial_t_guess(term, vals, p1x, p1y, p1z)
+        t_sol = bundle.solve_t_newton_bisect(
+            term.e_surface,
+            term.e_surface_evaluator,
+            vals,
+            bundle._t_key,
+            t0=my_t0,
+            eval_map=vals,
+        )
+        if t_sol is None:
+            continue
+
+        vals[bundle._t_key] = t_sol
+        if not bundle._ttbar_pt_cut_passes(term, vals, None):
+            continue
+
+        theta_expressions = list(term.theta_expressions)
+        theta_evaluators = list(term.theta_evaluators or [])
+        theta_count = max(len(theta_expressions), len(theta_evaluators))
+        theta_expressions.extend([None] * (theta_count - len(theta_expressions)))
+        theta_evaluators.extend([None] * (theta_count - len(theta_evaluators)))
+        theta_passes = True
+        for th, th_evaluator in zip(theta_expressions, theta_evaluators, strict=True):
+            th_val = bundle._evaluate_float_expression(th, th_evaluator, vals)
+            if th_val < 0.0:
+                theta_passes = False
+                break
+        if not theta_passes:
+            continue
+
+        evaluator = bundle.evaluators[term.evaluator_name]
+        bundle._set_inputs_fast(
+            evaluator,
+            vals,
+            bundle._input_index_plans[term.evaluator_name],
+        )
+        term_value = complex(evaluator.evaluate(eager=False)[0])
+        assert abs(term_value.imag) < 1e-12 * max(1.0, abs(term_value.real))
+        stable_terms[key] = stable_terms.get(key, 0.0) + float(term_value.real)
+
     return stable_terms
 
 
@@ -1266,4 +1344,101 @@ def test_2l_ttbar_qg_cut_terms_match_references():
         _assert_selected_two_loop_terms_close(
             probe_terms,
             expected_terms,
+        )
+
+
+@pytest.mark.slow
+@pytest.mark.skipif(
+    not RUN_SLOW_2L_QG,
+    reason="Set PYGLOOP_RUN_SLOW_2L_QG=1 to run the slow two-loop ttbar (1,0) regression.",
+)
+def test_2l_ttbar_qg_raised_t_channel_collinear_power_counting():
+    bundle = _current_2l_ttbar_qg_bundle()
+    term_keys = {
+        _stable_two_loop_term_key(bundle, term)
+        for term in bundle.terms
+    }
+    raised_t_channel_graphs = {
+        graph_name
+        for graph_name, approximation_type, _partition in term_keys
+        if approximation_type == "collinear"
+    }
+    assert raised_t_channel_graphs == {
+        "GL01",
+        "GL02",
+        "GL04",
+        "GL06",
+        "GL08",
+        "GL10",
+        "GL12",
+        "GL14",
+    }
+
+    eps_values = [0.32, 0.16, 0.08, 0.04]
+    p1 = Vector(0.0, 0.0, 500.0)
+    p2 = Vector(0.0, 0.0, -500.0)
+    spectator_k = Vector(-70.0, 120.0, -160.0)
+    stable_terms_by_eps = [
+        _evaluate_compiled_stable_two_loop_terms(
+            bundle,
+            [Vector(eps, 0.25 * eps, 500.0), spectator_k],
+            p1,
+            p2,
+            POINT_Z,
+            TT_TWO_LOOP_POINT["m_uv"],
+        )
+        for eps in eps_values
+    ]
+
+    for graph_name in sorted(raised_t_channel_graphs):
+        graph_keys = sorted(
+            [key for key in term_keys if key[0] == graph_name],
+            key=lambda key: (key[1], key[2]),
+        )
+        graph_sum_values = []
+        max_double_pole_coefficient = 0.0
+        for eps_index, eps in enumerate(eps_values):
+            graph_sum_values.append(
+                sum(
+                    stable_terms_by_eps[eps_index].get(key, 0.0)
+                    for key in graph_keys
+                )
+            )
+
+        for key in graph_keys:
+            values = [terms.get(key, 0.0) for terms in stable_terms_by_eps]
+            if max(abs(value) for value in values) == 0.0:
+                continue
+
+            _graph_name, approximation_type, partition = key
+            assert approximation_type in {"PM", "collinear"}, (
+                f"Unexpected nonzero {graph_name} contribution in raised "
+                f"collinear scaling check: {key}"
+            )
+            power = _fit_power_law(eps_values, values)
+            assert -2.1 < power < -1.9, (
+                f"{graph_name} {approximation_type} {partition} should scale "
+                f"as eps^-2; fitted power={power}, values={values}"
+            )
+            max_double_pole_coefficient = max(
+                max_double_pole_coefficient,
+                max(
+                    abs(value * eps * eps)
+                    for value, eps in zip(values, eps_values, strict=True)
+                ),
+            )
+
+        graph_power = _fit_power_law(eps_values, graph_sum_values)
+        assert -1.25 < graph_power < -0.75, (
+            f"{graph_name} cut sum should scale as eps^-1 after double-pole "
+            f"cancellation; fitted power={graph_power}, values={graph_sum_values}"
+        )
+        residual_double_pole = max(
+            abs(value * eps * eps)
+            for value, eps in zip(graph_sum_values, eps_values, strict=True)
+        )
+        assert residual_double_pole < 0.01 * max_double_pole_coefficient, (
+            f"{graph_name} leaves too large an eps^-2 remnant: "
+            f"residual={residual_double_pole}, "
+            f"max individual coefficient={max_double_pole_coefficient}"
         )

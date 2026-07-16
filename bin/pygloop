@@ -12,4 +12,7 @@ if SRC_DIR not in sys.path:
 from pygloop import main  # type: ignore # noqa: E402
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    result = main()
+    if isinstance(result, dict):
+        raise SystemExit(result.get("exit_code", 0))
+    raise SystemExit(result)

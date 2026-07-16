@@ -28,6 +28,7 @@ from symbolica.community.idenso import (  # pyright: ignore
     simplify_color,
     simplify_gamma,
     simplify_metrics,
+    to_dots,
 )
 
 from processes.dy.dy_evaluators import substitute_process_couplings
@@ -254,6 +255,254 @@ def _raw_graph_numerator(graph) -> Expression:
     return numerator
 
 
+_EXTERNAL_GLUON_POLARISATION_PROTECTED_IDS_ATTR = (
+    "external_gluon_polarisation_protected_energy_ids"
+)
+
+
+def _mul_factors(expr: Expression) -> list[Expression]:
+    if bool(expr.is_type(AtomType.Mul)):
+        return list(expr)
+    return [expr]
+
+
+def _numerator_factor_kind(factor: Expression) -> str:
+    text = factor.format_plain()
+    colour_markers = (
+        "spenso::coad(",
+        "spenso::cof(",
+        "spenso::dind(",
+        "spenso::f(",
+        "spenso::t(",
+        "coad(",
+        "cof(",
+        "dind(",
+    )
+    kinematic_markers = (
+        "spenso::mink(",
+        "spenso::bis(",
+        "spenso::gamma(",
+        "mink(",
+        "bis(",
+        "gamma(",
+        "Q(",
+        "Qp(",
+    )
+    has_colour = any(marker in text for marker in colour_markers)
+    has_kinematic = any(marker in text for marker in kinematic_markers)
+    if has_kinematic:
+        return "kinematic"
+    if has_colour:
+        return "colour"
+    return "scalar"
+
+
+def _product_factors(factors: list[Expression]) -> Expression:
+    out = E("1")
+    for factor in factors:
+        out *= factor
+    return out
+
+
+def _id_sort_key(edge_id) -> tuple[int, object]:
+    edge_id = _strip_quotes(str(edge_id))
+    try:
+        return (0, int(edge_id))
+    except ValueError:
+        return (1, edge_id)
+
+
+def _cut_external_energy_ids(cut_graph) -> tuple[list[str], list[str]]:
+    initial_ids = [
+        _strip_quotes(str(edge.get_attributes()["id"]))
+        for edge in cut_graph.initial_cut
+    ]
+    final_ids = [
+        _strip_quotes(str(edge.get_attributes()["id"]))
+        for edge in cut_graph.final_cut
+    ]
+    return initial_ids, final_ids
+
+
+def _energy_conservation_solution(
+    cut_graph, edge_to_sub: str, energy_head: str = "E"
+) -> tuple[Expression, Expression]:
+    edge_to_sub = _strip_quotes(str(edge_to_sub))
+    initial_ids, final_ids = _cut_external_energy_ids(cut_graph)
+    initial_set = set(initial_ids)
+    final_set = set(final_ids)
+
+    if edge_to_sub in initial_set and edge_to_sub in final_set:
+        raise ValueError(
+            f"Cannot solve energy conservation for cancelling cut edge {edge_to_sub}."
+        )
+
+    if edge_to_sub in final_set:
+        replacement = E("0")
+        for edge_id in sorted(initial_ids, key=_id_sort_key):
+            replacement += E(f"{energy_head}({edge_id})")
+        for edge_id in sorted(
+            [edge_id for edge_id in final_ids if edge_id != edge_to_sub],
+            key=_id_sort_key,
+        ):
+            replacement -= E(f"{energy_head}({edge_id})")
+        return E(f"{energy_head}({edge_to_sub})"), replacement
+
+    if edge_to_sub in initial_set:
+        replacement = E("0")
+        for edge_id in sorted(final_ids, key=_id_sort_key):
+            replacement += E(f"{energy_head}({edge_id})")
+        for edge_id in sorted(
+            [edge_id for edge_id in initial_ids if edge_id != edge_to_sub],
+            key=_id_sort_key,
+        ):
+            replacement -= E(f"{energy_head}({edge_id})")
+        return E(f"{energy_head}({edge_to_sub})"), replacement
+
+    raise ValueError(f"Cut edge {edge_to_sub} is not external to the cut graph.")
+
+
+def _energy_conservation_replacement(
+    cut_graph, energy_head: str = "E", preferred_ids: set[str] | None = None
+) -> tuple[Expression, Expression] | None:
+    initial_ids, final_ids = _cut_external_energy_ids(cut_graph)
+    initial_set = set(initial_ids)
+    candidates = [edge_id for edge_id in final_ids if edge_id not in initial_set]
+    if preferred_ids is not None:
+        preferred_ids = {_strip_quotes(str(edge_id)) for edge_id in preferred_ids}
+        preferred = [edge_id for edge_id in candidates if edge_id in preferred_ids]
+        if preferred:
+            candidates = preferred
+    if not candidates:
+        return None
+
+    edge_to_sub = candidates[0]
+    return _energy_conservation_solution(cut_graph, edge_to_sub, energy_head)
+
+
+def _extract_common_colour_factors_from_sum(
+    expr: Expression,
+) -> tuple[list[Expression], Expression]:
+    if not bool(expr.is_type(AtomType.Add)):
+        return [], expr
+
+    term_factors = [_mul_factors(term) for term in list(expr)]
+    if not term_factors:
+        return [], expr
+
+    common_colour_factors = []
+    first_term_colour_factors = [
+        factor
+        for factor in term_factors[0]
+        if _numerator_factor_kind(factor) == "colour"
+    ]
+
+    for candidate in first_term_colour_factors:
+        candidate_key = candidate.to_canonical_string()
+        matching_indices = []
+        for factors in term_factors:
+            match_index = next(
+                (
+                    i
+                    for i, factor in enumerate(factors)
+                    if factor.to_canonical_string() == candidate_key
+                ),
+                None,
+            )
+            if match_index is None:
+                matching_indices = []
+                break
+            matching_indices.append(match_index)
+        if not matching_indices:
+            continue
+
+        common_colour_factors.append(candidate)
+        for factors, match_index in zip(term_factors, matching_indices, strict=True):
+            factors.pop(match_index)
+
+    if not common_colour_factors:
+        return [], expr
+
+    reduced = E("0")
+    for factors in term_factors:
+        reduced += _product_factors(factors)
+    return common_colour_factors, reduced
+
+
+def _multiply_into_numerator_parts(
+    parts: tuple[Expression, Expression, Expression], expr: Expression
+) -> tuple[Expression, Expression, Expression]:
+    scalar, colour, kinematic = parts
+    for factor in _mul_factors(expr):
+        extracted_colour, factor = _extract_common_colour_factors_from_sum(factor)
+        for colour_factor in extracted_colour:
+            colour *= colour_factor
+
+        kind = _numerator_factor_kind(factor)
+        if kind == "colour":
+            colour *= factor
+        elif kind == "kinematic":
+            kinematic *= factor
+        else:
+            scalar *= factor
+    return scalar, colour, kinematic
+
+
+def _factorised_graph_numerator(graph) -> tuple[Expression, Expression, Expression]:
+    parts = (E("1"), E("1"), E("1"))
+    for node in graph.get_nodes():
+        if node.get_name() not in ["edge", "node"]:
+            node_numerator = node.get("num")
+            if node_numerator:
+                parts = _multiply_into_numerator_parts(parts, Es(node_numerator))
+    for edge in graph.get_edges():
+        edge_numerator = edge.get("num")
+        if edge_numerator:
+            parts = _multiply_into_numerator_parts(parts, Es(edge_numerator))
+    return parts
+
+
+def _dots_to_dy_scalar_products(expr: Expression) -> Expression:
+    expr = _strip_namespaces_structurally(expr)
+    dot_replacements = [
+        (
+            E("spenso::dot(spenso::mink(4),Q(x_),Q(y_))"),
+            E("sp(x_,y_)"),
+        ),
+        (
+            E("spenso::dot(spenso::mink(4),Qp(x_),Q(y_))"),
+            E("spp(qp(x_),y_)"),
+        ),
+        (
+            E("spenso::dot(spenso::mink(4),Q(x_),Qp(y_))"),
+            E("spp(qp(y_),x_)"),
+        ),
+        (
+            E("spenso::dot(spenso::mink(4),Qp(x_),Qp(y_))"),
+            E("spp(qp(x_),qp(y_))"),
+        ),
+        (
+            E("dot(mink(4),Q(x_),Q(y_))"),
+            E("sp(x_,y_)"),
+        ),
+        (
+            E("dot(mink(4),Qp(x_),Q(y_))"),
+            E("spp(qp(x_),y_)"),
+        ),
+        (
+            E("dot(mink(4),Q(x_),Qp(y_))"),
+            E("spp(qp(y_),x_)"),
+        ),
+        (
+            E("dot(mink(4),Qp(x_),Qp(y_))"),
+            E("spp(qp(x_),qp(y_))"),
+        ),
+    ]
+    for pattern, replacement in dot_replacements:
+        expr = expr.replace(pattern, replacement, repeat=True)
+    return expr
+
+
 def _rewrite_repeated_non_cut_edge_momentum_powers(
     numerator: Expression, graph, choice_offset: int = 0
 ) -> Expression:
@@ -433,6 +682,7 @@ class EMRIntegrandConstructor(object):
         )
         # GAMMALOOP_STATE_FOLDER
         self.gl_worker.run("import model sm-default.json")
+        self._protected_external_gluon_polarisation_energy_ids: set[str] = set()
 
     # Get the numerator of the graph
 
@@ -441,43 +691,56 @@ class EMRIntegrandConstructor(object):
 
         numerator_graph = graph
         post_momentum_rewrite_factor = E("1")
+        self._protected_external_gluon_polarisation_energy_ids = set()
         if numerator_factorisation is not None:
-            numerator_graph, post_momentum_rewrite_factor = numerator_factorisation(
-                graph
+            factorisation_result = numerator_factorisation(graph)
+            protected_energy_ids = getattr(
+                factorisation_result,
+                "protected_energy_ids",
+                set(),
             )
+            if len(factorisation_result) == 2:
+                numerator_graph, post_momentum_rewrite_factor = factorisation_result
+            elif len(factorisation_result) == 3:
+                (
+                    numerator_graph,
+                    post_momentum_rewrite_factor,
+                    protected_energy_ids,
+                ) = factorisation_result
+            else:
+                raise ValueError(
+                    "numerator_factorisation must return graph/factor or "
+                    "graph/factor/protected_energy_ids"
+                )
+            graph_protected_energy_ids = numerator_graph.get(
+                _EXTERNAL_GLUON_POLARISATION_PROTECTED_IDS_ATTR
+            )
+            if graph_protected_energy_ids:
+                protected_energy_ids = set(protected_energy_ids)
+                protected_energy_ids.update(
+                    edge_id
+                    for edge_id in _strip_quotes(str(graph_protected_energy_ids)).split(
+                        ","
+                    )
+                    if edge_id
+                )
+            self._protected_external_gluon_polarisation_energy_ids = {
+                _strip_quotes(str(edge_id)) for edge_id in protected_energy_ids
+            }
 
-        num = _raw_graph_numerator(numerator_graph)
-        num = _rewrite_repeated_non_cut_edge_momentum_powers(num, numerator_graph)
-        num *= post_momentum_rewrite_factor
-
-        print("here" * 10)
-
-        num = num
-
-        # print("now here" * 10)
-        simplified = simplify_metrics(simplify_gamma(simplify_color(num))).expand()
-        # print(simplified)
-        res = _strip_namespaces_structurally(simplified)
-        res = substitute_process_couplings(res, self.name, self.L).expand()
-
-        # res = E(_canonicalize_symbolica_display_string(str(simplified)))
-        out = res.replace(
-            E("Q(y_,mink(4,x_))") * E("Q(z_,mink(4,x_))"), E("sp(y_,z_)"), repeat=True
+        scalar, colour, kinematic = _factorised_graph_numerator(numerator_graph)
+        scalar, colour, kinematic = _multiply_into_numerator_parts(
+            (scalar, colour, kinematic),
+            post_momentum_rewrite_factor,
         )
-        out = out.replace(
-            E("Qp(y_,mink(4,x_))") * E("Q(z_,mink(4,x_))"),
-            E("spp(qp(y_),z_)"),
-            repeat=True,
-        )
-        out = out.replace(
-            E("Qp(y_,mink(4,x_))") * E("Qp(z_,mink(4,x_))"),
-            E("spp(qp(y_),qp(z_))"),
-            repeat=True,
-        )
 
-        # print(out)
+        colour = simplify_color(colour)
+        kinematic = simplify_metrics(simplify_gamma(kinematic))
+        kinematic = _dots_to_dy_scalar_products(to_dots(kinematic))
 
-        # out = out.replace(E("sp(0,7)"), E("0"))
+        out = scalar * colour * kinematic
+        out = _strip_namespaces_structurally(out)
+        out = substitute_process_couplings(out, self.name, self.L)
 
         return symmetry_factor * out
 
@@ -773,51 +1036,355 @@ class EMRIntegrandConstructor(object):
 
         return s_split_graphs, s_channel_edges_copy
 
-    # This function takes a bunch of graphs, contained in s_split_graphs, and constructs the
-    # cff for the product of these graphs assuming the numerator is num. It multiplies this by
-    # the inverse energies for all edges in the initial and final state cuts (members of cut_graph)
-    # and by the s-channel propagators (in the rest freme) contained in s_channel_edges
+    def _edge_local_id(self, edge) -> str:
+        return _strip_quotes(str(edge.get_attributes()["id"]))
 
-    def get_cff(
-        self, cut_graph, s_split_graphs, s_channel_edges, numerator, get_residues=False
-    ):
+    def _replacement_map(self, graph: amplitude_graph) -> dict[str, object]:
+        return {_strip_quotes(str(src)): dst for src, dst in graph.replacements}
 
-        # print("numerator here" * 5)
-        # print(numerator)
+    def _edge_sort_key(self, edge):
+        edge_id = self._edge_local_id(edge)
+        try:
+            return (0, int(edge_id))
+        except ValueError:
+            return (1, edge_id)
+
+    def _is_ext_node(self, node: str) -> bool:
+        node = _strip_quotes(str(node))
+        return node.startswith("ext") and node[3:].isdigit()
+
+    def _edge_touches_ext(self, edge) -> bool:
+        return self._is_ext_node(_base_node(edge.get_source())) or self._is_ext_node(
+            _base_node(edge.get_destination())
+        )
+
+    def _edge_cut_sign(self, edge) -> int:
+        value = edge.get_attributes().get("is_cut_DY", "0")
+        try:
+            return int(float(_strip_quotes(str(value))))
+        except ValueError:
+            return 0
+
+    def _edge_mass(self, edge) -> Expression:
+        particle = _strip_quotes(str(edge.get_attributes().get("particle", "")))
+        if particle in ["d", "d~", "g", "ghG", "ghG~", ""]:
+            return E("0")
+        if particle == "t~":
+            return E("m(t)")
+        return E(f"m({particle})")
+
+    def _components_without_edge(self, graph, removed_edge_id: str | None = None):
+        nodes = []
+        for edge in graph.get_edges():
+            nodes.append(_base_node(edge.get_source()))
+            nodes.append(_base_node(edge.get_destination()))
+        nodes = sorted(set(nodes))
+        if not nodes:
+            return []
+
+        adj = {node: set() for node in nodes}
+        for edge in graph.get_edges():
+            if (
+                removed_edge_id is not None
+                and self._edge_local_id(edge) == removed_edge_id
+            ):
+                continue
+            source = _base_node(edge.get_source())
+            destination = _base_node(edge.get_destination())
+            adj.setdefault(source, set()).add(destination)
+            adj.setdefault(destination, set()).add(source)
+
+        components = []
+        seen = set()
+        for node in nodes:
+            if node in seen:
+                continue
+            stack = [node]
+            seen.add(node)
+            component = {node}
+            while stack:
+                current = stack.pop()
+                for neighbour in adj.get(current, ()):
+                    if neighbour not in seen:
+                        seen.add(neighbour)
+                        component.add(neighbour)
+                        stack.append(neighbour)
+            components.append(component)
+        return components
+
+    def _tree_edges(self, graph: amplitude_graph) -> list:
+        tree_edges = []
+        for edge in sorted(graph.graph.get_edges(), key=self._edge_sort_key):
+            if self._edge_touches_ext(edge):
+                continue
+            components = self._components_without_edge(
+                graph.graph, self._edge_local_id(edge)
+            )
+            if len(components) > 1:
+                tree_edges.append(edge)
+        return tree_edges
+
+    def _component_graphs_without_tree_edges(
+        self, graph: amplitude_graph, tree_edges: list
+    ) -> list[amplitude_graph]:
+        tree_ids = {self._edge_local_id(edge) for edge in tree_edges}
+        retained_edges = [
+            edge
+            for edge in graph.graph.get_edges()
+            if self._edge_local_id(edge) not in tree_ids
+        ]
+        if not retained_edges:
+            return []
+
+        nodes = sorted(
+            {
+                _base_node(endpoint)
+                for edge in retained_edges
+                for endpoint in (edge.get_source(), edge.get_destination())
+            }
+        )
+        adj = {node: set() for node in nodes}
+        for edge in retained_edges:
+            source = _base_node(edge.get_source())
+            destination = _base_node(edge.get_destination())
+            adj.setdefault(source, set()).add(destination)
+            adj.setdefault(destination, set()).add(source)
+
+        components = []
+        seen = set()
+        for node in nodes:
+            if node in seen:
+                continue
+            stack = [node]
+            seen.add(node)
+            component = {node}
+            while stack:
+                current = stack.pop()
+                for neighbour in adj.get(current, ()):
+                    if neighbour not in seen:
+                        seen.add(neighbour)
+                        component.add(neighbour)
+                        stack.append(neighbour)
+            components.append(component)
+
+        node_by_name = {
+            _strip_quotes(str(node.get_name())): node for node in graph.graph.get_nodes()
+        }
+        replacement_map = self._replacement_map(graph)
+        loop_graphs = []
+        for component in components:
+            component_edges = [
+                edge
+                for edge in retained_edges
+                if _base_node(edge.get_source()) in component
+                and _base_node(edge.get_destination()) in component
+            ]
+            non_ext_nodes = {
+                node for node in component if not self._is_ext_node(_base_node(node))
+            }
+            internal_edges = [
+                edge for edge in component_edges if not self._edge_touches_ext(edge)
+            ]
+            if len(non_ext_nodes) <= 1 or len(internal_edges) < len(non_ext_nodes):
+                continue
+
+            graph_type = graph.graph.get_type() or "digraph"
+            new_graph = pydot.Dot(graph_type=graph_type)
+            for key, value in graph.graph.get_attributes().items():
+                new_graph.set(key, value)
+            for node_name in sorted(component):
+                node = node_by_name.get(node_name)
+                if node is None:
+                    new_graph.add_node(pydot.Node(node_name))
+                else:
+                    new_graph.add_node(deepcopy(node))
+
+            replacements = []
+            for new_id, edge in enumerate(
+                sorted(component_edges, key=self._edge_sort_key)
+            ):
+                old_id = self._edge_local_id(edge)
+                attrs = deepcopy(edge.get_attributes())
+                attrs["id"] = new_id
+                new_graph.add_edge(
+                    pydot.Edge(edge.get_source(), edge.get_destination(), **attrs)
+                )
+                replacements.append([new_id, replacement_map[old_id]])
+
+            loop_graphs.append(amplitude_graph(new_graph, replacements))
+        return loop_graphs
+
+    def _tree_boundary_energy_sum(
+        self, graph: amplitude_graph, tree_edge, component: set[str]
+    ) -> tuple[Expression, int, set[str]]:
+        replacement_map = self._replacement_map(graph)
+        tree_id = self._edge_local_id(tree_edge)
+        S = {node for node in component if not self._is_ext_node(node)}
+        energy_sum = E("0")
+        external_count = 0
+
+        for edge in graph.graph.get_edges():
+            edge_id = self._edge_local_id(edge)
+            source = _base_node(edge.get_source())
+            destination = _base_node(edge.get_destination())
+            if (source in S) == (destination in S):
+                continue
+            if edge_id == tree_id:
+                continue
+            if not (self._is_ext_node(source) or self._is_ext_node(destination)):
+                raise ValueError(
+                    "Tree cut boundary contains a second internal edge "
+                    f"{edge_id} while processing tree edge {tree_id}."
+                )
+
+            cut_sign = self._edge_cut_sign(edge)
+            if cut_sign == 0:
+                continue
+
+            original_id = replacement_map[edge_id]
+            if self._is_ext_node(source) and destination in S:
+                energy_sum += cut_sign * E(f"En({original_id})")
+                external_count += 1
+            elif self._is_ext_node(destination) and source in S:
+                energy_sum -= cut_sign * E(f"En({original_id})")
+                external_count += 1
+
+        return energy_sum, external_count, S
+
+    def _tree_energy_evaluation(
+        self, graph: amplitude_graph, tree_edge
+    ) -> tuple[Expression, Expression, object]:
+        tree_id = self._edge_local_id(tree_edge)
+        components = self._components_without_edge(graph.graph, tree_id)
+        source = _base_node(tree_edge.get_source())
+        destination = _base_node(tree_edge.get_destination())
+        ordered_components = sorted(
+            components,
+            key=lambda component: (
+                0 if source in component else 1,
+                0 if destination in component else 1,
+                sorted(component),
+            ),
+        )
+
+        candidates = [
+            self._tree_boundary_energy_sum(graph, tree_edge, component)
+            for component in ordered_components
+        ]
+        selected = None
+        for energy_sum, external_count, S in candidates:
+            if external_count > 0 and energy_sum.to_canonical_string() != "0":
+                selected = (energy_sum, S)
+                break
+        if selected is None:
+            for energy_sum, external_count, S in candidates:
+                if external_count > 0:
+                    selected = (energy_sum, S)
+                    break
+        if selected is None:
+            raise ValueError(
+                f"Could not determine external boundary for tree edge {tree_id}."
+            )
+
+        energy_sum, S = selected
+        tree_sign = 1 if destination in S else -1
+        replacement = -energy_sum if tree_sign == 1 else energy_sum
+        original_id = self._replacement_map(graph)[tree_id]
+        return energy_sum, replacement, original_id
+
+    def _tree_energy_constraints(
+        self, cut_graph, amplitude_graphs
+    ) -> dict[str, tuple[Expression, Expression]]:
+        constraints = {}
+        external_energy_replacement = _energy_conservation_replacement(cut_graph)
+        external_numerator_energy_replacement = _energy_conservation_replacement(
+            cut_graph, energy_head="En"
+        )
+
+        for graph in amplitude_graphs:
+            for tree_edge in self._tree_edges(graph):
+                energy_sum, energy_replacement, original_id = (
+                    self._tree_energy_evaluation(graph, tree_edge)
+                )
+                original_id = _strip_quotes(str(original_id))
+
+                denominator_energy_sum = energy_sum.replace(
+                    E("En(x_)"), E("E(x_)")
+                )
+                if external_energy_replacement is not None:
+                    denominator_energy_sum = denominator_energy_sum.replace(
+                        *external_energy_replacement
+                    )
+
+                if external_numerator_energy_replacement is not None:
+                    energy_replacement = energy_replacement.replace(
+                        *external_numerator_energy_replacement
+                    )
+
+                constraints[original_id] = (
+                    denominator_energy_sum,
+                    energy_replacement,
+                )
+
+        return constraints
+
+    def tree_energy_constraints_for_cut_graph(
+        self, cut_graph
+    ) -> dict[str, tuple[Expression, Expression]]:
+        graph_L, graph_R = self.get_LR_graphs(cut_graph)
+        return self._tree_energy_constraints(cut_graph, [graph_L, graph_R])
+
+    def _cff_scalar_product_energy_form(
+        self,
+        numerator: Expression,
+        signable_edge_ids: set[str],
+        cut_energy_signs: dict[str, int],
+    ) -> Expression:
+        numerator = numerator.replace(E("Q(x_,0)"), E("En(x_)"))
+        numerator = numerator.replace(E("Qp(x_,0)"), E("En(x_)"))
         numerator = numerator.replace(
             E("spp(qp(x_),qp(y_))"),
-            E("sigma(x_)*sigma(y_)*En(x_)*En(y_)-sp3(q(x_),q(y_))"),
+            E("En(x_)*En(y_)-sp3(q(x_),q(y_))"),
         )
         numerator = numerator.replace(
-            E("spp(qp(x_),y_)"), E("sigma(x_)*sigma(y_)*En(x_)*En(y_)-sp3(q(x_),q(y_))")
+            E("spp(qp(x_),y_)"), E("En(x_)*En(y_)-sp3(q(x_),q(y_))")
         )
         numerator = numerator.replace(
-            E("sp(x_,y_)"), E("sigma(x_)*sigma(y_)*En(x_)*En(y_)-sp3(q(x_),q(y_))")
+            E("spp(x_,qp(y_))"), E("En(x_)*En(y_)-sp3(q(x_),q(y_))")
         )
-        #
-        # numerator = numerator.replace(
-        #    E("spp(qp(x_),qp(y_))"),
-        #    E("sigma(x_)*sigma(y_)*E(x_)*E(y_)-sp3(q(x_),q(y_))"),
-        # )
-        # numerator = numerator.replace(
-        #    E("spp(qp(x_),y_)"), E("sigma(x_)*sigma(y_)*E(x_)*E(y_)-sp3(q(x_),q(y_))")
-        # )
-        # numerator = numerator.replace(
-        #    E("sp(x_,y_)"), E("sigma(x_)*sigma(y_)*E(x_)*E(y_)-sp3(q(x_),q(y_))")
-        # )
+        numerator = numerator.replace(
+            E("sp(x_,y_)"), E("En(x_)*En(y_)-sp3(q(x_),q(y_))")
+        )
+
+        for edge_id, cut_sign in sorted(
+            cut_energy_signs.items(), key=lambda item: _id_sort_key(item[0])
+        ):
+            if cut_sign == -1:
+                numerator = numerator.replace(E(f"En({edge_id})"), E(f"-En({edge_id})"))
+
+        for edge_id in sorted(signable_edge_ids, key=lambda x: (len(x), x)):
+            numerator = numerator.replace(
+                E(f"En({edge_id})"), E(f"sigma({edge_id})*En({edge_id})")
+            )
+
+        for edge_id in sorted(
+            self._protected_external_gluon_polarisation_energy_ids,
+            key=_id_sort_key,
+        ):
+            numerator = numerator.replace(
+                E(f"En({edge_id})"),
+                E(f"(sp3(q({edge_id}),q({edge_id})))^(1/2)"),
+            )
 
         numerator = numerator.replace(E("sigma(1000)"), E("1"))
         numerator = numerator.replace(E("sp3(q(1000), x___)"), E("0"))
         numerator = numerator.replace(E("sp3(x___, q(1000))"), E("0"))
         numerator = numerator.replace(E("En(1000)"), E("1"))
+        return numerator
 
-        # numerator = numerator.replace(E("sigma(6)"), E("-sigma(6)"))
-
-        # if len(cut_graph.partition[1]) == 2:
-        #    numerator = numerator.replace(E("E(7)"), E("-E(7)"))
-
-        # print(numerator)
-
+    def get_cff(
+        self, cut_graph, amplitude_graphs, numerator, get_residues=False
+    ):
         cut_g_edges = sorted(
             cut_graph.graph.get_edges(), key=lambda e: int(e.get_attributes()["id"])
         )
@@ -825,45 +1392,77 @@ class EMRIntegrandConstructor(object):
             _strip_quotes(str(e.get_attributes()["id"])): e for e in cut_g_edges
         }
 
-        # We only derive the CFF of graphs that have more than one node. It's trivial otherwise
-        # and the CFF generator crashes for these graphs for some reason.
+        tree_edges_by_graph = [
+            (graph, self._tree_edges(graph)) for graph in amplitude_graphs
+        ]
+        tree_original_ids = set()
+        loop_graphs = []
+        for graph, tree_edges in tree_edges_by_graph:
+            for tree_edge in tree_edges:
+                tree_original_ids.add(
+                    _strip_quotes(
+                        str(
+                            self._replacement_map(graph)[
+                                self._edge_local_id(tree_edge)
+                            ]
+                        )
+                    )
+                )
+            loop_graphs.extend(
+                self._component_graphs_without_tree_edges(graph, tree_edges)
+            )
 
-        split_graphs_gt2_non_ext = []
-        for g in s_split_graphs:
-            non_ext_count = 0
-            for v in g.graph.get_nodes():
-                name = _strip_quotes(v.get_name())
-                is_ext = name.startswith("ext") and name[3:].isdigit()
-                if not is_ext:
-                    non_ext_count += 1
-            if non_ext_count > 1:
-                split_graphs_gt2_non_ext.append(g)
+        signable_edge_ids = set()
+        for loop_graph in loop_graphs:
+            replacement_map = self._replacement_map(loop_graph)
+            signable_edge_ids.update(
+                _strip_quotes(str(replacement_map[self._edge_local_id(edge)]))
+                for edge in loop_graph.graph.get_edges()
+                if not self._edge_touches_ext(edge)
+            )
+        signable_edge_ids.difference_update(tree_original_ids)
 
-        # Constructs the product of CFF representations obtained from all the subgraphs obtained
-        # by deleting s-channel edges and cut edges. Also reverses sign of external edges that
-        # are cut and have negative energy flow.
+        cut_energy_signs = {
+            _strip_quotes(str(edge.get_attributes()["id"])): self._edge_cut_sign(edge)
+            for edge in cut_graph.graph.get_edges()
+            if self._edge_cut_sign(edge) != 0
+        }
+
+        numerator = self._cff_scalar_product_energy_form(
+            numerator, signable_edge_ids, cut_energy_signs
+        )
+
+        tree_factor = E("1")
+        tree_energy_constraints = self._tree_energy_constraints(
+            cut_graph, amplitude_graphs
+        )
+        for graph, tree_edges in tree_edges_by_graph:
+            for tree_edge in tree_edges:
+                original_id = _strip_quotes(
+                    str(
+                        self._replacement_map(graph)[
+                            self._edge_local_id(tree_edge)
+                        ]
+                    )
+                )
+                denominator_energy_sum, energy_replacement = tree_energy_constraints[
+                    original_id
+                ]
+                numerator = numerator.replace(
+                    E(f"En({original_id})"), energy_replacement
+                )
+                tree_factor *= E("1") / (
+                    denominator_energy_sum**2 - E(f"E({original_id})") ** 2
+                )
 
         e_surfaces = set()
-
-        # previous_cff = numerator
-
-        previous_cff = numerator
-
-        edges_to_reverse = []
-
-        # print("graphs")
-        # for n_graph, g in enumerate(split_graphs_gt2_non_ext):
-        #    print("n_graph ", n_graph)
-        #    g_rep = g.replacements
-        #    for i in range(0, len(g.graph.get_edges())):
-        #        print(g_rep[i][1])
-
-        # print("emr cutgraph")
-        # for e in cut_g_edges:
-        #    print(e)
-        # print("---------")
-        edges_to_reverse = []
-        for n_graph, g in enumerate(split_graphs_gt2_non_ext):
+        previous_cff = numerator * tree_factor
+        cut_energy_reversal_ids = {
+            _strip_quotes(str(edge.get_attributes()["id"]))
+            for edge in cut_graph.graph.get_edges()
+            if self._edge_cut_sign(edge) == -1
+        }
+        for n_graph, g in enumerate(loop_graphs):
             cff_g = self.get_CFF(g.graph, [], [])
             new_cff = E("0")
             g_rep = g.replacements
@@ -871,9 +1470,6 @@ class EMRIntegrandConstructor(object):
             for cffterm in cff_g.expressions:
                 cff_term = previous_cff * cffterm.expression
 
-                # print("çççççççç")
-                # print("n_graph:", n_graph)
-                # print("len:", len(cffterm.orientation))
                 for o, i in zip(cffterm.orientation, range(len(cffterm.orientation))):
                     id_in_original_graph = g_rep[i][1]
                     original_edge_id = _strip_quotes(str(id_in_original_graph))
@@ -892,158 +1488,33 @@ class EMRIntegrandConstructor(object):
                         cff_term = cff_term.replace(
                             E(f"sigma({id_in_original_graph})"), E("1")
                         )
-                    if this_e_atts.get("is_cut_DY", 0) == -1:
-                        # print("***")
-                        # print(this_e_atts["id"])
-                        # print(id_in_original_graph)
-                        edges_to_reverse.append(id_in_original_graph)
-                # print(edges_to_reverse)
                 for etas in cff_g.e_surfaces:
                     eta = etas.expression
                     for rep in g.replacements:
                         eta = eta.replace(E(f"pygloop::E({rep[0]})"), E(f"E({rep[1]})"))
 
-                    # tt~change: fix eta here with minus sign
+                    for edge_id in cut_energy_reversal_ids:
+                        eta = eta.replace(E(f"E({edge_id})"), -E(f"E({edge_id})"))
+
                     cff_term = cff_term.replace(E(f"pygloop::η({etas.id})"), -eta)
 
                     if get_residues:
                         residue_eta = deepcopy(eta)
-                        for id in set(edges_to_reverse):
-                            residue_eta = residue_eta.replace(
-                                E(f"E({id})"), -E(f"E({id})")
-                            )
-                            residue_eta = residue_eta.replace(
-                                E(f"En({id})"), -E(f"En({id})")
-                            )
                         e_surfaces.add(residue_eta)
 
-                # print(f"cff term for graph {n_graph} before: ", cff_term)
-
-                # for id in set(edges_to_reverse):
-                #    cff_term = cff_term.replace(E(f"E({id})"), -E(f"E({id})"))
-
-                # print(f"cff term for graph {n_graph} after: ", cff_term)
                 new_cff += cff_term
 
             previous_cff = new_cff
 
-        for id in set(edges_to_reverse):
-            previous_cff = previous_cff.replace(E(f"E({id})"), E(f"-E({id})"))
-            previous_cff = previous_cff.replace(E(f"En({id})"), E(f"-En({id})"))
-
-        # print("cff fresh out of the cff algorithm")
-        # print(edges_to_reverse)
-
-        # print(previous_cff)
-
-        # Multiplies by non-partial-fractioned s-channel propagators and sets the s-channel particle's
-        # energy in terms of other cut particles by energy conservation. The logic is weak for many s-channel
-        # propagators since you can have a subgraph sandwiched between two s-channel propagators (TODO: FIX).
-        # Also sets the sign of the propagator sigma(i) by one (i.e. according to original orientation)
-
-        popping_edges = deepcopy(s_channel_edges)
-
-        def _is_exact_zero(expr):
-            return str(expr.expand()) == "0"
-
-        while len(popping_edges) > 0:
-            current_s_edge = popping_edges.pop()
-            s_edge_atts = current_s_edge.get_attributes()
-            candidates = []
-            for g in s_split_graphs:
-                for e in g.graph.get_edges():
-                    e_atts = e.get_attributes()
-                    e_src = e.get_source()
-                    if s_edge_atts["name"] != e_atts["name"]:
-                        continue
-
-                    denom = E("0")
-                    denom_num = E("0")
-                    for ep in g.graph.get_edges():
-                        ep_src = ep.get_source()
-                        ep_dest = ep.get_destination()
-                        ep_atts = ep.get_attributes()
-                        if ep_src.startswith("ext") and ep != e:
-                            cut_sign = ep_atts.get("is_cut_DY", 0)
-                            denom += cut_sign * E(
-                                f"E({g.replacements[ep_atts['id']][1]})"
-                            )
-                            denom_num += cut_sign * E(
-                                f"En({g.replacements[ep_atts['id']][1]})"
-                            )
-                        if ep_dest.startswith("ext") and ep != e:
-                            cut_sign = ep_atts.get("is_cut_DY", 0)
-                            denom -= cut_sign * E(
-                                f"E({g.replacements[ep_atts['id']][1]})"
-                            )
-                            denom_num -= cut_sign * E(
-                                f"En({g.replacements[ep_atts['id']][1]})"
-                            )
-                    candidates.append((g, e_atts, e_src, denom, denom_num))
-
-            selected_candidate = None
-            for candidate in candidates:
-                if not _is_exact_zero(candidate[3]):
-                    selected_candidate = candidate
-                    break
-
-            if selected_candidate is None:
-                denom_report = [str(candidate[3].expand()) for candidate in candidates]
-                raise ValueError(
-                    "Could not reconstruct nonzero s-channel denominator for "
-                    f"{s_edge_atts.get('name')}; candidates={denom_report}"
-                )
-
-            g, e_atts, e_src, denom, denom_num = selected_candidate
-
-            # NEW: for cut s-channel propagators
-            if e_atts.get("is_cut_DY", None) is not None:
-                previous_cff = previous_cff / denom
-            else:
-                previous_cff = previous_cff / denom**2
-
-            sign = 1 if e_src.startswith("ext") else -1
-
-            if e_atts.get("is_cut_DY") is not None:
-                sign = e_atts.get("is_cut_DY") * sign
-
-            previous_cff = previous_cff.replace(
-                E(f"E({g.replacements[e_atts['id']][1]})"), -sign * denom
-            )
-            previous_cff = previous_cff.replace(
-                E(f"En({g.replacements[e_atts['id']][1]})"),
-                -sign * denom_num,
-            )
-
-            if get_residues:
-                e_surfaces = {
-                    e_surf.replace(
-                        E(f"E({g.replacements[e_atts['id']][1]})"),
-                        -sign * denom,
-                    )
-                    for e_surf in e_surfaces
-                }
-
-            previous_cff = previous_cff.replace(
-                E(f"sigma({g.replacements[e_atts['id']][1]})"), E("1")
-            )
-
-        # Multiplies by inverse cut energies and substitutes their orientation acoording to
-        # the cut.
+        # Multiplies by inverse cut energies for non-tree propagators.
 
         energies = E("1")
         for e in cut_graph.graph.get_edges():
             e_atts = e.get_attributes()
-            cut_val = e_atts.get("is_cut_DY", None)
+            edge_id = _strip_quotes(str(e_atts["id"]))
 
-            if e not in s_channel_edges:
+            if edge_id not in tree_original_ids:
                 energies *= 1 / E(f"2*E({e_atts['id']})")
-
-            if cut_val is not None:
-                previous_cff = previous_cff.replace(
-                    E(f"sigma({e_atts['id']})"),
-                    cut_val,
-                )
 
         total_cff = previous_cff * energies
 
@@ -1051,10 +1522,7 @@ class EMRIntegrandConstructor(object):
             delta = E("δ")
             residues = []
             for eta in e_surfaces:
-                eta_expanded = eta.expand()
-                energies = (
-                    list(eta_expanded) if eta_expanded.is_type(AtomType.Add) else [eta]
-                )
+                energies = list(eta) if eta.is_type(AtomType.Add) else [eta]
                 eN = eta.replace(E("E(x___)"), E("1"))
                 if len(energies) > 1 and eN < len(energies):
                     pivot = energies[0]
@@ -1078,6 +1546,7 @@ class EMRIntegrandConstructor(object):
                     raise ValueError("really weird stuff happening with e surfaces")
             return residues
 
+        total_cff = total_cff.replace(E("Qr(x_,0)"), E("E(x_)"))
         total_cff = total_cff.replace(E("Q(x_,0)"), E("E(x_)"))
 
         # total_cff = total_cff.replace(E("E(6)"), E("-E(6)"))
@@ -1117,6 +1586,7 @@ class EMRIntegrandConstructor(object):
                 raise ValueError(
                     "prepared_numerator and numerator_factorisation are mutually exclusive"
                 )
+            self._protected_external_gluon_polarisation_energy_ids = set()
             num = prepared_numerator
         else:
             num = self.get_numerator(
@@ -1136,9 +1606,6 @@ class EMRIntegrandConstructor(object):
 
         graph_L, graph_R = self.get_LR_graphs(cut_graph)
 
-        s_split_graphs_L, s_channel_edges_L = self.split_s_channels(graph_L)
-        s_split_graphs_R, s_channel_edges_R = self.split_s_channels(graph_R)
-
         ## DEBUG: set numerator to 1
         # num = E("1")
         # print("NUMERATORRRRRRRR")
@@ -1148,8 +1615,7 @@ class EMRIntegrandConstructor(object):
 
         cut_graph_cff = self.get_cff(
             cut_graph,
-            s_split_graphs_L + s_split_graphs_R,
-            s_channel_edges_L + s_channel_edges_R,
+            [graph_L, graph_R],
             num,
             get_residues,
         )
@@ -2106,6 +2572,11 @@ class LoopIntegrandConstructor(object):
         p2_id = _strip_quotes(
             str(_select_reference_edge(edges_by_direction["p2"]).get_attributes()["id"])
         )
+        protected_energy_ids = {p1_id, p2_id}
+        numerator_graph.set(
+            _EXTERNAL_GLUON_POLARISATION_PROTECTED_IDS_ATTR,
+            ",".join(sorted(protected_energy_ids, key=_id_sort_key)),
+        )
 
         post_momentum_rewrite_factor = E("1")
         for edge in target_edges:
@@ -2579,8 +3050,6 @@ class LoopIntegrandConstructor(object):
             # Factor of 1/s for soft and soft-collinear for virtual DY diagram
 
             factor = 1
-            if self.name == "DY" and len(cut_graph.final_cut) == 1:
-                factor = 1 / (4 * self.sp3D(E("p(1)"), E("p(2)")))
 
             # if self.name=="tt~":
             # integrand = integrand.replace(E("p(2)"), -E("p(1)"))
@@ -2616,11 +3085,6 @@ class LoopIntegrandConstructor(object):
                 )
             )
 
-            if self.name == "tt~" and len(cut_graph.final_cut) == 2:
-                soft_collinear_integrand1 = -soft_collinear_integrand1
-                soft_collinear_integrand2 = -soft_collinear_integrand2
-                soft_integrand = -soft_integrand
-
             # integrand = (
             #    soft_integrand + soft_collinear_integrand1 + soft_collinear_integrand2
             # )  # * E(f"Θ({repl_x})") * E(f"Θ(1-{repl_x})")
@@ -2640,7 +3104,7 @@ class LoopIntegrandConstructor(object):
             thetaSoft = E(f"Θ(Lambdasq-{propsoft1})") * E(f"Θ(Lambdasq-{propsoft2})")  #
 
             routed_integrand_soft = RoutedIntegrand(
-                -factor * soft_integrand * thetaSoft,
+                factor * soft_integrand * thetaSoft,
                 cut_graph,
                 [
                     E(f"k({k_id[0]})"),
@@ -2667,7 +3131,7 @@ class LoopIntegrandConstructor(object):
             )
 
             routed_integrand_collinear1 = RoutedIntegrand(
-                factor * soft_collinear_integrand1 * thetacollinear1,
+                -factor * soft_collinear_integrand1 * thetacollinear1,
                 cut_graph,
                 [
                     E(f"k({k_id[0]})"),
@@ -2695,7 +3159,7 @@ class LoopIntegrandConstructor(object):
             )
 
             routed_integrand_collinear2 = RoutedIntegrand(
-                factor * soft_collinear_integrand2 * thetacollinear2,
+                -factor * soft_collinear_integrand2 * thetacollinear2,
                 cut_graph,
                 [
                     E(f"k({k_id[0]})"),
@@ -2989,12 +3453,6 @@ class LoopIntegrandConstructor(object):
             e1_atts = e1.get_attributes()
             e2_atts = e2.get_attributes()
 
-            def _is_cut_edge(edge_atts):
-                return _strip_quotes(str(edge_atts.get("is_cut", "0"))) not in (
-                    "0",
-                    "0.0",
-                )
-
             if not _has_external_with_orientation(e2, "departing"):
                 raise ValueError(
                     "the second raised gluon edge has no departing pure external edge"
@@ -3040,24 +3498,6 @@ class LoopIntegrandConstructor(object):
 
             # if repeated_relation == "opp":
             #    vertices2 = [vertices2[1], vertices2[0]]
-
-            indices1 = []
-            for e in boundary_edges(cut_graph.graph, {_base_node(vertices1[0])}):
-                e_atts = e.get_attributes()
-                if e_atts["id"] != e1_atts["id"]:
-                    if _base_node(vertices1[0]) == _base_node(e.get_source()):
-                        indices1.append((e_atts["id"], overall_sign1))
-                    else:
-                        indices1.append((e_atts["id"], -overall_sign1))
-
-            indices2 = []
-            for e in boundary_edges(cut_graph.graph, {_base_node(vertices2[0])}):
-                e_atts = e.get_attributes()
-                if e_atts["id"] != e2_atts["id"]:
-                    if _base_node(vertices2[0]) == _base_node(e.get_source()):
-                        indices2.append((e_atts["id"], overall_sign2))
-                    else:
-                        indices2.append((e_atts["id"], -overall_sign2))
 
             target_node_to_edge_ids = {}
             target_node_to_edge_ids.setdefault(_base_node(vertices1[1]), []).append(
@@ -3117,39 +3557,45 @@ class LoopIntegrandConstructor(object):
             # Finally construct the counter-terms
             #
 
+            def _raised_cut_sign(edge_atts):
+                value = edge_atts.get("is_cut_DY", edge_atts.get("is_cut", "0"))
+                try:
+                    return int(float(_strip_quotes(str(value))))
+                except ValueError:
+                    return 0
+
+            raised_pair_has_cut = (
+                _raised_cut_sign(e1_atts) != 0 or _raised_cut_sign(e2_atts) != 0
+            )
+
+            def _raised_gluon_projector_denominator(edge_atts, overall_sign):
+                # In raised-pair cuts, the uncut partner denominator is a
+                # propagator energy. Keep it out of Q(.,0) -> En(.) until the
+                # final CFF cleanup, and retain its orientation sign.
+                if raised_pair_has_cut and _raised_cut_sign(edge_atts) == 0:
+                    return "Qr", f"{-overall_sign:+d}"
+                return "Q", "-1"
+
+            def _single_energy_raised_gluon_numerator(edge, vertices, overall_sign):
+                edge_atts = edge.get_attributes()
+                denominator_head, projector_sign = (
+                    _raised_gluon_projector_denominator(edge_atts, overall_sign)
+                )
+                return (
+                    f"-1𝑖*(spenso::g(spenso::coad(8,hedge({_parse_port(edge.get_destination())})),spenso::coad(8,hedge({_parse_port(edge.get_source())})))*spenso::g(spenso::mink(4,hedge({_parse_port(edge.get_destination())})),spenso::mink(4,hedge({_parse_port(edge.get_source())}))){projector_sign}*1/{denominator_head}({edge_atts['id']},0)*Qp({edge_atts['id']},spenso::mink(4,hedge({_parse_port(vertices[1])})))*Q(1000,spenso::mink(4,hedge({_parse_port(vertices[0])})))*spenso::g(spenso::coad(8,hedge({_parse_port(edge.get_destination())})),spenso::coad(8,hedge({_parse_port(edge.get_source())}))))"
+                )
+
             for e in cut_graph.graph.get_edges():
                 e_atts = e.get_attributes()
                 if e_atts["id"] == e1_atts["id"]:
-                    ##
-                    if _is_cut_edge(e1_atts) or _is_cut_edge(e2_atts):
-                        ##
-                        e_atts["num"] = (
-                            f"-1𝑖*(spenso::g(spenso::coad(8,hedge({_parse_port(e.get_destination())})),spenso::coad(8,hedge({_parse_port(e.get_source())})))*spenso::g(spenso::mink(4,hedge({_parse_port(e.get_destination())})),spenso::mink(4,hedge({_parse_port(e.get_source())})))-{overall_sign1}*1/Q({e_atts['id']},0)*Qp({e_atts['id']},spenso::mink(4,hedge({_parse_port(vertices1[1])})))*Q(1000,spenso::mink(4,hedge({_parse_port(vertices1[0])})))*spenso::g(spenso::coad(8,hedge({_parse_port(e.get_destination())})),spenso::coad(8,hedge({_parse_port(e.get_source())}))))"
-                        )
-                        print("- IN CUT -" * 10)
-                    else:
-                        e_atts["num"] = (
-                            f"-1𝑖*(spenso::g(spenso::coad(8,hedge({_parse_port(e.get_destination())})),spenso::coad(8,hedge({_parse_port(e.get_source())})))*spenso::g(spenso::mink(4,hedge({_parse_port(e.get_destination())})),spenso::mink(4,hedge({_parse_port(e.get_source())})))+(-1)*(-1)*1/({indices1[0][1]}*Q({indices1[0][0]},0)+{indices1[1][1]}*Q({indices1[1][0]},0))*Qp({e_atts['id']},spenso::mink(4,hedge({_parse_port(vertices1[1])})))*Q(1000,spenso::mink(4,hedge({_parse_port(vertices1[0])})))*spenso::g(spenso::coad(8,hedge({_parse_port(e.get_destination())})),spenso::coad(8,hedge({_parse_port(e.get_source())}))))"
-                        )
-                        print("- NOT IN CUT -" * 10)
-                        print("sign 1")
-                        print(overall_sign1)
-                        print(e_atts["num"])
+                    e_atts["num"] = _single_energy_raised_gluon_numerator(
+                        e, vertices1, overall_sign1
+                    )
 
                 if e_atts["id"] == e2_atts["id"]:
-                    if _is_cut_edge(e2_atts) or _is_cut_edge(e1_atts):
-                        e_atts["num"] = (
-                            f"-1𝑖*(spenso::g(spenso::coad(8,hedge({_parse_port(e.get_destination())})),spenso::coad(8,hedge({_parse_port(e.get_source())})))*spenso::g(spenso::mink(4,hedge({_parse_port(e.get_destination())})),spenso::mink(4,hedge({_parse_port(e.get_source())})))-{overall_sign2}*1/Q({e_atts['id']},0)*Qp({e_atts['id']},spenso::mink(4,hedge({_parse_port(vertices2[1])})))*Q(1000,spenso::mink(4,hedge({_parse_port(vertices2[0])})))*spenso::g(spenso::coad(8,hedge({_parse_port(e.get_destination())})),spenso::coad(8,hedge({_parse_port(e.get_source())}))))"
-                        )
-                        print("- IN CUT -" * 10)
-                    else:
-                        e_atts["num"] = (
-                            f"-1𝑖*(spenso::g(spenso::coad(8,hedge({_parse_port(e.get_destination())})),spenso::coad(8,hedge({_parse_port(e.get_source())})))*spenso::g(spenso::mink(4,hedge({_parse_port(e.get_destination())})),spenso::mink(4,hedge({_parse_port(e.get_source())})))+(-1)*(1)*1/({indices2[0][1]}*Q({indices2[0][0]},0)+{indices2[1][1]}*Q({indices2[1][0]},0))*Qp({e_atts['id']},spenso::mink(4,hedge({_parse_port(vertices2[1])})))*Q(1000,spenso::mink(4,hedge({_parse_port(vertices2[0])})))*spenso::g(spenso::coad(8,hedge({_parse_port(e.get_destination())})),spenso::coad(8,hedge({_parse_port(e.get_source())}))))"
-                        )
-                        print("- NOT IN CUT -" * 10)
-                        print("sign 2")
-                        print(overall_sign2)
-                        print(e_atts["num"])
+                    e_atts["num"] = _single_energy_raised_gluon_numerator(
+                        e, vertices2, overall_sign2
+                    )
 
         return cut_graph
 
