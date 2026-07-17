@@ -3,7 +3,7 @@ import os
 import re
 from collections import Counter
 from copy import deepcopy
-from itertools import product
+from itertools import combinations, product
 
 import numpy as np
 import pydot
@@ -684,9 +684,506 @@ class EMRIntegrandConstructor(object):
         self.gl_worker.run("import model sm-default.json")
         self._protected_external_gluon_polarisation_energy_ids: set[str] = set()
 
+    def _cut_edge_ids_for_numerator_rewrite(self, graph, cut_graph=None) -> set[str]:
+        cut_ids = set()
+        if cut_graph is not None:
+            cut_ids.update(_cut_edge_ids(cut_graph))
+
+        for edge in graph.get_edges():
+            attrs = edge.get_attributes()
+            if not (
+                _is_zero_cut_value(attrs.get("is_cut", "0"))
+                and _is_zero_cut_value(attrs.get("is_cut_DY", "0"))
+            ):
+                cut_ids.add(_strip_quotes(str(attrs["id"])))
+
+        return cut_ids
+
+    def _components_from_edges(self, edges, removed_edge_id: str | None = None):
+        nodes = sorted(
+            {
+                _base_node(endpoint)
+                for edge in edges
+                if self._edge_local_id(edge) != removed_edge_id
+                for endpoint in (edge.get_source(), edge.get_destination())
+            }
+        )
+        if not nodes:
+            return []
+
+        adj = {node: set() for node in nodes}
+        for edge in edges:
+            if self._edge_local_id(edge) == removed_edge_id:
+                continue
+            source = _base_node(edge.get_source())
+            destination = _base_node(edge.get_destination())
+            adj.setdefault(source, set()).add(destination)
+            adj.setdefault(destination, set()).add(source)
+
+        components = []
+        seen = set()
+        for node in nodes:
+            if node in seen:
+                continue
+            stack = [node]
+            seen.add(node)
+            component = {node}
+            while stack:
+                current = stack.pop()
+                for neighbour in adj.get(current, ()):
+                    if neighbour not in seen:
+                        seen.add(neighbour)
+                        component.add(neighbour)
+                        stack.append(neighbour)
+            components.append(component)
+        return components
+
+    def _dot_from_edge_subset(self, graph, edges):
+        graph_type = graph.get_type() or "digraph"
+        out = pydot.Dot(graph_type=graph_type)
+        for key, value in graph.get_attributes().items():
+            out.set(key, value)
+
+        node_by_name = {
+            _strip_quotes(str(node.get_name())): node for node in graph.get_nodes()
+        }
+        node_names = sorted(
+            {
+                _base_node(endpoint)
+                for edge in edges
+                for endpoint in (edge.get_source(), edge.get_destination())
+            }
+        )
+        for node_name in node_names:
+            node = node_by_name.get(node_name)
+            if node is None:
+                out.add_node(pydot.Node(node_name))
+            else:
+                out.add_node(deepcopy(node))
+
+        for edge in sorted(edges, key=self._edge_sort_key):
+            out.add_edge(deepcopy(edge))
+
+        return out
+
+    def _loop_core_for_numerator_rewrite(self, graph, cut_graph=None):
+        cut_ids = self._cut_edge_ids_for_numerator_rewrite(graph, cut_graph)
+        retained_edges = [
+            edge
+            for edge in graph.get_edges()
+            if self._edge_local_id(edge) not in cut_ids
+        ]
+        if not retained_edges:
+            return None
+
+        working_edges = retained_edges
+        while True:
+            base_component_count = len(self._components_from_edges(working_edges))
+            bridge_ids = set()
+            for edge in working_edges:
+                if self._edge_touches_ext(edge):
+                    continue
+                removed_component_count = len(
+                    self._components_from_edges(
+                        working_edges, self._edge_local_id(edge)
+                    )
+                )
+                if removed_component_count > base_component_count:
+                    bridge_ids.add(self._edge_local_id(edge))
+
+            if not bridge_ids:
+                break
+
+            next_edges = [
+                edge
+                for edge in working_edges
+                if self._edge_local_id(edge) not in bridge_ids
+            ]
+            if len(next_edges) == len(working_edges):
+                break
+            working_edges = next_edges
+
+        if not working_edges:
+            return None
+
+        components = self._components_from_edges(working_edges)
+        loop_count = 0
+        for component in components:
+            component_edges = [
+                edge
+                for edge in working_edges
+                if _base_node(edge.get_source()) in component
+                and _base_node(edge.get_destination()) in component
+            ]
+            non_ext_nodes = {
+                node for node in component if not self._is_ext_node(node)
+            }
+            loop_count += max(0, len(component_edges) - len(non_ext_nodes) + 1)
+
+        if loop_count <= 0:
+            return None
+
+        loop_graph = self._dot_from_edge_subset(graph, working_edges)
+        loop_edge_ids = {self._edge_local_id(edge) for edge in working_edges}
+        loop_nodes = {
+            node
+            for edge in working_edges
+            for node in (_base_node(edge.get_source()), _base_node(edge.get_destination()))
+            if not self._is_ext_node(node)
+        }
+        return loop_graph, loop_edge_ids, loop_nodes, loop_count
+
+    def _node_boundary_edges(self, graph, node_name: str):
+        return [
+            edge
+            for edge in graph.get_edges()
+            if _base_node(edge.get_source()) == node_name
+            or _base_node(edge.get_destination()) == node_name
+        ]
+
+    def _q_edge_ids_in_expr(self, expr: Expression) -> list[str]:
+        for pattern, edge_key in [
+            (Es("Q(edge_,slot_)"), S("gammalooprs::edge_")),
+            (E("Q(edge_,slot_)"), S("edge_")),
+        ]:
+            matches = list(expr.match(pattern))
+            if matches:
+                return [
+                    _strip_quotes(str(match[edge_key].to_canonical_string()))
+                    for match in matches
+                ]
+        return []
+
+    def _split_single_add_factor(self, expr: Expression):
+        if bool(expr.is_type(AtomType.Add)):
+            return E("1"), list(expr)
+        if not bool(expr.is_type(AtomType.Mul)):
+            return None
+
+        factors = list(expr)
+        additive = [
+            (len(list(factor)), index, list(factor))
+            for index, factor in enumerate(factors)
+            if bool(factor.is_type(AtomType.Add))
+        ]
+        if not additive:
+            return None
+
+        _n_terms, add_index, terms = min(additive)
+        rest = _product_factors(
+            [factor for index, factor in enumerate(factors) if index != add_index]
+        )
+        return rest, terms
+
+    def _three_gluon_vertex_choices(self, node):
+        num = node.get("num")
+        if not num:
+            return None
+
+        split = self._split_single_add_factor(Es(num))
+        if split is None:
+            return None
+
+        rest, terms = split
+        grouped: dict[str, Expression] = {}
+        for term in terms:
+            q_edge_ids = self._q_edge_ids_in_expr(term)
+            if len(q_edge_ids) != 1:
+                return None
+            edge_id = q_edge_ids[0]
+            grouped[edge_id] = grouped.get(edge_id, E("0")) + term
+
+        if len(grouped) != 3:
+            return None
+
+        return [
+            (edge_id, rest * grouped[edge_id])
+            for edge_id in sorted(grouped, key=_id_sort_key)
+        ]
+
+    def _loop_three_gluon_vertices(self, graph, loop_nodes: set[str]):
+        vertices = []
+        for node in graph.get_nodes():
+            node_name = _strip_quotes(str(node.get_name()))
+            if node_name in ["node", "edge", "graph"] or node_name not in loop_nodes:
+                continue
+
+            boundary = self._node_boundary_edges(graph, node_name)
+            if len(boundary) != 3:
+                continue
+            boundary_ids = {self._edge_local_id(edge) for edge in boundary}
+            if any(
+                _strip_quotes(str(edge.get_attributes().get("particle", ""))) != "g"
+                for edge in boundary
+            ):
+                continue
+
+            choices = self._three_gluon_vertex_choices(node)
+            if choices is None:
+                continue
+            if {edge_id for edge_id, _expr in choices} != boundary_ids:
+                continue
+
+            vertices.append((node_name, choices))
+
+        return vertices
+
+    def _boundary_edges_for_cut(self, graph, cut_nodes: set[str]):
+        graph_nodes = {
+            _base_node(endpoint)
+            for edge in graph.get_edges()
+            for endpoint in (edge.get_source(), edge.get_destination())
+        }
+        if not cut_nodes.issubset(graph_nodes):
+            raise ValueError("Momentum-conservation cut contains missing nodes.")
+
+        return [
+            edge
+            for edge in graph.get_edges()
+            if (_base_node(edge.get_source()) in cut_nodes)
+            != (_base_node(edge.get_destination()) in cut_nodes)
+        ]
+
+    def _connected_subsets_containing_not(
+        self, graph, nodes: set[str], include: set[str], exclude: set[str]
+    ):
+        if include & exclude:
+            return []
+
+        rest = sorted(nodes - include - exclude)
+        out = []
+        for size in range(len(rest) + 1):
+            for combo in combinations(rest, size):
+                subset = include | set(combo)
+                if len(subset) <= 1:
+                    out.append(subset)
+                    continue
+
+                allowed = set(subset)
+                start = next(iter(allowed))
+                seen = {start}
+                stack = [start]
+                while stack:
+                    current = stack.pop()
+                    for edge in graph.get_edges():
+                        source = _base_node(edge.get_source())
+                        destination = _base_node(edge.get_destination())
+                        if source not in allowed or destination not in allowed:
+                            continue
+                        if source == current and destination not in seen:
+                            seen.add(destination)
+                            stack.append(destination)
+                        elif destination == current and source not in seen:
+                            seen.add(source)
+                            stack.append(source)
+                if seen == allowed:
+                    out.append(subset)
+        return out
+
+    def _momentum_cut_replacements(
+        self, loop_graph, repeated_ids: set[str], single_ids: set[str]
+    ) -> list[tuple[str, Expression, Expression]]:
+        if not repeated_ids:
+            return []
+
+        edge_by_id = {
+            self._edge_local_id(edge): edge for edge in loop_graph.get_edges()
+        }
+        missing = sorted(repeated_ids - set(edge_by_id), key=_id_sort_key)
+        if missing:
+            raise ValueError(
+                "Cannot rewrite repeated loop momenta; missing loop-core edges "
+                f"{missing}."
+            )
+
+        reduced_graph_edges_deg2 = [
+            edge_by_id[edge_id] for edge_id in sorted(repeated_ids, key=_id_sort_key)
+        ]
+        reduced_graph_edges_deg1 = [
+            edge_by_id[edge_id]
+            for edge_id in sorted(single_ids & set(edge_by_id), key=_id_sort_key)
+        ]
+
+        reduced_vertices = {
+            _base_node(edge.get_source()) for edge in reduced_graph_edges_deg2
+        }.union(_base_node(edge.get_destination()) for edge in reduced_graph_edges_deg2)
+        if len(reduced_graph_edges_deg2) - len(reduced_vertices) + 1 > 0:
+            raise ValueError(
+                "Cannot rewrite repeated loop momenta: repeated edges contain a loop."
+            )
+
+        nodes = {
+            _strip_quotes(str(node.get_name()))
+            for node in loop_graph.get_nodes()
+            if not self._is_ext_node(_strip_quotes(str(node.get_name())))
+            and _strip_quotes(str(node.get_name())) not in ["node", "edge", "graph"]
+        }
+        blocked_once = {self._edge_local_id(edge) for edge in reduced_graph_edges_deg1}
+        possible_cuts: list[list[tuple[str, set[str]]]] = []
+        remaining = list(reduced_graph_edges_deg2)
+
+        while remaining:
+            chosen_edge = remaining[-1]
+            chosen_id = self._edge_local_id(chosen_edge)
+            source = _base_node(chosen_edge.get_source())
+            destination = _base_node(chosen_edge.get_destination())
+            total_cuts = self._connected_subsets_containing_not(
+                loop_graph, nodes, {source}, {destination}
+            )
+
+            current_repeated = {self._edge_local_id(edge) for edge in remaining}
+            next_possible: list[list[tuple[str, set[str]]]] = []
+            seed_cuts = possible_cuts or [[]]
+            for previous_cuts in seed_cuts:
+                previous_boundary_ids = {
+                    self._edge_local_id(edge)
+                    for _previous_id, previous_cut in previous_cuts
+                    for edge in self._boundary_edges_for_cut(loop_graph, previous_cut)
+                    if not self._edge_touches_ext(edge)
+                }
+
+                for cut_nodes in total_cuts:
+                    boundary_ids = {
+                        self._edge_local_id(edge)
+                        for edge in self._boundary_edges_for_cut(loop_graph, cut_nodes)
+                    }
+                    reduced_boundary_ids = boundary_ids - {chosen_id}
+                    if reduced_boundary_ids & (current_repeated | blocked_once):
+                        continue
+                    if reduced_boundary_ids & previous_boundary_ids:
+                        continue
+                    next_possible.append(previous_cuts + [(chosen_id, cut_nodes)])
+
+            if not next_possible:
+                raise ValueError(
+                    "Cannot find momentum-conservation cuts for repeated loop "
+                    f"momentum edge {chosen_id}."
+                )
+
+            possible_cuts = next_possible
+            remaining = remaining[:-1]
+
+        selected_cuts = possible_cuts[0]
+        replacements = []
+        for edge_id, cut_nodes in selected_cuts:
+            target = edge_by_id[edge_id]
+            boundary = [
+                edge
+                for edge in self._boundary_edges_for_cut(loop_graph, cut_nodes)
+                if self._edge_local_id(edge) != edge_id
+            ]
+            if not boundary:
+                raise ValueError(
+                    f"Momentum-conservation cut for edge {edge_id} has empty boundary."
+                )
+
+            replacement = E("0")
+            for edge in sorted(boundary, key=self._edge_sort_key):
+                sign = 1 if _base_node(edge.get_source()) in cut_nodes else -1
+                replacement += sign * Es(
+                    f"Q({self._edge_local_id(edge)},y___)"
+                )
+
+            if _base_node(target.get_source()) in cut_nodes:
+                replacement = -replacement
+
+            replacements.append((edge_id, Es(f"Q({edge_id},y___)"), replacement))
+            replacements.append((edge_id, E(f"Q({edge_id},y___)"), replacement))
+
+        return replacements
+
+    def _apply_q_replacements(
+        self, expr: Expression, replacements: list[tuple[str, Expression, Expression]]
+    ) -> Expression:
+        out = expr
+        for _edge_id, pattern, replacement in replacements:
+            out = out.replace(pattern, replacement)
+        return out
+
+    def _dot_level_repeated_momentum_graphs(
+        self, graph, cut_graph=None
+    ) -> list | None:
+        loop_core = self._loop_core_for_numerator_rewrite(graph, cut_graph)
+        if loop_core is None:
+            return None
+
+        loop_graph, loop_edge_ids, loop_nodes, _loop_count = loop_core
+        vertices = self._loop_three_gluon_vertices(graph, loop_nodes)
+        if len(vertices) < 2:
+            return None
+
+        rewritten_graphs = []
+        for product_choices in product(*(choices for _node, choices in vertices)):
+            chosen_edge_ids = [edge_id for edge_id, _expr in product_choices]
+            loop_choice_counts = Counter(
+                edge_id for edge_id in chosen_edge_ids if edge_id in loop_edge_ids
+            )
+            repeated_ids = {
+                edge_id for edge_id, count in loop_choice_counts.items() if count > 1
+            }
+            single_ids = {
+                edge_id for edge_id, count in loop_choice_counts.items() if count == 1
+            }
+
+            replacements = self._momentum_cut_replacements(
+                loop_graph, repeated_ids, single_ids
+            )
+            replacements_by_edge: dict[str, list[tuple[str, Expression, Expression]]] = {}
+            for edge_id, pattern, replacement in replacements:
+                replacements_by_edge.setdefault(edge_id, []).append(
+                    (edge_id, pattern, replacement)
+                )
+            replacement_budget = {
+                edge_id: count - 1
+                for edge_id, count in loop_choice_counts.items()
+                if count > 1
+            }
+            graph_copy = deepcopy(graph)
+            node_by_name = {
+                _strip_quotes(str(node.get_name())): node
+                for node in graph_copy.get_nodes()
+            }
+
+            for (node_name, _choices), (_edge_id, choice_expr) in zip(
+                vertices, product_choices, strict=True
+            ):
+                vertex_replacements = []
+                if replacement_budget.get(_edge_id, 0) > 0:
+                    vertex_replacements = replacements_by_edge.get(_edge_id, [])
+                    replacement_budget[_edge_id] -= 1
+                rewritten_expr = self._apply_q_replacements(
+                    choice_expr, vertex_replacements
+                )
+                node_by_name[node_name].get_attributes()["num"] = expr_to_string(
+                    rewritten_expr
+                )
+
+            rewritten_graphs.append(graph_copy)
+
+        return rewritten_graphs
+
+    def _factorised_prepared_numerator(
+        self, numerator_graph, post_momentum_rewrite_factor
+    ) -> Expression:
+        scalar, colour, kinematic = _factorised_graph_numerator(numerator_graph)
+        scalar, colour, kinematic = _multiply_into_numerator_parts(
+            (scalar, colour, kinematic),
+            post_momentum_rewrite_factor,
+        )
+
+        colour = simplify_color(colour)
+        kinematic = simplify_metrics(simplify_gamma(kinematic))
+        kinematic = _dots_to_dy_scalar_products(to_dots(kinematic))
+
+        out = scalar * colour * kinematic
+        out = _strip_namespaces_structurally(out)
+        return substitute_process_couplings(out, self.name, self.L)
+
     # Get the numerator of the graph
 
-    def get_numerator(self, graph, numerator_factorisation=None) -> Expression:
+    def get_numerator(
+        self, graph, numerator_factorisation=None, cut_graph=None
+    ) -> Expression:
         symmetry_factor = Es(graph.get("overall_factor_evaluated"))
 
         numerator_graph = graph
@@ -728,19 +1225,19 @@ class EMRIntegrandConstructor(object):
                 _strip_quotes(str(edge_id)) for edge_id in protected_energy_ids
             }
 
-        scalar, colour, kinematic = _factorised_graph_numerator(numerator_graph)
-        scalar, colour, kinematic = _multiply_into_numerator_parts(
-            (scalar, colour, kinematic),
-            post_momentum_rewrite_factor,
+        rewritten_graphs = self._dot_level_repeated_momentum_graphs(
+            numerator_graph, cut_graph
         )
-
-        colour = simplify_color(colour)
-        kinematic = simplify_metrics(simplify_gamma(kinematic))
-        kinematic = _dots_to_dy_scalar_products(to_dots(kinematic))
-
-        out = scalar * colour * kinematic
-        out = _strip_namespaces_structurally(out)
-        out = substitute_process_couplings(out, self.name, self.L)
+        if rewritten_graphs is None:
+            out = self._factorised_prepared_numerator(
+                numerator_graph, post_momentum_rewrite_factor
+            )
+        else:
+            out = E("0")
+            for rewritten_graph in rewritten_graphs:
+                out += self._factorised_prepared_numerator(
+                    rewritten_graph, post_momentum_rewrite_factor
+                )
 
         return symmetry_factor * out
 
@@ -1459,14 +1956,13 @@ class EMRIntegrandConstructor(object):
             if self._edge_cut_sign(edge) != 0
         }
 
-        numerator = self._cff_scalar_product_energy_form(
-            numerator, signable_edge_ids, cut_energy_signs
-        )
-
         tree_factor = E("1")
         delayed_tree_replacements = []
         tree_energy_constraints = self._tree_energy_constraints(
             cut_graph, amplitude_graphs
+        )
+        numerator = self._cff_scalar_product_energy_form(
+            numerator, signable_edge_ids, cut_energy_signs
         )
         for graph, tree_edges in tree_edges_by_graph:
             for tree_edge in tree_edges:
@@ -1645,6 +2141,7 @@ class EMRIntegrandConstructor(object):
             num = self.get_numerator(
                 cut_graph.graph,
                 numerator_factorisation=numerator_factorisation,
+                cut_graph=cut_graph,
             )
 
         # print(num.replace(E("sp(x_,y_)"),E("1")))
@@ -3328,6 +3825,14 @@ class LoopIntegrandConstructor(object):
                     emr_representation = emr_representation.replace(
                         E(f"E({initial_cut_ids[0]})"), repl
                     )
+#                    repl = (
+#                        sum(E(f"En({id})") for id in initial_cut_ids)
+#                        - sum(E(f"En({id})") for id in final_cut_ids)
+#                        + E(f"En({initial_cut_ids[0]})")
+#                    ).expand()
+#                    emr_representation = emr_representation.replace(
+#                        E(f"En({initial_cut_ids[0]})"), repl
+#                    )
 
         base_graph_name = _strip_quotes(str(cut_graph.graph.get("base_graph_name")))
         edge_by_id = {e.get_attributes()["id"]: e for e in cut_graph.graph.get_edges()}
