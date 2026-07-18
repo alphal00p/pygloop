@@ -3,6 +3,7 @@ import os
 import re
 from collections import Counter
 from copy import deepcopy
+from dataclasses import dataclass
 from itertools import combinations, product
 
 import numpy as np
@@ -39,6 +40,7 @@ from processes.dy.dy_graph_utils import (
     _strip_quotes,
     boundary_edges,
     change_routing,
+    get_components,
     get_LR_components,
     get_simple_cycles,
     select_gl081_lmb_choice,
@@ -139,12 +141,176 @@ def _series_with_large_sum_fallback(
 # Little struct that makes it more manageable to deal with cut graphs
 
 
+@dataclass(frozen=True)
+class RaisedCutPair:
+    cut_edge_id: str
+    partner_edge_id: str
+    routing_relation: str
+    particle: str
+
+    @property
+    def routing_sign(self) -> int:
+        if self.routing_relation == "same":
+            return 1
+        if self.routing_relation == "opp":
+            return -1
+        raise ValueError(
+            f"Unsupported raised-cut routing relation: {self.routing_relation}"
+        )
+
+
+def _collinear_momentum_seed_edge(
+    partition_side: list[pydot.Edge],
+    raised_pairs: tuple[RaisedCutPair, ...],
+) -> pydot.Edge:
+    if not partition_side:
+        raise ValueError("Cannot select a momentum seed from an empty partition.")
+
+    edge_by_id = {
+        _strip_quotes(str(edge.get_attributes()["id"])): edge
+        for edge in partition_side
+    }
+    raised_cut_ids = {
+        pair.cut_edge_id for pair in raised_pairs if pair.cut_edge_id in edge_by_id
+    }
+    if len(raised_cut_ids) > 1:
+        raise ValueError(
+            "A collinear partition contains multiple physical raised-cut "
+            f"edges: {sorted(raised_cut_ids)}."
+        )
+    if raised_cut_ids:
+        return edge_by_id[next(iter(raised_cut_ids))]
+    return partition_side[0]
+
+
 class routed_cut_graph(object):
     def __init__(self, graph, initial_cut, final_cut, partition):
         self.graph = graph
         self.initial_cut = initial_cut
         self.final_cut = final_cut
         self.partition = partition
+        self.raised_cut_pairs: tuple[RaisedCutPair, ...] = ()
+        self.raised_cut_detection_complete = False
+
+
+def _cut_sign_from_attributes(attributes) -> int:
+    nonzero_signs = set()
+    for key in ("is_cut", "is_cut_DY"):
+        value = _strip_quotes(str(attributes.get(key, "0")))
+        try:
+            sign = int(float(value))
+        except ValueError:
+            continue
+        if sign != 0:
+            nonzero_signs.add(sign)
+    if len(nonzero_signs) > 1:
+        raise ValueError(
+            "Conflicting nonzero is_cut and is_cut_DY metadata: "
+            + ", ".join(str(sign) for sign in sorted(nonzero_signs))
+        )
+    return next(iter(nonzero_signs), 0)
+
+
+def _copy_raised_cut_annotations(source_cut_graph, target_cut_graph):
+    pairs = tuple(getattr(source_cut_graph, "raised_cut_pairs", ()))
+    source_edges = {
+        _strip_quotes(str(edge.get_attributes()["id"])): edge
+        for edge in source_cut_graph.graph.get_edges()
+    }
+    target_edges = {
+        _strip_quotes(str(edge.get_attributes()["id"])): edge
+        for edge in target_cut_graph.graph.get_edges()
+    }
+    surviving_pairs = tuple(
+        pair
+        for pair in pairs
+        if pair.cut_edge_id in target_edges and pair.partner_edge_id in target_edges
+    )
+    promoted_ids = {pair.partner_edge_id for pair in surviving_pairs}
+    for edge_id in promoted_ids:
+        source_attributes = source_edges[edge_id].get_attributes()
+        target_attributes = target_edges[edge_id].get_attributes()
+        target_attributes["is_cut"] = str(
+            _cut_sign_from_attributes(source_attributes)
+        )
+        target_attributes["is_cut_DY"] = str(
+            _cut_sign_from_attributes(source_attributes)
+        )
+
+    target_cut_graph.raised_cut_pairs = surviving_pairs
+    target_cut_graph.raised_cut_detection_complete = bool(
+        getattr(source_cut_graph, "raised_cut_detection_complete", False)
+    )
+    return target_cut_graph
+
+
+def _raised_gluon_projector_spec(
+    pair: RaisedCutPair, edge_id: str, overall_sign: int
+) -> tuple[str, str, int]:
+    """Return denominator head, lifted-momentum edge, and coefficient."""
+    edge_id = _strip_quotes(str(edge_id))
+    if edge_id == pair.cut_edge_id:
+        return "Q", pair.cut_edge_id, -1
+    if edge_id != pair.partner_edge_id:
+        raise ValueError(f"edge {edge_id} is not in its matched raised pair")
+
+    projector_momentum_id = (
+        pair.cut_edge_id
+        if pair.routing_relation == "opp"
+        else pair.partner_edge_id
+    )
+    projector_coefficient = -pair.routing_sign * overall_sign
+    return "Qr", projector_momentum_id, projector_coefficient
+
+
+def _raised_numerator_energy_signs(
+    cut_energy_signs: dict[str, int],
+    raised_pairs: tuple[RaisedCutPair, ...],
+) -> dict[str, int]:
+    """Validate and return the cut signs used by temporal numerators.
+
+    Synthetic partner signs already encode the pair's routing relation, while
+    the graph routing itself orients its spatial momentum. Folding the routing
+    sign in here as well would cross its temporal momentum twice.
+    """
+    numerator_energy_signs = dict(cut_energy_signs)
+    partner_relations: dict[str, str] = {}
+    for pair in raised_pairs:
+        partner_sign = cut_energy_signs.get(pair.partner_edge_id)
+        if partner_sign is None:
+            raise ValueError(
+                "Raised-cut partner is missing nonzero cut metadata: "
+                f"{pair.partner_edge_id}."
+            )
+
+        previous_relation = partner_relations.get(pair.partner_edge_id)
+        if (
+            previous_relation is not None
+            and previous_relation != pair.routing_relation
+        ):
+            raise ValueError(
+                "Conflicting raised-cut numerator orientations for edge "
+                f"{pair.partner_edge_id}."
+            )
+        partner_relations[pair.partner_edge_id] = pair.routing_relation
+    return numerator_energy_signs
+
+
+def _finalise_cff_momentum_heads(expression: Expression) -> Expression:
+    expression = expression.replace(E("Qr(x_,0)"), E("En(x_)"))
+    forbidden_heads = sorted(
+        {
+            symbol.get_name().rsplit("::", 1)[-1]
+            for symbol in expression.get_all_symbols()
+        }
+        & {"E", "Q", "Qp", "Qr", "p1sq", "p2sq", "same"}
+    )
+    if forbidden_heads:
+        raise ValueError(
+            "Temporary heads escaped CFF construction: "
+            + ", ".join(forbidden_heads)
+        )
+    return expression
 
 
 def _is_zero_cut_value(value) -> bool:
@@ -325,7 +491,7 @@ def _cut_external_energy_ids(cut_graph) -> tuple[list[str], list[str]]:
 
 
 def _energy_conservation_solution(
-    cut_graph, edge_to_sub: str, energy_head: str = "E"
+    cut_graph, edge_to_sub: str, energy_head: str = "En"
 ) -> tuple[Expression, Expression]:
     edge_to_sub = _strip_quotes(str(edge_to_sub))
     initial_ids, final_ids = _cut_external_energy_ids(cut_graph)
@@ -363,21 +529,152 @@ def _energy_conservation_solution(
 
 
 def _energy_conservation_replacement(
-    cut_graph, energy_head: str = "E", preferred_ids: set[str] | None = None
+    cut_graph,
+    energy_head: str = "En",
+    protected_ids: set[str] | None = None,
 ) -> tuple[Expression, Expression] | None:
     initial_ids, final_ids = _cut_external_energy_ids(cut_graph)
+    if not initial_ids or not final_ids:
+        return None
     initial_set = set(initial_ids)
     candidates = [edge_id for edge_id in final_ids if edge_id not in initial_set]
-    if preferred_ids is not None:
-        preferred_ids = {_strip_quotes(str(edge_id)) for edge_id in preferred_ids}
-        preferred = [edge_id for edge_id in candidates if edge_id in preferred_ids]
-        if preferred:
-            candidates = preferred
+    if protected_ids is not None:
+        protected_ids = {_strip_quotes(str(edge_id)) for edge_id in protected_ids}
+        candidates = [
+            edge_id for edge_id in candidates if edge_id not in protected_ids
+        ]
     if not candidates:
         return None
 
-    edge_to_sub = candidates[0]
+    graph_edge_by_id = {
+        _strip_quotes(str(edge.get_attributes()["id"])): edge
+        for edge in cut_graph.graph.get_edges()
+    }
+
+    def is_s_channel_candidate(edge_id: str) -> bool:
+        edge = graph_edge_by_id.get(edge_id)
+        if edge is None:
+            return False
+        attributes = edge.get_attributes()
+        has_loop_routing = any(
+            _strip_quotes(str(value)) != "0"
+            for key, value in attributes.items()
+            if key.startswith("routing_k")
+        )
+        has_p1 = _strip_quotes(
+            str(attributes.get("routing_p1", "0"))
+        ) != "0"
+        has_p2 = _strip_quotes(
+            str(attributes.get("routing_p2", "0"))
+        ) != "0"
+        # A change of loop basis can represent the same s-channel either as
+        # the complete incoming momentum or as a pure loop momentum.  Mixed
+        # loop/external routings belong to the complementary real-emission
+        # edge and are a numerically poor energy-conservation pivot.
+        return (
+            not has_loop_routing and has_p1 and has_p2
+        ) or (
+            has_loop_routing and not has_p1 and not has_p2
+        )
+
+    s_channel_candidates = [
+        edge_id for edge_id in candidates if is_s_channel_candidate(edge_id)
+    ]
+    edge_to_sub = (
+        s_channel_candidates[0]
+        if s_channel_candidates
+        else candidates[0]
+    )
     return _energy_conservation_solution(cut_graph, edge_to_sub, energy_head)
+
+
+def _cleanup_final_state_raised_energies(
+    expression: Expression,
+    cut_graph,
+) -> tuple[Expression, bool]:
+    raised_pairs = tuple(getattr(cut_graph, "raised_cut_pairs", ()))
+    final_ids = set(_cut_external_energy_ids(cut_graph)[1])
+    final_pairs = [
+        pair
+        for pair in raised_pairs
+        if pair.cut_edge_id in final_ids or pair.partner_edge_id in final_ids
+    ]
+    if not final_pairs:
+        return expression, False
+    if len(final_pairs) > 1:
+        raise ValueError(
+            "A single physical energy-conservation equation cannot "
+            "simultaneously eliminate multiple final-state raised pairs."
+        )
+
+    pair = final_pairs[0]
+    physical_final_members = [
+        edge_id
+        for edge_id in (pair.cut_edge_id, pair.partner_edge_id)
+        if edge_id in final_ids
+    ]
+    if len(physical_final_members) != 1:
+        raise ValueError(
+            "A final-state raised pair must contain exactly one original "
+            "final-cut edge."
+        )
+
+    physical_final_member = physical_final_members[0]
+    _target, replacement = _energy_conservation_solution(
+        cut_graph,
+        physical_final_member,
+    )
+    for edge_id in (pair.cut_edge_id, pair.partner_edge_id):
+        expression = expression.replace(E(f"En({edge_id})"), replacement)
+
+    # Promoting the partner gives the pair two ordinary CFF cut-energy
+    # factors. Energy conservation applies to the repeated propagator
+    # dependence, but the original physical cut measure must remain
+    # evaluated on its own on-shell energy. Restore that one factor after
+    # replacing both pair energies; this is the edge-based successor to the
+    # former numerator/denominator E-vs-En gate.
+    expression *= replacement / E(f"En({physical_final_member})")
+    return expression, True
+
+
+_MASSLESS_PARTICLES = {"d", "d~", "g", "ghG", "ghG~", "a"}
+
+
+def _massless_external_beam(
+    edge_attributes, loop_count: int
+) -> str | None:
+    particle = _strip_quotes(str(edge_attributes.get("particle", "")))
+    if particle not in _MASSLESS_PARTICLES:
+        return None
+    if any(
+        _strip_quotes(str(edge_attributes.get(f"routing_k{i}", "0"))) != "0"
+        for i in range(loop_count)
+    ):
+        return None
+    has_p1 = _strip_quotes(str(edge_attributes.get("routing_p1", "0"))) != "0"
+    has_p2 = _strip_quotes(str(edge_attributes.get("routing_p2", "0"))) != "0"
+    if has_p1 == has_p2:
+        return None
+    return "p1" if has_p1 else "p2"
+
+
+def _routing_sign_match(e: pydot.Edge, ep: pydot.Edge) -> str | None:
+    first = e.get_attributes()
+    second = ep.get_attributes()
+    keys = sorted(
+        key
+        for key in set(first) | set(second)
+        if key.startswith("routing_")
+    )
+
+    def value(attributes, key):
+        return E(_strip_quotes(str(attributes.get(key, "0"))))
+
+    if all(value(first, key) == value(second, key) for key in keys):
+        return "same"
+    if all(value(first, key) == -value(second, key) for key in keys):
+        return "opp"
+    return None
 
 
 def _extract_common_colour_factors_from_sum(
@@ -556,10 +853,6 @@ def _rewrite_repeated_non_cut_edge_momentum_powers(
         shift = choice_offset % len(out)
         return out[shift:] + out[:shift]
 
-    def terms(expr):
-        expr = expr.expand()
-        return list(expr) if bool(expr.is_type(AtomType.Add)) else [expr]
-
     def factors(term):
         return list(term) if bool(term.is_type(AtomType.Mul)) else [term]
 
@@ -589,61 +882,6 @@ def _rewrite_repeated_non_cut_edge_momentum_powers(
             return None
         edge, slot = match
         return edge, slot, 1
-
-    def first_repeat(expr):
-        for term in terms(expr):
-            term_factors = factors(term)
-            infos = []
-            counts = Counter()
-            for i, factor in enumerate(term_factors):
-                info = q_power(factor)
-                if info is None:
-                    continue
-                edge, slot, power = info
-                infos.append((i, edge, slot, power))
-                counts[edge] += power
-            repeated = {
-                edge
-                for edge, count in counts.items()
-                if count > 1 and edge in non_cut_ids
-            }
-            for info in infos:
-                if info[1] in repeated:
-                    return term, term_factors, info
-        return None
-
-    def replace_factor(expr, term, term_factors, info, replacement):
-        factor_index, edge, slot, power = info
-        new_factor = replacement
-        if power > 1:
-            new_factor *= q(edge, slot) ** E(str(power - 1))
-        out = E("1")
-        for i, factor in enumerate(term_factors):
-            out *= new_factor if i == factor_index else factor
-        return (expr - term + out).expand()
-
-    def solve(expr, depth, seen):
-        if depth > 512:
-            raise ValueError("Could not remove repeated non-cut edge momenta.")
-        repeat = first_repeat(expr)
-        if repeat is None:
-            return expr
-        term, term_factors, info = repeat
-        edge = info[1]
-        for rule in rules_for(edge):
-            candidate = replace_factor(expr, term, term_factors, info, rule(info[2]))
-            key = candidate.to_canonical_string()
-            if key in seen:
-                continue
-            seen.add(key)
-            try:
-                return solve(candidate, depth + 1, seen)
-            except ValueError:
-                continue
-        raise ValueError(f"Could not remove repeated non-cut edge momentum {edge}.")
-
-    numerator = numerator.expand()
-    return solve(numerator, 0, {numerator.to_canonical_string()})
 
 
 class RoutedIntegrand(object):
@@ -684,10 +922,179 @@ class EMRIntegrandConstructor(object):
         self.gl_worker.run("import model sm-default.json")
         self._protected_external_gluon_polarisation_energy_ids: set[str] = set()
 
+    def _routing_sign_match(self, e: pydot.Edge, ep: pydot.Edge):
+        return _routing_sign_match(e, ep)
+
+    def identify_and_mark_raised_cuts(
+        self, cut_graph: routed_cut_graph
+    ) -> tuple[RaisedCutPair, ...]:
+        existing_pairs = tuple(getattr(cut_graph, "raised_cut_pairs", ()))
+        if existing_pairs:
+            cut_graph.raised_cut_detection_complete = True
+            return existing_pairs
+        if getattr(cut_graph, "raised_cut_detection_complete", False):
+            return ()
+
+        edges = sorted(
+            cut_graph.graph.get_edges(),
+            key=lambda edge: _id_sort_key(edge.get_attributes()["id"]),
+        )
+        original_signs = {
+            _strip_quotes(str(edge.get_attributes()["id"])): (
+                _cut_sign_from_attributes(edge.get_attributes())
+            )
+            for edge in edges
+        }
+        proposals: dict[str, int] = {}
+        pairs = []
+        paired_edge_ids = set()
+
+        for first, second in combinations(edges, 2):
+            first_attributes = first.get_attributes()
+            second_attributes = second.get_attributes()
+            relation = self._routing_sign_match(first, second)
+            if relation is None:
+                continue
+            if not any(
+                _strip_quotes(
+                    str(first_attributes.get(f"routing_k{i}", "0"))
+                )
+                != "0"
+                for i in range(self.L)
+            ):
+                continue
+
+            first_id = _strip_quotes(str(first_attributes["id"]))
+            second_id = _strip_quotes(str(second_attributes["id"]))
+            first_sign = original_signs[first_id]
+            second_sign = original_signs[second_id]
+            if (first_sign == 0) == (second_sign == 0):
+                continue
+
+            if first_sign != 0:
+                cut_edge, partner_edge = first, second
+                cut_id, partner_id, cut_sign = first_id, second_id, first_sign
+            else:
+                cut_edge, partner_edge = second, first
+                cut_id, partner_id, cut_sign = second_id, first_id, second_sign
+
+            partner_sign = cut_sign if relation == "same" else -cut_sign
+            if partner_id in proposals:
+                existing_sign = proposals[partner_id]
+                raise ValueError(
+                    "Ambiguous raised-cut promotion for edge "
+                    f"{partner_id}: signs {existing_sign} and {partner_sign}."
+                )
+            reused_ids = paired_edge_ids & {cut_id, partner_id}
+            if reused_ids:
+                raise ValueError(
+                    "A raised-cut edge participates in multiple pairs: "
+                    + ", ".join(sorted(reused_ids, key=_id_sort_key))
+                )
+            proposals[partner_id] = partner_sign
+            paired_edge_ids.update((cut_id, partner_id))
+            pairs.append(
+                RaisedCutPair(
+                    cut_edge_id=cut_id,
+                    partner_edge_id=partner_id,
+                    routing_relation=relation,
+                    particle=_strip_quotes(
+                        str(cut_edge.get_attributes().get("particle", ""))
+                    ),
+                )
+            )
+
+        edge_by_id = {
+            _strip_quotes(str(edge.get_attributes()["id"])): edge for edge in edges
+        }
+        for edge_id, sign in proposals.items():
+            attributes = edge_by_id[edge_id].get_attributes()
+            attributes["is_cut"] = str(sign)
+            attributes["is_cut_DY"] = str(sign)
+
+        pairs = tuple(
+            sorted(
+                pairs,
+                key=lambda pair: (
+                    _id_sort_key(pair.cut_edge_id),
+                    _id_sort_key(pair.partner_edge_id),
+                ),
+            )
+        )
+        cut_graph.raised_cut_pairs = pairs
+        cut_graph.raised_cut_detection_complete = True
+        return pairs
+
+    def _raised_t_channel_beam(self, cut_graph) -> str | None:
+        edge_by_id = {
+            _strip_quotes(str(edge.get_attributes()["id"])): edge
+            for edge in cut_graph.graph.get_edges()
+        }
+        beams = set()
+        for pair in getattr(cut_graph, "raised_cut_pairs", ()):
+            attributes = edge_by_id[pair.cut_edge_id].get_attributes()
+            has_p1 = _strip_quotes(
+                str(attributes.get("routing_p1", "0"))
+            ) != "0"
+            has_p2 = _strip_quotes(
+                str(attributes.get("routing_p2", "0"))
+            ) != "0"
+            if has_p1 == has_p2:
+                continue
+            beams.add("p1" if has_p1 else "p2")
+        if len(beams) > 1:
+            raise ValueError(
+                "Raised t-channel pairs refer to multiple incoming beams."
+            )
+        return next(iter(beams), None)
+
+    def _squared_tree_propagator_edge_ids(self, cut_graph) -> set[str]:
+        if not getattr(cut_graph, "raised_cut_pairs", ()):
+            return set()
+        raised_beam = self._raised_t_channel_beam(cut_graph)
+        if raised_beam is None:
+            return set()
+
+        partition = getattr(cut_graph, "partition", ())
+        if (
+            len(partition) != 2
+            or len(partition[0]) == len(partition[1])
+        ):
+            return set()
+        # The unequal partition selects the external virtuality to expand.
+        # Its beam can be opposite to the repeated pair's routed beam after
+        # a loop-basis change, as in the one-loop DY raised cut.
+        collinear_beam = "p1" if len(partition[0]) > len(partition[1]) else "p2"
+
+        candidates = []
+        for edge in cut_graph.graph.get_edges():
+            attributes = edge.get_attributes()
+            if _cut_sign_from_attributes(attributes) != 0:
+                continue
+            edge_beam = _massless_external_beam(attributes, self.L)
+            if edge_beam == collinear_beam:
+                candidates.append(
+                    _strip_quotes(str(attributes["id"]))
+                )
+
+        if len(candidates) != 1:
+            raise ValueError(
+                "Expected exactly one uncut massless "
+                f"{collinear_beam} propagator to square for a raised "
+                f"t-channel cut, found {len(candidates)}."
+            )
+        return {candidates[0]}
+
     def _cut_edge_ids_for_numerator_rewrite(self, graph, cut_graph=None) -> set[str]:
         cut_ids = set()
+        synthetic_partner_ids = set()
         if cut_graph is not None:
             cut_ids.update(_cut_edge_ids(cut_graph))
+            synthetic_partner_ids.update(
+                pair.partner_edge_id
+                for pair in getattr(cut_graph, "raised_cut_pairs", ())
+            )
+            cut_ids.difference_update(synthetic_partner_ids)
 
         for edge in graph.get_edges():
             attrs = edge.get_attributes()
@@ -695,7 +1102,9 @@ class EMRIntegrandConstructor(object):
                 _is_zero_cut_value(attrs.get("is_cut", "0"))
                 and _is_zero_cut_value(attrs.get("is_cut_DY", "0"))
             ):
-                cut_ids.add(_strip_quotes(str(attrs["id"])))
+                edge_id = _strip_quotes(str(attrs["id"]))
+                if edge_id not in synthetic_partner_ids:
+                    cut_ids.add(edge_id)
 
         return cut_ids
 
@@ -1355,14 +1764,18 @@ class EMRIntegrandConstructor(object):
     # in one or the other graph, if they are "externals", or if they are spectators.
     # Edge ids are normalised to that they go from 0,...,M
 
-    def get_LR_graphs(self, cut_graph):
-        comps = get_LR_components(
-            cut_graph.graph, cut_graph.initial_cut, cut_graph.final_cut
+    def get_amplitude_graphs(self, cut_graph):
+        removed_edges = [
+            edge
+            for edge in cut_graph.graph.get_edges()
+            if _cut_sign_from_attributes(edge.get_attributes()) != 0
+        ]
+        comps = get_components(
+            cut_graph.graph,
+            removed_edges,
         )
 
-        graph_L = deepcopy(cut_graph.graph)
-        graph_R = deepcopy(cut_graph.graph)
-        new_graphs = [graph_L, graph_R]
+        new_graphs = [deepcopy(cut_graph.graph) for _ in comps]
 
         highest_ext = 0
         for v in cut_graph.graph.get_nodes():
@@ -1375,9 +1788,9 @@ class EMRIntegrandConstructor(object):
         # TODO: should check indexing logic, it seems a bit contrived.
 
         tot_e = 0
-        replacements = [[], []]
+        replacements = [[] for _ in comps]
 
-        for i in [0, 1]:
+        for i in range(len(comps)):
             counter = 1
             for e in cut_graph.graph.get_edges():
                 e_atts = e.get_attributes()
@@ -1421,7 +1834,7 @@ class EMRIntegrandConstructor(object):
                 elif (
                     dest_key in comps[i]
                     and src_key in comps[i]
-                    and e_atts.get("is_cut_DY", None) is not None
+                    and _cut_sign_from_attributes(e_atts) != 0
                     and not (dest_key.startswith("ext") or src_key.startswith("ext"))
                 ):
                     new_graphs[i].del_edge(src, dest, int(e_atts["id"]))
@@ -1467,9 +1880,10 @@ class EMRIntegrandConstructor(object):
                 if _node_key(v.get_name()) not in edge_nodes:
                     new_graphs[i].del_node(v)
 
-        return amplitude_graph(new_graphs[0], replacements[0]), amplitude_graph(
-            new_graphs[1], replacements[1]
-        )
+        return [
+            amplitude_graph(graph, graph_replacements)
+            for graph, graph_replacements in zip(new_graphs, replacements)
+        ]
 
     # This function takes an amplitude graph and makes the composition of its replacements with
     # those of old replacements. In other words, indexes are propagated through the two replacements
@@ -1520,12 +1934,18 @@ class EMRIntegrandConstructor(object):
                     dest = e.get_destination()
                     if src == chosen_src and dest == chosen_dest:
                         s_cut_graph = routed_cut_graph(g.graph, [e], [], [])
-                        graph_L, graph_R = self.get_LR_graphs(s_cut_graph)
+                        split_graphs = self.get_amplitude_graphs(s_cut_graph)
+                        if len(split_graphs) != 2:
+                            raise ValueError(
+                                "An s-channel bridge must split an amplitude "
+                                f"into 2 components, got {len(split_graphs)}."
+                            )
                         s_split_graphs.remove(g)
-                        self.update_substitutions(graph_L, g.replacements)
-                        self.update_substitutions(graph_R, g.replacements)
-                        s_split_graphs.append(graph_L)
-                        s_split_graphs.append(graph_R)
+                        for split_graph in split_graphs:
+                            self.update_substitutions(
+                                split_graph, g.replacements
+                            )
+                            s_split_graphs.append(split_graph)
                         check = True
                         break
                 if check:
@@ -1556,15 +1976,11 @@ class EMRIntegrandConstructor(object):
         )
 
     def _edge_cut_sign(self, edge) -> int:
-        value = edge.get_attributes().get("is_cut_DY", "0")
-        try:
-            return int(float(_strip_quotes(str(value))))
-        except ValueError:
-            return 0
+        return _cut_sign_from_attributes(edge.get_attributes())
 
     def _edge_mass(self, edge) -> Expression:
         particle = _strip_quotes(str(edge.get_attributes().get("particle", "")))
-        if particle in ["d", "d~", "g", "ghG", "ghG~", ""]:
+        if particle in [*_MASSLESS_PARTICLES, ""]:
             return E("0")
         if particle == "t~":
             return E("m(t)")
@@ -1743,7 +2159,11 @@ class EMRIntegrandConstructor(object):
         return loop_graphs
 
     def _tree_boundary_energy_sum(
-        self, graph: amplitude_graph, tree_edge, component: set[str]
+        self,
+        graph: amplitude_graph,
+        tree_edge,
+        component: set[str],
+        physical_cut_ids: set[str],
     ) -> tuple[Expression, int, set[str]]:
         replacement_map = self._replacement_map(graph)
         tree_id = self._edge_local_id(tree_edge)
@@ -1769,7 +2189,9 @@ class EMRIntegrandConstructor(object):
             if cut_sign == 0:
                 continue
 
-            original_id = replacement_map[edge_id]
+            original_id = _strip_quotes(str(replacement_map[edge_id]))
+            if original_id not in physical_cut_ids:
+                continue
             if self._is_ext_node(source) and destination in S:
                 energy_sum += cut_sign * E(f"En({original_id})")
                 external_count += 1
@@ -1780,7 +2202,10 @@ class EMRIntegrandConstructor(object):
         return energy_sum, external_count, S
 
     def _tree_energy_evaluation(
-        self, graph: amplitude_graph, tree_edge
+        self,
+        graph: amplitude_graph,
+        tree_edge,
+        physical_cut_ids: set[str],
     ) -> tuple[Expression, Expression, object]:
         tree_id = self._edge_local_id(tree_edge)
         components = self._components_without_edge(graph.graph, tree_id)
@@ -1796,25 +2221,37 @@ class EMRIntegrandConstructor(object):
         )
 
         candidates = [
-            self._tree_boundary_energy_sum(graph, tree_edge, component)
+            self._tree_boundary_energy_sum(
+                graph,
+                tree_edge,
+                component,
+                physical_cut_ids,
+            )
             for component in ordered_components
         ]
-        selected = None
-        for energy_sum, external_count, S in candidates:
-            if external_count > 0 and energy_sum.to_canonical_string() != "0":
-                selected = (energy_sum, S)
-                break
-        if selected is None:
-            for energy_sum, external_count, S in candidates:
-                if external_count > 0:
-                    selected = (energy_sum, S)
-                    break
-        if selected is None:
+        nonzero_candidates = [
+            candidate
+            for candidate in candidates
+            if candidate[1] > 0
+            and candidate[0].to_canonical_string() != "0"
+        ]
+        eligible_candidates = nonzero_candidates or [
+            candidate for candidate in candidates if candidate[1] > 0
+        ]
+        if not eligible_candidates:
             raise ValueError(
                 f"Could not determine external boundary for tree edge {tree_id}."
             )
 
-        energy_sum, S = selected
+        # Either side of a tree bridge is a valid momentum-conservation
+        # surface, but promoted CFF cuts can leave one side with only a
+        # partial physical boundary. Prefer the side carrying the most
+        # original initial/final cut edges; keep component order as a stable
+        # tie-breaker.
+        energy_sum, _external_count, S = max(
+            eligible_candidates,
+            key=lambda candidate: candidate[1],
+        )
         tree_sign = 1 if destination in S else -1
         replacement = -energy_sum if tree_sign == 1 else energy_sum
         original_id = self._replacement_map(graph)[tree_id]
@@ -1824,29 +2261,36 @@ class EMRIntegrandConstructor(object):
         self, cut_graph, amplitude_graphs
     ) -> dict[str, tuple[Expression, Expression]]:
         constraints = {}
-        external_energy_replacement = _energy_conservation_replacement(cut_graph)
-        external_numerator_energy_replacement = _energy_conservation_replacement(
-            cut_graph, energy_head="En"
+        physical_cut_ids = set().union(*_cut_external_energy_ids(cut_graph))
+        protected_ids = {
+            edge_id
+            for pair in getattr(cut_graph, "raised_cut_pairs", ())
+            for edge_id in (pair.cut_edge_id, pair.partner_edge_id)
+        }
+        external_energy_replacement = _energy_conservation_replacement(
+            cut_graph, protected_ids=protected_ids
         )
 
         for graph in amplitude_graphs:
             for tree_edge in self._tree_edges(graph):
                 energy_sum, energy_replacement, original_id = (
-                    self._tree_energy_evaluation(graph, tree_edge)
+                    self._tree_energy_evaluation(
+                        graph,
+                        tree_edge,
+                        physical_cut_ids,
+                    )
                 )
                 original_id = _strip_quotes(str(original_id))
 
-                denominator_energy_sum = energy_sum.replace(
-                    E("En(x_)"), E("E(x_)")
-                )
+                denominator_energy_sum = energy_sum
                 if external_energy_replacement is not None:
                     denominator_energy_sum = denominator_energy_sum.replace(
                         *external_energy_replacement
                     )
 
-                if external_numerator_energy_replacement is not None:
+                if external_energy_replacement is not None:
                     energy_replacement = energy_replacement.replace(
-                        *external_numerator_energy_replacement
+                        *external_energy_replacement
                     )
 
                 constraints[original_id] = (
@@ -1859,8 +2303,10 @@ class EMRIntegrandConstructor(object):
     def tree_energy_constraints_for_cut_graph(
         self, cut_graph
     ) -> dict[str, tuple[Expression, Expression]]:
-        graph_L, graph_R = self.get_LR_graphs(cut_graph)
-        return self._tree_energy_constraints(cut_graph, [graph_L, graph_R])
+        self.identify_and_mark_raised_cuts(cut_graph)
+        return self._tree_energy_constraints(
+            cut_graph, self.get_amplitude_graphs(cut_graph)
+        )
 
     def _cff_scalar_product_energy_form(
         self,
@@ -1913,6 +2359,29 @@ class EMRIntegrandConstructor(object):
     def get_cff(
         self, cut_graph, amplitude_graphs, numerator, get_residues=False
     ):
+        had_pairs = bool(getattr(cut_graph, "raised_cut_pairs", ()))
+        detection_was_complete = bool(
+            getattr(cut_graph, "raised_cut_detection_complete", False)
+        )
+        detected_pairs = self.identify_and_mark_raised_cuts(cut_graph)
+        if detected_pairs and not (had_pairs or detection_was_complete):
+            raise ValueError(
+                "Raised cuts must be identified before constructing amplitude "
+                "graphs for get_cff."
+            )
+        raised_energy_ids = {
+            edge_id
+            for pair in getattr(cut_graph, "raised_cut_pairs", ())
+            for edge_id in (pair.cut_edge_id, pair.partner_edge_id)
+        }
+        external_energy_replacement = (
+            _energy_conservation_replacement(
+                cut_graph, protected_ids=raised_energy_ids
+            )
+            if raised_energy_ids
+            else None
+        )
+
         cut_g_edges = sorted(
             cut_graph.graph.get_edges(), key=lambda e: int(e.get_attributes()["id"])
         )
@@ -1923,6 +2392,7 @@ class EMRIntegrandConstructor(object):
         tree_edges_by_graph = [
             (graph, self._tree_edges(graph)) for graph in amplitude_graphs
         ]
+        squared_tree_ids = self._squared_tree_propagator_edge_ids(cut_graph)
         tree_original_ids = set()
         loop_graphs = []
         for graph, tree_edges in tree_edges_by_graph:
@@ -1955,6 +2425,10 @@ class EMRIntegrandConstructor(object):
             for edge in cut_graph.graph.get_edges()
             if self._edge_cut_sign(edge) != 0
         }
+        numerator_energy_signs = _raised_numerator_energy_signs(
+            cut_energy_signs,
+            tuple(getattr(cut_graph, "raised_cut_pairs", ())),
+        )
 
         tree_factor = E("1")
         delayed_tree_replacements = []
@@ -1962,8 +2436,9 @@ class EMRIntegrandConstructor(object):
             cut_graph, amplitude_graphs
         )
         numerator = self._cff_scalar_product_energy_form(
-            numerator, signable_edge_ids, cut_energy_signs
+            numerator, signable_edge_ids, numerator_energy_signs
         )
+        external_cut_ids = set().union(*_cut_external_energy_ids(cut_graph))
         for graph, tree_edges in tree_edges_by_graph:
             for tree_edge in tree_edges:
                 original_id = _strip_quotes(
@@ -1973,15 +2448,33 @@ class EMRIntegrandConstructor(object):
                         ]
                     )
                 )
-                denominator_energy_sum, energy_replacement = tree_energy_constraints[
-                    original_id
-                ]
+                constraint = tree_energy_constraints[original_id]
+                if isinstance(constraint, tuple):
+                    denominator_energy_sum, energy_replacement = constraint
+                else:
+                    denominator_energy_sum = constraint
+                    energy_replacement = constraint
                 delayed_tree_replacements.append(
                     (original_id, denominator_energy_sum, energy_replacement)
                 )
-                tree_factor *= E("1") / (
-                    denominator_energy_sum**2 - E(f"E({original_id})") ** 2
+                tree_denominator = (
+                    denominator_energy_sum**2 - E(f"En({original_id})") ** 2
                 )
+                if original_id in squared_tree_ids:
+                    tree_factor *= (
+                        E(f"En({original_id})")
+                        / (2 * tree_denominator**2)
+                    )
+                else:
+                    tree_factor *= E("1") / tree_denominator
+
+        missing_squared_ids = squared_tree_ids - tree_original_ids
+        if missing_squared_ids:
+            raise ValueError(
+                "Raised t-channel propagator squaring targets are not tree "
+                "propagators: "
+                + ", ".join(sorted(missing_squared_ids, key=_id_sort_key))
+            )
 
         e_surfaces = set()
         previous_cff = numerator
@@ -2018,10 +2511,17 @@ class EMRIntegrandConstructor(object):
                 for etas in cff_g.e_surfaces:
                     eta = etas.expression
                     for rep in g.replacements:
-                        eta = eta.replace(E(f"pygloop::E({rep[0]})"), E(f"E({rep[1]})"))
+                        eta = eta.replace(
+                            E(f"pygloop::E({rep[0]})"),
+                            E(f"En({rep[1]})"),
+                        )
 
                     for edge_id in cut_energy_reversal_ids:
-                        eta = eta.replace(E(f"E({edge_id})"), -E(f"E({edge_id})"))
+                        eta = eta.replace(
+                            E(f"En({edge_id})"), -E(f"En({edge_id})")
+                        )
+                    if external_energy_replacement is not None:
+                        eta = eta.replace(*external_energy_replacement)
 
                     cff_term = cff_term.replace(E(f"pygloop::η({etas.id})"), -eta)
 
@@ -2038,15 +2538,23 @@ class EMRIntegrandConstructor(object):
             denominator_energy_sum,
             energy_replacement,
         ) in delayed_tree_replacements:
-            previous_cff = previous_cff.replace(
-                E(f"E({original_id})"), denominator_energy_sum
-            )
-            previous_cff = previous_cff.replace(
-                E(f"En({original_id})"), energy_replacement
-            )
+            # A raised t-channel derivative used to act only on the
+            # propagator-energy head: its numerator energy stayed on shell.
+            # The direct-square replacement must preserve that distinction
+            # by protecting the identified edge, rather than by reviving
+            # separate E/En symbol families.
+            if (
+                original_id not in external_cut_ids
+                and original_id not in squared_tree_ids
+            ):
+                previous_cff = previous_cff.replace(
+                    E(f"En({original_id})"), energy_replacement
+                )
             if get_residues:
                 e_surfaces = {
-                    eta.replace(E(f"E({original_id})"), denominator_energy_sum)
+                    eta.replace(
+                        E(f"En({original_id})"), denominator_energy_sum
+                    )
                     for eta in e_surfaces
                 }
 
@@ -2058,10 +2566,17 @@ class EMRIntegrandConstructor(object):
             edge_id = _strip_quotes(str(e_atts["id"]))
 
             if edge_id not in tree_original_ids:
-                energies *= E("1") / E(f"2*E({e_atts['id']})")
+                energies *= E("1") / E(f"2*En({e_atts['id']})")
+
+        if external_energy_replacement is not None:
+            tree_factor = tree_factor.replace(*external_energy_replacement)
+            energies = energies.replace(*external_energy_replacement)
 
         total_cff = previous_cff * tree_factor * energies
-
+        raised_crossing_weight = 1
+        for _pair in getattr(cut_graph, "raised_cut_pairs", ()):
+            raised_crossing_weight *= -2
+        total_cff *= E(str(raised_crossing_weight))
         if get_residues:
             delta = E("δ")
             residues = []
@@ -2072,12 +2587,12 @@ class EMRIntegrandConstructor(object):
                     if eta_for_residue.is_type(AtomType.Add)
                     else [eta_for_residue]
                 )
-                eN = eta_for_residue.replace(E("E(x___)"), E("1"))
+                eN = eta_for_residue.replace(E("En(x___)"), E("1"))
                 if len(energies) > 1 and eN < len(energies):
                     pivot = energies[0]
                     # if pivot.match(E("-E(x___)")) is not None:
                     if pivot.format_plain().lstrip().startswith("-"):
-                        patt = pivot.replace(E("-E(x___)"), E("E(x___)"))
+                        patt = pivot.replace(E("-En(x___)"), E("En(x___)"))
                         repl = sum(en for en in energies[1:]) - delta
                     else:
                         patt = pivot
@@ -2090,32 +2605,20 @@ class EMRIntegrandConstructor(object):
                         .to_expression()
                         .replace(delta, E("1"))
                     )
+                    res_i = _finalise_cff_momentum_heads(res_i)
                     residues.append((eta_for_residue, res_i))
                 elif eN > len(energies):
                     raise ValueError("really weird stuff happening with e surfaces")
             return residues
 
-        total_cff = total_cff.replace(E("Qr(x_,0)"), E("E(x_)"))
-        total_cff = total_cff.replace(E("Q(x_,0)"), E("E(x_)"))
-
-        # total_cff = total_cff.replace(E("E(6)"), E("-E(6)"))
+        # Qr deliberately bypasses routing reversal, synthetic cut signs,
+        # signable-loop orientation, protected-energy substitutions, and
+        # residue pivots. It becomes En only at the completed-CFF boundary.
+        total_cff = _finalise_cff_momentum_heads(total_cff)
 
         # print(total_cff)
 
         return total_cff
-
-    # Use all the previous functions to get the cff for the cut graph
-
-    def _normalise_global_i(self, num: Expression):
-        num = E(str(num.expand()))
-        if "𝑖" not in num.format_plain():
-            return num
-
-        candidate = E(str((num / E("1i")).expand()))
-        if "𝑖" not in candidate.format_plain():
-            return candidate
-
-        return num
 
     def get_integrand(
         self,
@@ -2129,6 +2632,7 @@ class EMRIntegrandConstructor(object):
         # splits them if they have s-channel propagators.
 
         print("got to num")
+        self.identify_and_mark_raised_cuts(cut_graph)
 
         if prepared_numerator is not None:
             if numerator_factorisation is not None:
@@ -2154,7 +2658,7 @@ class EMRIntegrandConstructor(object):
 
         self.normalise_graph(cut_graph.graph)
 
-        graph_L, graph_R = self.get_LR_graphs(cut_graph)
+        amplitude_graphs = self.get_amplitude_graphs(cut_graph)
 
         ## DEBUG: set numerator to 1
         # num = E("1")
@@ -2165,7 +2669,7 @@ class EMRIntegrandConstructor(object):
 
         cut_graph_cff = self.get_cff(
             cut_graph,
-            [graph_L, graph_R],
+            amplitude_graphs,
             num,
             get_residues,
         )
@@ -2229,14 +2733,12 @@ class UltraVioletSubtraction(object):
             e_atts = e.get_attributes()
             eid_raw = e_atts["id"]
             eid = _strip_quotes(eid_raw) if isinstance(eid_raw, str) else eid_raw
-            target = E(f"E({eid})")
-            target_num = E(f"En({eid})")
+            target = E(f"En({eid})")
             particle = _strip_quotes(str(e_atts["particle"]))
             replacement = (
                 self.sp3D(E(f"q({eid})"), E(f"q({eid})")) + E(f"m({eid})") ** 2
             ) ** E("1/2")
             integrand = integrand.replace(target, replacement)
-            integrand = integrand.replace(target_num, replacement)
 
         return integrand
 
@@ -2357,6 +2859,7 @@ class UltraVioletSubtraction(object):
             dod,
             routed_cut_graph,
             RoutedIntegrand,
+            _cleanup_final_state_raised_energies,
         )
 
     def construct_uv_counter_terms(self):
@@ -2423,7 +2926,9 @@ class ThresholdSubtractor(object):
             energy_ids = list(esurf)
 
             energy_ids = [
-                en.replace(E("-E(x___)"), E("x___")).replace(E("E(x___)"), E("x___"))
+                en.replace(E("-En(x___)"), E("x___")).replace(
+                    E("En(x___)"), E("x___")
+                )
                 for en in energy_ids
             ]
 
@@ -2431,32 +2936,32 @@ class ThresholdSubtractor(object):
             negative_ids = []
             for e in self.routed_cut_graph.graph.get_edges():
                 e_atts = e.get_attributes()
-                if (
-                    int(e_atts["id"]) in energy_ids
-                    and e_atts.get("is_cut_DY") is not None
-                ):
-                    positive_ids.append(e_atts["id"])
-                elif (
-                    int(e_atts["id"]) in energy_ids and e_atts.get("is_cut_DY") is None
-                ):
-                    negative_ids.append(e_atts["id"])
+                edge_id = _strip_quotes(str(e_atts["id"]))
+                if int(edge_id) not in energy_ids:
+                    continue
+                if _cut_sign_from_attributes(e_atts) != 0:
+                    positive_ids.append(edge_id)
+                else:
+                    negative_ids.append(edge_id)
 
             external_momentum = [0, 0]
             outgoing_mass = 0
             incoming_mass = 0
             for e in self.routed_cut_graph.graph.get_edges():
                 e_atts = e.get_attributes()
+                edge_id = _strip_quotes(str(e_atts["id"]))
                 particle = _strip_quotes(str(e_atts["particle"]))
-                if e_atts["id"] in positive_ids:
+                if edge_id in positive_ids:
+                    cut_sign = _cut_sign_from_attributes(e_atts)
                     external_momentum[0] += (
-                        int(e_atts["routing_p1"]) * e_atts["is_cut_DY"]
+                        int(e_atts["routing_p1"]) * cut_sign
                     )
                     external_momentum[1] += (
-                        int(e_atts["routing_p2"]) * e_atts["is_cut_DY"]
+                        int(e_atts["routing_p2"]) * cut_sign
                     )
                     if particle in ["t", "t~"]:
                         outgoing_mass += 1
-                if e_atts["id"] in positive_ids:
+                if edge_id in positive_ids:
                     if particle in ["t", "t~"]:
                         incoming_mass += 1
 
@@ -2477,8 +2982,7 @@ class ThresholdSubtractor(object):
             e_atts = e.get_attributes()
             eid_raw = e_atts["id"]
             eid = _strip_quotes(eid_raw) if isinstance(eid_raw, str) else eid_raw
-            target = E(f"E({eid})")
-            target_num = E(f"En({eid})")
+            target = E(f"En({eid})")
             particle = _strip_quotes(str(e_atts["particle"]))
             if particle not in ["d", "d~", "g", "ghG", "ghG~"]:
                 replacement = (
@@ -2507,7 +3011,6 @@ class ThresholdSubtractor(object):
                 )
 
             integrand = integrand.replace(target, replacement)
-            integrand = integrand.replace(target_num, replacement)
 
         return integrand
 
@@ -3171,41 +3674,20 @@ class LoopIntegrandConstructor(object):
             e_atts = e.get_attributes()
             eid_raw = e_atts["id"]
             eid = _strip_quotes(eid_raw) if isinstance(eid_raw, str) else eid_raw
-            target = E(f"E({eid})")
-            target_num = E(f"En({eid})")
+            target = E(f"En({eid})")
             particle = _strip_quotes(str(e_atts["particle"]))
             if particle not in ["d", "d~", "g", "ghG", "ghG~"]:
                 replacement = (
                     self.sp3D(E(f"q({eid})"), E(f"q({eid})")) + E(f"m({particle})") ** 2
                 ) ** E("1/2")
-                replacement_num = replacement
             else:
-                # new stuff
-                k_keys = [f"routing_k{i}" for i in range(0, self.L)]
-                zero_routing = all(e_atts[kk] == "0" for kk in k_keys)
-                mass = E("0")
-                if (
-                    zero_routing
-                    and e_atts["routing_p1"] == "0"
-                    and e_atts["routing_p2"] != "0"
-                ):
-                    mass = E("p2sq")
-                if (
-                    zero_routing
-                    and e_atts["routing_p1"] != "0"
-                    and e_atts["routing_p2"] == "0"
-                ):
-                    mass = E("p1sq")
-
-                replacement = (self.sp3D(E(f"q({eid})"), E(f"q({eid})")) + mass) ** E(
-                    "1/2"
-                )
-                replacement_num = (self.sp3D(E(f"q({eid})"), E(f"q({eid})"))) ** E(
+                replacement = self.sp3D(
+                    E(f"q({eid})"), E(f"q({eid})")
+                ) ** E(
                     "1/2"
                 )
 
             integrand = integrand.replace(target, replacement)
-            integrand = integrand.replace(target_num, replacement_num)
 
         return integrand
 
@@ -3235,58 +3717,7 @@ class LoopIntegrandConstructor(object):
     # Checks if two edges have the same routing, implying they form a raised propagator.
 
     def _routing_sign_match(self, e: pydot.Edge, ep: pydot.Edge):
-        a = e.get_attributes()
-        b = ep.get_attributes()
-
-        # collect all routing keys (p1, p2 and any k*)
-        keys = [k for k in set(a.keys()) | set(b.keys()) if k.startswith("routing_")]
-
-        def val(attrs, k):
-            return E(attrs.get(k, "0"))
-
-        same = all(val(a, k) == val(b, k) for k in keys)
-        opp = all(val(a, k) == -val(b, k) for k in keys)
-        if same:
-            return "same"
-        if opp:
-            return "opp"
-        return None
-
-    # Changes the routing of a graph based on an input lmb choice.
-
-    def canonicalise_energies(self, integrand, cut_graph):
-
-        rep = E("0")
-
-        f_cut_set = set(cut_graph.final_cut)
-        i_cut_set = set(cut_graph.initial_cut)
-        cut_union = f_cut_set.union(i_cut_set)
-        cut_intersection = f_cut_set.intersection(i_cut_set)
-
-        first_f = True
-        patt = None
-
-        e_to_sub = next(iter(f_cut_set - i_cut_set))
-
-        rep = E("0")
-
-        for e in cut_graph.initial_cut:
-            e_atts = e.get_attributes()
-            rep += E(f"E({e_atts['id']})")
-
-        for e in cut_graph.final_cut:
-            e_atts = e.get_attributes()
-            rep -= E(f"E({e_atts['id']})")
-
-        e_to_sub_atts = e_to_sub.get_attributes()
-        patt = E(f"E({e_to_sub_atts['id']})")
-        rep = rep + E(f"E({e_to_sub_atts['id']})")
-
-        print("canoniucalisation: replacing ", patt, " by ", rep)
-
-        integrand = integrand.replace(patt, rep)
-
-        return integrand
+        return _routing_sign_match(e, ep)
 
     def concretise_scalar_products(self, integrand):
 
@@ -3295,11 +3726,8 @@ class LoopIntegrandConstructor(object):
             E("w_(x_,1)*z_(y_,1)+w_(x_,2)*z_(y_,2)+w_(x_,3)*z_(y_,3)"),
         )
 
-    # Approximates the integrand at leading virtuality. For parton model diagrams, it simply replaces the
-    # energies and routes the integrand, giving an expression in terms of loop momenta. No approximation is
-    # performed. For partitions of the type [i_1]_[i_2,i_3,...], takes the limit p2sq->0 by setting i_2,i_3,...
-    # collinear to p2 and expanding for small transverse momenta around this collinear configuration. Same for
-    # [i_2,i_3,...]_[i_1] with p2sq substituted with p1sq.
+    # Approximates the integrand at leading virtuality. Raised t-channel
+    # propagators have already been squared explicitly during CFF construction.
 
     def leading_virtuality_expansion(self, integrand, cut_graph, raised_cut):
         emr_integrand = deepcopy(integrand)
@@ -3309,8 +3737,6 @@ class LoopIntegrandConstructor(object):
 
         if len(partition[0]) == 1 and len(partition[1]) == 1:
             integrand = self.replace_energies(integrand, cut_graph)
-            integrand = integrand.replace(E("p1sq"), E("0"))
-            integrand = integrand.replace(E("p2sq"), E("0"))
             integrand = self.route_integrand(integrand, cut_graph)
             routed_integrand = RoutedIntegrand(
                 integrand, cut_graph, [], emr_integrand, "PM", []
@@ -3326,7 +3752,11 @@ class LoopIntegrandConstructor(object):
             coll_moms = []
 
             # Find collinear momenta and particles.
-            first = True
+            seed_edge = _collinear_momentum_seed_edge(
+                partition[0],
+                tuple(getattr(cut_graph, "raised_cut_pairs", ())),
+            )
+            seed_id = _strip_quotes(str(seed_edge.get_attributes()["id"]))
             for ep in partition[0]:
                 ep_atts = ep.get_attributes()
                 id = ep_atts["id"]
@@ -3336,7 +3766,7 @@ class LoopIntegrandConstructor(object):
                     if e_atts["id"] == id:
                         k_keys = ["routing_k" + str(i) for i in range(0, self.L)]
                         loop_coeff = [E(e_atts[rout]) for rout in k_keys]
-                        if first:
+                        if _strip_quotes(str(id)) == seed_id:
                             k_id = next(
                                 (i, c)
                                 for i, c in enumerate(loop_coeff)
@@ -3353,28 +3783,8 @@ class LoopIntegrandConstructor(object):
                                 ),
                                 e_atts["is_cut_DY"],
                             ]
-                            first = False
-
-            # In order to make the collinear replacement always work, replace a final-state energy
-            # by energy conservation.
-
-            integrand = self.canonicalise_energies(integrand, cut_graph)
-
-            # integrand = integrand.replace(E(f"E({coll_moms[0]})"), coll_en)
-            # integrand = integrand.replace(E(f"E({coll_moms[1]})"), a_coll_en)
-
-            # integrand = integrand * 1 / (E("4*E(0)*(E(7)+E(8)-E(0))"))
 
             integrand = self.replace_energies(integrand, cut_graph)
-
-            if len(raised_cut) > 0:
-                integrand = integrand * (self.sp3D(E("p(1)"), E("p(1)"))) ** E("1/2")
-                print("got to derivative")
-                integrand = E("1/2") * integrand.derivative(E("p1sq"))
-                print("and beyond")
-
-            integrand = integrand.replace(E("p1sq"), E("0"))
-            integrand = integrand.replace(E("p2sq"), E("0"))
 
             integrand = self.route_integrand(integrand, cut_graph)
 
@@ -3423,7 +3833,11 @@ class LoopIntegrandConstructor(object):
 
             # Find collinear momenta and particles.
 
-            first = True
+            seed_edge = _collinear_momentum_seed_edge(
+                partition[1],
+                tuple(getattr(cut_graph, "raised_cut_pairs", ())),
+            )
+            seed_id = _strip_quotes(str(seed_edge.get_attributes()["id"]))
             for ep in partition[1]:
                 ep_atts = ep.get_attributes()
                 id = ep_atts["id"]
@@ -3433,7 +3847,7 @@ class LoopIntegrandConstructor(object):
                     if e_atts["id"] == id:
                         k_keys = ["routing_k" + str(i) for i in range(self.L)]
                         loop_coeff = [E(e_atts[rout]) for rout in k_keys]
-                        if first:
+                        if _strip_quotes(str(id)) == seed_id:
                             k_id = next(
                                 (i, c)
                                 for i, c in enumerate(loop_coeff)
@@ -3450,27 +3864,8 @@ class LoopIntegrandConstructor(object):
                                 ),
                                 e_atts["is_cut_DY"],
                             ]
-                            first = False
-
-            # In order to make the collinear replacement always work, replace a final-state energy
-            # by energy conservation.
-
-            integrand = self.canonicalise_energies(integrand, cut_graph)
-
-            # integrand = integrand.replace(E(f"E({coll_moms[0]})"), coll_en)
-            # integrand = integrand.replace(E(f"E({coll_moms[1]})"), a_coll_en)
-
-            # integrand = integrand / (E("4*E(0)*(E(7)+E(8)-E(0))"))
 
             integrand = self.replace_energies(integrand, cut_graph)
-
-            if len(raised_cut) > 0:
-                integrand = integrand * (self.sp3D(E("p(2)"), E("p(2)"))) ** E("1/2")
-                print("got to derivative")
-                integrand = E("1/2") * integrand.derivative(E("p2sq"))
-
-            integrand = integrand.replace(E("p1sq"), E("0"))
-            integrand = integrand.replace(E("p2sq"), E("0"))
 
             integrand = self.route_integrand(integrand, cut_graph)
 
@@ -3575,23 +3970,19 @@ class LoopIntegrandConstructor(object):
                 or self.channel == (-1, 1)
             ):
                 integrand = integrand.replace(
-                    E("E(5)"), self.sp3D(E("k(0)"), E("k(0)")) ** E("1/2")
+                    E("En(5)"), self.sp3D(E("k(0)"), E("k(0)")) ** E("1/2")
                 )
                 integrand = integrand.replace(
-                    E("E(4)"), self.sp3D(E("k(0)"), E("k(0)")) ** E("1/2")
+                    E("En(4)"), self.sp3D(E("k(0)"), E("k(0)")) ** E("1/2")
                 )
 
             # print("hacked integrand")
             # print(integrand)
 
-            integrand = self.canonicalise_energies(integrand, cut_graph)
-
             # print("soft emr integrand")
             # print(integrand)
 
             integrand = self.replace_energies(integrand, cut_graph)
-            integrand = integrand.replace(E("p1sq"), E("0"))
-            integrand = integrand.replace(E("p2sq"), E("0"))
             integrand = self.route_integrand(integrand, cut_graph)
 
             # print("routed emr integrand")
@@ -3635,6 +4026,11 @@ class LoopIntegrandConstructor(object):
                 )
             )
 
+            if len(cut_graph.final_cut) <= 2:
+                soft_collinear_integrand1 = -soft_collinear_integrand1
+                soft_collinear_integrand2 = -soft_collinear_integrand2
+                soft_integrand = -soft_integrand
+
             # integrand = (
             #    soft_integrand + soft_collinear_integrand1 + soft_collinear_integrand2
             # )  # * E(f"Θ({repl_x})") * E(f"Θ(1-{repl_x})")
@@ -3654,7 +4050,7 @@ class LoopIntegrandConstructor(object):
             thetaSoft = E(f"Θ(Lambdasq-{propsoft1})") * E(f"Θ(Lambdasq-{propsoft2})")  #
 
             routed_integrand_soft = RoutedIntegrand(
-                factor * soft_integrand * thetaSoft,
+                -factor * soft_integrand * thetaSoft,
                 cut_graph,
                 [
                     E(f"k({k_id[0]})"),
@@ -3681,7 +4077,7 @@ class LoopIntegrandConstructor(object):
             )
 
             routed_integrand_collinear1 = RoutedIntegrand(
-                -factor * soft_collinear_integrand1 * thetacollinear1,
+                factor * soft_collinear_integrand1 * thetacollinear1,
                 cut_graph,
                 [
                     E(f"k({k_id[0]})"),
@@ -3709,7 +4105,7 @@ class LoopIntegrandConstructor(object):
             )
 
             routed_integrand_collinear2 = RoutedIntegrand(
-                -factor * soft_collinear_integrand2 * thetacollinear2,
+                factor * soft_collinear_integrand2 * thetacollinear2,
                 cut_graph,
                 [
                     E(f"k({k_id[0]})"),
@@ -3730,217 +4126,19 @@ class LoopIntegrandConstructor(object):
         else:
             raise ValueError("Big problem if you get here :( ")
 
-    # Eliminates raised propagators by multiplying the relevant diagrams by the raised denominator
-
     def eliminate_raised_cuts(self, emr_representation, cut_graph):
-
-        raised_cut = []
-        g_edges = cut_graph.graph.get_edges()
-        init_cut_ids = [e.get_attributes()["id"] for e in cut_graph.initial_cut]
-        for e, i in zip(g_edges, range(len(g_edges))):
-            e_atts = e.get_attributes()
-            for ep, j in zip(g_edges, range(len(g_edges))):
-                ep_atts = ep.get_attributes()
-                relation = self._routing_sign_match(e, ep)
-                if (
-                    j > i
-                    and relation is not None
-                    and (
-                        e_atts.get("is_cut_DY", None) is not None
-                        or ep_atts.get("is_cut_DY", None) is not None
-                    )
-                ):
-                    if e_atts["id"] not in init_cut_ids:
-                        raised_cut.append([
-                            e_atts["id"],
-                            ep_atts["id"],
-                            relation,
-                            _strip_quotes(str(e_atts["particle"])),
-                        ])
-                    else:
-                        raised_cut.append([
-                            ep_atts["id"],
-                            e_atts["id"],
-                            relation,
-                            _strip_quotes(str(e_atts["particle"])),
-                        ])
-
-        print("RAISED CUTS ARE: ", raised_cut)
-
-        # compute energy conservation condition (specialised to "DY")
-        initial_cut_ids = [e.get_attributes()["id"] for e in cut_graph.initial_cut]
-        final_cut_ids = [e.get_attributes()["id"] for e in cut_graph.final_cut]
-
-        if self.name == "DY":
-            photon_id = [
-                e.get_attributes()["id"]
-                for e in cut_graph.final_cut
-                if _strip_quotes(str(e.get_attributes()["particle"])) == "a"
-            ]
-
-            if len(photon_id) != 1:
-                raise ValueError(
-                    "problem with final state gamma in raised cut treatment"
-                )
-
-            repl = (
-                sum(E(f"E({id})") for id in initial_cut_ids)
-                - sum(E(f"E({id})") for id in final_cut_ids)
-                + E(f"E({photon_id[0]})")
-            ).expand()
-
-            emr_representation = emr_representation.replace(
-                E(f"E({photon_id[0]})"), repl
+        raised_pairs = tuple(getattr(cut_graph, "raised_cut_pairs", ()))
+        emr_representation, is_final_raised = (
+            _cleanup_final_state_raised_energies(
+                emr_representation,
+                cut_graph,
             )
-
-        if self.name == "tt~":
-            if len(raised_cut) > 0:
-                if raised_cut[0][3] not in ["t", "t~"]:
-                    tt_id = [
-                        e.get_attributes()["id"]
-                        for e in cut_graph.final_cut
-                        if _strip_quotes(str(e.get_attributes()["particle"])) == "t"
-                        or _strip_quotes(str(e.get_attributes()["particle"])) == "t~"
-                    ]
-
-                    if len(tt_id) != 2:
-                        raise ValueError(
-                            "problem with final state tt in raised cut treatment"
-                        )
-
-                    repl = (
-                        sum(E(f"E({id})") for id in initial_cut_ids)
-                        - sum(E(f"E({id})") for id in final_cut_ids)
-                        + E(f"E({tt_id[0]})")
-                    ).expand()
-                    emr_representation = emr_representation.replace(
-                        E(f"E({tt_id[0]})"), repl
-                    )
-                else:
-                    repl = (
-                        sum(E(f"E({id})") for id in initial_cut_ids)
-                        - sum(E(f"E({id})") for id in final_cut_ids)
-                        + E(f"E({initial_cut_ids[0]})")
-                    ).expand()
-                    emr_representation = emr_representation.replace(
-                        E(f"E({initial_cut_ids[0]})"), repl
-                    )
-#                    repl = (
-#                        sum(E(f"En({id})") for id in initial_cut_ids)
-#                        - sum(E(f"En({id})") for id in final_cut_ids)
-#                        + E(f"En({initial_cut_ids[0]})")
-#                    ).expand()
-#                    emr_representation = emr_representation.replace(
-#                        E(f"En({initial_cut_ids[0]})"), repl
-#                    )
-
-        base_graph_name = _strip_quotes(str(cut_graph.graph.get("base_graph_name")))
-        edge_by_id = {e.get_attributes()["id"]: e for e in cut_graph.graph.get_edges()}
-
-        is_final_raised = False
-
-        if len(raised_cut) > 0:
-            for cut in raised_cut:
-                if cut[2] == "opp" and cut[3] != "g":
-                    # minus sign is because the correct way to correct for an opposite routing of the
-                    # raised propagator would be to actually switch the sign of the energy in the
-                    # numerator only, which at this point is difficult to access.
-
-                    if not (
-                        self.L == 2
-                        and (self.channel == (-1, 1) or self.channel == (1, -1))
-                        and base_graph_name in ["GL06", "GL08"]
-                    ):
-                        emr_representation = -emr_representation.replace(
-                            E(f"q({cut[0]})"),
-                            -E(f"q({cut[0]})"),
-                        )
-
-                # emr_representation = emr_representation.replace(E("q(6)"), E("-q(6)"))
-
-                # print("EMR AFTER LIMITTTTT")
-                # print(emr_representation)
-
-                if cut[3] in ["t", "t~"]:
-                    print("HEREEEEEEE" * 10)
-                    print(cut)
-                    cut_repeated_ids = [
-                        eid
-                        for eid in [cut[0], cut[1]]
-                        if edge_by_id[eid].get_attributes().get("is_cut_DY") is not None
-                    ]
-                    cut_repeated_id = cut[0]
-                    other_repeated_id = cut[1]
-                    if len(cut_repeated_ids) == 1:
-                        cut_repeated_id = cut_repeated_ids[0]
-                        other_repeated_id = (
-                            cut[1] if cut_repeated_id == cut[0] else cut[0]
-                        )
-                    emr_representation = (
-                        emr_representation
-                        * (E(f"E({cut_repeated_id})") - E(f"E({other_repeated_id})"))
-                        * (2 * E(f"E({cut_repeated_id})"))
-                    )
-                    emr_representation = emr_representation.replace(
-                        E(f"E({cut_repeated_id})"),
-                        E(f"E({other_repeated_id})") + E("same"),
-                    )
-                    emr_representation = emr_representation.series(
-                        E("same"), 0, 0
-                    ).to_expression()
-                    is_final_raised = True
-                    if len(cut_repeated_ids) == 1:
-                        repl = (
-                            sum(E(f"E({id})") for id in initial_cut_ids)
-                            - sum(
-                                E(f"E({id})")
-                                for id in final_cut_ids
-                                if id != cut_repeated_id
-                            )
-                        ).expand()
-                        emr_representation = -emr_representation.replace(
-                            E(f"E({other_repeated_id})"), repl
-                        )
-
-                        emr_representation = -emr_representation.replace(
-                            E(f"En({cut_repeated_id})"), repl
-                        )
-
-                        emr_representation = -emr_representation.replace(
-                            E(f"En({other_repeated_id})"), repl
-                        )
-
-                        emr_representation = emr_representation / (
-                            E(f"E({cut_repeated_id})")
-                        )
-
-                        print("check repetated energyyy")
-                        print(emr_representation)
-                else:
-                    print("HEREEEWWWWWW" * 10)
-                    print(cut)
-                    emr_representation = (
-                        emr_representation
-                        * (E(f"E({cut[0]})") - E(f"E({cut[1]})"))
-                        * (2)
-                    )
-                    emr_representation = emr_representation.replace(
-                        E(f"E({cut[0]})"), E(f"E({cut[1]})") + E("same")
-                    )
-                    emr_representation = emr_representation.series(
-                        E("same"), 0, 0
-                    ).to_expression()
-
-        # HACKY HACK THAT IS NEW
-        # emr_representation = emr_representation.replace(E("q(6)"), E("-q(6)"))
-
-        # emr_representation = emr_representation.replace(E("q(8)"), E("-q(8)"))
-
-        return emr_representation, raised_cut, is_final_raised
+        )
+        return emr_representation, raised_pairs, is_final_raised
 
     def modify_t_channel_gluon_numerator(self, cut_graph):
 
-        has_raised_t_channel_gluon = [False, 0, 0, None]
+        raised_t_channel_gluon_candidates = []
         g_edges = cut_graph.graph.get_edges()
         for e, i in zip(g_edges, range(len(g_edges))):
             e_atts = e.get_attributes()
@@ -3957,12 +4155,15 @@ class LoopIntegrandConstructor(object):
                     and not all(e_atts.get(key) == "0" for key in k_keys)
                     and not all(e_atts.get(key) != "0" for key in p_keys)
                 ):
-                    has_raised_t_channel_gluon = [True, e, ep, relation]
+                    raised_t_channel_gluon_candidates.append((e, ep, relation))
 
-        if has_raised_t_channel_gluon[0]:
-            e1 = has_raised_t_channel_gluon[1]
-            e2 = has_raised_t_channel_gluon[2]
-            repeated_relation = has_raised_t_channel_gluon[3]
+        if len(raised_t_channel_gluon_candidates) > 1:
+            raise ValueError(
+                "Multiple repeated t-channel gluon candidates were found."
+            )
+
+        if raised_t_channel_gluon_candidates:
+            e1, e2, repeated_relation = raised_t_channel_gluon_candidates[0]
             k_keys = [f"routing_k{i}" for i in range(0, self.L)]
 
             def _is_pure_external_edge(edge):
@@ -4057,6 +4258,42 @@ class LoopIntegrandConstructor(object):
             # if repeated_relation == "opp":
             #    vertices2 = [vertices2[1], vertices2[0]]
 
+            def _incident_energy_denominator(edge, vertex, overall_sign):
+                edge_id = _strip_quotes(
+                    str(edge.get_attributes()["id"])
+                )
+                terms = []
+                for incident_edge in boundary_edges(
+                    cut_graph.graph, {_base_node(vertex)}
+                ):
+                    incident_attributes = incident_edge.get_attributes()
+                    incident_id = _strip_quotes(
+                        str(incident_attributes["id"])
+                    )
+                    if incident_id == edge_id:
+                        continue
+                    incident_sign = (
+                        overall_sign
+                        if _base_node(vertex)
+                        == _base_node(incident_edge.get_source())
+                        else -overall_sign
+                    )
+                    terms.append(f"({incident_sign})*Q({incident_id},0)")
+
+                if not terms:
+                    raise ValueError(
+                        "the raised-gluon projector has no incident energy "
+                        f"denominator at {_base_node(vertex)}"
+                    )
+                return "(" + "+".join(terms) + ")"
+
+            incident_denominator1 = _incident_energy_denominator(
+                e1, vertices1[0], overall_sign1
+            )
+            incident_denominator2 = _incident_energy_denominator(
+                e2, vertices2[0], overall_sign2
+            )
+
             target_node_to_edge_ids = {}
             target_node_to_edge_ids.setdefault(_base_node(vertices1[1]), []).append(
                 e1_atts["id"]
@@ -4115,44 +4352,78 @@ class LoopIntegrandConstructor(object):
             # Finally construct the counter-terms
             #
 
-            def _raised_cut_sign(edge_atts):
-                value = edge_atts.get("is_cut_DY", edge_atts.get("is_cut", "0"))
-                try:
-                    return int(float(_strip_quotes(str(value))))
-                except ValueError:
-                    return 0
-
-            raised_pair_has_cut = (
-                _raised_cut_sign(e1_atts) != 0 or _raised_cut_sign(e2_atts) != 0
+            repeated_ids = {
+                _strip_quotes(str(e1_atts["id"])),
+                _strip_quotes(str(e2_atts["id"])),
+            }
+            matching_raised_pairs = [
+                pair
+                for pair in getattr(cut_graph, "raised_cut_pairs", ())
+                if {pair.cut_edge_id, pair.partner_edge_id} == repeated_ids
+            ]
+            if len(matching_raised_pairs) > 1:
+                raise ValueError(
+                    "Multiple raised-cut metadata pairs match the repeated "
+                    "t-channel gluons."
+                )
+            raised_pair = (
+                matching_raised_pairs[0] if matching_raised_pairs else None
+            )
+            repeated_pair_has_cut = (
+                _cut_sign_from_attributes(e1_atts) != 0
+                or _cut_sign_from_attributes(e2_atts) != 0
             )
 
-            def _raised_gluon_projector_denominator(edge_atts, overall_sign):
-                # In raised-pair cuts, the uncut partner denominator is a
-                # propagator energy. Keep it out of Q(.,0) -> En(.) until the
-                # final CFF cleanup, and retain its orientation sign.
-                if raised_pair_has_cut and _raised_cut_sign(edge_atts) == 0:
-                    return "Qr", f"{-overall_sign:+d}"
-                return "Q", "-1"
-
-            def _single_energy_raised_gluon_numerator(edge, vertices, overall_sign):
+            def _single_energy_raised_gluon_numerator(
+                edge,
+                vertices,
+                overall_sign,
+                incident_denominator,
+                noncut_projector_sign,
+            ):
                 edge_atts = edge.get_attributes()
-                denominator_head, projector_sign = (
-                    _raised_gluon_projector_denominator(edge_atts, overall_sign)
-                )
+                edge_id = _strip_quotes(str(edge_atts["id"]))
+                if raised_pair is not None:
+                    (
+                        denominator_head,
+                        projector_momentum_id,
+                        projector_coefficient,
+                    ) = _raised_gluon_projector_spec(
+                        raised_pair, edge_id, overall_sign
+                    )
+                    projector_denominator = (
+                        f"{denominator_head}({edge_atts['id']},0)"
+                    )
+                elif repeated_pair_has_cut:
+                    projector_momentum_id = edge_id
+                    projector_coefficient = f"-({overall_sign})"
+                    projector_denominator = f"Q({edge_atts['id']},0)"
+                else:
+                    projector_momentum_id = edge_id
+                    projector_coefficient = f"+({noncut_projector_sign})"
+                    projector_denominator = incident_denominator
                 return (
-                    f"-1𝑖*(spenso::g(spenso::coad(8,hedge({_parse_port(edge.get_destination())})),spenso::coad(8,hedge({_parse_port(edge.get_source())})))*spenso::g(spenso::mink(4,hedge({_parse_port(edge.get_destination())})),spenso::mink(4,hedge({_parse_port(edge.get_source())}))){projector_sign}*1/{denominator_head}({edge_atts['id']},0)*Qp({edge_atts['id']},spenso::mink(4,hedge({_parse_port(vertices[1])})))*Q(1000,spenso::mink(4,hedge({_parse_port(vertices[0])})))*spenso::g(spenso::coad(8,hedge({_parse_port(edge.get_destination())})),spenso::coad(8,hedge({_parse_port(edge.get_source())}))))"
+                    f"-1𝑖*(spenso::g(spenso::coad(8,hedge({_parse_port(edge.get_destination())})),spenso::coad(8,hedge({_parse_port(edge.get_source())})))*spenso::g(spenso::mink(4,hedge({_parse_port(edge.get_destination())})),spenso::mink(4,hedge({_parse_port(edge.get_source())})))+({projector_coefficient})*1/{projector_denominator}*Qp({projector_momentum_id},spenso::mink(4,hedge({_parse_port(vertices[1])})))*Q(1000,spenso::mink(4,hedge({_parse_port(vertices[0])})))*spenso::g(spenso::coad(8,hedge({_parse_port(edge.get_destination())})),spenso::coad(8,hedge({_parse_port(edge.get_source())}))))"
                 )
 
             for e in cut_graph.graph.get_edges():
                 e_atts = e.get_attributes()
                 if e_atts["id"] == e1_atts["id"]:
                     e_atts["num"] = _single_energy_raised_gluon_numerator(
-                        e, vertices1, overall_sign1
+                        e,
+                        vertices1,
+                        overall_sign1,
+                        incident_denominator1,
+                        1,
                     )
 
                 if e_atts["id"] == e2_atts["id"]:
                     e_atts["num"] = _single_energy_raised_gluon_numerator(
-                        e, vertices2, overall_sign2
+                        e,
+                        vertices2,
+                        overall_sign2,
+                        incident_denominator2,
+                        -1,
                     )
 
         return cut_graph
@@ -4607,8 +4878,10 @@ class LoopIntegrandConstructor(object):
             orig_cut_graph.graph = change_routing(orig_cut_graph.graph, lmb_choice)
 
         print("heyyy")
+        self.emr_processor.identify_and_mark_raised_cuts(cut_graph)
         if gluonic_t_channel:
             cut_graph = self.modify_t_channel_gluon_numerator(cut_graph)
+        _copy_raised_cut_annotations(cut_graph, orig_cut_graph)
 
         numerator_factorisation = None
         if self.external_gluon_polarisation:

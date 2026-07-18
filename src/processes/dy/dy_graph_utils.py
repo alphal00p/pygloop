@@ -3,7 +3,7 @@ import re
 from collections import deque
 from fractions import Fraction
 from itertools import product
-from typing import Any, Generator, List, Optional, Set, Tuple
+from typing import Any, Generator, Iterable, List, Optional, Set, Tuple
 
 import pydot
 
@@ -482,10 +482,10 @@ def is_connected(graph, node_subset_input) -> bool:
 ##################TODO: CHECKKKKK
 
 
-def get_LR_components(
-    graph: pydot.Dot, initial_cut: List[pydot.Edge], final_cut: List[pydot.Edge]
+def get_components(
+    graph: pydot.Dot, removed_edges: Iterable[pydot.Edge]
 ) -> List[Set[str]]:
-    removed = set(initial_cut) | set(final_cut)
+    removed = set(removed_edges)
 
     nodes = []
 
@@ -524,11 +524,17 @@ def get_LR_components(
                     stack.append(nxt)
                     comp.add(nxt)
         component_nodes.append(comp)
+    return component_nodes
+
+
+def get_LR_components(
+    graph: pydot.Dot, initial_cut: List[pydot.Edge], final_cut: List[pydot.Edge]
+) -> List[Set[str]]:
+    component_nodes = get_components(graph, set(initial_cut) | set(final_cut))
     if len(component_nodes) != 2:
         raise ValueError(
             f"expected exactly 2 connected components, got {len(component_nodes)}"
         )
-
     return component_nodes
 
 

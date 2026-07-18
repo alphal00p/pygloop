@@ -588,7 +588,8 @@ class evaluate_integrand:
                     mom3d[i] = mom3d[i].replace(key, val)
                     mass_sq = mass_sq.replace(E("m(t)"), E(str(MT))).replace(key, val)
 
-            energies[E(f"E({id})")] = (
+            energy_symbol = E(f"En({id})")
+            energies[energy_symbol] = (
                 mom3d[0] ** 2 + mom3d[1] ** 2 + mom3d[2] ** 2 + mass_sq
             ) ** E("1/2")
 
@@ -596,8 +597,9 @@ class evaluate_integrand:
             qmomenta[E(f"q({id})")] = mom3d
             for i in range(1, 4):
                 eval_emr_int = eval_emr_int.replace(E(f"q({id},{i})"), mom3d[i - 1])
-            eval_emr_int = eval_emr_int.replace(E(f"E({id})"), energies[E(f"E({id})")])
-            eval_emr_int = eval_emr_int.replace(E(f"En({id})"), energies[E(f"E({id})")])
+            eval_emr_int = eval_emr_int.replace(
+                energy_symbol, energies[energy_symbol]
+            )
             eval_emr_int = eval_emr_int.replace(E("MT"), E(str(MT)))
 
         ht_prefactor = (
@@ -1605,7 +1607,23 @@ class DYCompiledBundle:
             except BaseException as exc:
                 if isinstance(exc, (KeyboardInterrupt, SystemExit)):
                     raise
-                return None
+                try:
+                    complex_outputs = evaluator.evaluate_complex_with_prec(
+                        [(value, Decimal(0)) for value in input_values],
+                        self.DOUBLE_FLOAT_PRECISION,
+                    )
+                    if len(complex_outputs) != 1:
+                        return None
+                    value = complex_outputs[0]
+                    if not isinstance(value, (list, tuple)) or len(value) != 2:
+                        return None
+                    value, imaginary_part = value
+                    if DYCompiledBundle._decimal_from_number(imaginary_part) != 0:
+                        return None
+                except BaseException as complex_exc:
+                    if isinstance(complex_exc, (KeyboardInterrupt, SystemExit)):
+                        raise
+                    return None
             try:
                 decimal_value = DYCompiledBundle._decimal_from_number(value)
             except (InvalidOperation, ValueError, pygloopException):
