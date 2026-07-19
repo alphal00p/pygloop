@@ -6,7 +6,6 @@ from copy import deepcopy
 from dataclasses import dataclass
 from itertools import combinations, product
 
-import numpy as np
 import pydot
 
 from gammaloop import (  # isort: skip # type: ignore # noqa: F401
@@ -23,7 +22,6 @@ except ImportError:
         from gammaloop import __version__ as git_version  # isort: skip # type: ignore # noqa: F401
     except ImportError:
         git_version = "unknown"
-from numpy.ma.core import make_mask_descr
 from symbolica import AtomType, E, Expression, Replacement, S  # pyright: ignore
 from symbolica.community.idenso import (  # pyright: ignore
     simplify_color,
@@ -75,67 +73,6 @@ def heaviside_theta(x):
         return 1
     else:
         return 0
-
-
-def _series_with_large_sum_fallback(
-    expr: Expression,
-    var: Expression,
-    point: int,
-    order: int,
-) -> Expression:
-    def balanced_sum(expressions):
-        terms = list(expressions)
-        if not terms:
-            return E("0")
-        while len(terms) > 1:
-            terms = [
-                terms[i] if i + 1 == len(terms) else terms[i] + terms[i + 1]
-                for i in range(0, len(terms), 2)
-            ]
-        return terms[0]
-
-    def balanced_product(expressions):
-        factors = list(expressions)
-        if not factors:
-            return E("1")
-        while len(factors) > 1:
-            factors = [
-                factors[i]
-                if i + 1 == len(factors)
-                else factors[i] * factors[i + 1]
-                for i in range(0, len(factors), 2)
-            ]
-        return factors[0]
-
-    def split_explicit_addition_factor(expression):
-        if bool(expression.is_type(AtomType.Add)):
-            return list(expression)
-        if not bool(expression.is_type(AtomType.Mul)):
-            return None
-
-        factors = list(expression)
-        candidates = []
-        for i, factor in enumerate(factors):
-            if bool(factor.is_type(AtomType.Add)):
-                terms = list(factor)
-                candidates.append((len(terms), i, terms))
-
-        if not candidates:
-            return None
-
-        _, add_index, terms = min(candidates)
-        rest = balanced_product(
-            factor for i, factor in enumerate(factors) if i != add_index
-        )
-        return [term * rest for term in terms]
-
-    terms = split_explicit_addition_factor(expr)
-    if terms is None:
-        return expr.series(var, point, order).to_expression()
-
-    return balanced_sum(
-        term.series(var, point, order).to_expression() for term in terms
-    )
 
 
 # Little struct that makes it more manageable to deal with cut graphs
@@ -407,20 +344,6 @@ def _strip_namespaces_structurally(expr: Expression) -> Expression:
     return expr
 
 
-def _raw_graph_numerator(graph) -> Expression:
-    numerator = E("1")
-    for node in graph.get_nodes():
-        if node.get_name() not in ["edge", "node"]:
-            node_numerator = node.get("num")
-            if node_numerator:
-                numerator *= Es(node_numerator)
-    for edge in graph.get_edges():
-        edge_numerator = edge.get("num")
-        if edge_numerator:
-            numerator *= Es(edge_numerator)
-    return numerator
-
-
 _EXTERNAL_GLUON_POLARISATION_PROTECTED_IDS_ATTR = (
     "external_gluon_polarisation_protected_energy_ids"
 )
@@ -638,6 +561,55 @@ def _cleanup_final_state_raised_energies(
 
 
 _MASSLESS_PARTICLES = {"d", "d~", "g", "ghG", "ghG~", "a"}
+_MASSLESS_NUMERATOR_CUT_PARTICLES = {
+    "d",
+    "d~",
+    "g",
+    "gh",
+    "gh~",
+    "ghG",
+    "ghG~",
+}
+
+
+def _numerator_cut_mass_squared(particle: str) -> Expression:
+    if particle in _MASSLESS_NUMERATOR_CUT_PARTICLES:
+        return E("0")
+    if particle in {"t", "t~"}:
+        return E("m(t)^2")
+    if particle == "a":
+        return E("m(a)^2")
+    raise ValueError(
+        f"Unsupported on-shell numerator cut particle '{particle}'."
+    )
+
+
+def _routed_numerator_on_shell_replacements(
+    cut_graph,
+) -> tuple[tuple[Expression, Expression], ...]:
+    replacements = [
+        (E("sp(p(1),p(1))"), E("0")),
+        (E("sp(p(2),p(2))"), E("0")),
+    ]
+    if cut_graph is None:
+        return tuple(replacements)
+
+    for edge in sorted(
+        cut_graph.graph.get_edges(),
+        key=lambda edge: _id_sort_key(edge.get_attributes()["id"]),
+    ):
+        attributes = edge.get_attributes()
+        if _cut_sign_from_attributes(attributes) == 0:
+            continue
+        edge_id = _strip_quotes(str(attributes["id"]))
+        particle = _strip_quotes(str(attributes.get("particle", "")))
+        replacements.append(
+            (
+                E(f"sp({edge_id},{edge_id})"),
+                _numerator_cut_mass_squared(particle),
+            )
+        )
+    return tuple(replacements)
 
 
 def _massless_external_beam(
@@ -798,90 +770,6 @@ def _dots_to_dy_scalar_products(expr: Expression) -> Expression:
     for pattern, replacement in dot_replacements:
         expr = expr.replace(pattern, replacement, repeat=True)
     return expr
-
-
-def _rewrite_repeated_non_cut_edge_momentum_powers(
-    numerator: Expression, graph, choice_offset: int = 0
-) -> Expression:
-    edge_by_id = {
-        _strip_quotes(str(e.get_attributes()["id"])): e for e in graph.get_edges()
-    }
-    non_cut_ids = {
-        eid
-        for eid, e in edge_by_id.items()
-        if all(
-            _strip_quotes(str(e.get_attributes().get(key, "0"))) in ["0", "0.0"]
-            for key in ["is_cut", "is_cut_DY"]
-        )
-    }
-    incident = {}
-    for edge in graph.get_edges():
-        incident.setdefault(_base_node(edge.get_source()), []).append(edge)
-        incident.setdefault(_base_node(edge.get_destination()), []).append(edge)
-
-    def edge_id(edge) -> str:
-        return _strip_quotes(str(edge.get_attributes()["id"]))
-
-    def q(edge: str, slot: Expression) -> Expression:
-        return Es(f"Q({edge},{slot.to_canonical_string()})")
-
-    def rules_for(edge: str):
-        out = []
-        target = edge_by_id[edge]
-        for node in [
-            _base_node(target.get_source()),
-            _base_node(target.get_destination()),
-        ]:
-            if node.startswith("ext"):
-                continue
-            others = [e for e in incident[node] if edge_id(e) != edge]
-            if not others:
-                continue
-
-            def rhs(slot, node=node, others=others, target=target):
-                repl = E("0")
-                for other in others:
-                    sign = 1 if _base_node(other.get_source()) == node else -1
-                    repl += sign * q(edge_id(other), slot)
-                if _base_node(target.get_source()) == node:
-                    repl = -repl
-                return repl
-
-            out.append(rhs)
-        if not out:
-            raise ValueError(f"No momentum-conservation rule for edge {edge}.")
-        shift = choice_offset % len(out)
-        return out[shift:] + out[:shift]
-
-    def factors(term):
-        return list(term) if bool(term.is_type(AtomType.Mul)) else [term]
-
-    def match_q(expr):
-        for pattern, edge_key, slot_key in [
-            (Es("Q(edge_,slot_)"), S("gammalooprs::edge_"), S("gammalooprs::slot_")),
-            (E("Q(edge_,slot_)"), S("edge_"), S("slot_")),
-        ]:
-            match = next(iter(expr.match(pattern)), None)
-            if match is not None:
-                return match[edge_key].to_canonical_string(), match[slot_key]
-        return None
-
-    def q_power(factor):
-        if bool(factor.is_type(AtomType.Pow)):
-            base, power = list(factor)
-            match = match_q(base)
-            if match is None:
-                return None
-            power = int(power.to_canonical_string())
-            if power <= 0:
-                return None
-            edge, slot = match
-            return edge, slot, power
-        match = match_q(factor)
-        if match is None:
-            return None
-        edge, slot = match
-        return edge, slot, 1
 
 
 class RoutedIntegrand(object):
@@ -1572,7 +1460,10 @@ class EMRIntegrandConstructor(object):
         return rewritten_graphs
 
     def _factorised_prepared_numerator(
-        self, numerator_graph, post_momentum_rewrite_factor
+        self,
+        numerator_graph,
+        post_momentum_rewrite_factor,
+        on_shell_replacements,
     ) -> Expression:
         scalar, colour, kinematic = _factorised_graph_numerator(numerator_graph)
         scalar, colour, kinematic = _multiply_into_numerator_parts(
@@ -1583,6 +1474,8 @@ class EMRIntegrandConstructor(object):
         colour = simplify_color(colour)
         kinematic = simplify_metrics(simplify_gamma(kinematic))
         kinematic = _dots_to_dy_scalar_products(to_dots(kinematic))
+        for pattern, replacement in on_shell_replacements:
+            kinematic = kinematic.replace(pattern, replacement)
 
         out = scalar * colour * kinematic
         out = _strip_namespaces_structurally(out)
@@ -1594,6 +1487,9 @@ class EMRIntegrandConstructor(object):
         self, graph, numerator_factorisation=None, cut_graph=None
     ) -> Expression:
         symmetry_factor = Es(graph.get("overall_factor_evaluated"))
+        on_shell_replacements = _routed_numerator_on_shell_replacements(
+            cut_graph
+        )
 
         numerator_graph = graph
         post_momentum_rewrite_factor = E("1")
@@ -1639,13 +1535,17 @@ class EMRIntegrandConstructor(object):
         )
         if rewritten_graphs is None:
             out = self._factorised_prepared_numerator(
-                numerator_graph, post_momentum_rewrite_factor
+                numerator_graph,
+                post_momentum_rewrite_factor,
+                on_shell_replacements,
             )
         else:
             out = E("0")
             for rewritten_graph in rewritten_graphs:
                 out += self._factorised_prepared_numerator(
-                    rewritten_graph, post_momentum_rewrite_factor
+                    rewritten_graph,
+                    post_momentum_rewrite_factor,
+                    on_shell_replacements,
                 )
 
         return symmetry_factor * out
@@ -1978,14 +1878,6 @@ class EMRIntegrandConstructor(object):
     def _edge_cut_sign(self, edge) -> int:
         return _cut_sign_from_attributes(edge.get_attributes())
 
-    def _edge_mass(self, edge) -> Expression:
-        particle = _strip_quotes(str(edge.get_attributes().get("particle", "")))
-        if particle in [*_MASSLESS_PARTICLES, ""]:
-            return E("0")
-        if particle == "t~":
-            return E("m(t)")
-        return E(f"m({particle})")
-
     def _components_without_edge(self, graph, removed_edge_id: str | None = None):
         nodes = []
         for edge in graph.get_edges():
@@ -2299,14 +2191,6 @@ class EMRIntegrandConstructor(object):
                 )
 
         return constraints
-
-    def tree_energy_constraints_for_cut_graph(
-        self, cut_graph
-    ) -> dict[str, tuple[Expression, Expression]]:
-        self.identify_and_mark_raised_cuts(cut_graph)
-        return self._tree_energy_constraints(
-            cut_graph, self.get_amplitude_graphs(cut_graph)
-        )
 
     def _cff_scalar_product_energy_form(
         self,
@@ -3360,12 +3244,9 @@ class Approximator(object):
         # FIX ::::::::: REMEMBER TO CHANGE BACK TO -2 and overall -1 sign
         # integrand = integrand.series(lam, 0, order).to_expression().replace(lam, 1)
         print("got to expansion")
-        integrand = _series_with_large_sum_fallback(
-            integrand,
-            lam,
-            0,
-            order,
-        ).replace(lam, 1)
+        integrand = integrand.series(lam, 0, order).to_expression().replace(
+            lam, 1
+        )
         print("and beyond")
 
         # Invert back the collinear parametrisation. Since s*q(i)= x*p(1)+lam*k_perp(j), we have
@@ -3406,12 +3287,9 @@ class Approximator(object):
 
         integrand = integrand.replace(E(f"k({k_id[0]})"), repl)
 
-        integrand = _series_with_large_sum_fallback(
-            integrand,
-            lam,
-            0,
-            -3,
-        ).replace(lam, 1)
+        integrand = integrand.series(lam, 0, -3).to_expression().replace(
+            lam, 1
+        )
 
         integrand = integrand.replace(E("qsoft"), momentum[0])
 
