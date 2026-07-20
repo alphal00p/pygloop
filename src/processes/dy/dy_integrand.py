@@ -376,6 +376,8 @@ def _numerator_factor_kind(factor: Expression) -> str:
         "gamma(",
         "Q(",
         "Qp(",
+        "sp(",
+        "spp(",
     )
     has_colour = any(marker in text for marker in colour_markers)
     has_kinematic = any(marker in text for marker in kinematic_markers)
@@ -594,6 +596,20 @@ def _routed_numerator_on_shell_replacements(
     if cut_graph is None:
         return tuple(replacements)
 
+    _, final_cut_ids = _cut_external_energy_ids(cut_graph)
+    final_cut_id_set = set(final_cut_ids)
+    # A final-state raised residue still differentiates through both members
+    # of its repeated pair, so their numerator self-products stay explicit.
+    preserved_raised_self_products = {
+        edge_id
+        for pair in getattr(cut_graph, "raised_cut_pairs", ())
+        if (
+            pair.cut_edge_id in final_cut_id_set
+            or pair.partner_edge_id in final_cut_id_set
+        )
+        for edge_id in (pair.cut_edge_id, pair.partner_edge_id)
+    }
+
     for edge in sorted(
         cut_graph.graph.get_edges(),
         key=lambda edge: _id_sort_key(edge.get_attributes()["id"]),
@@ -602,6 +618,8 @@ def _routed_numerator_on_shell_replacements(
         if _cut_sign_from_attributes(attributes) == 0:
             continue
         edge_id = _strip_quotes(str(attributes["id"]))
+        if edge_id in preserved_raised_self_products:
+            continue
         particle = _strip_quotes(str(attributes.get("particle", "")))
         replacements.append(
             (
@@ -610,6 +628,19 @@ def _routed_numerator_on_shell_replacements(
             )
         )
     return tuple(replacements)
+
+
+def _normalise_routed_numerator_on_shell(
+    expr: Expression,
+    on_shell_replacements: tuple[tuple[Expression, Expression], ...],
+) -> Expression:
+    expr = expr.replace(
+        E("Q(x_,mink(y_,z_))^2"),
+        E("sp(x_,x_)"),
+    )
+    for pattern, replacement in on_shell_replacements:
+        expr = expr.replace(pattern, replacement)
+    return expr
 
 
 def _massless_external_beam(
@@ -1474,8 +1505,10 @@ class EMRIntegrandConstructor(object):
         colour = simplify_color(colour)
         kinematic = simplify_metrics(simplify_gamma(kinematic))
         kinematic = _dots_to_dy_scalar_products(to_dots(kinematic))
-        for pattern, replacement in on_shell_replacements:
-            kinematic = kinematic.replace(pattern, replacement)
+        kinematic = _normalise_routed_numerator_on_shell(
+            kinematic,
+            on_shell_replacements,
+        )
 
         out = scalar * colour * kinematic
         out = _strip_namespaces_structurally(out)
@@ -2524,7 +2557,10 @@ class EMRIntegrandConstructor(object):
                     "prepared_numerator and numerator_factorisation are mutually exclusive"
                 )
             self._protected_external_gluon_polarisation_energy_ids = set()
-            num = prepared_numerator
+            num = _normalise_routed_numerator_on_shell(
+                prepared_numerator,
+                _routed_numerator_on_shell_replacements(cut_graph),
+            )
         else:
             num = self.get_numerator(
                 cut_graph.graph,
@@ -2537,8 +2573,6 @@ class EMRIntegrandConstructor(object):
         print("and beyond num")
 
         # print("NUM before contraction:   " , num)
-
-        num = num.replace(E("Q(x_,mink(y_,z_))^2"), E("sp(x_,x_)"))  # * E("1i")
 
         self.normalise_graph(cut_graph.graph)
 

@@ -93,6 +93,14 @@ def _expanded_add_terms(expr: Expression) -> list[Expression]:
     return [expr]
 
 
+def _normalise_integrated_uv_imaginary_phase(expr: Expression) -> Expression:
+    """Combine even imaginary phases and reject an unpaired global phase."""
+    expr = expr.expand()
+    if "𝑖" in expr.format_plain():
+        raise ValueError("integrated UV expression has an odd imaginary phase")
+    return expr
+
+
 def _finite_uv_integrated_expression(expr: Expression) -> Expression:
     finite = E("0")
     for term in _expanded_add_terms(expr):
@@ -1044,110 +1052,75 @@ def _common_uv_loop_indices(cycle, n_loops: int) -> list[int]:
     return sorted(common_indices or [])
 
 
-def _routing_component(edge, key: str) -> str:
-    return _strip_quotes(str(edge.get_attributes().get(key, "0"))).strip()
+def _build_contracted_cut_graph(
+    contraction_cut_graph,
+    contracted_graph,
+    routed_cut_graph_cls,
+):
+    """Rebuild cut-graph references and raised-cut metadata after contraction."""
+    contracted_edges_by_id = {
+        _strip_quotes(str(edge.get_attributes()["id"])): edge
+        for edge in contracted_graph.get_edges()
+    }
+    source_edges_by_id = {
+        _strip_quotes(str(edge.get_attributes()["id"])): edge
+        for edge in contraction_cut_graph.graph.get_edges()
+    }
 
+    def contracted_cut_edges(cut_edges):
+        surviving_edges = []
+        for edge in cut_edges:
+            edge_id = _strip_quotes(str(edge.get_attributes()["id"]))
+            if edge_id in contracted_edges_by_id:
+                surviving_edges.append(contracted_edges_by_id[edge_id])
+        return surviving_edges
 
-def _same_routing(edge_a, edge_b, n_loops: int) -> bool:
-    keys = [f"routing_k{i}" for i in range(n_loops + 1)]
-    keys.extend(["routing_p1", "routing_p2"])
-    return all(
-        _routing_component(edge_a, key) == _routing_component(edge_b, key)
-        for key in keys
+    contracted_cut_graph = routed_cut_graph_cls(
+        contracted_graph,
+        contracted_cut_edges(contraction_cut_graph.initial_cut),
+        contracted_cut_edges(contraction_cut_graph.final_cut),
+        contraction_cut_graph.partition,
     )
 
+    surviving_ids = set(contracted_edges_by_id)
+    surviving_pairs = []
+    for pair in getattr(contraction_cut_graph, "raised_cut_pairs", ()):
+        cut_edge_id = _strip_quotes(str(pair.cut_edge_id))
+        partner_edge_id = _strip_quotes(str(pair.partner_edge_id))
+        if cut_edge_id in surviving_ids and partner_edge_id in surviving_ids:
+            source_attributes = source_edges_by_id[
+                partner_edge_id
+            ].get_attributes()
+            partner_attributes = contracted_edges_by_id[
+                partner_edge_id
+            ].get_attributes()
+            for attribute in ("is_cut", "is_cut_DY"):
+                if attribute in source_attributes:
+                    partner_attributes[attribute] = deepcopy(
+                        source_attributes[attribute]
+                    )
+            surviving_pairs.append(pair)
+            continue
 
-def _repeated_top_two_point_edges(external_mappings, n_loops: int):
-    if len(external_mappings) != 2:
-        return None
-    particles = [
-        _normalise_uv_external_particle(mapping["reference"].get("particle", ""))
-        for mapping in external_mappings
-    ]
-    if particles != ["t", "t"]:
-        return None
+        # The partner's cut is synthetic. If contraction removes the
+        # corresponding physical cut, the surviving partner must become
+        # ordinary and uncut again.
+        if cut_edge_id not in surviving_ids and partner_edge_id in surviving_ids:
+            partner_attributes = contracted_edges_by_id[
+                partner_edge_id
+            ].get_attributes()
+            partner_attributes["is_cut"] = "0"
+            partner_attributes["is_cut_DY"] = "0"
 
-    edges = [mapping["actual_edge"] for mapping in external_mappings]
-    if not _same_routing(edges[0], edges[1], n_loops):
-        return None
-    return tuple(
-        _strip_quotes(str(edge.get_attributes()["id"]))
-        for edge in edges
-    )
-
-
-def _regularise_repeated_two_point_integrated_ct(
-    expr: Expression,
-    external_mappings,
-    n_loops: int,
-    cut_graph=None,
-) -> Expression:
-    repeated_edges = _repeated_top_two_point_edges(external_mappings, n_loops)
-    if repeated_edges is None:
-        return expr
-
-    repeated_id, other_id = repeated_edges
-    cut_repeated_ids = []
-    if cut_graph is not None:
-        edge_by_id = {
-            _strip_quotes(str(edge.get_attributes()["id"])): edge
-            for edge in cut_graph.graph.get_edges()
-        }
-        cut_repeated_ids = [
-            edge_id
-            for edge_id in repeated_edges
-            if edge_by_id[edge_id].get_attributes().get("is_cut_DY") is not None
-        ]
-        if len(cut_repeated_ids) != 1:
-            cut_repeated_ids = [
-                edge_id
-                for edge_id in repeated_edges
-                if _strip_quotes(
-                    str(edge_by_id[edge_id].get_attributes().get("is_cut", "0"))
-                )
-                not in {"", "0", "None"}
-            ]
-        if len(cut_repeated_ids) == 1:
-            repeated_id = cut_repeated_ids[0]
-            other_id = (
-                repeated_edges[1]
-                if repeated_id == repeated_edges[0]
-                else repeated_edges[0]
-            )
-
-    same = E("__uv_int_same")
-    repeated_energy = E(f"E({repeated_id})")
-    other_energy = E(f"E({other_id})")
-    expr = (
-        (expr * (repeated_energy - other_energy) * (E("2") * repeated_energy))
-        .replace(repeated_energy, other_energy + same)
-        .series(same, 0, 0)
-        .to_expression()
-    )
-    if cut_graph is None or len(cut_repeated_ids) != 1:
-        return expr
-
-    initial_cut_ids = [
-        _strip_quotes(str(edge.get_attributes()["id"]))
-        for edge in cut_graph.initial_cut
-    ]
-    final_cut_ids = [
-        _strip_quotes(str(edge.get_attributes()["id"]))
-        for edge in cut_graph.final_cut
-    ]
-    replacement = (
-        sum(E(f"E({edge_id})") for edge_id in initial_cut_ids)
-        - sum(
-            E(f"E({edge_id})")
-            for edge_id in final_cut_ids
-            if edge_id != repeated_id
+    contracted_cut_graph.raised_cut_pairs = tuple(surviving_pairs)
+    contracted_cut_graph.raised_cut_detection_complete = bool(
+        getattr(
+            contraction_cut_graph,
+            "raised_cut_detection_complete",
+            False,
         )
-    ).expand()
-
-    expr = -expr.replace(E(f"E({other_id})"), replacement)
-    expr = -expr.replace(E(f"En({repeated_id})"), replacement)
-    expr = -expr.replace(E(f"En({other_id})"), replacement)
-    return expr / E(f"E({repeated_id})")
+    )
+    return contracted_cut_graph
 
 
 def construct_integrated_counter_term(
@@ -1156,6 +1129,7 @@ def construct_integrated_counter_term(
     _dod,
     routed_cut_graph_cls,
     routed_integrand_cls,
+    raised_energy_cleanup,
 ):
     if subtraction.emr_processor is None or subtraction.L != 2:
         return None
@@ -1300,35 +1274,23 @@ def construct_integrated_counter_term(
             pydot.Edge(src, dst, **deepcopy(edge.get_attributes()))
         )
 
-    contracted_edges_by_id = {
-        _strip_quotes(str(edge.get_attributes()["id"])): edge
-        for edge in contracted_graph.get_edges()
-    }
-
-    def contracted_cut_edges(cut_edges):
-        return [
-            contracted_edges_by_id[_strip_quotes(str(edge.get_attributes()["id"]))]
-            for edge in cut_edges
-            if _strip_quotes(str(edge.get_attributes()["id"]))
-            in contracted_edges_by_id
-        ]
-
-    contracted_cut_graph = routed_cut_graph_cls(
+    contracted_cut_graph = _build_contracted_cut_graph(
+        contraction_cut_graph,
         contracted_graph,
-        contracted_cut_edges(contraction_cut_graph.initial_cut),
-        contracted_cut_edges(contraction_cut_graph.final_cut),
-        contraction_cut_graph.partition,
+        routed_cut_graph_cls,
     )
     contracted_emr = subtraction.emr_processor.get_integrand(
         deepcopy(contracted_cut_graph),
         numerator_factorisation=_uv_int_numerator_factorisation,
     )
-    contracted_emr = _regularise_repeated_two_point_integrated_ct(
+    contracted_emr, is_final_raised = raised_energy_cleanup(
         contracted_emr,
-        external_mappings,
-        subtraction.L,
         contracted_cut_graph,
     )
+    if is_final_raised:
+        contracted_emr = _normalise_integrated_uv_imaginary_phase(
+            contracted_emr
+        )
     open_lorentz_momenta = _open_lorentz_momenta(contracted_emr)
     if open_lorentz_momenta:
         graph_name = contracted_graph.get("base_graph_name") or contracted_graph.get_name()
