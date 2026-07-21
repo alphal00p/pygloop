@@ -403,6 +403,191 @@ def _id_sort_key(edge_id) -> tuple[int, object]:
         return (1, edge_id)
 
 
+def _basis_edge_id(edge_id):
+    edge_id = _strip_quotes(str(edge_id))
+    try:
+        return int(edge_id)
+    except ValueError:
+        return edge_id
+
+
+def _graph_loop_count(graph) -> int:
+    loop_keys = {
+        key
+        for edge in graph.get_edges()
+        for key in edge.get_attributes()
+        if key.startswith("routing_k")
+    }
+    return len(loop_keys)
+
+
+def _divergent_uncut_cycle_ids(cut_graph) -> list[tuple[tuple[str, ...], int]]:
+    cut_ids = {
+        _strip_quotes(str(edge.get_attributes()["id"]))
+        for edge in cut_graph.initial_cut + cut_graph.final_cut
+    }
+    nodes_by_name = {
+        _node_key(node.get_name()): node for node in cut_graph.graph.get_nodes()
+    }
+    divergent_cycles = []
+    for cycle in get_simple_cycles(cut_graph.graph):
+        cycle_ids = tuple(
+            sorted(
+                (
+                    _strip_quotes(str(edge.get_attributes()["id"]))
+                    for edge in cycle
+                ),
+                key=_id_sort_key,
+            )
+        )
+        if set(cycle_ids) & cut_ids:
+            continue
+
+        dod = sum(
+            int(_strip_quotes(str(edge.get_attributes()["dod"])))
+            for edge in cycle
+        )
+        visited_nodes = {
+            _node_key(endpoint)
+            for edge in cycle
+            for endpoint in (edge.get_source(), edge.get_destination())
+        }
+        for node_name in visited_nodes:
+            node = nodes_by_name.get(node_name)
+            if node is not None:
+                dod += int(_strip_quotes(str(node.get_attributes()["dod"])))
+
+        if dod + 4 >= 0:
+            divergent_cycles.append((cycle_ids, dod + 4))
+
+    return sorted(divergent_cycles, key=lambda item: item[0])
+
+
+def _uv_basis_rejection_reason(
+    cut_graph,
+    candidate,
+    n_loops: int,
+    divergent_cycles: list[tuple[tuple[str, ...], int]],
+) -> str | None:
+    candidate_ids = tuple(_strip_quotes(str(edge_id)) for edge_id in candidate)
+    if len(candidate_ids) != n_loops:
+        return f"expected {n_loops} edges, got {len(candidate_ids)}"
+    if len(set(candidate_ids)) != len(candidate_ids):
+        return "contains repeated edge IDs"
+
+    graph_edge_ids = {
+        _strip_quotes(str(edge.get_attributes()["id"]))
+        for edge in cut_graph.graph.get_edges()
+    }
+    missing = sorted(set(candidate_ids) - graph_edge_ids, key=_id_sort_key)
+    if missing:
+        return f"missing edge IDs {missing}"
+
+    try:
+        routed_graph = change_routing(deepcopy(cut_graph.graph), candidate_ids)
+    except (KeyError, TypeError, ValueError) as error:
+        return str(error)
+
+    edges_by_id = {
+        _strip_quotes(str(edge.get_attributes()["id"])): edge
+        for edge in routed_graph.get_edges()
+    }
+    for cycle_ids, dod in divergent_cycles:
+        common_indices = set(range(n_loops))
+        for edge_id in cycle_ids:
+            edge = edges_by_id.get(edge_id)
+            if edge is None:
+                return f"divergent cycle {list(cycle_ids)} is missing edge {edge_id}"
+            attributes = edge.get_attributes()
+            edge_indices = {
+                index
+                for index in range(n_loops)
+                if _strip_quotes(
+                    str(attributes.get(f"routing_k{index}", "0"))
+                ).strip()
+                not in {"0", "+0", "-0"}
+            }
+            common_indices &= edge_indices
+
+        if len(common_indices) != 1:
+            return (
+                f"divergent cycle {list(cycle_ids)} (dod + 4 = {dod}) "
+                "has common loop coordinates "
+                f"{sorted(common_indices)}, expected exactly one"
+            )
+
+    return None
+
+
+def _select_uv_compatible_lmb_choice(cut_graph, preferred_basis):
+    n_loops = _graph_loop_count(cut_graph.graph)
+    if n_loops == 0:
+        return list(preferred_basis)
+
+    preferred_ids = tuple(
+        _strip_quotes(str(edge_id)) for edge_id in preferred_basis
+    )
+    divergent_cycles = _divergent_uncut_cycle_ids(cut_graph)
+    preferred_rejection = _uv_basis_rejection_reason(
+        cut_graph,
+        preferred_ids,
+        n_loops,
+        divergent_cycles,
+    )
+    if preferred_rejection is None:
+        return list(preferred_basis)
+
+    edge_ids = sorted(
+        {
+            _strip_quotes(str(edge.get_attributes()["id"]))
+            for edge in cut_graph.graph.get_edges()
+        },
+        key=_id_sort_key,
+    )
+    cut_ids = {
+        _strip_quotes(str(edge.get_attributes()["id"]))
+        for edge in cut_graph.initial_cut + cut_graph.final_cut
+    }
+    preferred_set = set(preferred_ids)
+    rejected = [(preferred_ids, preferred_rejection)]
+    valid_candidates = []
+    for candidate in combinations(edge_ids, n_loops):
+        rejection = _uv_basis_rejection_reason(
+            cut_graph,
+            candidate,
+            n_loops,
+            divergent_cycles,
+        )
+        if rejection is not None:
+            rejected.append((candidate, rejection))
+            continue
+        score = (
+            len(set(candidate) & cut_ids),
+            -len(set(candidate) & preferred_set),
+            tuple(_id_sort_key(edge_id) for edge_id in candidate),
+        )
+        valid_candidates.append((score, candidate))
+
+    if valid_candidates:
+        _score, selected = min(valid_candidates, key=lambda item: item[0])
+        return [_basis_edge_id(edge_id) for edge_id in selected]
+
+    graph_name = _strip_quotes(
+        str(
+            cut_graph.graph.get("base_graph_name")
+            or cut_graph.graph.get_name()
+        )
+    )
+    rejected_reasons = "; ".join(
+        f"{list(candidate)}: {reason}" for candidate, reason in rejected
+    )
+    raise ValueError(
+        f"No UV-compatible loop-momentum basis for {graph_name}; "
+        f"preferred basis {list(preferred_ids)} was rejected. "
+        f"Candidate rejections: {rejected_reasons}"
+    )
+
+
 def _cut_external_energy_ids(cut_graph) -> tuple[list[str], list[str]]:
     initial_ids = [
         _strip_quotes(str(edge.get_attributes()["id"]))
@@ -680,86 +865,156 @@ def _routing_sign_match(e: pydot.Edge, ep: pydot.Edge) -> str | None:
     return None
 
 
-def _extract_common_colour_factors_from_sum(
-    expr: Expression,
-) -> tuple[list[Expression], Expression]:
-    if not bool(expr.is_type(AtomType.Add)):
-        return [], expr
+NumeratorParts = tuple[Expression, Expression, Expression]
 
-    term_factors = [_mul_factors(term) for term in list(expr)]
-    if not term_factors:
-        return [], expr
 
-    common_colour_factors = []
-    first_term_colour_factors = [
-        factor
-        for factor in term_factors[0]
-        if _numerator_factor_kind(factor) == "colour"
+def _multiply_numerator_parts(
+    left: NumeratorParts, right: NumeratorParts
+) -> NumeratorParts:
+    return tuple(a * b for a, b in zip(left, right, strict=True))
+
+
+def _factorised_expression_branches(expr: Expression) -> list[NumeratorParts]:
+    """Split only additive factors whose terms carry correlated colour."""
+    if bool(expr.is_type(AtomType.Add)):
+        if _numerator_factor_kind(expr) != "kinematic":
+            kind = _numerator_factor_kind(expr)
+            if kind == "colour":
+                return [(E("1"), expr, E("1"))]
+            return [(expr, E("1"), E("1"))]
+
+        has_colour = any(
+            _numerator_factor_kind(term) == "colour"
+            or any(
+                _numerator_factor_kind(factor) == "colour"
+                for factor in _mul_factors(term)
+            )
+            for term in expr
+        )
+        if has_colour:
+            return [
+                branch
+                for term in expr
+                for branch in _factorised_expression_branches(term)
+            ]
+        return [(E("1"), E("1"), expr)]
+
+    branches: list[NumeratorParts] = [(E("1"), E("1"), E("1"))]
+    for factor in _mul_factors(expr):
+        if bool(factor.is_type(AtomType.Add)):
+            factor_branches = _factorised_expression_branches(factor)
+        else:
+            kind = _numerator_factor_kind(factor)
+            if kind == "colour":
+                factor_branches = [(E("1"), factor, E("1"))]
+            elif kind == "kinematic":
+                factor_branches = [(E("1"), E("1"), factor)]
+            else:
+                factor_branches = [(factor, E("1"), E("1"))]
+        branches = [
+            _multiply_numerator_parts(branch, factor_branch)
+            for branch in branches
+            for factor_branch in factor_branches
+        ]
+    return branches
+
+
+def _multiply_into_numerator_branches(
+    branches: list[NumeratorParts], expr: Expression
+) -> list[NumeratorParts]:
+    factor_branches = _factorised_expression_branches(expr)
+    return [
+        _multiply_numerator_parts(branch, factor_branch)
+        for branch in branches
+        for factor_branch in factor_branches
     ]
 
-    for candidate in first_term_colour_factors:
-        candidate_key = candidate.to_canonical_string()
-        matching_indices = []
-        for factors in term_factors:
-            match_index = next(
-                (
-                    i
-                    for i, factor in enumerate(factors)
-                    if factor.to_canonical_string() == candidate_key
-                ),
-                None,
-            )
-            if match_index is None:
-                matching_indices = []
-                break
-            matching_indices.append(match_index)
-        if not matching_indices:
-            continue
 
-        common_colour_factors.append(candidate)
-        for factors, match_index in zip(term_factors, matching_indices, strict=True):
-            factors.pop(match_index)
-
-    if not common_colour_factors:
-        return [], expr
-
-    reduced = E("0")
-    for factors in term_factors:
-        reduced += _product_factors(factors)
-    return common_colour_factors, reduced
-
-
-def _multiply_into_numerator_parts(
-    parts: tuple[Expression, Expression, Expression], expr: Expression
-) -> tuple[Expression, Expression, Expression]:
-    scalar, colour, kinematic = parts
-    for factor in _mul_factors(expr):
-        extracted_colour, factor = _extract_common_colour_factors_from_sum(factor)
-        for colour_factor in extracted_colour:
-            colour *= colour_factor
-
-        kind = _numerator_factor_kind(factor)
-        if kind == "colour":
-            colour *= factor
-        elif kind == "kinematic":
-            kinematic *= factor
-        else:
-            scalar *= factor
-    return scalar, colour, kinematic
-
-
-def _factorised_graph_numerator(graph) -> tuple[Expression, Expression, Expression]:
-    parts = (E("1"), E("1"), E("1"))
+def _factorised_graph_numerator(graph) -> list[NumeratorParts]:
+    branches = [(E("1"), E("1"), E("1"))]
     for node in graph.get_nodes():
         if node.get_name() not in ["edge", "node"]:
             node_numerator = node.get("num")
             if node_numerator:
-                parts = _multiply_into_numerator_parts(parts, Es(node_numerator))
+                branches = _multiply_into_numerator_branches(
+                    branches, Es(node_numerator)
+                )
     for edge in graph.get_edges():
         edge_numerator = edge.get("num")
         if edge_numerator:
-            parts = _multiply_into_numerator_parts(parts, Es(edge_numerator))
-    return parts
+            branches = _multiply_into_numerator_branches(
+                branches, Es(edge_numerator)
+            )
+    return branches
+
+
+_UNRESOLVED_COLOUR_SYMBOLS = {
+    "python::coad",
+    "python::cof",
+    "python::dind",
+    "python::f",
+    "python::k",
+    "python::t",
+    "spenso::coad",
+    "spenso::cof",
+    "spenso::dind",
+    "spenso::f",
+    "spenso::k",
+    "spenso::t",
+}
+
+
+def _assert_no_unresolved_colour_heads(
+    expr: Expression, *, context: str
+) -> None:
+    args__ = S("args__")
+    unresolved = sorted(
+        {
+            symbol.get_name()
+            for symbol in expr.get_all_symbols()
+            if symbol.get_name() in _UNRESOLVED_COLOUR_SYMBOLS
+            and any(expr.match(symbol(args__)))
+        }
+    )
+    if unresolved:
+        raise ValueError(
+            "Numerator colour contraction is incomplete for "
+            f"{context}: {', '.join(unresolved)}"
+        )
+
+
+def _cut_numerator_context(cut_graph: routed_cut_graph) -> str:
+    graph_name = _strip_quotes(
+        str(
+            cut_graph.graph.get("base_graph_name")
+            or cut_graph.graph.get_name()
+        )
+    )
+    initial_ids = sorted(
+        (
+            _strip_quotes(str(edge.get_attributes()["id"]))
+            for edge in cut_graph.initial_cut
+        ),
+        key=_id_sort_key,
+    )
+    final_ids = sorted(
+        (
+            _strip_quotes(str(edge.get_attributes()["id"]))
+            for edge in cut_graph.final_cut
+        ),
+        key=_id_sort_key,
+    )
+    partition_ids = [
+        sorted(
+            (_strip_quotes(str(edge.get_attributes()["id"])) for edge in side),
+            key=_id_sort_key,
+        )
+        for side in cut_graph.partition
+    ]
+    return (
+        f"graph={graph_name}, cut_key=(initial={initial_ids}, "
+        f"final={final_ids}, partition={partition_ids})"
+    )
 
 
 def _dots_to_dy_scalar_products(expr: Expression) -> Expression:
@@ -1309,7 +1564,11 @@ class EMRIntegrandConstructor(object):
         return out
 
     def _momentum_cut_replacements(
-        self, loop_graph, repeated_ids: set[str], single_ids: set[str]
+        self,
+        loop_graph,
+        conservation_graph,
+        repeated_ids: set[str],
+        single_ids: set[str],
     ) -> list[tuple[str, Expression, Expression]]:
         if not repeated_ids:
             return []
@@ -1366,14 +1625,18 @@ class EMRIntegrandConstructor(object):
                 previous_boundary_ids = {
                     self._edge_local_id(edge)
                     for _previous_id, previous_cut in previous_cuts
-                    for edge in self._boundary_edges_for_cut(loop_graph, previous_cut)
+                    for edge in self._boundary_edges_for_cut(
+                        conservation_graph, previous_cut
+                    )
                     if not self._edge_touches_ext(edge)
                 }
 
                 for cut_nodes in total_cuts:
                     boundary_ids = {
                         self._edge_local_id(edge)
-                        for edge in self._boundary_edges_for_cut(loop_graph, cut_nodes)
+                        for edge in self._boundary_edges_for_cut(
+                            conservation_graph, cut_nodes
+                        )
                     }
                     reduced_boundary_ids = boundary_ids - {chosen_id}
                     if reduced_boundary_ids & (current_repeated | blocked_once):
@@ -1397,7 +1660,9 @@ class EMRIntegrandConstructor(object):
             target = edge_by_id[edge_id]
             boundary = [
                 edge
-                for edge in self._boundary_edges_for_cut(loop_graph, cut_nodes)
+                for edge in self._boundary_edges_for_cut(
+                    conservation_graph, cut_nodes
+                )
                 if self._edge_local_id(edge) != edge_id
             ]
             if not boundary:
@@ -1454,7 +1719,10 @@ class EMRIntegrandConstructor(object):
             }
 
             replacements = self._momentum_cut_replacements(
-                loop_graph, repeated_ids, single_ids
+                loop_graph,
+                graph,
+                repeated_ids,
+                single_ids,
             )
             replacements_by_edge: dict[str, list[tuple[str, Expression, Expression]]] = {}
             for edge_id, pattern, replacement in replacements:
@@ -1496,23 +1764,28 @@ class EMRIntegrandConstructor(object):
         post_momentum_rewrite_factor,
         on_shell_replacements,
     ) -> Expression:
-        scalar, colour, kinematic = _factorised_graph_numerator(numerator_graph)
-        scalar, colour, kinematic = _multiply_into_numerator_parts(
-            (scalar, colour, kinematic),
+        branches = _factorised_graph_numerator(numerator_graph)
+        branches = _multiply_into_numerator_branches(
+            branches,
             post_momentum_rewrite_factor,
         )
 
-        colour = simplify_color(colour)
-        kinematic = simplify_metrics(simplify_gamma(kinematic))
-        kinematic = _dots_to_dy_scalar_products(to_dots(kinematic))
-        kinematic = _normalise_routed_numerator_on_shell(
-            kinematic,
-            on_shell_replacements,
-        )
-
-        out = scalar * colour * kinematic
+        out = E("0")
+        for scalar, colour, kinematic in branches:
+            scalar = _strip_namespaces_structurally(scalar)
+            scalar = substitute_process_couplings(
+                scalar, self.name, self.L
+            ).expand()
+            colour = simplify_color(colour)
+            kinematic = simplify_metrics(simplify_gamma(kinematic))
+            kinematic = _dots_to_dy_scalar_products(to_dots(kinematic))
+            kinematic = _normalise_routed_numerator_on_shell(
+                kinematic,
+                on_shell_replacements,
+            )
+            out += scalar * colour * kinematic
         out = _strip_namespaces_structurally(out)
-        return substitute_process_couplings(out, self.name, self.L)
+        return out
 
     # Get the numerator of the graph
 
@@ -2567,6 +2840,11 @@ class EMRIntegrandConstructor(object):
                 numerator_factorisation=numerator_factorisation,
                 cut_graph=cut_graph,
             )
+
+        _assert_no_unresolved_colour_heads(
+            num,
+            context=_cut_numerator_context(cut_graph),
+        )
 
         # print(num.replace(E("sp(x_,y_)"),E("1")))
 
@@ -4786,6 +5064,9 @@ class LoopIntegrandConstructor(object):
             # lmb_choice = [7, 2]
             # lmb_choice = [2, 7]
 
+            lmb_choice = _select_uv_compatible_lmb_choice(
+                cut_graph, lmb_choice
+            )
             cut_graph.graph = change_routing(cut_graph.graph, lmb_choice)
             orig_cut_graph.graph = change_routing(orig_cut_graph.graph, lmb_choice)
 

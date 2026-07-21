@@ -53,6 +53,110 @@ def write_text_with_dirs(
         handle.write(content)
 
 
+def _routing_value(edge: pydot.Edge, routing_name: str):
+    if sp is None:
+        raise RuntimeError("sympy not available")
+    value = edge.get_attributes().get(routing_name, "0")
+    return sp.Rational(_strip_quotes(str(value)))
+
+
+def edge_has_exact_beam_routing(
+    edge: pydot.Edge, *, routing_p1: int, routing_p2: int
+) -> bool:
+    """Return whether an edge carries exactly the requested external momentum."""
+    attributes = edge.get_attributes()
+    return (
+        _routing_value(edge, "routing_p1") == routing_p1
+        and _routing_value(edge, "routing_p2") == routing_p2
+        and all(
+            _routing_value(edge, key) == 0
+            for key in attributes
+            if key.startswith("routing_k")
+        )
+    )
+
+
+def _routed_edge_by_id(graph: pydot.Dot, edge_id: str) -> pydot.Edge:
+    matches = [
+        edge
+        for edge in graph.get_edges()
+        if _strip_quotes(str(edge.get_attributes().get("id", ""))) == edge_id
+    ]
+    if len(matches) != 1:
+        raise ValueError(
+            f"Expected exactly one routed edge with id '{edge_id}', found {len(matches)}"
+        )
+    return matches[0]
+
+
+def routed_cut_has_exact_beam_routing(routed_cut) -> bool:
+    """Match either exact incoming-beam routing accepted by the symmetriser."""
+    graph = routed_cut[3]
+    edge_0 = _routed_edge_by_id(graph, "0")
+    edge_1 = _routed_edge_by_id(graph, "1")
+    return edge_has_exact_beam_routing(
+        edge_0, routing_p1=1, routing_p2=0
+    ) or edge_has_exact_beam_routing(edge_1, routing_p1=0, routing_p2=1)
+
+
+def _shared_partition_edge_id(routed_cut) -> str | None:
+    partition_edge_ids = [
+        {
+            _strip_quotes(str(edge.get_attributes().get("id", "")))
+            for edge in side
+        }
+        for side in routed_cut[2]
+    ]
+    shared_edge_ids = partition_edge_ids[0].intersection(partition_edge_ids[1])
+    if len(shared_edge_ids) > 1:
+        raise ValueError(
+            "Ambiguous p1/p2 symmetrisation cut: partition sides share multiple "
+            f"physical edges {sorted(shared_edge_ids)}"
+        )
+    return next(iter(shared_edge_ids), None)
+
+
+def filter_symmetrised_p1_p2_routed_cuts(routed_cuts: list) -> list:
+    """Keep one exact-routing representative of each p1/p2 cut pair."""
+    exact_cuts = [cut for cut in routed_cuts if routed_cut_has_exact_beam_routing(cut)]
+    groups: dict[str, list] = {}
+    retained_ids = {
+        id(cut) for cut in exact_cuts if _shared_partition_edge_id(cut) is None
+    }
+
+    for cut in exact_cuts:
+        shared_edge_id = _shared_partition_edge_id(cut)
+        if shared_edge_id is not None:
+            groups.setdefault(shared_edge_id, []).append(cut)
+
+    for shared_edge_id, group in groups.items():
+        if len(group) == 1:
+            retained_ids.add(id(group[0]))
+            continue
+        if len(group) != 2:
+            raise ValueError(
+                "Ambiguous p1/p2 symmetrisation group for shared physical edge "
+                f"'{shared_edge_id}': expected one or two cuts, found {len(group)}"
+            )
+
+        edge_0_exact = [
+            cut
+            for cut in group
+            if edge_has_exact_beam_routing(
+                _routed_edge_by_id(cut[3], "0"), routing_p1=1, routing_p2=0
+            )
+        ]
+        if len(edge_0_exact) != 1:
+            raise ValueError(
+                "Ambiguous p1/p2 symmetrisation group for shared physical edge "
+                f"'{shared_edge_id}': expected exactly one cut with edge 0 "
+                f"carrying p1, found {len(edge_0_exact)}"
+            )
+        retained_ids.add(id(edge_0_exact[0]))
+
+    return [cut for cut in exact_cuts if id(cut) in retained_ids]
+
+
 class VacuumDotGraph:
     def __init__(self, dot_graph: pydot.Dot):  # , num):
         self.dot = dot_graph

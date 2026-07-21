@@ -94,11 +94,21 @@ def _expanded_add_terms(expr: Expression) -> list[Expression]:
 
 
 def _normalise_integrated_uv_imaginary_phase(expr: Expression) -> Expression:
-    """Combine even imaginary phases and reject an unpaired global phase."""
+    """Remove a single global imaginary phase and reject mixed phases."""
     expr = expr.expand()
-    if "𝑖" in expr.format_plain():
-        raise ValueError("integrated UV expression has an odd imaginary phase")
-    return expr
+    terms = list(expr) if bool(expr.is_type(AtomType.Add)) else [expr]
+    imaginary_terms = ["𝑖" in term.format_plain() for term in terms]
+    if not any(imaginary_terms):
+        return expr
+    if not all(imaginary_terms):
+        raise ValueError("integrated UV expression has mixed imaginary phases")
+
+    normalised = (-E("1i") * expr).expand()
+    if "𝑖" in normalised.format_plain():
+        raise ValueError(
+            "integrated UV expression is not real after global phase removal"
+        )
+    return normalised
 
 
 def _finite_uv_integrated_expression(expr: Expression) -> Expression:
@@ -463,6 +473,16 @@ def _strip_namespaces_structurally(expr: Expression) -> Expression:
 
 
 def _contract_lorentz_momentum_pairs(expr: Expression) -> Expression:
+    expr = expr.replace(
+        E("Q(y_,mink(4,x_))") ** 2,
+        E("sp(y_,y_)"),
+        repeat=True,
+    )
+    expr = expr.replace(
+        E("Qp(y_,mink(4,x_))") ** 2,
+        E("spp(qp(y_),qp(y_))"),
+        repeat=True,
+    )
     expr = expr.replace(
         E("Q(y_,mink(4,x_))") * E("Q(z_,mink(4,x_))"),
         E("sp(y_,z_)"),
@@ -889,13 +909,21 @@ def _replace_compact_spin_color_functions(
                 if not index_slots[third].startswith("bis("):
                     continue
                 for lorentz_label in _COMPACT_FREE_LORENTZ_LABELS:
-                    expr = expr.replace(
-                        Eu(f"gamma({first},{lorentz_label},{third})"),
-                        Eu(
+                    if transpose_gamma_spinors:
+                        gamma_replacement = Eu(
                             f"gamma({index_slots[first]},"
                             f"{index_slots[third]},"
                             f"mink(4,{lorentz_label}))"
-                        ),
+                        )
+                    else:
+                        gamma_replacement = Eu(
+                            f"gamma({index_slots[third]},"
+                            f"{index_slots[first]},"
+                            f"mink(4,{lorentz_label}))"
+                        )
+                    expr = expr.replace(
+                        Eu(f"gamma({first},{lorentz_label},{third})"),
+                        gamma_replacement,
                         repeat=True,
                     )
     return expr
@@ -924,13 +952,13 @@ def _actual_port_is_destination(mapping) -> bool:
     )
 
 
-def _transpose_compact_top_gluon_spinors(external_mappings) -> bool:
+def _transpose_compact_top_spinors(external_mappings) -> bool:
     external_particles = tuple(
         _normalise_uv_external_particle(mapping["reference"].get("particle", ""))
         for mapping in external_mappings
     )
     return (
-        external_particles == ("t", "t", "g")
+        external_particles in {("t", "t"), ("t", "t", "g")}
         and _actual_port_is_source(external_mappings[0])
         and _actual_port_is_destination(external_mappings[1])
     )
@@ -956,15 +984,17 @@ def _remap_compact_uv_integrated_expression(
         _normalise_uv_external_particle(mapping["reference"].get("particle", ""))
         for mapping in external_mappings
     )
-    transpose_top_gluon_spinors = _transpose_compact_top_gluon_spinors(
+    transpose_top_spinors = _transpose_compact_top_spinors(
         external_mappings
     )
     expr = _replace_compact_spin_color_functions(
         expr,
         index_slots,
         transpose_gamma_spinors=external_particles == ("d", "d~", "g")
-        or transpose_top_gluon_spinors,
-        transpose_color_spinors=transpose_top_gluon_spinors,
+        or transpose_top_spinors,
+        transpose_color_spinors=(
+            transpose_top_spinors and len(external_particles) == 3
+        ),
         replace_free_lorentz_gamma=external_particles == ("t", "t"),
         replace_spin_delta=external_particles == ("t", "t"),
     )
@@ -1287,10 +1317,19 @@ def construct_integrated_counter_term(
         contracted_emr,
         contracted_cut_graph,
     )
-    if is_final_raised:
-        contracted_emr = _normalise_integrated_uv_imaginary_phase(
-            contracted_emr
-        )
+    # Couplings inside additive tensor factors are intentionally not pulled
+    # into the scalar numerator branch.  Resolve their values before checking
+    # the physical phase, otherwise an apparently real symbolic expression
+    # can become imaginary only when the numerical evaluator is constructed.
+    from processes.dy.dy_evaluators import substitute_process_coupling_values
+
+    contracted_emr = substitute_process_coupling_values(
+        contracted_emr,
+        subtraction.emr_processor.name,
+    )
+    contracted_emr = _normalise_integrated_uv_imaginary_phase(
+        contracted_emr
+    )
     open_lorentz_momenta = _open_lorentz_momenta(contracted_emr)
     if open_lorentz_momenta:
         graph_name = contracted_graph.get("base_graph_name") or contracted_graph.get_name()

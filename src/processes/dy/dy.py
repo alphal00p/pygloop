@@ -49,6 +49,7 @@ from processes.dy.dy_classes import (  # noqa: F401
     DYDotGraphs,
     VacuumDotGraph,
     canonicalise_vacuum_graph,
+    filter_symmetrised_p1_p2_routed_cuts,
 )
 from processes.dy.dy_evaluators import (
     DYCompiledBundle,
@@ -132,6 +133,7 @@ def _dy_process_2l_graph_worker(task: dict[str, Any]) -> dict[str, Any]:
                     dy_mur_sq=task["dy_mur_sq"],
                     dy_observable_muv=task["dy_observable_muv"],
                     dy_parallel_graphs=1,
+                    symmetrise_p1_p2=task.get("symmetrise_p1_p2", False),
                     skip_gl_worker_init=True,
                     load_compiled_bundle=False,
                     clean=True,
@@ -203,6 +205,7 @@ class DY(object):
         load_compiled_bundle: bool = True,
         clean=True,
         logger_level: int | None = None,
+        symmetrise_p1_p2: bool = False,
         **opts,
     ):
         start_logger_level = logger.getEffectiveLevel()
@@ -245,6 +248,7 @@ class DY(object):
         self.disable_integrated_uv_cts = bool(disable_integrated_uv_cts)
         self.dy_check_generation_limits = bool(dy_check_generation_limits)
         self.dy_parallel_graphs = max(1, int(dy_parallel_graphs))
+        self.symmetrise_p1_p2 = bool(symmetrise_p1_p2)
         self.dy_graph_index_offset = 0
         self.dy_emr_state_name = None
         self.dy_lambda_sq = float(dy_lambda_sq) if dy_lambda_sq is not None else None
@@ -410,6 +414,7 @@ class DY(object):
             integrate_beams=self.integrate_beams,
             dy_check_generation_limits=self.dy_check_generation_limits,
             dy_parallel_graphs=self.dy_parallel_graphs,
+            symmetrise_p1_p2=self.symmetrise_p1_p2,
             dy_fallback_precision=self.dy_fallback_precision,
             dy_lambda_sq=self.dy_lambda_sq,
             dy_mur_sq=self.dy_mur_sq,
@@ -438,6 +443,7 @@ class DY(object):
             "disable_integrated_uv_cts": self.disable_integrated_uv_cts,
             "dy_check_generation_limits": self.dy_check_generation_limits,
             "dy_parallel_graphs": self.dy_parallel_graphs,
+            "symmetrise_p1_p2": self.symmetrise_p1_p2,
             "dy_fallback_precision": self.dy_fallback_precision,
             "dy_lambda_sq": self.dy_lambda_sq,
             "dy_mur_sq": self.dy_mur_sq,
@@ -957,6 +963,23 @@ class DY(object):
                 [], final_state
             )
 
+            indexed_routed_graphs = [
+                (routed_graph_index, routed_graph)
+                for routed_graph_index, routed_graph in enumerate(routed_graphs)
+                if _strip_quotes(str(routed_graph[3].get("particle_channel")))
+                == str(channel)
+            ]
+            if self.symmetrise_p1_p2:
+                symmetrised_graphs = filter_symmetrised_p1_p2_routed_cuts(
+                    [routed_graph for _, routed_graph in indexed_routed_graphs]
+                )
+                retained_graph_ids = {id(graph) for graph in symmetrised_graphs}
+                indexed_routed_graphs = [
+                    (routed_graph_index, routed_graph)
+                    for routed_graph_index, routed_graph in indexed_routed_graphs
+                    if id(routed_graph) in retained_graph_ids
+                ]
+
             print("############################")
             print("Routed graphs: ", len(routed_graphs))
             print("############################")
@@ -964,7 +987,7 @@ class DY(object):
             routed_integrands = []
             evaluators = []
 
-            for routed_graph_index, gg in enumerate(routed_graphs):
+            for routed_graph_index, gg in indexed_routed_graphs:
                 # if (len(gg[2][0]) == 1 and len(gg[2][1]) == 1):
                 #    continue
 
@@ -974,10 +997,6 @@ class DY(object):
                 # if len(gg[2][1]) != 1 or len(gg[2][0]) != 1:
                 #    continue
                 #
-                particle_channel = _strip_quotes(str(gg[3].get("particle_channel")))
-                if particle_channel != str(channel):
-                    continue
-
                 processed_graphs.append(gg[3])
                 cut_graph = deepcopy(routed_cut_graph(gg[3], gg[0], gg[1], gg[2]))
                 # print(cut_graph.graph.get_name())
@@ -1166,6 +1185,7 @@ class DY(object):
                 "external_gluon_polarisation": self.external_gluon_polarisation,
                 "disable_integrated_uv_cts": self.disable_integrated_uv_cts,
                 "dy_check_generation_limits": self.dy_check_generation_limits,
+                "symmetrise_p1_p2": self.symmetrise_p1_p2,
                 "dy_fallback_precision": self.dy_fallback_precision,
                 "dy_lambda_sq": self.dy_lambda_sq,
                 "dy_mur_sq": self.dy_mur_sq,
