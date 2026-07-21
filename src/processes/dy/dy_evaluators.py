@@ -113,13 +113,13 @@ def _sm_ttbar_couplings() -> dict[str, Expression]:
     return couplings
 
 
-def substitute_process_coupling_values(
-    expr: Expression, process: str
-) -> Expression:
+def substitute_process_couplings(expr: Expression, process: str, L: int) -> Expression:
     if _is_ttbar_process(process):
         couplings = _sm_ttbar_couplings()
         for coupling_name, coupling_value in couplings.items():
             expr = expr.replace(E(coupling_name), coupling_value)
+        if L == 2:
+            expr = E("1i") * expr
         return expr
 
     expr = expr.replace(E("GC_11"), E("1"))
@@ -129,16 +129,8 @@ def substitute_process_coupling_values(
     return expr
 
 
-def substitute_process_couplings(expr: Expression, process: str, L: int) -> Expression:
-    expr = substitute_process_coupling_values(expr, process)
-    if _is_ttbar_process(process) and L == 2:
-        expr = E("1i") * expr
-    return expr
-
-
 class evaluate_integrand:
     def _replace_couplings(self, expr: Expression, include_tr: bool) -> Expression:
-        expr = substitute_process_coupling_values(expr, self.process)
         if include_tr:
             expr = expr.replace(E("ca"), E("Nc"))
             expr = expr.replace(E("cf"), E("(Nc^2-1)/(2*Nc)"))

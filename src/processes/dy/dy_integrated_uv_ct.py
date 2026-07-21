@@ -1317,16 +1317,6 @@ def construct_integrated_counter_term(
         contracted_emr,
         contracted_cut_graph,
     )
-    # Couplings inside additive tensor factors are intentionally not pulled
-    # into the scalar numerator branch.  Resolve their values before checking
-    # the physical phase, otherwise an apparently real symbolic expression
-    # can become imaginary only when the numerical evaluator is constructed.
-    from processes.dy.dy_evaluators import substitute_process_coupling_values
-
-    contracted_emr = substitute_process_coupling_values(
-        contracted_emr,
-        subtraction.emr_processor.name,
-    )
     contracted_emr = _normalise_integrated_uv_imaginary_phase(
         contracted_emr
     )

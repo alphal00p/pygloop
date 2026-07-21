@@ -865,87 +865,88 @@ def _routing_sign_match(e: pydot.Edge, ep: pydot.Edge) -> str | None:
     return None
 
 
-NumeratorParts = tuple[Expression, Expression, Expression]
+def _extract_common_colour_factors_from_sum(
+    expr: Expression,
+) -> tuple[list[Expression], Expression]:
+    if not bool(expr.is_type(AtomType.Add)):
+        return [], expr
 
+    term_factors = [_mul_factors(term) for term in list(expr)]
+    if not term_factors:
+        return [], expr
 
-def _multiply_numerator_parts(
-    left: NumeratorParts, right: NumeratorParts
-) -> NumeratorParts:
-    return tuple(a * b for a, b in zip(left, right, strict=True))
-
-
-def _factorised_expression_branches(expr: Expression) -> list[NumeratorParts]:
-    """Split only additive factors whose terms carry correlated colour."""
-    if bool(expr.is_type(AtomType.Add)):
-        if _numerator_factor_kind(expr) != "kinematic":
-            kind = _numerator_factor_kind(expr)
-            if kind == "colour":
-                return [(E("1"), expr, E("1"))]
-            return [(expr, E("1"), E("1"))]
-
-        has_colour = any(
-            _numerator_factor_kind(term) == "colour"
-            or any(
-                _numerator_factor_kind(factor) == "colour"
-                for factor in _mul_factors(term)
-            )
-            for term in expr
-        )
-        if has_colour:
-            return [
-                branch
-                for term in expr
-                for branch in _factorised_expression_branches(term)
-            ]
-        return [(E("1"), E("1"), expr)]
-
-    branches: list[NumeratorParts] = [(E("1"), E("1"), E("1"))]
-    for factor in _mul_factors(expr):
-        if bool(factor.is_type(AtomType.Add)):
-            factor_branches = _factorised_expression_branches(factor)
-        else:
-            kind = _numerator_factor_kind(factor)
-            if kind == "colour":
-                factor_branches = [(E("1"), factor, E("1"))]
-            elif kind == "kinematic":
-                factor_branches = [(E("1"), E("1"), factor)]
-            else:
-                factor_branches = [(factor, E("1"), E("1"))]
-        branches = [
-            _multiply_numerator_parts(branch, factor_branch)
-            for branch in branches
-            for factor_branch in factor_branches
-        ]
-    return branches
-
-
-def _multiply_into_numerator_branches(
-    branches: list[NumeratorParts], expr: Expression
-) -> list[NumeratorParts]:
-    factor_branches = _factorised_expression_branches(expr)
-    return [
-        _multiply_numerator_parts(branch, factor_branch)
-        for branch in branches
-        for factor_branch in factor_branches
+    common_colour_factors = []
+    first_term_colour_factors = [
+        factor
+        for factor in term_factors[0]
+        if _numerator_factor_kind(factor) == "colour"
     ]
 
+    for candidate in first_term_colour_factors:
+        candidate_key = candidate.to_canonical_string()
+        matching_indices = []
+        for factors in term_factors:
+            match_index = next(
+                (
+                    i
+                    for i, factor in enumerate(factors)
+                    if factor.to_canonical_string() == candidate_key
+                ),
+                None,
+            )
+            if match_index is None:
+                matching_indices = []
+                break
+            matching_indices.append(match_index)
+        if not matching_indices:
+            continue
 
-def _factorised_graph_numerator(graph) -> list[NumeratorParts]:
-    branches = [(E("1"), E("1"), E("1"))]
+        common_colour_factors.append(candidate)
+        for factors, match_index in zip(term_factors, matching_indices, strict=True):
+            factors.pop(match_index)
+
+    if not common_colour_factors:
+        return [], expr
+
+    reduced = E("0")
+    for factors in term_factors:
+        reduced += _product_factors(factors)
+    return common_colour_factors, reduced
+
+
+def _multiply_into_numerator_parts(
+    parts: tuple[Expression, Expression, Expression], expr: Expression
+) -> tuple[Expression, Expression, Expression]:
+    scalar, colour, kinematic = parts
+    for factor in _mul_factors(expr):
+        extracted_colour, factor = _extract_common_colour_factors_from_sum(factor)
+        for colour_factor in extracted_colour:
+            colour *= colour_factor
+
+        kind = _numerator_factor_kind(factor)
+        if kind == "colour":
+            colour *= factor
+        elif kind == "kinematic":
+            kinematic *= factor
+        else:
+            scalar *= factor
+    return scalar, colour, kinematic
+
+
+def _factorised_graph_numerator(
+    graph,
+) -> tuple[Expression, Expression, Expression]:
+    parts = (E("1"), E("1"), E("1"))
     for node in graph.get_nodes():
         if node.get_name() not in ["edge", "node"]:
             node_numerator = node.get("num")
             if node_numerator:
-                branches = _multiply_into_numerator_branches(
-                    branches, Es(node_numerator)
-                )
+                parts = _multiply_into_numerator_parts(parts, Es(node_numerator))
     for edge in graph.get_edges():
         edge_numerator = edge.get("num")
         if edge_numerator:
-            branches = _multiply_into_numerator_branches(
-                branches, Es(edge_numerator)
-            )
-    return branches
+            parts = _multiply_into_numerator_parts(parts, Es(edge_numerator))
+    return parts
 
 
 _UNRESOLVED_COLOUR_SYMBOLS = {
@@ -1764,28 +1765,23 @@ class EMRIntegrandConstructor(object):
         post_momentum_rewrite_factor,
         on_shell_replacements,
     ) -> Expression:
-        branches = _factorised_graph_numerator(numerator_graph)
-        branches = _multiply_into_numerator_branches(
-            branches,
+        scalar, colour, kinematic = _factorised_graph_numerator(numerator_graph)
+        scalar, colour, kinematic = _multiply_into_numerator_parts(
+            (scalar, colour, kinematic),
             post_momentum_rewrite_factor,
         )
 
-        out = E("0")
-        for scalar, colour, kinematic in branches:
-            scalar = _strip_namespaces_structurally(scalar)
-            scalar = substitute_process_couplings(
-                scalar, self.name, self.L
-            ).expand()
-            colour = simplify_color(colour)
-            kinematic = simplify_metrics(simplify_gamma(kinematic))
-            kinematic = _dots_to_dy_scalar_products(to_dots(kinematic))
-            kinematic = _normalise_routed_numerator_on_shell(
-                kinematic,
-                on_shell_replacements,
-            )
-            out += scalar * colour * kinematic
+        colour = simplify_color(colour)
+        kinematic = simplify_metrics(simplify_gamma(kinematic))
+        kinematic = _dots_to_dy_scalar_products(to_dots(kinematic))
+        kinematic = _normalise_routed_numerator_on_shell(
+            kinematic,
+            on_shell_replacements,
+        )
+
+        out = scalar * colour * kinematic
         out = _strip_namespaces_structurally(out)
-        return out
+        return substitute_process_couplings(out, self.name, self.L)
 
     # Get the numerator of the graph
 
