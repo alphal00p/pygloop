@@ -63,6 +63,352 @@ gl_log_level = LogLevel.Off
 debug = False
 
 
+_LAURENT_CHUNK_SIZE = 128
+
+
+class _LaurentSeriesImplementationError(RuntimeError):
+    """Raised when an exact chunked Laurent expansion cannot be established."""
+
+
+@dataclass(frozen=True)
+class _LaurentPathInfo:
+    """Structural information about one chunked Laurent expansion."""
+
+    decomposition_type: str
+    common_valuation: int | None
+    residual_valuations: tuple[tuple[int, int], ...]
+    residual_count: int
+    chunk_count: int
+
+    # Short aliases keep diagnostic consumers readable while the more explicit
+    # field names above document the record on their own.
+    @property
+    def decomposition_case(self) -> str:
+        return self.decomposition_type
+
+    @property
+    def residual_terms(self) -> int:
+        return self.residual_count
+
+    @property
+    def chunks(self) -> int:
+        return self.chunk_count
+
+
+@dataclass(frozen=True)
+class _LaurentDecomposition:
+    decomposition_type: str
+    common: Expression
+    additive_choices: tuple[tuple[Expression, ...], ...]
+    residual_count: int
+    common_factor_count: int
+
+    def residual_terms(self):
+        for choices in product(*self.additive_choices):
+            yield _balanced_product(choices)
+
+
+def _balanced(values, combine, identity):
+    current = list(values)
+    if not current:
+        return identity
+    while len(current) > 1:
+        current = [
+            current[index]
+            if index + 1 == len(current)
+            else combine(current[index], current[index + 1])
+            for index in range(0, len(current), 2)
+        ]
+    return current[0]
+
+
+def _balanced_sum(values):
+    return _balanced(values, lambda left, right: left + right, E("0"))
+
+
+def _balanced_product(values):
+    return _balanced(values, lambda left, right: left * right, E("1"))
+
+
+def _laurent_multiplicative_factors(expression: Expression) -> list[Expression]:
+    if bool(expression.is_type(AtomType.Mul)):
+        return list(expression)
+    return [expression]
+
+
+def _extract_laurent_common_factors(
+    terms: list[Expression],
+) -> tuple[Expression, tuple[Expression, ...], int]:
+    """Extract the exact multiset intersection of immediate term factors."""
+    if not terms:
+        return E("1"), (), 0
+
+    keyed_terms = []
+    for term in terms:
+        keyed_terms.append(
+            [
+                (factor.to_canonical_string(), factor)
+                for factor in _laurent_multiplicative_factors(term)
+            ]
+        )
+
+    common = Counter(key for key, _factor in keyed_terms[0])
+    for factors in keyed_terms[1:]:
+        common &= Counter(key for key, _factor in factors)
+
+    representatives = {key: factor for key, factor in keyed_terms[0]}
+    common_factors = [
+        representatives[key]
+        for key, multiplicity in common.items()
+        for _ in range(multiplicity)
+    ]
+    residual_terms = []
+    for factors in keyed_terms:
+        remaining = common.copy()
+        residual_factors = []
+        for key, factor in factors:
+            if remaining[key]:
+                remaining[key] -= 1
+            else:
+                residual_factors.append(factor)
+        residual_terms.append(_balanced_product(residual_factors))
+
+    return (
+        _balanced_product(common_factors),
+        tuple(residual_terms),
+        len(common_factors),
+    )
+
+
+def _decompose_laurent_expression(expression: Expression) -> _LaurentDecomposition:
+    """Describe an exact additive decomposition without distributing it."""
+    if bool(expression.is_type(AtomType.Add)):
+        terms = list(expression)
+        common, residual_terms, common_count = _extract_laurent_common_factors(
+            terms
+        )
+        return _LaurentDecomposition(
+            "top_sum_common_factor" if common_count else "top_sum_chunks",
+            common,
+            (residual_terms,),
+            len(residual_terms),
+            common_count,
+        )
+
+    if bool(expression.is_type(AtomType.Mul)):
+        factors = list(expression)
+        additive_factors = [
+            factor for factor in factors if bool(factor.is_type(AtomType.Add))
+        ]
+        if additive_factors:
+            common_factors = [
+                factor for factor in factors if not bool(factor.is_type(AtomType.Add))
+            ]
+            residual_count = 1
+            additive_choices = []
+            for factor in additive_factors:
+                choices = tuple(factor)
+                residual_count *= len(choices)
+                additive_choices.append(choices)
+            return _LaurentDecomposition(
+                "natural_product"
+                if len(additive_factors) == 1
+                else "multi_sum_product",
+                _balanced_product(common_factors),
+                tuple(additive_choices),
+                residual_count,
+                len(common_factors),
+            )
+
+    return _LaurentDecomposition(
+        "single_chunk",
+        E("1"),
+        ((expression,),),
+        1,
+        0,
+    )
+
+
+def _reconstruct_laurent_decomposition(
+    decomposition: _LaurentDecomposition,
+) -> Expression:
+    """Reconstruct a decomposition; intended for focused structural tests."""
+    return decomposition.common * _balanced_sum(decomposition.residual_terms())
+
+
+def _integral_trailing_exponent(series, *, context: str) -> int:
+    try:
+        trailing = series.get_trailing_exponent()
+    except (TypeError, ValueError, RuntimeError) as error:
+        raise _LaurentSeriesImplementationError(
+            f"Symbolica could not establish the Laurent valuation for {context}: "
+            f"{error}"
+        ) from error
+    if (
+        not isinstance(trailing, tuple)
+        or len(trailing) != 2
+        or not isinstance(trailing[0], int)
+        or not isinstance(trailing[1], int)
+        or trailing[1] != 1
+    ):
+        raise _LaurentSeriesImplementationError(
+            f"Expected an integral Laurent valuation for {context}, got "
+            f"{trailing!r}."
+        )
+    return trailing[0]
+
+
+def _integral_laurent_valuation(
+    expression: Expression,
+    variable: Expression,
+    *,
+    context: str,
+) -> int:
+    try:
+        series = expression.series(variable, 0, 0)
+    except (TypeError, ValueError, RuntimeError) as error:
+        raise _LaurentSeriesImplementationError(
+            f"Symbolica could not construct a Laurent series for {context}: "
+            f"{error}"
+        ) from error
+    return _integral_trailing_exponent(series, context=context)
+
+
+def _laurent_valuation_counts(
+    terms,
+    variable: Expression,
+    *,
+    context: str,
+) -> Counter:
+    valuations = Counter()
+    for index, term in enumerate(terms):
+        valuations[
+            _integral_laurent_valuation(
+                term,
+                variable,
+                context=f"{context} term {index}",
+            )
+        ] += 1
+    return valuations
+
+
+def _chunked_laurent_series(terms, variable: Expression, order: int, chunk_size: int):
+    combined = None
+    chunk = []
+    chunk_count = 0
+    for term in terms:
+        chunk.append(term)
+        if len(chunk) < chunk_size:
+            continue
+        try:
+            part = _balanced_sum(chunk).series(variable, 0, order)
+        except (TypeError, ValueError, RuntimeError) as error:
+            raise _LaurentSeriesImplementationError(
+                f"Symbolica could not expand Laurent chunk {chunk_count} "
+                f"through order {order}: {error}"
+            ) from error
+        combined = part if combined is None else combined + part
+        chunk_count += 1
+        chunk = []
+    if chunk:
+        try:
+            part = _balanced_sum(chunk).series(variable, 0, order)
+        except (TypeError, ValueError, RuntimeError) as error:
+            raise _LaurentSeriesImplementationError(
+                f"Symbolica could not expand Laurent chunk {chunk_count} "
+                f"through order {order}: {error}"
+            ) from error
+        combined = part if combined is None else combined + part
+        chunk_count += 1
+    if combined is None:
+        raise _LaurentSeriesImplementationError(
+            "An exact Laurent decomposition unexpectedly contained no terms."
+        )
+    return combined, chunk_count
+
+
+def _factor_chunk_laurent_series(
+    expression: Expression,
+    variable: Expression,
+    order: int,
+    *,
+    chunk_size: int = _LAURENT_CHUNK_SIZE,
+    min_terms: int = 0,
+) -> tuple[Expression, _LaurentPathInfo]:
+    """Expand a Laurent expression through ``order`` using exact chunks.
+
+    Factored residuals are used only after proving that every residual term
+    has valuation zero.  Direct decompositions are linear sums of exact terms
+    and therefore safely admit arbitrary integral Laurent valuations.
+    """
+    if chunk_size <= 0:
+        raise ValueError("Laurent chunk_size must be positive.")
+    if min_terms < 0:
+        raise ValueError("Laurent min_terms must be non-negative.")
+
+    decomposition = _decompose_laurent_expression(expression)
+    use_factorization = (
+        decomposition.common_factor_count > 0
+        and decomposition.residual_count >= min_terms
+    )
+
+    if use_factorization:
+        try:
+            common_series = decomposition.common.series(variable, 0, order)
+        except (TypeError, ValueError, RuntimeError) as error:
+            raise _LaurentSeriesImplementationError(
+                "Symbolica could not construct a Laurent series for the "
+                f"{decomposition.decomposition_type} common factor: {error}"
+            ) from error
+        common_valuation = _integral_trailing_exponent(
+            common_series,
+            context=f"{decomposition.decomposition_type} common factor",
+        )
+        residual_valuations = _laurent_valuation_counts(
+            decomposition.residual_terms(),
+            variable,
+            context=decomposition.decomposition_type,
+        )
+        if residual_valuations != Counter({0: decomposition.residual_count}):
+            raise _LaurentSeriesImplementationError(
+                f"The {decomposition.decomposition_type} decomposition requires "
+                "every residual term to have valuation zero; got "
+                f"{dict(sorted(residual_valuations.items()))}."
+            )
+
+        residual_series, chunk_count = _chunked_laurent_series(
+            decomposition.residual_terms(),
+            variable,
+            order - common_valuation,
+            chunk_size,
+        )
+        expanded = (common_series * residual_series).to_expression()
+    else:
+        common_valuation = None
+
+        def exact_terms():
+            for residual in decomposition.residual_terms():
+                yield decomposition.common * residual
+
+        residual_valuations = _laurent_valuation_counts(
+            exact_terms(),
+            variable,
+            context=decomposition.decomposition_type,
+        )
+        expanded_series, chunk_count = _chunked_laurent_series(
+            exact_terms(), variable, order, chunk_size
+        )
+        expanded = expanded_series.to_expression()
+
+    return expanded, _LaurentPathInfo(
+        decomposition_type=decomposition.decomposition_type,
+        common_valuation=common_valuation,
+        residual_valuations=tuple(sorted(residual_valuations.items())),
+        residual_count=decomposition.residual_count,
+        chunk_count=chunk_count,
+    )
+
+
 def Es(expr: str) -> Expression:
     return E(expr.replace('"', ""), default_namespace="gammalooprs")
 
@@ -4139,15 +4485,18 @@ class Approximator(object):
             self.sp3D(E(f"k_perp({k_id[0]})"), E("p(x_)")), E("0")
         )
 
-        # Only consider leading-virtuality contribution
-
-        # FIX ::::::::: REMEMBER TO CHANGE BACK TO -2 and overall -1 sign
-        # integrand = integrand.series(lam, 0, order).to_expression().replace(lam, 1)
-        print("got to expansion")
-        integrand = integrand.series(lam, 0, order).to_expression().replace(
-            lam, 1
+        # Only consider the leading-virtuality contribution.  Keep the
+        # factor/chunk path unconditional: unsupported Laurent structure must
+        # fail explicitly instead of silently returning to whole-expression
+        # expansion.
+        integrand, _path_info = _factor_chunk_laurent_series(
+            integrand,
+            lam,
+            order,
+            chunk_size=_LAURENT_CHUNK_SIZE,
+            min_terms=0,
         )
-        print("and beyond")
+        integrand = integrand.replace(lam, 1)
 
         # Invert back the collinear parametrisation. Since s*q(i)= x*p(1)+lam*k_perp(j), we have
         # x=s*q(i).p(1)/p(1).p(1)
@@ -4172,8 +4521,6 @@ class Approximator(object):
             E(f"k_perp({k_id[0]})"),
             repl_kperp,
         ).replace(x, repl_x)
-
-        print("the collinear replacement happened")
 
         return integrand, repl, repl_x, repl_kperp
 
