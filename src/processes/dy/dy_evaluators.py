@@ -15,7 +15,7 @@ from fractions import Fraction
 from functools import lru_cache
 from itertools import product
 
-from symbolica import E, Evaluator, Expression, S
+from symbolica import AtomType, E, Evaluator, Expression, Replacement, S
 
 from utils.utils import (
     EVALUATORS_FOLDER,
@@ -347,6 +347,123 @@ class evaluate_integrand:
 
         return integrand
 
+    def _evaluator_preparation_replacements(
+        self, observable_params: dict
+    ) -> list[Replacement]:
+        """Build the substitutions used to prepare evaluator expressions.
+
+        ``replace_multiple`` is simultaneous, so replacements whose old
+        implementation depended on a later substitution (notably the colour
+        constants through ``Nc``) are resolved directly here.
+        """
+        t = S("t")
+        replacements = []
+        for loop_index in range(self.L):
+            vector = E(f"k({loop_index})")
+            replacements.append(Replacement(vector, t * vector))
+            for component in range(1, 4):
+                momentum = E(f"k({loop_index},{component})")
+                replacements.append(Replacement(momentum, t * momentum))
+
+        if self.process == "DY":
+            replacements.append(Replacement(E("z"), t**2 * E("z")))
+
+        replacements.extend(
+            [
+                Replacement(E("ca"), E("3")),
+                Replacement(E("CA"), E("3")),
+                Replacement(E("Nc"), E("3")),
+                Replacement(E("cf"), E("4/3")),
+                Replacement(E("CF"), E("4/3")),
+                Replacement(E("TR"), E("1/2")),
+                Replacement(E("m(t)"), E(str(MT))),
+                Replacement(E("MT"), E(str(MT))),
+                Replacement(
+                    E("Lambdasq"), E(str(observable_params["Lambdasq"]))
+                ),
+                Replacement(
+                    E("mUV"), E(str(observable_params.get("mUV", 1.0)))
+                ),
+                Replacement(
+                    E("mursq"), E(str(observable_params.get("mursq", 1.0)))
+                ),
+                Replacement(
+                    E("\U0001d70b"),
+                    E("3.141592653589793238462643383279502884"),
+                ),
+            ]
+        )
+        return replacements
+
+    def _prepare_evaluator_expression(
+        self, expr: Expression, observable_params: dict
+    ) -> Expression:
+        """Concretise scalar products, then prepare an evaluator in one pass."""
+        expr = self.concretise_scalar_products(expr)
+        return expr.replace_multiple(
+            self._evaluator_preparation_replacements(observable_params)
+        )
+
+    @staticmethod
+    def _is_theta_function(expr: Expression) -> bool:
+        return bool(expr.is_type(AtomType.Fn)) and expr.get_name() == E(
+            "Θ(x)"
+        ).get_name()
+
+    @classmethod
+    def _global_theta_extraction(
+        cls, expr: Expression, *, extract_arguments: bool
+    ) -> tuple[Expression, list[Expression]]:
+        """Apply the legacy global theta scan/removal as a safe fallback."""
+        matches = list(expr.match(E("Θ(x___)")))
+        arguments = (
+            [match[E("x___")] for match in matches] if extract_arguments else []
+        )
+        return expr.replace(E("Θ(x___)"), E("1")), arguments
+
+    @classmethod
+    def _extract_top_level_theta_factors(
+        cls, expr: Expression, *, extract_arguments: bool = True
+    ) -> tuple[Expression, list[Expression], bool]:
+        """Remove immediate theta factors without traversing the large core.
+
+        The returned boolean records whether the legacy global fallback was
+        required.  Symbolica's canonical multiplication order supplies a
+        deterministic order for structurally extracted theta arguments.
+        """
+        factors = list(expr) if bool(expr.is_type(AtomType.Mul)) else [expr]
+        core_factors: list[Expression] = []
+        theta_arguments: list[Expression] = []
+        incompatible_theta = False
+
+        for factor in factors:
+            if not cls._is_theta_function(factor):
+                core_factors.append(factor)
+                continue
+
+            arguments = list(factor)
+            if len(arguments) != 1:
+                incompatible_theta = True
+                core_factors.append(factor)
+                continue
+            if extract_arguments:
+                theta_arguments.append(arguments[0])
+
+        core = E("1")
+        for factor in core_factors:
+            core *= factor
+
+        # A theta below an addition, power, or another function is not an
+        # immediate multiplicative constraint.  Retain the old global
+        # behaviour for such expressions.
+        if incompatible_theta or any(core.match(E("Θ(x___)"))):
+            fallback_core, fallback_arguments = cls._global_theta_extraction(
+                expr, extract_arguments=extract_arguments
+            )
+            return fallback_core, fallback_arguments, True
+
+        return core, theta_arguments, False
+
     def set_e_surface(self):
         final_moms = []
         e_surface = E(
@@ -444,78 +561,36 @@ class evaluate_integrand:
 
         self.symbols.append(E("t"))
 
-        self.routed_integrand.integrand = self.concretise_scalar_products(
-            self.routed_integrand.integrand
-        )
-        # self.routed_integrand.integrand = self.impose_rest_frame(
-        #    self.routed_integrand.integrand
-        # )
-        #
-        self.routed_integrand.integrand = self.t_parametrise(
-            self.routed_integrand.integrand
-        )
-
-        self.routed_integrand.integrand = self._replace_couplings(
-            self.routed_integrand.integrand,
-            include_tr=True,
-        )
-        self.routed_integrand.integrand = self.routed_integrand.integrand.replace(
-            E("m(t)"), E(str(MT))
-        )
-        self.routed_integrand.integrand = self.routed_integrand.integrand.replace(
-            E("MT"), E(str(MT))
-        )
-        self.routed_integrand.integrand = self.routed_integrand.integrand.replace(
-            E("Lambdasq"), E(str(observable_params["Lambdasq"]))
-        )
-        self.routed_integrand.integrand = self.routed_integrand.integrand.replace(
-            E("mUV"), E(str(observable_params.get("mUV", 1.0)))
-        )
-        self.routed_integrand.integrand = self.routed_integrand.integrand.replace(
-            E("mursq"), E(str(observable_params.get("mursq", 1.0)))
-        )
-        self.routed_integrand.integrand = self.routed_integrand.integrand.replace(
-            E("𝜋"), E("3.141592653589793238462643383279502884")
-        )
-
         self.observable_params = observable_params
 
         self.theta_expressions: list[Expression] = []
         self._theta_val: list[Evaluator] | None = None
 
-        def prepare_theta_expression(theta_expr):
-            theta_expr = self.concretise_scalar_products(theta_expr)
-            theta_expr = self.t_parametrise(theta_expr)
-            theta_expr = self._replace_couplings(theta_expr, include_tr=True)
-            theta_expr = theta_expr.replace(E("m(t)"), E(str(MT)))
-            theta_expr = theta_expr.replace(E("MT"), E(str(MT)))
-            theta_expr = theta_expr.replace(
-                E("Lambdasq"), E(str(observable_params["Lambdasq"]))
-            )
-            theta_expr = theta_expr.replace(
-                E("mUV"), E(str(observable_params.get("mUV", 1.0)))
-            )
-            theta_expr = theta_expr.replace(
-                E("mursq"), E(str(observable_params.get("mursq", 1.0)))
-            )
-            return theta_expr.replace(
-                E("𝜋"), E("3.141592653589793238462643383279502884")
-            )
-
         supplied_theta_expressions = getattr(
             self.routed_integrand, "theta_expressions", None
         )
-        if supplied_theta_expressions is not None:
-            for theta_expr in supplied_theta_expressions:
-                theta_expr = prepare_theta_expression(theta_expr)
-                self.theta_expressions.append(theta_expr)
-        else:
-            theta_x = self.routed_integrand.integrand.match(E("Θ(x___)"))
+        integrand_core, extracted_theta_expressions, _ = (
+            self._extract_top_level_theta_factors(
+                self.routed_integrand.integrand,
+                extract_arguments=supplied_theta_expressions is None,
+            )
+        )
 
-            if theta_x is not None:
-                for th in theta_x:
-                    theta_expr = th[E("x___")]
-                    self.theta_expressions.append(theta_expr)
+        # Supplied expressions are authoritative.  The structural pass still
+        # removes theta factors from the integrand, but does not duplicate
+        # their arguments.
+        if supplied_theta_expressions is not None:
+            raw_theta_expressions = supplied_theta_expressions
+        else:
+            raw_theta_expressions = extracted_theta_expressions
+
+        self.theta_expressions.extend(
+            self._prepare_evaluator_expression(theta_expr, observable_params)
+            for theta_expr in raw_theta_expressions
+        )
+        self.routed_integrand.integrand = self._prepare_evaluator_expression(
+            integrand_core, observable_params
+        )
 
         if len(self.routed_integrand.cut_graph.final_cut) > 1 and self.process == "DY":
             theta_zmin_expr = E("t^2*z") - E(str(observable_params["zmin"]))
@@ -524,10 +599,6 @@ class evaluate_integrand:
         if len(self.routed_integrand.cut_graph.final_cut) > 1 and self.process == "DY":
             theta_zmax_expr = E(str(observable_params["zmax"])) - E("t^2*z")
             self.theta_expressions.append(theta_zmax_expr)
-
-        self.routed_integrand.integrand = self.routed_integrand.integrand.replace(
-            E("Θ(x___)"), E("1")
-        )
 
         self.sp3D = S("sp3D", is_linear=True, is_symmetric=True)
 
