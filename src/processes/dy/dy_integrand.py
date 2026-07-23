@@ -4,7 +4,7 @@ import re
 from collections import Counter
 from copy import deepcopy
 from dataclasses import dataclass
-from itertools import combinations, product
+from itertools import combinations, count, product
 
 import pydot
 
@@ -27,7 +27,6 @@ from symbolica.community.idenso import (  # pyright: ignore
     simplify_color,
     simplify_gamma,
     simplify_metrics,
-    to_dots,
 )
 
 from processes.dy.dy_evaluators import substitute_process_couplings
@@ -353,6 +352,351 @@ def _mul_factors(expr: Expression) -> list[Expression]:
     if bool(expr.is_type(AtomType.Mul)):
         return list(expr)
     return [expr]
+
+
+class DYDotContractionError(ValueError):
+    """Raised when a supported DY momentum contraction cannot be closed."""
+
+
+def _dy_momentum_heads(expr: Expression) -> dict[str, list]:
+    heads: dict[str, list] = {"Q": [], "Qp": []}
+    names: dict[str, set[str]] = {"Q": set(), "Qp": set()}
+    for symbol in expr.get_all_symbols():
+        full_name = symbol.get_name()
+        short_name = full_name.rsplit("::", 1)[-1]
+        if short_name in names:
+            names[short_name].add(full_name)
+    for short_name, full_names in names.items():
+        heads[short_name] = [S(name) for name in sorted(full_names)]
+    return heads
+
+
+def _dy_dot_patterns(expr: Expression) -> list[tuple[str, Expression]]:
+    """Return every supported Q/Qp contraction pattern present in ``expr``."""
+    heads = _dy_momentum_heads(expr)
+    mink = S("spenso::mink")
+    metric = S("spenso::g")
+    dim_ = S("dy_dot_dim_")
+    mu_ = S("dy_dot_mu_")
+    nu_ = S("dy_dot_nu_")
+    left_id_ = S("dy_dot_left_id_")
+    right_id_ = S("dy_dot_right_id_")
+    patterns: list[tuple[str, Expression]] = []
+
+    for left_short, right_short in (("Q", "Q"), ("Qp", "Q"), ("Qp", "Qp")):
+        for left in heads[left_short]:
+            for right in heads[right_short]:
+                label = f"{left_short.lower()}_{right_short.lower()}"
+                patterns.append(
+                    (
+                        f"direct.{label}",
+                        left(left_id_, mink(dim_, mu_))
+                        * right(right_id_, mink(dim_, mu_)),
+                    )
+                )
+                metric_factor = metric(mink(dim_, mu_), mink(dim_, nu_))
+                patterns.append(
+                    (
+                        f"metric_forward.{label}",
+                        metric_factor
+                        * left(left_id_, mink(dim_, mu_))
+                        * right(right_id_, mink(dim_, nu_)),
+                    )
+                )
+                patterns.append(
+                    (
+                        f"metric_reverse.{label}",
+                        metric_factor
+                        * left(left_id_, mink(dim_, nu_))
+                        * right(right_id_, mink(dim_, mu_)),
+                    )
+                )
+
+    for short_name in ("Q", "Qp"):
+        for head in heads[short_name]:
+            patterns.append(
+                (
+                    f"self.{short_name.lower()}",
+                    head(left_id_, mink(dim_, mu_)) ** 2,
+                )
+            )
+    return patterns
+
+
+_DY_DOT_LOCAL_COMPONENT_BUDGET = 16
+# GL013's physical-polarisation/t-channel numerator has a largest local
+# distributive fan-out of 432 and an aggregate fan-out of 5,028.  Keep the
+# expansion bounded, but leave enough headroom for that production tensor
+# network to close before the CFF boundary.
+_DY_DOT_TERM_FANOUT_BUDGET = 512
+_DY_DOT_EXPRESSION_FANOUT_BUDGET = 8192
+
+
+def _additive_expansion_fanout(expr: Expression, limit: int) -> int:
+    if not bool(expr.is_type(AtomType.Mul)):
+        return 1
+    fanout = 1
+    for factor in expr:
+        if not bool(factor.is_type(AtomType.Add)):
+            continue
+        fanout *= len(factor)
+        if fanout > limit:
+            return limit + 1
+    return fanout
+
+
+def _has_hidden_additive_momentum_factor(
+    expr: Expression,
+    *,
+    expression_expansion_is_bounded: bool = False,
+) -> bool:
+    if not bool(expr.is_type(AtomType.Mul)):
+        return False
+    mink = S("spenso::mink")
+    dim_ = S("dy_hidden_dot_dim_")
+    slot_ = S("dy_hidden_dot_slot_")
+    edge_ = S("dy_hidden_dot_edge_")
+    heads = _dy_momentum_heads(expr)
+    component_count = sum(
+        len(list(expr.match(head(edge_, mink(dim_, slot_)))))
+        for short_name in ("Q", "Qp")
+        for head in heads[short_name]
+    )
+    if component_count == 0:
+        return False
+
+    additive_factors = [
+        factor for factor in expr if bool(factor.is_type(AtomType.Add))
+    ]
+    if not additive_factors:
+        return False
+
+    # Expanding the full profiled tensor expressions is the dominant
+    # historical generation cost.  Small closed tensor networks, on the
+    # other hand, need distribution before metrics can see components hidden
+    # behind a projector or a traced gamma sum.  Admit either a locally small
+    # tensor term or an expression whose total distributive cost is bounded,
+    # and always cap the fan-out of an individual term.
+    expansion_fanout = _additive_expansion_fanout(
+        expr, _DY_DOT_TERM_FANOUT_BUDGET
+    )
+    return (
+        expansion_fanout <= _DY_DOT_TERM_FANOUT_BUDGET
+        and (
+            component_count <= _DY_DOT_LOCAL_COMPONENT_BUDGET
+            or expression_expansion_is_bounded
+        )
+    )
+
+
+_DY_DOT_VECTOR_SERIAL = count()
+
+
+def _simplify_labelled_momentum_metrics(expr: Expression) -> Expression:
+    """Let Idenso simplify metrics while preserving DY momentum labels."""
+    mink = S("spenso::mink")
+    dim_ = S("dy_metric_dim_")
+    slot_ = S("dy_metric_slot_")
+    edge_ = S("dy_metric_edge_")
+    restorations = []
+
+    for short_name, heads in _dy_momentum_heads(expr).items():
+        for head in heads:
+            matches = list(expr.match(head(edge_, mink(dim_, slot_))))
+            edge_values = {}
+            for match in matches:
+                edge_value = match[edge_]
+                edge_values.setdefault(edge_value.to_canonical_string(), edge_value)
+            for edge_value in edge_values.values():
+                placeholder = S(
+                    "gammalooprs::dy_dot_vector_"
+                    f"{next(_DY_DOT_VECTOR_SERIAL)}_{short_name}",
+                    tags=["spenso::tensor", "spenso::rank1"],
+                )
+                expr = expr.replace(
+                    head(edge_value, mink(dim_, slot_)),
+                    placeholder(mink(dim_, slot_)),
+                    repeat=True,
+                    allow_new_wildcards_on_rhs=True,
+                )
+                restorations.append((placeholder, head, edge_value))
+
+    expr = simplify_metrics(expr)
+    for placeholder, head, edge_value in restorations:
+        expr = expr.replace(
+            placeholder(mink(dim_, slot_)),
+            head(edge_value, mink(dim_, slot_)),
+            repeat=True,
+            allow_new_wildcards_on_rhs=True,
+        )
+        expr = expr.replace(
+            placeholder(mink(dim_)),
+            head(edge_value, mink(dim_)),
+            repeat=True,
+            allow_new_wildcards_on_rhs=True,
+        )
+    return expr
+
+
+def to_dots_dy(expr: Expression) -> Expression:
+    """Close DY Q/Qp Lorentz components as explicit Spenso dot products.
+
+    DY momenta carry an edge label before their Lorentz index, so Idenso's
+    generic ``to_dots`` cannot treat them as ordinary rank-one tensors.  This
+    routine owns the narrowly controlled expansion needed to expose additive
+    momentum factors and otherwise performs structural replacements only.
+    """
+    # Match the legacy production ordering: simplifying the tensor network
+    # before custom replacements avoids expanding large already-contracted
+    # gamma expressions.  Explicit metric rules below remain a fallback for
+    # Q/Qp heads that Idenso intentionally treats as opaque.
+    expr = _simplify_labelled_momentum_metrics(expr)
+
+    heads = _dy_momentum_heads(expr)
+    mink = S("spenso::mink")
+    metric = S("spenso::g")
+    dot = S("spenso::dot")
+    dim_ = S("dy_dot_dim_")
+    mu_ = S("dy_dot_mu_")
+    nu_ = S("dy_dot_nu_")
+    left_id_ = S("dy_dot_left_id_")
+    right_id_ = S("dy_dot_right_id_")
+    head_pairs = (("Q", "Q"), ("Qp", "Q"), ("Qp", "Qp"))
+
+    # Idenso may close a tagged-vector network directly as g(Q(...),Qp(...)).
+    # Convert that scalar form without reintroducing component indices.
+    for left_short, right_short in head_pairs:
+        for left in heads[left_short]:
+            for right in heads[right_short]:
+                expr = expr.replace(
+                    metric(
+                        left(left_id_, mink(dim_)),
+                        right(right_id_, mink(dim_)),
+                    ),
+                    dot(mink(dim_), left(left_id_), right(right_id_)),
+                    repeat=True,
+                    allow_new_wildcards_on_rhs=True,
+                )
+
+    # Propagate Q/Qp components through arbitrary metric chains.  Idenso
+    # deliberately treats these labelled momentum heads as opaque, so its
+    # metric simplifier cannot close paths such as Q(mu) g(mu,rho)
+    # g(rho,nu) Qp(nu) without these structural rules.
+    metric_factor = metric(mink(dim_, mu_), mink(dim_, nu_))
+    has_lorentz_metrics = any(
+        symbol.get_name() == "spenso::g" for symbol in expr.get_all_symbols()
+    ) and any(expr.match(metric_factor))
+    if has_lorentz_metrics:
+        for short_name in ("Q", "Qp"):
+            for head in heads[short_name]:
+                expr = expr.replace(
+                    metric_factor * head(left_id_, mink(dim_, mu_)),
+                    head(left_id_, mink(dim_, nu_)),
+                    repeat=True,
+                    allow_new_wildcards_on_rhs=True,
+                )
+                expr = expr.replace(
+                    metric_factor * head(left_id_, mink(dim_, nu_)),
+                    head(left_id_, mink(dim_, mu_)),
+                    repeat=True,
+                    allow_new_wildcards_on_rhs=True,
+                )
+
+    # Handle any direct metric-mediated pair that remains after propagation.
+    if has_lorentz_metrics:
+        for left_short, right_short in head_pairs:
+            for left in heads[left_short]:
+                for right in heads[right_short]:
+                    replacement = dot(mink(dim_), left(left_id_), right(right_id_))
+                    expr = expr.replace(
+                        metric_factor
+                        * left(left_id_, mink(dim_, mu_))
+                        * right(right_id_, mink(dim_, nu_)),
+                        replacement,
+                        repeat=True,
+                        allow_new_wildcards_on_rhs=True,
+                    )
+                    expr = expr.replace(
+                        metric_factor
+                        * left(left_id_, mink(dim_, nu_))
+                        * right(right_id_, mink(dim_, mu_)),
+                        replacement,
+                        repeat=True,
+                        allow_new_wildcards_on_rhs=True,
+                    )
+
+    # Symbolica canonicalises identical factors as a power, which requires a
+    # rule separate from the ordinary two-factor contraction.
+    for short_name in ("Q", "Qp"):
+        for head in heads[short_name]:
+            component = head(left_id_, mink(dim_, mu_))
+            expr = expr.replace(
+                component**2,
+                dot(mink(dim_), head(left_id_), head(left_id_)),
+                repeat=True,
+                allow_new_wildcards_on_rhs=True,
+            )
+
+    for left_short, right_short in head_pairs:
+        for left in heads[left_short]:
+            for right in heads[right_short]:
+                expr = expr.replace(
+                    left(left_id_, mink(dim_, mu_))
+                    * right(right_id_, mink(dim_, mu_)),
+                    dot(mink(dim_), left(left_id_), right(right_id_)),
+                    repeat=True,
+                    allow_new_wildcards_on_rhs=True,
+                )
+
+    # Expand only if the structural no-expansion pass left a Q/Qp momentum
+    # hidden behind an additive Lorentz factor.  This late fallback is vital:
+    # ordinary graphs are fully contracted above and stay mute, while the
+    # larger metric networks generated by closed fermion traces are exposed
+    # one affected summand at a time.
+    if bool(expr.is_type(AtomType.Add)):
+        terms = list(expr)
+        expression_fanout = 0
+        for term in terms:
+            expression_fanout += _additive_expansion_fanout(
+                term, _DY_DOT_EXPRESSION_FANOUT_BUDGET
+            )
+            if expression_fanout > _DY_DOT_EXPRESSION_FANOUT_BUDGET:
+                break
+        expression_expansion_is_bounded = (
+            expression_fanout <= _DY_DOT_EXPRESSION_FANOUT_BUDGET
+        )
+        hidden_terms = {
+            index
+            for index, term in enumerate(terms)
+            if _has_hidden_additive_momentum_factor(
+                term,
+                expression_expansion_is_bounded=(
+                    expression_expansion_is_bounded
+                ),
+            )
+        }
+        if hidden_terms:
+            expanded = E("0")
+            for index, term in enumerate(terms):
+                expanded += term.expand() if index in hidden_terms else term
+            return to_dots_dy(expanded)
+    elif _has_hidden_additive_momentum_factor(
+        expr, expression_expansion_is_bounded=True
+    ):
+        return to_dots_dy(expr.expand())
+
+    unresolved = [
+        label
+        for label, pattern in _dy_dot_patterns(expr)
+        if any(expr.match(pattern))
+    ]
+    if unresolved:
+        preview = expr.to_canonical_string()[:1000]
+        raise DYDotContractionError(
+            "Eligible Q/Qp Minkowski contractions remain after DY dot "
+            f"conversion ({sorted(set(unresolved))}): {preview}"
+        )
+    return expr
 
 
 def _numerator_factor_kind(factor: Expression) -> str:
@@ -947,6 +1291,243 @@ def _factorised_graph_numerator(
         if edge_numerator:
             parts = _multiply_into_numerator_parts(parts, Es(edge_numerator))
     return parts
+
+
+def _four_gluon_vertex_terms(node) -> list[Expression] | None:
+    if _strip_quotes(str(node.get("int_id"))) != "V_37":
+        return None
+    node_numerator = node.get("num")
+    if not node_numerator:
+        raise ValueError(
+            f"Four-gluon vertex {node.get_name()} has no numerator rule."
+        )
+    rule = Es(node_numerator)
+    if not bool(rule.is_type(AtomType.Add)):
+        raise ValueError(
+            f"Four-gluon vertex {node.get_name()} numerator is not an additive "
+            "three-term rule."
+        )
+    terms = list(rule)
+    if len(terms) != 3:
+        raise ValueError(
+            f"Four-gluon vertex {node.get_name()} has {len(terms)} numerator "
+            "branches; expected 3."
+        )
+    return terms
+
+
+def _factorised_graph_numerator_branches(
+    graph,
+) -> list[tuple[Expression, Expression, Expression]]:
+    """Factor a graph numerator while preserving V_37 colour/kinematic pairs."""
+    branches = [(E("1"), E("1"), E("1"))]
+    for node in graph.get_nodes():
+        if node.get_name() in ["edge", "node"]:
+            continue
+        four_gluon_terms = _four_gluon_vertex_terms(node)
+        if four_gluon_terms is not None:
+            branches = [
+                _multiply_into_numerator_parts(parts, term)
+                for parts in branches
+                for term in four_gluon_terms
+            ]
+            continue
+        node_numerator = node.get("num")
+        if node_numerator:
+            node_expr = Es(node_numerator)
+            branches = [
+                _multiply_into_numerator_parts(parts, node_expr)
+                for parts in branches
+            ]
+
+    for edge in graph.get_edges():
+        edge_numerator = edge.get("num")
+        if edge_numerator:
+            edge_expr = Es(edge_numerator)
+            branches = [
+                _multiply_into_numerator_parts(parts, edge_expr)
+                for parts in branches
+            ]
+    return branches
+
+
+def _normalise_dy_colour_invariants(expr: Expression) -> Expression:
+    """Translate Symbolica 2.1 QCD invariants to the legacy DY basis.
+
+    Symbolica 2.1 can leave quadratic Casimirs as ``ca``, ``cf``, ``CA``,
+    ``CF``, or ``Nc``.  DY uses the fixed SU(3) model, so close those symbols
+    at the colour boundary instead of leaking them into CFF expressions that
+    do not carry colour parameters.
+
+    The new colour simplifier exposes the fundamental cubic invariant for a
+    handful of closed two-loop colour networks. For the fixed SU(3)
+    representations used by the DY model,
+
+        d_F^{abc} d_F^{abc} = 20/3 * TR^3.
+
+    Keeping the explicit ``TR`` normalization reproduces the Symbolica 1.5
+    result and lets the existing evaluator perform its usual substitution.
+    """
+    for prefix in ("", "spenso::"):
+        for adjoint_casimir in ("ca", "CA", "Nc"):
+            expr = expr.replace(
+                E(f"{prefix}{adjoint_casimir}"), E("3"), repeat=True
+            )
+        for fundamental_casimir in ("cf", "CF"):
+            expr = expr.replace(
+                E(f"{prefix}{fundamental_casimir}"), E("4/3"), repeat=True
+            )
+
+    for prefix in ("", "spenso::"):
+        expr = expr.replace(
+            E(f"{prefix}d33({prefix}cof(3),{prefix}cof(3))"),
+            E(f"20/3*{prefix}TR^3"),
+            repeat=True,
+        )
+    return expr
+
+
+def _prepare_dy_colour_for_simplification(expr: Expression) -> Expression:
+    """Close elementary colour contractions before Idenso simplification.
+
+    Symbolica 2.1 registers ``f`` as an antisymmetric tensor.  Letting the new
+    metric simplifier choose the representative of a contracted adjoint index
+    can consequently add a sign that was absent from the Symbolica 1.5 DY
+    results.  Contracting propagator identities in the legacy direction, and
+    reducing exact two-generator traces first, makes the remaining colour
+    network independent of that representative choice.
+
+    The input is one already-factorised colour branch, so this transformation
+    never distributes products over sums.
+    """
+    if bool(expr.is_type(AtomType.Add)):
+        out = E("0")
+        for term in expr:
+            out += _prepare_dy_colour_for_simplification(term)
+        return out
+
+    metric_replacements: list[tuple[Expression, Expression]] = []
+    remaining_factors = []
+    for factor in _mul_factors(expr):
+        if not (
+            bool(factor.is_type(AtomType.Fn))
+            and factor.get_name() == "spenso::g"
+            and len(factor) == 2
+        ):
+            remaining_factors.append(factor)
+            continue
+
+        left, right = factor[0], factor[1]
+        if (
+            left.get_name() == "spenso::coad"
+            and right.get_name() == "spenso::coad"
+        ):
+            # Idenso 1.5 retained the first self-dual adjoint slot.
+            metric_replacements.append((right, left))
+            continue
+
+        left_is_lower_fundamental = (
+            left.get_name() == "spenso::dind"
+            and len(left) == 1
+            and left[0].get_name() == "spenso::cof"
+        )
+        right_is_lower_fundamental = (
+            right.get_name() == "spenso::dind"
+            and len(right) == 1
+            and right[0].get_name() == "spenso::cof"
+        )
+        if left_is_lower_fundamental and right.get_name() == "spenso::cof":
+            # Retain the upper fundamental slot, as in Idenso 1.5.
+            metric_replacements.append((left[0], right))
+            continue
+        if right_is_lower_fundamental and left.get_name() == "spenso::cof":
+            metric_replacements.append((right[0], left))
+            continue
+
+        remaining_factors.append(factor)
+
+    expr = _product_factors(remaining_factors)
+    # Fundamental identity factors can form paths spanning several
+    # propagators.  Re-run the ordered substitutions until newly introduced
+    # intermediate labels have also reached the retained endpoint.
+    for _ in range(len(metric_replacements) + 1):
+        before = expr.to_canonical_string()
+        for old_index, retained_index in metric_replacements:
+            expr = expr.replace(old_index, retained_index, repeat=True)
+        if expr.to_canonical_string() == before:
+            break
+    else:
+        raise ValueError("DY colour metric contractions did not converge.")
+
+    def generator_data(factor: Expression):
+        if not (
+            bool(factor.is_type(AtomType.Fn))
+            and factor.get_name() == "spenso::t"
+            and len(factor) == 3
+            and factor[1].get_name() == "spenso::cof"
+            and factor[2].get_name() == "spenso::dind"
+            and len(factor[2]) == 1
+            and factor[2][0].get_name() == "spenso::cof"
+        ):
+            return None
+        return factor[0], factor[1], factor[2][0]
+
+    # Tr(T^a T^b) = TR delta^{ab}.  Apply the delta directly instead of
+    # materialising a new metric that would re-enter the changed 2.1 path.
+    while True:
+        factors = _mul_factors(expr)
+        trace_pair = None
+        for left_index, left_factor in enumerate(factors):
+            left_data = generator_data(left_factor)
+            if left_data is None:
+                continue
+            left_adjoint, left_upper, left_lower = left_data
+            for right_index in range(left_index + 1, len(factors)):
+                right_data = generator_data(factors[right_index])
+                if right_data is None:
+                    continue
+                right_adjoint, right_upper, right_lower = right_data
+                if (
+                    left_upper.to_canonical_string()
+                    == right_lower.to_canonical_string()
+                    and left_lower.to_canonical_string()
+                    == right_upper.to_canonical_string()
+                ):
+                    trace_pair = (
+                        left_index,
+                        right_index,
+                        left_adjoint,
+                        right_adjoint,
+                    )
+                    break
+            if trace_pair is not None:
+                break
+
+        if trace_pair is None:
+            break
+
+        left_index, right_index, left_adjoint, right_adjoint = trace_pair
+        same_adjoint = (
+            left_adjoint.to_canonical_string()
+            == right_adjoint.to_canonical_string()
+        )
+        trace_factor = E("spenso::TR")
+        if same_adjoint:
+            # A closed, already-identified adjoint slot also sums over its
+            # representation dimension (eight for the DY SU(3) model).
+            trace_factor *= left_adjoint[0]
+
+        expr = trace_factor * _product_factors(
+            [
+                factor
+                for index, factor in enumerate(factors)
+                if index not in (left_index, right_index)
+            ]
+        )
+        if not same_adjoint:
+            expr = expr.replace(right_adjoint, left_adjoint, repeat=True)
+
+    return expr
 
 
 _UNRESOLVED_COLOUR_SYMBOLS = {
@@ -1672,17 +2253,24 @@ class EMRIntegrandConstructor(object):
                 )
 
             replacement = E("0")
+            plain_replacement = E("0")
             for edge in sorted(boundary, key=self._edge_sort_key):
                 sign = 1 if _base_node(edge.get_source()) in cut_nodes else -1
                 replacement += sign * Es(
                     f"Q({self._edge_local_id(edge)},y___)"
                 )
+                plain_replacement += sign * E(
+                    f"Q({self._edge_local_id(edge)},y___)"
+                )
 
             if _base_node(target.get_source()) in cut_nodes:
                 replacement = -replacement
+                plain_replacement = -plain_replacement
 
             replacements.append((edge_id, Es(f"Q({edge_id},y___)"), replacement))
-            replacements.append((edge_id, E(f"Q({edge_id},y___)"), replacement))
+            replacements.append(
+                (edge_id, E(f"Q({edge_id},y___)"), plain_replacement)
+            )
 
         return replacements
 
@@ -1765,23 +2353,27 @@ class EMRIntegrandConstructor(object):
         post_momentum_rewrite_factor,
         on_shell_replacements,
     ) -> Expression:
-        scalar, colour, kinematic = _factorised_graph_numerator(numerator_graph)
-        scalar, colour, kinematic = _multiply_into_numerator_parts(
-            (scalar, colour, kinematic),
-            post_momentum_rewrite_factor,
-        )
+        out = E("0")
+        for parts in _factorised_graph_numerator_branches(numerator_graph):
+            scalar, colour, kinematic = _multiply_into_numerator_parts(
+                parts,
+                post_momentum_rewrite_factor,
+            )
 
-        colour = simplify_color(colour)
-        kinematic = simplify_metrics(simplify_gamma(kinematic))
-        kinematic = _dots_to_dy_scalar_products(to_dots(kinematic))
-        kinematic = _normalise_routed_numerator_on_shell(
-            kinematic,
-            on_shell_replacements,
-        )
+            colour = _normalise_dy_colour_invariants(
+                simplify_color(_prepare_dy_colour_for_simplification(colour))
+            )
+            kinematic = to_dots_dy(simplify_gamma(kinematic))
+            kinematic = _dots_to_dy_scalar_products(kinematic)
+            kinematic = _normalise_routed_numerator_on_shell(
+                kinematic,
+                on_shell_replacements,
+            )
 
-        out = scalar * colour * kinematic
-        out = _strip_namespaces_structurally(out)
-        return substitute_process_couplings(out, self.name, self.L)
+            branch = scalar * colour * kinematic
+            branch = _strip_namespaces_structurally(branch)
+            out += substitute_process_couplings(branch, self.name, self.L)
+        return out
 
     # Get the numerator of the graph
 

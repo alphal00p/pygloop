@@ -14,6 +14,7 @@ from symbolica.community.idenso import (  # pyright: ignore
 )
 
 from processes.dy.dy_graph_utils import _base_node, _strip_quotes
+from processes.dy.dy_symbolica_utils import fold_momentum_components_into_gamma
 
 pjoin = os.path.join
 
@@ -473,6 +474,28 @@ def _strip_namespaces_structurally(expr: Expression) -> Expression:
 
 
 def _contract_lorentz_momentum_pairs(expr: Expression) -> Expression:
+    # Symbolica 2.1 represents momenta folded into closed gamma traces as
+    # vector arguments of a metric rather than as repeated components.
+    expr = expr.replace(
+        E("g(Q(y_,mink(4)),Q(z_,mink(4)))"),
+        E("sp(y_,z_)"),
+        repeat=True,
+    )
+    expr = expr.replace(
+        E("g(Qp(y_,mink(4)),Q(z_,mink(4)))"),
+        E("spp(qp(y_),z_)"),
+        repeat=True,
+    )
+    expr = expr.replace(
+        E("g(Q(y_,mink(4)),Qp(z_,mink(4)))"),
+        E("spp(qp(z_),y_)"),
+        repeat=True,
+    )
+    expr = expr.replace(
+        E("g(Qp(y_,mink(4)),Qp(z_,mink(4)))"),
+        E("spp(qp(y_),qp(z_))"),
+        repeat=True,
+    )
     expr = expr.replace(
         E("Q(y_,mink(4,x_))") ** 2,
         E("sp(y_,y_)"),
@@ -498,6 +521,90 @@ def _contract_lorentz_momentum_pairs(expr: Expression) -> Expression:
         E("spp(qp(y_),qp(z_))"),
         repeat=True,
     )
+
+
+def _unwrap_single_gamma_chains(expr: Expression) -> Expression:
+    """Restore the legacy representation for a one-matrix open chain."""
+    for prefix in ("", "spenso::"):
+        expr = expr.replace(
+            E(
+                f"{prefix}chain(start_,end_,"
+                f"{prefix}gamma({prefix}in,{prefix}out,arg_))"
+            ),
+            E(f"{prefix}gamma(start_,end_,arg_)"),
+            repeat=True,
+            allow_new_wildcards_on_rhs=True,
+        )
+    return expr
+
+
+def _contract_closed_fundamental_colour_chains(expr: Expression) -> Expression:
+    """Close the SU(3) colour trace emitted as open chains by Idenso 2.1.
+
+    ``simplify_color`` now represents this fully summed pair as two one-matrix
+    chains. The chains share both fundamental endpoints and their adjoint
+    slots are joined by a metric, so their value is
+    ``dim(adjoint) * TR = 8 * TR``.
+    """
+    for prefix in ("", "spenso::"):
+        chain = (
+            f"{prefix}chain(start_,end_,"
+            f"{prefix}t(left_,{prefix}in,{prefix}out))"
+        )
+        other_chain = (
+            f"{prefix}chain(start_,end_,"
+            f"{prefix}t(right_,{prefix}in,{prefix}out))"
+        )
+        expr = expr.replace(
+            E(f"{chain}*{other_chain}*{prefix}g(left_,right_)"),
+            E(f"8*{prefix}TR"),
+            repeat=True,
+        )
+    return expr
+
+
+def _unsupported_gamma_chains(expr: Expression) -> list[str]:
+    args__ = S("uv_gamma_chain_args__")
+    unsupported = []
+    for symbol in expr.get_all_symbols():
+        if symbol.get_name().rsplit("::", 1)[-1] != "chain":
+            continue
+        if any(expr.match(symbol(args__))):
+            unsupported.append(symbol.get_name())
+    return list(dict.fromkeys(unsupported))
+
+
+def _open_lorentz_contractions(expr: Expression) -> list[str]:
+    contractions = []
+    patterns = (
+        E("g(mink(dim_,left_),mink(dim_,right_))"),
+        E("gamma(start_,end_,mink(dim_,slot_))"),
+    )
+    for pattern in patterns:
+        if any(expr.match(pattern)):
+            contractions.append(pattern.to_canonical_string())
+    return list(dict.fromkeys(contractions))
+
+
+def _assert_closed_uv_tensor_numerator(expr: Expression) -> None:
+    chains = _unsupported_gamma_chains(expr)
+    open_contractions = _open_lorentz_contractions(expr)
+    open_momenta = _open_lorentz_momenta(expr)
+    failures = []
+    if chains:
+        failures.append(f"unsupported gamma chains: {', '.join(chains[:4])}")
+    if open_contractions:
+        failures.append(
+            "open Lorentz contractions: " + ", ".join(open_contractions[:4])
+        )
+    if open_momenta:
+        failures.append(
+            "unresolved momentum components: " + ", ".join(open_momenta[:8])
+        )
+    if failures:
+        raise ValueError(
+            "Integrated UV tensor closure is incomplete; " + "; ".join(failures)
+        )
 
 
 def _raw_uv_int_graph_numerator(graph) -> Expression:
@@ -528,13 +635,19 @@ def _close_uv_int_tensor_numerator(expr: Expression) -> Expression:
     for _ in range(8):
         previous = expr.to_canonical_string()
         expr = _contract_lorentz_metrics(expr)
-        expr = simplify_metrics(simplify_gamma(simplify_color(expr))).expand()
+        expr = _contract_closed_fundamental_colour_chains(
+            simplify_color(expr)
+        )
+        expr = fold_momentum_components_into_gamma(expr)
+        expr = simplify_metrics(simplify_gamma(expr)).expand()
         expr = _contract_lorentz_metrics(expr)
         if expr.to_canonical_string() == previous:
             break
+    expr = _unwrap_single_gamma_chains(expr)
     expr = _strip_namespaces_structurally(expr)
     expr = _contract_lorentz_metrics(expr)
     expr = _contract_lorentz_momentum_pairs(expr).expand()
+    _assert_closed_uv_tensor_numerator(expr)
     return expr
 
 

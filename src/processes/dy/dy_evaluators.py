@@ -1,6 +1,7 @@
 # src/processes/dy/dy_compiled_bundle.py
 from __future__ import annotations
 
+import inspect
 import json
 import math
 import os
@@ -12,6 +13,7 @@ from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from fractions import Fraction
 from functools import lru_cache
+from itertools import product
 
 from symbolica import E, Evaluator, Expression, S
 
@@ -25,7 +27,95 @@ from utils.vectors import Vector
 
 pjoin = os.path.join
 
-from itertools import product
+_SYMBOLICA_EVALUATOR_TAKES_CONSTANTS = (
+    "constants" in inspect.signature(Expression.evaluator).parameters
+)
+_SYMBOLICA_HAS_EVALUATE_WITH_PREC = hasattr(Expression, "evaluate_with_prec")
+
+
+def _build_symbolica_evaluator(
+    expr: Expression,
+    params: list[Expression],
+    *,
+    functions=None,
+    **options,
+) -> Evaluator:
+    """Construct an evaluator across the Symbolica 1.5 and 2.1 APIs."""
+    functions = {} if functions is None else functions
+    if _SYMBOLICA_EVALUATOR_TAKES_CONSTANTS:
+        return expr.evaluator({}, functions, params, **options)
+    return expr.evaluator(params, functions=functions, **options)
+
+
+def _real_symbolica_value(value):
+    if isinstance(value, complex):
+        if value.imag != 0:
+            raise ValueError(f"Expected a real Symbolica value, got {value}.")
+        return value.real
+    if isinstance(value, (list, tuple)) and len(value) == 2:
+        real, imaginary = value
+        if imaginary != 0:
+            raise ValueError(
+                "Expected a real arbitrary-precision Symbolica value, "
+                f"got ({real}, {imaginary})."
+            )
+        return real
+    return value
+
+
+def _evaluate_symbolica_expression(
+    expr: Expression,
+    constants: dict[Expression, object],
+):
+    """Evaluate a real expression across the Symbolica 1.5 and 2.1 APIs."""
+    if _SYMBOLICA_HAS_EVALUATE_WITH_PREC:
+        return _real_symbolica_value(expr.evaluate(constants, {}))
+    return _real_symbolica_value(expr.evaluate(constants))
+
+
+def _evaluate_symbolica_expression_with_prec(
+    expr: Expression,
+    constants: dict[Expression, object],
+    decimal_digit_precision: int,
+):
+    """Evaluate a real expression at arbitrary precision on both APIs."""
+    if _SYMBOLICA_HAS_EVALUATE_WITH_PREC:
+        value = expr.evaluate_with_prec(constants, {}, decimal_digit_precision)
+    else:
+        value = expr.evaluate(constants, decimal_digit_precision)
+    return _real_symbolica_value(value)
+
+
+def _evaluate_symbolica_evaluator_with_prec(
+    evaluator: Evaluator,
+    inputs: list[Decimal],
+    decimal_digit_precision: int,
+):
+    """Evaluate one real output through Symbolica's optimised evaluator."""
+    if decimal_digit_precision < 1:
+        raise ValueError("Symbolica evaluator precision must be positive.")
+
+    # Symbolica 2.1 derives an evaluator input's working precision from the
+    # number of significant digits carried by its Decimal.  Decimal("2.1"),
+    # for example, would otherwise be evaluated with only two significant
+    # digits even when evaluate_with_prec(..., 64) is requested.  Scientific
+    # formatting pads (or rounds) each finite input to the requested number of
+    # significant digits without introducing the binary approximation of a
+    # float conversion.
+    prepared_inputs = [
+        Decimal(format(value, f".{decimal_digit_precision - 1}e"))
+        if value.is_finite()
+        else value
+        for value in inputs
+    ]
+    outputs = evaluator.evaluate_with_prec(
+        prepared_inputs, decimal_digit_precision
+    )
+    if len(outputs) != 1:
+        raise ValueError(
+            f"Expected one Symbolica evaluator output, got {len(outputs)}."
+        )
+    return _real_symbolica_value(outputs[0])
 
 from processes.dy.dy_graph_utils import (
     _strip_quotes,
@@ -134,6 +224,8 @@ class evaluate_integrand:
         if include_tr:
             expr = expr.replace(E("ca"), E("Nc"))
             expr = expr.replace(E("cf"), E("(Nc^2-1)/(2*Nc)"))
+            expr = expr.replace(E("CA"), E("Nc"))
+            expr = expr.replace(E("CF"), E("(Nc^2-1)/(2*Nc)"))
             expr = expr.replace(E("TR"), E("1/2"))
             expr = expr.replace(E("Nc"), E("3"))
         return expr
@@ -389,7 +481,7 @@ class evaluate_integrand:
         self.observable_params = observable_params
 
         self.theta_expressions: list[Expression] = []
-        self.theta_val = []
+        self._theta_val: list[Evaluator] | None = None
 
         def prepare_theta_expression(theta_expr):
             theta_expr = self.concretise_scalar_products(theta_expr)
@@ -417,7 +509,6 @@ class evaluate_integrand:
             for theta_expr in supplied_theta_expressions:
                 theta_expr = prepare_theta_expression(theta_expr)
                 self.theta_expressions.append(theta_expr)
-                self.theta_val.append(theta_expr.evaluator({}, {}, self.symbols))
         else:
             theta_x = self.routed_integrand.integrand.match(E("Θ(x___)"))
 
@@ -425,17 +516,14 @@ class evaluate_integrand:
                 for th in theta_x:
                     theta_expr = th[E("x___")]
                     self.theta_expressions.append(theta_expr)
-                    self.theta_val.append(theta_expr.evaluator({}, {}, self.symbols))
 
         if len(self.routed_integrand.cut_graph.final_cut) > 1 and self.process == "DY":
             theta_zmin_expr = E("t^2*z") - E(str(observable_params["zmin"]))
             self.theta_expressions.append(theta_zmin_expr)
-            self.theta_val.append(theta_zmin_expr.evaluator({}, {}, self.symbols))
 
         if len(self.routed_integrand.cut_graph.final_cut) > 1 and self.process == "DY":
             theta_zmax_expr = E(str(observable_params["zmax"])) - E("t^2*z")
             self.theta_expressions.append(theta_zmax_expr)
-            self.theta_val.append(theta_zmax_expr.evaluator({}, {}, self.symbols))
 
         self.routed_integrand.integrand = self.routed_integrand.integrand.replace(
             E("Θ(x___)"), E("1")
@@ -489,13 +577,14 @@ class evaluate_integrand:
         self.integrand_expression = self.routed_integrand.integrand
         ## ADD THETA OF t^2 z
 
-        self.evaluator = self.routed_integrand.integrand.evaluator(
-            {},
-            {},
-            self.symbols,
-            iterations=n_hornerscheme_iterations,
-            cpe_iterations=n_cpe_iterations,
-        )
+        # Symbolica 2.1 evaluator construction is substantially more expensive
+        # than expression evaluation at a handful of validation points.  Keep
+        # the compiled evaluators lazy: production compilation and compiled
+        # evaluation still materialise them through the properties below,
+        # while arbitrary-precision reference checks avoid paying that cost.
+        self._n_hornerscheme_iterations = n_hornerscheme_iterations
+        self._n_cpe_iterations = n_cpe_iterations
+        self._evaluator: Evaluator | None = None
 
         # self.is_rescaling_necessary = True
         # if self.e_surface.derivative(E("t")) == E("0"):
@@ -503,6 +592,26 @@ class evaluate_integrand:
         #    self.routed_integrand.integrand = self.routed_integrand.integrand.replace(
         #        E("z"), E("1")
         #    )
+
+    @property
+    def theta_val(self) -> list[Evaluator]:
+        if self._theta_val is None:
+            self._theta_val = [
+                _build_symbolica_evaluator(theta_expr, self.symbols)
+                for theta_expr in self.theta_expressions
+            ]
+        return self._theta_val
+
+    @property
+    def evaluator(self) -> Evaluator:
+        if self._evaluator is None:
+            self._evaluator = _build_symbolica_evaluator(
+                self.integrand_expression,
+                self.symbols,
+                iterations=self._n_hornerscheme_iterations,
+                cpe_iterations=self._n_cpe_iterations,
+            )
+        return self._evaluator
 
     def set_t_value(self, k, p1, p2, z):
 
@@ -673,7 +782,9 @@ class evaluate_integrand:
         decimal_digit_precision: int,
     ) -> Decimal | None:
         try:
-            value = expr.evaluate_with_prec(values, {}, decimal_digit_precision)
+            value = _evaluate_symbolica_expression_with_prec(
+                expr, values, decimal_digit_precision
+            )
         except BaseException as exc:
             if isinstance(exc, (KeyboardInterrupt, SystemExit)):
                 raise
@@ -693,19 +804,21 @@ class evaluate_integrand:
         if mode == "arb":
             string_values = {
                 symbol: repr(_coerce_numeric_param(value))
-                for symbol, value in zip(self.symbols, param_list)
+                for symbol, value in zip(self.symbols, param_list, strict=True)
             }
 
-            for th in self.theta_expressions:
+            for theta_expr in self.theta_expressions:
                 th_value = self._evaluate_expression_arb(
-                    th, string_values, decimal_digit_precision
+                    theta_expr, string_values, decimal_digit_precision
                 )
                 print("x,1-x: ", th_value)
                 if th_value is None or th_value <= 0:
                     return Decimal(0)
 
             value = self._evaluate_expression_arb(
-                self.integrand_expression, string_values, decimal_digit_precision
+                self.integrand_expression,
+                string_values,
+                decimal_digit_precision,
             )
             return value
         if mode != "compiled":
@@ -1024,7 +1137,7 @@ class DYCompiledBundle:
     ) -> None:
         path = pjoin(out_dir, relpath)
         os.makedirs(os.path.dirname(path), exist_ok=True)
-        evaluator = expr.evaluator({}, {}, fallback_params)
+        evaluator = _build_symbolica_evaluator(expr, fallback_params)
         with open(path, "wb") as handle:
             handle.write(evaluator.save())
 
@@ -1569,7 +1682,7 @@ class DYCompiledBundle:
         values: dict[Expression, float],
     ) -> float:
         if expr is not None:
-            return float(expr.evaluate(values, {}))
+            return float(_evaluate_symbolica_expression(expr, values))
         if evaluator is None:
             raise pygloopException(
                 "No float or DoubleFloat evaluator data is present in this DY bundle. "
@@ -1643,7 +1756,9 @@ class DYCompiledBundle:
             )
         string_values = {key: str(value) for key, value in values.items()}
         try:
-            value = expr.evaluate_with_prec(string_values, {}, decimal_digit_precision)
+            value = _evaluate_symbolica_expression_with_prec(
+                expr, string_values, decimal_digit_precision
+            )
         except BaseException as exc:
             if isinstance(exc, (KeyboardInterrupt, SystemExit)):
                 raise
@@ -1959,7 +2074,7 @@ class DYCompiledBundle:
                 return None
             eval_map[t_key] = t
             try:
-                y = term_e_surface.evaluate(eval_map, {})
+                y = _evaluate_symbolica_expression(term_e_surface, eval_map)
                 return y if math.isfinite(y) else None
             except Exception:
                 return None
