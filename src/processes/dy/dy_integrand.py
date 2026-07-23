@@ -1878,6 +1878,85 @@ def _prepare_dy_colour_for_simplification(expr: Expression) -> Expression:
         if not same_adjoint:
             expr = expr.replace(right_adjoint, left_adjoint, repeat=True)
 
+    # A repeated generator can remain inside a longer closed fundamental
+    # chain, where ``simplify_color`` represents the chain as an unevaluated
+    # trace.  Close an adjoint index that occurs on exactly two generators
+    # with the SU(N) completeness relation
+    #
+    #   T^a_ij T^a_kl = TR (delta_il delta_kj - delta_ij delta_kl / N).
+    #
+    # Requiring exactly two occurrences makes this a closed-index reduction;
+    # open adjoint indices and indices shared with structure constants are
+    # deliberately left to Idenso.
+    factors = _mul_factors(expr)
+    generators = [
+        (index, data)
+        for index, factor in enumerate(factors)
+        if (data := generator_data(factor)) is not None
+    ]
+    for pair_index, (left_index, left_data) in enumerate(generators):
+        left_adjoint, left_upper, left_lower = left_data
+        for right_index, right_data in generators[pair_index + 1 :]:
+            right_adjoint, right_upper, right_lower = right_data
+            if (
+                left_adjoint.to_canonical_string()
+                != right_adjoint.to_canonical_string()
+                or sum(1 for _ in expr.match(left_adjoint)) != 2
+                or left_upper[0].to_canonical_string()
+                != right_upper[0].to_canonical_string()
+            ):
+                continue
+
+            remainder = _product_factors(
+                [
+                    factor
+                    for index, factor in enumerate(factors)
+                    if index not in (left_index, right_index)
+                ]
+            )
+            fundamental_slots = (
+                left_upper,
+                left_lower,
+                right_upper,
+                right_lower,
+            )
+            if (
+                len(
+                    {
+                        slot.to_canonical_string()
+                        for slot in fundamental_slots
+                    }
+                )
+                != 4
+                or any(
+                    sum(1 for _ in remainder.match(slot)) != 1
+                    for slot in fundamental_slots
+                )
+            ):
+                # Empty subchains produce an additional closed delta loop.
+                # Leave those cases to Idenso rather than dropping its
+                # representation-dimension factor during direct substitution.
+                continue
+
+            crossed = remainder.replace_multiple(
+                [
+                    Replacement(left_lower, right_upper),
+                    Replacement(right_lower, left_upper),
+                ]
+            )
+            direct = remainder.replace_multiple(
+                [
+                    Replacement(left_lower, left_upper),
+                    Replacement(right_lower, right_upper),
+                ]
+            )
+            representation_dimension = left_upper[0]
+            return E("spenso::TR") * (
+                _prepare_dy_colour_for_simplification(crossed)
+                - _prepare_dy_colour_for_simplification(direct)
+                / representation_dimension
+            )
+
     return expr
 
 
@@ -5993,7 +6072,7 @@ class LoopIntegrandConstructor(object):
 
                     if base_graph_name == "GL115":
                         theta_flag = True
-                        lmb_choice = [3, 6]
+                        lmb_choice = [6, 8]
 
                     if base_graph_name == "GL117":
                         theta_flag = False
