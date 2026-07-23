@@ -64,6 +64,11 @@ debug = False
 
 
 _LAURENT_CHUNK_SIZE = 128
+_DY_COLLINEAR_X = S(
+    "dy_collinear_x",
+    is_scalar=True,
+    is_positive=True,
+)
 
 
 class _LaurentSeriesImplementationError(RuntimeError):
@@ -4321,14 +4326,17 @@ class ThresholdSubtractor(object):
                 collinear_momentum, collinear_momentum
             )
 
-            x = S("x", is_scalar=True, is_positive=True)
+            x = _DY_COLLINEAR_X
 
             repl_kperp = -x * collinear_momentum + rep_r
 
             # NEW: CUT THRESHOLD CUTTING REGION BY 4
 
             theta1 = (
-                E(f"Θ(({self.sp3D(repl_kperp, repl_kperp)})-(x*(1-x))*Lambdasq/16)")
+                E(
+                    f"Θ(({self.sp3D(repl_kperp, repl_kperp)})-"
+                    f"({x}*(1-{x}))*Lambdasq/16)"
+                )
                 .replace(x, repl_x)
                 .replace(rexp, r.exp())
                 .replace(r, (self.sp3D(E("k(0)"), E("k(0)")) ** E("1/2")).log())
@@ -4337,7 +4345,10 @@ class ThresholdSubtractor(object):
             )
             theta2 = (
                 # E(f"Θ(({self.sp3D(repl_kperp, repl_kperp)})-(x*(1-x))*Lambdasq)")
-                E(f"Θ(({self.sp3D(repl_kperp, repl_kperp)})-(x*(1-x))*Lambdasq/16)")
+                E(
+                    f"Θ(({self.sp3D(repl_kperp, repl_kperp)})-"
+                    f"({x}*(1-{x}))*Lambdasq/16)"
+                )
                 .replace(x, repl_x)
                 .replace(rexp, r.exp())
                 .replace(r, 2 * rstar - r)
@@ -4467,7 +4478,7 @@ class Approximator(object):
         #    2 * (1 - x) * E("sp3D(p(1),p(1))^(1/2)")
         # )
 
-        x = S("x", is_scalar=True, is_positive=True)
+        x = _DY_COLLINEAR_X
         lam = S("λ", is_scalar=True)
 
         # Let s*q(i) be the vector that should become collinear to p(1). s encodes the cut orientation. We
@@ -4870,7 +4881,7 @@ class LoopIntegrandConstructor(object):
             return routed_integrands
 
         elif len(partition[0]) > 1 and len(partition[1]) == 1:
-            x = S("x", is_scalar=True, is_positive=True)
+            x = _DY_COLLINEAR_X
             lam = S("λ", is_scalar=True)
             momentum = E("0")
 
@@ -4922,7 +4933,8 @@ class LoopIntegrandConstructor(object):
             print("expanded expression is available")
 
             thetaLambdasq = E(
-                f"Θ(Lambdasq-({self.sp3D(repl_kperp, repl_kperp)})/(x*(1-x)))"
+                f"Θ(Lambdasq-({self.sp3D(repl_kperp, repl_kperp)})/"
+                f"({x}*(1-{x})))"
             ).replace(x, repl_x)
 
             integrand = (
@@ -4950,7 +4962,7 @@ class LoopIntegrandConstructor(object):
             return routed_integrands
 
         elif len(partition[0]) == 1 and len(partition[1]) > 1:
-            x = S("x", is_scalar=True, is_positive=True)
+            x = _DY_COLLINEAR_X
             lam = S("λ", is_scalar=True)
             momentum = E("0")
 
@@ -5003,7 +5015,8 @@ class LoopIntegrandConstructor(object):
             )
 
             thetaLambdasq = E(
-                f"Θ(Lambdasq-({self.sp3D(repl_kperp, repl_kperp)})/(x*(1-x)))"
+                f"Θ(Lambdasq-({self.sp3D(repl_kperp, repl_kperp)})/"
+                f"({x}*(1-{x})))"
             ).replace(x, repl_x)
             integrand = (
                 integrand * E(f"Θ({repl_x})") * E(f"Θ(1-{repl_x})") * thetaLambdasq
@@ -5030,7 +5043,7 @@ class LoopIntegrandConstructor(object):
 
         elif len(partition[0]) > 1 and len(partition[1]) > 1:
             lam = S("λ", is_scalar=True)
-            x = S("x", is_scalar=True, is_positive=True)
+            x = _DY_COLLINEAR_X
 
             soft_edge = list(set(partition[0]).intersection(partition[1]))
             hard_edge1 = [e for e in partition[0] if e not in soft_edge]
@@ -5191,10 +5204,14 @@ class LoopIntegrandConstructor(object):
             routed_integrands.append(routed_integrand_soft)
 
             thetacollinear1 = (
-                E(f"Θ(Lambdasq-({self.sp3D(repl_kperp1, repl_kperp1)})/(x))").replace(
+                E(
+                    f"Θ(Lambdasq-({self.sp3D(repl_kperp1, repl_kperp1)})/({x}))"
+                ).replace(
                     x, repl1_x
                 )
-                * E(f"Θ(Lambdasq-4*{self.sp3D(E('p(1)'), E('p(1)'))}*x)").replace(
+                * E(
+                    f"Θ(Lambdasq-4*{self.sp3D(E('p(1)'), E('p(1)'))}*{x})"
+                ).replace(
                     x, repl1_x
                 )
                 * E(f"Θ({repl1_x})")
@@ -5219,10 +5236,14 @@ class LoopIntegrandConstructor(object):
             routed_integrands.append(routed_integrand_collinear1)
 
             thetacollinear2 = (
-                E(f"Θ(Lambdasq-({self.sp3D(repl_kperp2, repl_kperp2)})/(x))").replace(
+                E(
+                    f"Θ(Lambdasq-({self.sp3D(repl_kperp2, repl_kperp2)})/({x}))"
+                ).replace(
                     x, repl2_x
                 )
-                * E(f"Θ(Lambdasq-4*{self.sp3D(E('p(1)'), E('p(1)'))}*(x))").replace(
+                * E(
+                    f"Θ(Lambdasq-4*{self.sp3D(E('p(1)'), E('p(1)'))}*({x}))"
+                ).replace(
                     x, repl2_x
                 )
                 * E(f"Θ({repl2_x})")
