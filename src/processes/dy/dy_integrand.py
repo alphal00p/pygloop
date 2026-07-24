@@ -1214,6 +1214,16 @@ def _uv_basis_rejection_reason(
     return None
 
 
+_AUTHORITATIVE_GG_LMB_CHOICES = {
+    "GL018": (2, 8),
+    "GL045": (5, 6),
+    "GL053": (5, 6),
+    "GL091": (2, 8),
+    "GL093": (2, 8),
+    "GL115": (6, 8),
+}
+
+
 def _select_uv_compatible_lmb_choice(cut_graph, preferred_basis):
     n_loops = _graph_loop_count(cut_graph.graph)
     if n_loops == 0:
@@ -1281,6 +1291,15 @@ def _select_uv_compatible_lmb_choice(cut_graph, preferred_basis):
         f"preferred basis {list(preferred_ids)} was rejected. "
         f"Candidate rejections: {rejected_reasons}"
     )
+
+
+def _select_production_lmb_choice(cut_graph, preferred_basis, channel):
+    base_graph_name = _strip_quotes(
+        str(cut_graph.graph.get("base_graph_name"))
+    )
+    if channel == (0, 0) and base_graph_name in _AUTHORITATIVE_GG_LMB_CHOICES:
+        return list(_AUTHORITATIVE_GG_LMB_CHOICES[base_graph_name])
+    return _select_uv_compatible_lmb_choice(cut_graph, preferred_basis)
 
 
 def _cut_external_energy_ids(cut_graph) -> tuple[list[str], list[str]]:
@@ -6099,8 +6118,8 @@ class LoopIntegrandConstructor(object):
             # lmb_choice = [7, 2]
             # lmb_choice = [2, 7]
 
-            lmb_choice = _select_uv_compatible_lmb_choice(
-                cut_graph, lmb_choice
+            lmb_choice = _select_production_lmb_choice(
+                cut_graph, lmb_choice, self.channel
             )
             cut_graph.graph = change_routing(cut_graph.graph, lmb_choice)
             orig_cut_graph.graph = change_routing(orig_cut_graph.graph, lmb_choice)
