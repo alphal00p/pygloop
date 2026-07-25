@@ -4,6 +4,7 @@ import re
 from collections import Counter
 from copy import deepcopy
 from dataclasses import dataclass
+from fractions import Fraction
 from itertools import combinations, count, product
 
 import pydot
@@ -44,7 +45,10 @@ from processes.dy.dy_graph_utils import (
     select_gl101_lmb_choice,
 )
 from processes.dy.dy_integrated_uv_ct import (
+    attach_uv_routing_metadata,
+    build_uv_subgraph_routing,
     construct_integrated_counter_term as construct_integrated_uv_counter_term,
+    remap_uv_expression_to_production,
 )
 from utils.cff import CFFStructure
 from utils.utils import (
@@ -697,6 +701,12 @@ def _strip_namespaces_structurally(expr: Expression) -> Expression:
 _EXTERNAL_GLUON_POLARISATION_PROTECTED_IDS_ATTR = (
     "external_gluon_polarisation_protected_energy_ids"
 )
+_EXTERNAL_GLUON_POLARISATION_P1_ID = "1001"
+_EXTERNAL_GLUON_POLARISATION_P2_ID = "1002"
+_EXTERNAL_GLUON_POLARISATION_BEAM_IDS = {
+    _EXTERNAL_GLUON_POLARISATION_P1_ID: "1",
+    _EXTERNAL_GLUON_POLARISATION_P2_ID: "2",
+}
 
 
 def _mul_factors(expr: Expression) -> list[Expression]:
@@ -1223,6 +1233,23 @@ _AUTHORITATIVE_GG_LMB_CHOICES = {
     "GL115": (6, 8),
 }
 
+_THRESHOLD_CT_DISABLED_GRAPH_CHANNELS = frozenset(
+    {
+        ("GL17", (1, -1)),
+        ("GL17", (-1, 1)),
+        ("GL093", (0, 0)),
+    }
+)
+
+
+def _threshold_counterterms_disabled(graph, channel) -> bool:
+    if channel is None:
+        return False
+    base_graph_name = _strip_quotes(str(graph.get("base_graph_name")))
+    return (base_graph_name, tuple(channel)) in (
+        _THRESHOLD_CT_DISABLED_GRAPH_CHANNELS
+    )
+
 
 def _select_uv_compatible_lmb_choice(cut_graph, preferred_basis):
     n_loops = _graph_loop_count(cut_graph.graph)
@@ -1299,7 +1326,7 @@ def _select_production_lmb_choice(cut_graph, preferred_basis, channel):
     )
     if channel == (0, 0) and base_graph_name in _AUTHORITATIVE_GG_LMB_CHOICES:
         return list(_AUTHORITATIVE_GG_LMB_CHOICES[base_graph_name])
-    return _select_uv_compatible_lmb_choice(cut_graph, preferred_basis)
+    return list(preferred_basis)
 
 
 def _cut_external_energy_ids(cut_graph) -> tuple[list[str], list[str]]:
@@ -3572,9 +3599,20 @@ class EMRIntegrandConstructor(object):
             self._protected_external_gluon_polarisation_energy_ids,
             key=_id_sort_key,
         ):
+            beam_id = _EXTERNAL_GLUON_POLARISATION_BEAM_IDS.get(edge_id)
+            if beam_id is None:
+                numerator = numerator.replace(
+                    E(f"En({edge_id})"),
+                    E(f"(sp3(q({edge_id}),q({edge_id})))^(1/2)"),
+                )
+                continue
             numerator = numerator.replace(
                 E(f"En({edge_id})"),
-                E(f"(sp3(q({edge_id}),q({edge_id})))^(1/2)"),
+                E(f"(sp3(p({beam_id}),p({beam_id})))^(1/2)"),
+            )
+            numerator = numerator.replace(
+                E(f"q({edge_id})"),
+                E(f"p({beam_id})"),
             )
 
         numerator = numerator.replace(E("sigma(1000)"), E("1"))
@@ -4001,18 +4039,11 @@ class UltraVioletSubtraction(object):
         lam = S("λ", is_scalar=True)
         mUV = E("mUV")
 
-        # uv_loop_momentum = next(iter(cycle))
-        uv_loop_momentum = min(
-            cycle, key=lambda e: int(_strip_quotes(str(e.get_attributes()["id"])))
+        uv_routing, uv_graph = build_uv_subgraph_routing(
+            self.cut_graph,
+            cycle,
+            self.L,
         )
-        lmb = [uv_loop_momentum] + self.cut_graph.final_cut[:-1]
-
-        lmb_id = []
-        for e in lmb:
-            e_atts = e.get_attributes()
-            lmb_id.append(e_atts["id"])
-
-        uv_graph = change_routing(deepcopy(self.cut_graph.graph), lmb_id)
 
         routed_integrand = self.replace_energies(self.emr_integrand, uv_graph)
         routed_integrand = self.route_integrand(routed_integrand, uv_graph)
@@ -4050,39 +4081,13 @@ class UltraVioletSubtraction(object):
             .replace(lam, E("1"))
         )
 
-        # Go back to previous basis. Use the routed graph edge, not the boundary-edge
-        # object in final_cut, because the latter can miss routing attributes.
-        edge_by_id = {
-            _strip_quotes(str(edge.get_attributes()["id"])): edge
-            for edge in self.cut_graph.graph.get_edges()
-        }
-        basis_replacements = []
-        for j, e in enumerate(lmb):
-            edge_id = _strip_quotes(str(e.get_attributes()["id"]))
-            basis_edge = edge_by_id.get(edge_id)
-            if basis_edge is None:
-                raise ValueError(f"UV basis edge {edge_id} not found in cut graph")
-            e_atts = basis_edge.get_attributes()
-            routing_items = E("0")
-            for i in range(self.L + 1):
-                key = f"routing_k{i}"
-                if key in e_atts:
-                    routing_items += E(f"{e_atts[key]}*k[{i}]")
-            for i in range(0, 2):
-                key = f"routing_p{i + 1}"
-                if key in e_atts:
-                    routing_items += E(f"{e_atts[key]}*p[{i + 1}]")
-            basis_replacements.append((E(f"k({j})"), routing_items))
+        expanded_integrand = remap_uv_expression_to_production(
+            expanded_integrand,
+            uv_routing,
+        )
+        return -expanded_integrand, uv_routing
 
-        tmp_symbols = [E(f"__tmp_uv_{j}") for j in range(len(basis_replacements))]
-        for (pattern, _), tmp_symbol in zip(basis_replacements, tmp_symbols):
-            expanded_integrand = expanded_integrand.replace(pattern, tmp_symbol)
-        for tmp_symbol, (_, replacement) in zip(tmp_symbols, basis_replacements):
-            expanded_integrand = expanded_integrand.replace(tmp_symbol, replacement)
-
-        return -expanded_integrand
-
-    def construct_integrated_counter_term(self, cycle, dod):
+    def construct_integrated_counter_term(self, cycle, dod, uv_routing):
         if self.disable_integrated_uv_cts:
             return None
 
@@ -4093,6 +4098,7 @@ class UltraVioletSubtraction(object):
             routed_cut_graph,
             RoutedIntegrand,
             _cleanup_final_state_raised_energies,
+            uv_routing,
         )
 
     def construct_uv_counter_terms(self):
@@ -4101,14 +4107,20 @@ class UltraVioletSubtraction(object):
 
         # check copies and deepcopies
         for cycle in spinneys:
-            uv_ct = self.construct_counter_term(cycle[0], cycle[1])
+            uv_ct, uv_routing = self.construct_counter_term(cycle[0], cycle[1])
+            uv_cut_graph = deepcopy(self.cut_graph)
+            attach_uv_routing_metadata(
+                uv_cut_graph.graph,
+                uv_routing,
+                contracted=False,
+            )
             routed_uv_ct = RoutedIntegrand(
-                uv_ct, self.cut_graph, [], self.emr_integrand, "uv", "uv"
+                uv_ct, uv_cut_graph, [], self.emr_integrand, "uv", "uv"
             )
             counterms.append(routed_uv_ct)
             if not self.disable_integrated_uv_cts:
                 integrated_uv_ct = self.construct_integrated_counter_term(
-                    cycle[0], cycle[1]
+                    cycle[0], cycle[1], uv_routing
                 )
                 if integrated_uv_ct is not None:
                     counterms.append(integrated_uv_ct)
@@ -4662,6 +4674,7 @@ class LoopIntegrandConstructor(object):
         disable_integrated_uv_cts=True,
         external_gluon_polarisation=False,
         emr_state_name=None,
+        symmetrise_p1_p2=False,
     ):
         self.L = L
         self.params = params
@@ -4676,45 +4689,112 @@ class LoopIntegrandConstructor(object):
         self.approximator = Approximator()
         self.channel = channel
         self.external_gluon_polarisation = bool(external_gluon_polarisation)
+        self.symmetrise_p1_p2 = bool(symmetrise_p1_p2)
         self.disable_integrated_uv_cts = bool(disable_integrated_uv_cts)
         self.emr_state_name = emr_state_name
 
-    def substitute_external_gluon_polarisation_sum(self, cut_graph):
-        def _is_zero(value):
-            return _strip_quotes(str(value)) in ("0", "0.0")
+    def _external_beam_edges(self, graph):
+        candidates = {"p1": [], "p2": []}
+        for edge in graph.get_edges():
+            attributes = edge.get_attributes()
+            loop_coefficients = [
+                Fraction(
+                    _strip_quotes(
+                        str(attributes.get(f"routing_k{index}", "0"))
+                    )
+                )
+                for index in range(self.L)
+            ]
+            if any(coefficient != 0 for coefficient in loop_coefficients):
+                continue
+            p1_coefficient = Fraction(
+                _strip_quotes(str(attributes.get("routing_p1", "0")))
+            )
+            p2_coefficient = Fraction(
+                _strip_quotes(str(attributes.get("routing_p2", "0")))
+            )
+            if p1_coefficient in {-1, 1} and p2_coefficient == 0:
+                candidates["p1"].append((edge, int(p1_coefficient)))
+            elif p2_coefficient in {-1, 1} and p1_coefficient == 0:
+                candidates["p2"].append((edge, int(p2_coefficient)))
 
-        def _is_cut_edge(edge_atts):
-            return not (
-                _is_zero(edge_atts.get("is_cut", "0"))
-                and _is_zero(edge_atts.get("is_cut_DY", "0"))
+        if any(len(candidates[beam]) != 1 for beam in ("p1", "p2")):
+            graph_name = _strip_quotes(
+                str(graph.get("base_graph_name") or graph.get_name())
+            )
+            candidate_ids = {
+                beam: [
+                    _strip_quotes(str(edge.get_attributes().get("id", "")))
+                    for edge, _sign in candidates[beam]
+                ]
+                for beam in ("p1", "p2")
+            }
+            raise ValueError(
+                "An external-gluon projector requires exactly one pure ±p1 "
+                "edge and one pure ±p2 "
+                f"edge for {graph_name}; found {candidate_ids}."
             )
 
-        def _pure_external_direction(edge_atts):
-            if not all(
-                _is_zero(edge_atts.get(f"routing_k{i}", "0")) for i in range(self.L)
-            ):
-                return None
-            has_p1 = not _is_zero(edge_atts.get("routing_p1", "0"))
-            has_p2 = not _is_zero(edge_atts.get("routing_p2", "0"))
-            if has_p1 == has_p2:
-                return None
-            return "p1" if has_p1 else "p2"
+        return candidates["p1"][0], candidates["p2"][0]
 
-        def _edge_sort_key(edge):
-            edge_id = _strip_quotes(str(edge.get_attributes().get("id", "")))
-            try:
-                return (0, int(edge_id))
-            except ValueError:
-                return (1, edge_id)
+    def _external_gluon_polarisation_edges(self, graph):
+        if getattr(self, "symmetrise_p1_p2", False) and getattr(
+            self, "external_gluon_polarisation", False
+        ):
+            edges_by_id = {"0": [], "1": []}
+            for edge in graph.get_edges():
+                edge_id = _strip_quotes(
+                    str(edge.get_attributes().get("id", ""))
+                )
+                if edge_id in edges_by_id:
+                    edges_by_id[edge_id].append(edge)
 
-        def _select_reference_edge(edges):
-            cut_edges = [e for e in edges if _is_cut_edge(e.get_attributes())]
-            return sorted(cut_edges or edges, key=_edge_sort_key)[0]
+            if any(len(edges_by_id[edge_id]) != 1 for edge_id in ("0", "1")):
+                graph_name = _strip_quotes(
+                    str(graph.get("base_graph_name") or graph.get_name())
+                )
+                counts = {
+                    edge_id: len(edges_by_id[edge_id]) for edge_id in ("0", "1")
+                }
+                raise ValueError(
+                    "A p1/p2-symmetrised external-gluon projector requires "
+                    f"exactly one edge 0 and one edge 1 for {graph_name}; "
+                    f"found counts {counts}."
+                )
 
+            beam_edges = (edges_by_id["0"][0], edges_by_id["1"][0])
+        else:
+            (p1_edge, _p1_sign), (p2_edge, _p2_sign) = (
+                self._external_beam_edges(graph)
+            )
+            beam_edges = (p1_edge, p2_edge)
+
+        return [
+            edge
+            for edge in beam_edges
+            if _strip_quotes(str(edge.get_attributes().get("particle", "")))
+            == "g"
+        ]
+
+    @staticmethod
+    def _store_external_gluon_beam_metadata(graph):
+        graph.set(
+            _EXTERNAL_GLUON_POLARISATION_PROTECTED_IDS_ATTR,
+            ",".join(
+                (
+                    _EXTERNAL_GLUON_POLARISATION_P1_ID,
+                    _EXTERNAL_GLUON_POLARISATION_P2_ID,
+                )
+            ),
+        )
+
+    def substitute_external_gluon_polarisation_sum(self, cut_graph):
         def _mink(port):
             return f"spenso::mink(4,hedge({_parse_port(port)}))"
 
-        def _projector(mu, nu, p1_id, p2_id):
+        def _projector(mu, nu):
+            p1_id = _EXTERNAL_GLUON_POLARISATION_P1_ID
+            p2_id = _EXTERNAL_GLUON_POLARISATION_P2_ID
             denominator = f"sp({p1_id},{p2_id})"
             return (
                 f"spenso::g({mu},{nu})"
@@ -4722,33 +4802,10 @@ class LoopIntegrandConstructor(object):
                 f"-Q({p1_id},{nu})*Q({p2_id},{mu})/{denominator}"
             )
 
-        edges_by_direction = {"p1": [], "p2": []}
-        target_edges = []
-        for edge in cut_graph.graph.get_edges():
-            edge_atts = edge.get_attributes()
-            direction = _pure_external_direction(edge_atts)
-            if direction is not None:
-                edges_by_direction[direction].append(edge)
-            if (
-                direction is not None
-                and _strip_quotes(str(edge_atts.get("particle", ""))) == "g"
-            ):
-                target_edges.append(edge)
-
+        target_edges = self._external_gluon_polarisation_edges(cut_graph.graph)
         if not target_edges:
             return cut_graph
-
-        if not edges_by_direction["p1"] or not edges_by_direction["p2"]:
-            raise ValueError(
-                "Cannot build external gluon polarisation projector without pure p1 and p2 reference edges."
-            )
-
-        p1_id = _strip_quotes(
-            str(_select_reference_edge(edges_by_direction["p1"]).get_attributes()["id"])
-        )
-        p2_id = _strip_quotes(
-            str(_select_reference_edge(edges_by_direction["p2"]).get_attributes()["id"])
-        )
+        self._store_external_gluon_beam_metadata(cut_graph.graph)
 
         for edge in target_edges:
             edge_atts = edge.get_attributes()
@@ -4763,11 +4820,11 @@ class LoopIntegrandConstructor(object):
             metric_candidates = [
                 (
                     f"spenso::g({destination_mu},{source_mu})",
-                    f"({_projector(destination_mu, source_mu, p1_id, p2_id)})",
+                    f"({_projector(destination_mu, source_mu)})",
                 ),
                 (
                     f"spenso::g({source_mu},{destination_mu})",
-                    f"({_projector(source_mu, destination_mu, p1_id, p2_id)})",
+                    f"({_projector(source_mu, destination_mu)})",
                 ),
             ]
 
@@ -4790,41 +4847,12 @@ class LoopIntegrandConstructor(object):
     def external_gluon_polarisation_numerator_factorisation(self, graph):
         numerator_graph = deepcopy(graph)
 
-        def _is_zero(value):
-            return _strip_quotes(str(value)) in ("0", "0.0")
-
-        def _is_cut_edge(edge_atts):
-            return not (
-                _is_zero(edge_atts.get("is_cut", "0"))
-                and _is_zero(edge_atts.get("is_cut_DY", "0"))
-            )
-
-        def _pure_external_direction(edge_atts):
-            if not all(
-                _is_zero(edge_atts.get(f"routing_k{i}", "0")) for i in range(self.L)
-            ):
-                return None
-            has_p1 = not _is_zero(edge_atts.get("routing_p1", "0"))
-            has_p2 = not _is_zero(edge_atts.get("routing_p2", "0"))
-            if has_p1 == has_p2:
-                return None
-            return "p1" if has_p1 else "p2"
-
-        def _edge_sort_key(edge):
-            edge_id = _strip_quotes(str(edge.get_attributes().get("id", "")))
-            try:
-                return (0, int(edge_id))
-            except ValueError:
-                return (1, edge_id)
-
-        def _select_reference_edge(edges):
-            cut_edges = [e for e in edges if _is_cut_edge(e.get_attributes())]
-            return sorted(cut_edges or edges, key=_edge_sort_key)[0]
-
         def _mink(port):
             return f"spenso::mink(4,hedge({_parse_port(port)}))"
 
-        def _projector(mu, nu, p1_id, p2_id):
+        def _projector(mu, nu):
+            p1_id = _EXTERNAL_GLUON_POLARISATION_P1_ID
+            p2_id = _EXTERNAL_GLUON_POLARISATION_P2_ID
             denominator = f"sp({p1_id},{p2_id})"
             return (
                 f"spenso::g({mu},{nu})"
@@ -4832,38 +4860,10 @@ class LoopIntegrandConstructor(object):
                 f"-Q({p1_id},{nu})*Q({p2_id},{mu})/{denominator}"
             )
 
-        edges_by_direction = {"p1": [], "p2": []}
-        target_edges = []
-        for edge in numerator_graph.get_edges():
-            edge_atts = edge.get_attributes()
-            direction = _pure_external_direction(edge_atts)
-            if direction is not None:
-                edges_by_direction[direction].append(edge)
-            if (
-                direction is not None
-                and _strip_quotes(str(edge_atts.get("particle", ""))) == "g"
-            ):
-                target_edges.append(edge)
-
+        target_edges = self._external_gluon_polarisation_edges(numerator_graph)
         if not target_edges:
             return numerator_graph, E("1")
-
-        if not edges_by_direction["p1"] or not edges_by_direction["p2"]:
-            raise ValueError(
-                "Cannot build external gluon polarisation projector without pure p1 and p2 reference edges."
-            )
-
-        p1_id = _strip_quotes(
-            str(_select_reference_edge(edges_by_direction["p1"]).get_attributes()["id"])
-        )
-        p2_id = _strip_quotes(
-            str(_select_reference_edge(edges_by_direction["p2"]).get_attributes()["id"])
-        )
-        protected_energy_ids = {p1_id, p2_id}
-        numerator_graph.set(
-            _EXTERNAL_GLUON_POLARISATION_PROTECTED_IDS_ATTR,
-            ",".join(sorted(protected_energy_ids, key=_id_sort_key)),
-        )
+        self._store_external_gluon_beam_metadata(numerator_graph)
 
         post_momentum_rewrite_factor = E("1")
         for edge in target_edges:
@@ -4879,11 +4879,11 @@ class LoopIntegrandConstructor(object):
             metric_candidates = [
                 (
                     f"spenso::g({destination_mu},{source_mu})",
-                    f"({_projector(destination_mu, source_mu, p1_id, p2_id)})",
+                    f"({_projector(destination_mu, source_mu)})",
                 ),
                 (
                     f"spenso::g({source_mu},{destination_mu})",
-                    f"({_projector(source_mu, destination_mu, p1_id, p2_id)})",
+                    f"({_projector(source_mu, destination_mu)})",
                 ),
             ]
 
@@ -5200,11 +5200,10 @@ class LoopIntegrandConstructor(object):
             # integrand = E("(-(E(0)+E(2)+E(3))+E(0)+E(5))^-1*E(2)^(-2)")
             base_graph_name = _strip_quotes(str(cut_graph.graph.get("base_graph_name")))
 
-            if (
-                base_graph_name in ["GL07", "GL09"]
-                and self.channel == (1, -1)
-                or self.channel == (-1, 1)
-            ):
+            if base_graph_name in {"GL07", "GL09"} and self.channel in {
+                (1, -1),
+                (-1, 1),
+            }:
                 integrand = integrand.replace(
                     E("En(5)"), self.sp3D(E("k(0)"), E("k(0)")) ** E("1/2")
                 )
@@ -5679,7 +5678,9 @@ class LoopIntegrandConstructor(object):
 
         # FIX: cut graph logic and overwriting
         orig_cut_graph = deepcopy(cut_graph)
-        skip_threshold_cts = False
+        skip_threshold_cts = _threshold_counterterms_disabled(
+            cut_graph.graph, self.channel
+        )
         threshold_collinear_momentum = None
         gluonic_t_channel = True
 
@@ -5760,7 +5761,6 @@ class LoopIntegrandConstructor(object):
                     ]:
                         theta_flag = False
                         lmb_choice = [3, 6]
-                        skip_threshold_cts = True
 
                     if base_graph_name in ["GL04", "GL15"]:
                         theta_flag = False

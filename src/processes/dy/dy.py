@@ -816,6 +816,7 @@ class DY(object):
             n_loops,
             external_gluon_polarisation=self.external_gluon_polarisation,
             disable_integrated_uv_cts=self.disable_integrated_uv_cts,
+            symmetrise_p1_p2=self.symmetrise_p1_p2,
         )
 
         all_routed_integrands = []
@@ -947,6 +948,7 @@ class DY(object):
             external_gluon_polarisation=self.external_gluon_polarisation,
             disable_integrated_uv_cts=self.disable_integrated_uv_cts,
             emr_state_name=self.dy_emr_state_name,
+            symmetrise_p1_p2=self.symmetrise_p1_p2,
         )
 
         all_routed_integrands = []

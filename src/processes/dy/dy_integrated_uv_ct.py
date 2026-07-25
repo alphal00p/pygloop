@@ -2,6 +2,7 @@ import json
 import os
 import re
 from copy import deepcopy
+from dataclasses import asdict, dataclass
 from fractions import Fraction
 from functools import lru_cache
 
@@ -13,7 +14,7 @@ from symbolica.community.idenso import (  # pyright: ignore
     simplify_metrics,
 )
 
-from processes.dy.dy_graph_utils import _base_node, _strip_quotes
+from processes.dy.dy_graph_utils import _base_node, _strip_quotes, change_routing
 from processes.dy.dy_symbolica_utils import fold_momentum_components_into_gamma
 
 pjoin = os.path.join
@@ -22,6 +23,275 @@ UV_INTEGRATED_COUNTERTERMS_PATH = pjoin(
     os.path.dirname(__file__),
     "table_uv_ct.json",
 )
+
+
+_UV_ROUTING_METADATA_KEY = "uv_subgraph_routing"
+_UV_ROUTING_SCHEMA_VERSION = 1
+
+
+def _uv_id_sort_key(value: str) -> tuple[int, int | str]:
+    try:
+        return 0, int(value)
+    except ValueError:
+        return 1, value
+
+
+@dataclass(frozen=True)
+class UVSubgraphRouting:
+    """Cycle-adapted routing shared by local and integrated UV terms."""
+
+    schema_version: int
+    cycle_edge_ids: tuple[str, ...]
+    production_lmb: tuple[str, ...]
+    adapted_lmb: tuple[str, ...]
+    uv_loop_index: int
+    spectator_loop_indices: tuple[int, ...]
+    adapted_loop_matrix: tuple[tuple[str, ...], ...]
+    adapted_external_matrix: tuple[tuple[str, ...], ...]
+    external_routing_keys: tuple[str, ...]
+    loop_determinant: str
+    boundary_ports: tuple[str, ...]
+
+    def metadata(self, *, contracted: bool) -> dict[str, object]:
+        value = asdict(self)
+        value["contracted"] = bool(contracted)
+        value["auxiliary_tadpole_loop_index"] = (
+            self.uv_loop_index if contracted else None
+        )
+        value["remaining_loop_indices"] = (
+            list(self.spectator_loop_indices) if contracted else None
+        )
+        return value
+
+
+def attach_uv_routing_metadata(
+    graph: pydot.Dot,
+    routing: UVSubgraphRouting,
+    *,
+    contracted: bool,
+) -> None:
+    graph.set(
+        _UV_ROUTING_METADATA_KEY,
+        json.dumps(
+            routing.metadata(contracted=contracted),
+            sort_keys=True,
+            separators=(",", ":"),
+        ),
+    )
+
+
+def uv_routing_metadata(graph: pydot.Dot) -> dict[str, object] | None:
+    raw = graph.get(_UV_ROUTING_METADATA_KEY)
+    if raw is None:
+        return None
+    return json.loads(_strip_quotes(str(raw)).replace(r'\"', '"'))
+
+
+def _routing_fraction(value) -> Fraction:
+    return Fraction(_strip_quotes(str(value)))
+
+
+def _routing_determinant(matrix: list[list[Fraction]]) -> Fraction:
+    if not matrix:
+        return Fraction(1)
+    determinant = Fraction(0)
+    for column, coefficient in enumerate(matrix[0]):
+        minor = [
+            row[:column] + row[column + 1 :]
+            for row in matrix[1:]
+        ]
+        determinant += (
+            (-1 if column % 2 else 1)
+            * coefficient
+            * _routing_determinant(minor)
+        )
+    return determinant
+
+
+def _production_lmb(graph: pydot.Dot, n_loops: int) -> tuple[str, ...]:
+    external_keys = sorted(
+        {
+            key
+            for edge in graph.get_edges()
+            for key in edge.get_attributes()
+            if key.startswith("routing_p")
+        }
+    )
+    selected = []
+    for loop_index in range(n_loops):
+        candidates = []
+        for edge in graph.get_edges():
+            attributes = edge.get_attributes()
+            loop_coefficients = [
+                _routing_fraction(attributes.get(f"routing_k{i}", "0"))
+                for i in range(n_loops)
+            ]
+            if loop_coefficients != [
+                Fraction(int(i == loop_index)) for i in range(n_loops)
+            ]:
+                continue
+            if any(
+                _routing_fraction(attributes.get(key, "0")) != 0
+                for key in external_keys
+            ):
+                continue
+            candidates.append(
+                _strip_quotes(str(attributes.get("id", "")))
+            )
+        if not candidates:
+            return ()
+        selected.append(min(candidates, key=_uv_id_sort_key))
+    return tuple(selected)
+
+
+def build_uv_subgraph_routing(
+    cut_graph,
+    cycle,
+    n_loops: int,
+) -> tuple[UVSubgraphRouting, pydot.Dot]:
+    """Build the same cycle-adapted basis used by the local UV expansion."""
+    cycle_edges = sorted(
+        cycle,
+        key=lambda edge: _uv_id_sort_key(
+            _strip_quotes(str(edge.get_attributes()["id"]))
+        ),
+    )
+    preferred = [cycle_edges[0], *cut_graph.final_cut[:-1]]
+    preferred_ids = [
+        _strip_quotes(str(edge.get_attributes()["id"])) for edge in preferred
+    ]
+    if len(preferred_ids) != n_loops or len(set(preferred_ids)) != n_loops:
+        raise ValueError(
+            "Cannot construct a cycle-adapted UV basis from cycle edge "
+            f"{preferred_ids[:1]} and final cut {preferred_ids[1:]}"
+        )
+
+    production_graph = cut_graph.graph
+    adapted_graph = change_routing(deepcopy(production_graph), preferred_ids)
+    external_keys = tuple(
+        sorted(
+            {
+                key
+                for edge in production_graph.get_edges()
+                for key in edge.get_attributes()
+                if key.startswith("routing_p")
+            }
+        )
+    )
+    edges_by_id = {
+        _strip_quotes(str(edge.get_attributes()["id"])): edge
+        for edge in production_graph.get_edges()
+    }
+    loop_matrix = []
+    external_matrix = []
+    for edge_id in preferred_ids:
+        attributes = edges_by_id[edge_id].get_attributes()
+        loop_matrix.append(
+            [
+                _routing_fraction(attributes.get(f"routing_k{i}", "0"))
+                for i in range(n_loops)
+            ]
+        )
+        external_matrix.append(
+            [
+                _routing_fraction(attributes.get(key, "0"))
+                for key in external_keys
+            ]
+        )
+    determinant = _routing_determinant(loop_matrix)
+    if abs(determinant) != 1:
+        raise ValueError(
+            "The cycle-adapted UV routing must have unit Jacobian; "
+            f"basis {preferred_ids} has determinant {determinant}"
+        )
+
+    cycle_ids = tuple(
+        sorted(
+            (
+                _strip_quotes(str(edge.get_attributes()["id"]))
+                for edge in cycle_edges
+            ),
+            key=_uv_id_sort_key,
+        )
+    )
+    cycle_nodes = {
+        _base_node(endpoint)
+        for edge in cycle_edges
+        for endpoint in (edge.get_source(), edge.get_destination())
+    }
+    boundary_ports = []
+    for edge in production_graph.get_edges():
+        edge_id = _strip_quotes(str(edge.get_attributes()["id"]))
+        if edge_id in cycle_ids:
+            continue
+        for endpoint in (str(edge.get_source()), str(edge.get_destination())):
+            if _base_node(endpoint) not in cycle_nodes or ":" not in endpoint:
+                continue
+            port = endpoint.split(":", 1)[1]
+            if port not in boundary_ports:
+                boundary_ports.append(port)
+
+    def fraction_string(value: Fraction) -> str:
+        return (
+            str(value.numerator)
+            if value.denominator == 1
+            else str(value)
+        )
+
+    routing = UVSubgraphRouting(
+        schema_version=_UV_ROUTING_SCHEMA_VERSION,
+        cycle_edge_ids=cycle_ids,
+        production_lmb=_production_lmb(production_graph, n_loops),
+        adapted_lmb=tuple(preferred_ids),
+        uv_loop_index=0,
+        spectator_loop_indices=tuple(range(1, n_loops)),
+        adapted_loop_matrix=tuple(
+            tuple(fraction_string(value) for value in row)
+            for row in loop_matrix
+        ),
+        adapted_external_matrix=tuple(
+            tuple(fraction_string(value) for value in row)
+            for row in external_matrix
+        ),
+        external_routing_keys=external_keys,
+        loop_determinant=fraction_string(determinant),
+        boundary_ports=tuple(boundary_ports),
+    )
+    return routing, adapted_graph
+
+
+def remap_uv_expression_to_production(
+    expression: Expression,
+    routing: UVSubgraphRouting,
+) -> Expression:
+    replacements = []
+    for adapted_index in range(len(routing.adapted_loop_matrix)):
+        replacement = E("0")
+        for production_index, coefficient in enumerate(
+            routing.adapted_loop_matrix[adapted_index]
+        ):
+            replacement += E(coefficient) * E(f"k({production_index})")
+        for key, coefficient in zip(
+            routing.external_routing_keys,
+            routing.adapted_external_matrix[adapted_index],
+            strict=True,
+        ):
+            external_index = int(key.removeprefix("routing_p"))
+            replacement += E(coefficient) * E(f"p({external_index})")
+        replacements.append((E(f"k({adapted_index})"), replacement))
+
+    temporary_symbols = [
+        E(f"__tmp_uv_route_{index}") for index in range(len(replacements))
+    ]
+    for (pattern, _replacement), temporary in zip(
+        replacements, temporary_symbols, strict=True
+    ):
+        expression = expression.replace(pattern, temporary)
+    for temporary, (_pattern, replacement) in zip(
+        temporary_symbols, replacements, strict=True
+    ):
+        expression = expression.replace(temporary, replacement)
+    return expression
 
 
 def Es(expr: str) -> Expression:
@@ -1273,6 +1543,7 @@ def construct_integrated_counter_term(
     routed_cut_graph_cls,
     routed_integrand_cls,
     raised_energy_cleanup,
+    uv_routing: UVSubgraphRouting | None = None,
 ):
     if subtraction.emr_processor is None or subtraction.L != 2:
         return None
@@ -1282,6 +1553,29 @@ def construct_integrated_counter_term(
         if subtraction.integrated_cut_graph is not None
         else subtraction.cut_graph
     )
+    if uv_routing is None:
+        uv_routing, _adapted_graph = build_uv_subgraph_routing(
+            subtraction.cut_graph,
+            cycle,
+            subtraction.L,
+        )
+    original_uv_loop_indices = _common_uv_loop_indices(
+        cycle,
+        subtraction.L,
+    )
+    use_adapted_routing = len(original_uv_loop_indices) != 1
+    if use_adapted_routing:
+        working_contraction_cut_graph = deepcopy(contraction_cut_graph)
+        working_contraction_cut_graph.graph = change_routing(
+            deepcopy(contraction_cut_graph.graph),
+            list(uv_routing.adapted_lmb),
+        )
+    else:
+        # Preserve the established integrand whenever the historical
+        # single-coordinate construction is well defined.  The adapted
+        # routing is a fallback for subgraphs that previously emitted no
+        # integrated counterterm, not a change of their finite extension.
+        working_contraction_cut_graph = contraction_cut_graph
 
     cycle_ids = {_strip_quotes(str(e.get_attributes()["id"])) for e in cycle}
     cycle_nodes = {_base_node(e.get_source()) for e in cycle} | {
@@ -1290,7 +1584,7 @@ def construct_integrated_counter_term(
 
     surviving_ports = []
     surviving_port_edges = {}
-    for e in contraction_cut_graph.graph.get_edges():
+    for e in working_contraction_cut_graph.graph.get_edges():
         e_id = _strip_quotes(str(e.get_attributes()["id"]))
         if e_id in cycle_ids:
             continue
@@ -1383,45 +1677,94 @@ def construct_integrated_counter_term(
             )
         )
 
-    contracted_graph = pydot.Dot(
-        graph_type="digraph",
-        name=f"{contraction_cut_graph.graph.get_name()}_uvint",
-    )
-    for key, value in contraction_cut_graph.graph.get_attributes().items():
-        contracted_graph.set(key, value)
-    for node in contraction_cut_graph.graph.get_nodes():
-        node_name = _strip_quotes(str(node.get_name()))
-        if node_name in cycle_nodes or node_name in ["node", "edge", "graph"]:
-            continue
-        contracted_graph.add_node(deepcopy(node))
-    contracted_graph.add_node(
-        pydot.Node(
-            "UVCT",
-            dod="0",
-            int_id="UV_CONTRACT",
-            num=tensor_numerator,
+    def contract_graph(source_graph):
+        contracted = pydot.Dot(
+            graph_type="digraph",
+            name=f"{source_graph.get_name()}_uvint",
         )
-    )
-
-    for edge in contraction_cut_graph.graph.get_edges():
-        e_id = _strip_quotes(str(edge.get_attributes()["id"]))
-        if e_id in cycle_ids:
-            continue
-        src = str(edge.get_source())
-        dst = str(edge.get_destination())
-        if _base_node(src) in cycle_nodes:
-            src = f"UVCT:{src.split(':', 1)[1]}" if ":" in src else "UVCT"
-        if _base_node(dst) in cycle_nodes:
-            dst = f"UVCT:{dst.split(':', 1)[1]}" if ":" in dst else "UVCT"
-        contracted_graph.add_edge(
-            pydot.Edge(src, dst, **deepcopy(edge.get_attributes()))
+        for key, value in source_graph.get_attributes().items():
+            contracted.set(key, value)
+        for node in source_graph.get_nodes():
+            node_name = _strip_quotes(str(node.get_name()))
+            if node_name in cycle_nodes or node_name in ["node", "edge", "graph"]:
+                continue
+            contracted.add_node(deepcopy(node))
+        contracted.add_node(
+            pydot.Node(
+                "UVCT",
+                dod="0",
+                int_id="UV_CONTRACT",
+                num=tensor_numerator,
+            )
         )
+        for edge in source_graph.get_edges():
+            edge_id = _strip_quotes(str(edge.get_attributes()["id"]))
+            if edge_id in cycle_ids:
+                continue
+            source = str(edge.get_source())
+            destination = str(edge.get_destination())
+            if _base_node(source) in cycle_nodes:
+                source = (
+                    f"UVCT:{source.split(':', 1)[1]}"
+                    if ":" in source
+                    else "UVCT"
+                )
+            if _base_node(destination) in cycle_nodes:
+                destination = (
+                    f"UVCT:{destination.split(':', 1)[1]}"
+                    if ":" in destination
+                    else "UVCT"
+                )
+            contracted.add_edge(
+                pydot.Edge(
+                    source,
+                    destination,
+                    **deepcopy(edge.get_attributes()),
+                )
+            )
+        attach_uv_routing_metadata(
+            contracted,
+            uv_routing,
+            contracted=True,
+        )
+        return contracted
 
+    contracted_graph = contract_graph(working_contraction_cut_graph.graph)
     contracted_cut_graph = _build_contracted_cut_graph(
-        contraction_cut_graph,
+        working_contraction_cut_graph,
         contracted_graph,
         routed_cut_graph_cls,
     )
+    if use_adapted_routing:
+        production_contracted_graph = contract_graph(
+            contraction_cut_graph.graph
+        )
+        result_cut_graph = _build_contracted_cut_graph(
+            contraction_cut_graph,
+            production_contracted_graph,
+            routed_cut_graph_cls,
+        )
+    else:
+        result_cut_graph = contracted_cut_graph
+
+    if use_adapted_routing:
+        uv_routing_key = f"routing_k{uv_routing.uv_loop_index}"
+        uv_routing_edges = [
+            _strip_quotes(str(edge.get_attributes().get("id", "")))
+            for edge in contracted_graph.get_edges()
+            if _routing_fraction(
+                edge.get_attributes().get(uv_routing_key, "0")
+            )
+            != 0
+        ]
+        if uv_routing_edges:
+            raise ValueError(
+                "Contracted UV graph still depends on adapted UV loop "
+                f"k({uv_routing.uv_loop_index}) through edges "
+                f"{sorted(uv_routing_edges, key=_uv_id_sort_key)}; "
+                f"cycle={list(uv_routing.cycle_edge_ids)}, "
+                f"adapted_lmb={list(uv_routing.adapted_lmb)}"
+            )
     contracted_emr = subtraction.emr_processor.get_integrand(
         deepcopy(contracted_cut_graph),
         numerator_factorisation=_uv_int_numerator_factorisation,
@@ -1454,24 +1797,31 @@ def construct_integrated_counter_term(
             mass = E(f"m({e_particle})")
         routed_integrand = routed_integrand.replace(E(f"m({e_atts['id']})"), mass)
 
-    uv_loop_indices = _common_uv_loop_indices(cycle, subtraction.L)
-    if len(uv_loop_indices) != 1:
-        return None
-
     normalisation=E("mUV")/(3.141592653589793238462643383279502884197169399375105820974944592)**2
 
+    tadpole_loop_index = (
+        uv_routing.uv_loop_index
+        if use_adapted_routing
+        else original_uv_loop_indices[0]
+    )
     normalising_tadpole = normalisation*E("1") / (
         subtraction.sp3D(
-            E(f"k({uv_loop_indices[0]})"), E(f"k({uv_loop_indices[0]})")
+            E(f"k({tadpole_loop_index})"),
+            E(f"k({tadpole_loop_index})"),
         )
         + E("mUV") ** 2
     )**2
 
     routed_integrand *= -normalising_tadpole / E("4")
+    if use_adapted_routing:
+        routed_integrand = remap_uv_expression_to_production(
+            routed_integrand,
+            uv_routing,
+        )
 
     return routed_integrand_cls(
         routed_integrand,
-        contracted_cut_graph,
+        result_cut_graph,
         [],
         contracted_emr,
         "uv_int",
