@@ -5406,7 +5406,7 @@ class LoopIntegrandConstructor(object):
             )
 
         if raised_t_channel_gluon_candidates:
-            e1, e2, repeated_relation = raised_t_channel_gluon_candidates[0]
+            e1, e2, _repeated_relation = raised_t_channel_gluon_candidates[0]
             k_keys = [f"routing_k{i}" for i in range(0, self.L)]
 
             def _is_pure_external_edge(edge):
@@ -5419,18 +5419,94 @@ class LoopIntegrandConstructor(object):
                 )
                 return has_single_external_momentum and has_no_loop_momentum
 
-            def _has_external_with_orientation(candidate_edge, orientation):
+            def _pure_external_beam(edge):
+                if not _is_pure_external_edge(edge):
+                    return None
+                attributes = edge.get_attributes()
+                has_p1 = _strip_quotes(
+                    str(attributes.get("routing_p1", "0"))
+                ) != "0"
+                return "p1" if has_p1 else "p2"
+
+            def _incident_external_beams(candidate_edge):
+                candidate_id = _strip_quotes(
+                    str(candidate_edge.get_attributes()["id"])
+                )
+                beams = set()
+                for node_name in (
+                    _base_node(candidate_edge.get_source()),
+                    _base_node(candidate_edge.get_destination()),
+                ):
+                    for incident_edge in boundary_edges(
+                        cut_graph.graph, {node_name}
+                    ):
+                        incident_id = _strip_quotes(
+                            str(incident_edge.get_attributes()["id"])
+                        )
+                        if incident_id == candidate_id:
+                            continue
+                        beam = _pure_external_beam(incident_edge)
+                        if beam is not None:
+                            beams.add(beam)
+                return beams
+
+            common_external_beams = _incident_external_beams(e1).intersection(
+                _incident_external_beams(e2)
+            )
+            partition = getattr(cut_graph, "partition", ())
+            if len(partition) == 2 and len(partition[0]) != len(partition[1]):
+                projector_beam = (
+                    "p1" if len(partition[0]) > len(partition[1]) else "p2"
+                )
+                if projector_beam not in common_external_beams:
+                    raise ValueError(
+                        f"partition selects {projector_beam}, but repeated gluons "
+                        f"share external beams {sorted(common_external_beams)}"
+                    )
+            elif len(common_external_beams) == 1:
+                projector_beam = next(iter(common_external_beams))
+            elif common_external_beams == {"p1", "p2"}:
+                (p1_edge, _p1_sign), (p2_edge, _p2_sign) = (
+                    self._external_beam_edges(cut_graph.graph)
+                )
+                p1_is_gluon = _strip_quotes(
+                    str(p1_edge.get_attributes().get("particle", ""))
+                ) == "g"
+                p2_is_gluon = _strip_quotes(
+                    str(p2_edge.get_attributes().get("particle", ""))
+                ) == "g"
+                if p1_is_gluon != p2_is_gluon:
+                    projector_beam = "p2" if p1_is_gluon else "p1"
+                elif p1_is_gluon and self.symmetrise_p1_p2:
+                    projector_beam = "p2"
+                else:
+                    raise ValueError(
+                        "could not select a unique t-channel projector beam "
+                        "for an equal partition"
+                    )
+            else:
+                raise ValueError(
+                    "repeated gluons do not share a unique external beam: "
+                    f"{sorted(common_external_beams)}"
+                )
+
+            def _external_vertex_with_orientation(candidate_edge, orientation):
                 candidate_nodes = [
                     _base_node(candidate_edge.get_source()),
                     _base_node(candidate_edge.get_destination()),
                 ]
+                matching_nodes = set()
 
                 for node_name in candidate_nodes:
                     for incident_edge in boundary_edges(cut_graph.graph, {node_name}):
                         incident_atts = incident_edge.get_attributes()
-                        if incident_atts["id"] == candidate_edge.get_attributes()["id"]:
+                        if _strip_quotes(str(incident_atts["id"])) == _strip_quotes(
+                            str(candidate_edge.get_attributes()["id"])
+                        ):
                             continue
                         if not _is_pure_external_edge(incident_edge):
+                            continue
+                        if _pure_external_beam(incident_edge) != projector_beam:
                             continue
 
                         incident_node = (
@@ -5439,67 +5515,59 @@ class LoopIntegrandConstructor(object):
                             else _base_node(incident_edge.get_source())
                         )
                         if incident_node == node_name:
-                            return True
+                            matching_nodes.add(node_name)
 
-                return False
+                if len(matching_nodes) > 1:
+                    edge_id = _strip_quotes(
+                        str(candidate_edge.get_attributes()["id"])
+                    )
+                    raise ValueError(
+                        f"raised gluon edge {edge_id} has multiple {orientation} "
+                        f"external endpoints: {sorted(matching_nodes)}"
+                    )
+                return next(iter(matching_nodes), None)
 
-            e1_has_injecting_external = _has_external_with_orientation(e1, "injecting")
-            e2_has_injecting_external = _has_external_with_orientation(e2, "injecting")
+            e1_injecting_vertex = _external_vertex_with_orientation(e1, "injecting")
+            e2_injecting_vertex = _external_vertex_with_orientation(e2, "injecting")
+            e1_has_injecting_external = e1_injecting_vertex is not None
+            e2_has_injecting_external = e2_injecting_vertex is not None
             if e1_has_injecting_external == e2_has_injecting_external:
                 raise ValueError(
                     "could not uniquely order raised gluon edges by external injection"
                 )
             if not e1_has_injecting_external:
                 e1, e2 = e2, e1
+                e1_injecting_vertex = e2_injecting_vertex
 
             e1_atts = e1.get_attributes()
             e2_atts = e2.get_attributes()
 
-            if not _has_external_with_orientation(e2, "departing"):
+            e2_departing_vertex = _external_vertex_with_orientation(e2, "departing")
+            if e2_departing_vertex is None:
                 raise ValueError(
                     "the second raised gluon edge has no departing pure external edge"
                 )
 
-            # Determine the corresponding IR limit
             e1_s = e1.get_source()
             e1_d = e1.get_destination()
             e2_s = e2.get_source()
             e2_d = e2.get_destination()
 
-            # kinda brittle and kinda not brittle (assumes a specific routing)
-            vertices1 = [e1_s, e1_d]
-            vertices2 = [e2_s, e2_d]
-
-            # vertices1 = [e1_s, e1_d]
-            # vertices2 = [e2_s, e2_d]
-
-            overall_sign1 = 1
-            overall_sign2 = -1
-            if e1_atts.get("routing_p1") == "1":
-                if e2_atts.get("routing_p1") == "1":
-                    vertices2 = [e2_d, e2_s]
-                    overall_sign2 = 1
-            elif e1_atts.get("routing_p1") == "-1":
-                vertices1 = [e1_d, e1_s]
-                overall_sign1 = -1
-                if e2_atts.get("routing_p1") == "1":
-                    vertices2 = [e2_d, e2_s]
-                    overall_sign2 = 1
-            elif e1_atts.get("routing_p2") == "1":
-                if e2_atts.get("routing_p2") == "1":
-                    vertices2 = [e2_d, e2_s]
-                    overall_sign2 = 1
-            elif e1_atts.get("routing_p2") == "-1":
-                vertices1 = [e1_d, e1_s]
-                overall_sign1 = -1
-                if e2_atts.get("routing_p2") == "1":
-                    vertices2 = [e2_d, e2_s]
-                    overall_sign2 = 1
-            else:
-                raise ValueError("routing in gluonic t-channel exchange has a problem")
-
-            # if repeated_relation == "opp":
-            #    vertices2 = [vertices2[1], vertices2[0]]
+            # The temporal vector Q(1000) must sit on the beam-adjacent side
+            # of each projector.  Routing coefficients are not a reliable
+            # proxy for that topology after p1/p2 symmetrisation (notably for
+            # GL047 and GL073), so orient the projector directly from the
+            # injecting/departing pure-external edge.
+            e1_external_is_source = (
+                e1_injecting_vertex == _base_node(e1_s)
+            )
+            e2_external_is_source = (
+                e2_departing_vertex == _base_node(e2_s)
+            )
+            vertices1 = [e1_s, e1_d] if e1_external_is_source else [e1_d, e1_s]
+            vertices2 = [e2_s, e2_d] if e2_external_is_source else [e2_d, e2_s]
+            overall_sign1 = 1 if e1_external_is_source else -1
+            overall_sign2 = -1 if e2_external_is_source else 1
 
             def _incident_energy_denominator(edge, vertex, overall_sign):
                 edge_id = _strip_quotes(
@@ -5537,13 +5605,22 @@ class LoopIntegrandConstructor(object):
                 e2, vertices2[0], overall_sign2
             )
 
+            # Eliminate the repeated t-channel momentum at every adjacent
+            # three-gluon current.  Rewriting only the Qp endpoint leaves the
+            # Q(1000) endpoint cut-dependent: in the gg channel its explicit
+            # Q(t-channel) terms have an uncancelled leading collinear pole.
+            # The two substitutions are the same exact vertex momentum-
+            # conservation identity and are harmless when the other endpoint
+            # is a quark current.
             target_node_to_edge_ids = {}
-            target_node_to_edge_ids.setdefault(_base_node(vertices1[1]), []).append(
-                e1_atts["id"]
-            )
-            target_node_to_edge_ids.setdefault(_base_node(vertices2[1]), []).append(
-                e2_atts["id"]
-            )
+            for vertex in vertices1:
+                target_node_to_edge_ids.setdefault(_base_node(vertex), []).append(
+                    e1_atts["id"]
+                )
+            for vertex in vertices2:
+                target_node_to_edge_ids.setdefault(_base_node(vertex), []).append(
+                    e2_atts["id"]
+                )
             for node in cut_graph.graph.get_nodes():
                 node_name = _strip_quotes(str(node.get_name()))
                 node_int_id = _strip_quotes(str(node.get_attributes().get("int_id")))
