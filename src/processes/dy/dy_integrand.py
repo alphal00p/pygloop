@@ -5933,9 +5933,6 @@ class LoopIntegrandConstructor(object):
                         theta_flag = False
                         lmb_choice = [2, 7]
 
-                        if base_graph_name in ["GL010"]:
-                            theta_flag = True
-
                     if base_graph_name == "GL081":
                         lmb_choice = select_gl081_lmb_choice(cut_graph, lmb_choice)
 
@@ -6022,7 +6019,7 @@ class LoopIntegrandConstructor(object):
                         theta_flag = False
                         lmb_choice = [2, 8]
 
-                        if base_graph_name in ["GL010", "GL018"]:
+                        if base_graph_name == "GL018":
                             theta_flag = True
                     if base_graph_name == "GL071":
                         theta_flag = True
@@ -6066,7 +6063,7 @@ class LoopIntegrandConstructor(object):
                         lmb_choice = [4, 5]
 
                     if base_graph_name in ["GL109", "GL111"]:
-                        theta_flag = True
+                        theta_flag = False
                         lmb_choice = [4, 6]
 
                     if base_graph_name == "GL115":
