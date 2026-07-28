@@ -1226,11 +1226,23 @@ def _uv_basis_rejection_reason(
 
 _AUTHORITATIVE_GG_LMB_CHOICES = {
     "GL018": (2, 8),
+    "GL020": (2, 7),
+    "GL021": (2, 7),
+    "GL027": (2, 7),
+    "GL033": (3, 4),
     "GL045": (5, 6),
     "GL053": (5, 6),
+    "GL057": (3, 4),
+    "GL061": (2, 6),
+    "GL073": (2, 8),
+    "GL075": (2, 8),
+    "GL077": (5, 6),
+    "GL079": (2, 7),
     "GL091": (2, 8),
     "GL093": (2, 8),
+    "GL105": (3, 6),
     "GL115": (6, 8),
+    "GL117": (3, 6),
 }
 
 _THRESHOLD_CT_DISABLED_GRAPH_CHANNELS = frozenset(
@@ -3958,6 +3970,7 @@ class UltraVioletSubtraction(object):
         L,
         emr_processor=None,
         integrated_cut_graph=None,
+        integrated_numerator_factorisation=None,
         disable_integrated_uv_cts=True,
     ):
         self.cut_graph = cut_graph
@@ -3966,6 +3979,9 @@ class UltraVioletSubtraction(object):
         self.L = L
         self.emr_processor = emr_processor
         self.integrated_cut_graph = integrated_cut_graph
+        self.integrated_numerator_factorisation = (
+            integrated_numerator_factorisation
+        )
         self.disable_integrated_uv_cts = bool(disable_integrated_uv_cts)
 
     # Focuses on cycles, and not unions of cycles. Specialised to NLO
@@ -4099,6 +4115,9 @@ class UltraVioletSubtraction(object):
             RoutedIntegrand,
             _cleanup_final_state_raised_energies,
             uv_routing,
+            external_numerator_factorisation=(
+                self.integrated_numerator_factorisation
+            ),
         )
 
     def construct_uv_counter_terms(self):
@@ -5917,47 +5936,14 @@ class LoopIntegrandConstructor(object):
                         if base_graph_name in ["GL010"]:
                             theta_flag = True
 
-                    if base_graph_name == "GL079":
-                        cut_ids = {
-                            _strip_quotes(str(e.get_attributes()["id"]))
-                            for side in cut_graph.partition
-                            for e in side
-                        }
-                        if cut_ids == {"0", "1"}:
-                            lmb_choice = [7, 2]
-                        elif cut_ids in [{"5", "7"}, {"1", "4", "5"}]:
-                            lmb_choice = [3, 1]
-
                     if base_graph_name == "GL081":
                         lmb_choice = select_gl081_lmb_choice(cut_graph, lmb_choice)
 
                     if base_graph_name == "GL087":
                         lmb_choice = [2, 7]
 
-                    if base_graph_name in ["GL020", "GL021"]:
-                        cut_ids = {
-                            _strip_quotes(str(e.get_attributes()["id"]))
-                            for side in cut_graph.partition
-                            for e in side
-                        }
-                        if cut_ids == {"6", "7"}:
-                            lmb_choice = [0, 2]
-                        elif cut_ids == {"0", "1"}:
-                            lmb_choice = [2, 7]
-
                     if base_graph_name == "GL035":
                         lmb_choice = [3, 5]
-
-                    if base_graph_name == "GL027":
-                        cut_ids = {
-                            _strip_quotes(str(e.get_attributes()["id"]))
-                            for side in cut_graph.partition
-                            for e in side
-                        }
-                        if cut_ids in [{"4", "7"}, {"1", "4", "6"}]:
-                            lmb_choice = [1, 5]
-                        elif cut_ids in [{"0", "1"}, {"0", "6", "7"}]:
-                            lmb_choice = [7, 2]
 
                     if base_graph_name in [
                         "GL017",
@@ -5990,38 +5976,8 @@ class LoopIntegrandConstructor(object):
                             threshold_collinear_momentum = E("p(1)")
                         elif collinear_sign == -1:
                             threshold_collinear_momentum = -E("p(1)")
-                    if base_graph_name == "GL061":
-                        theta_flag = False
-                        lmb_choice = [2, 6]
-                        cut_ids = {
-                            _strip_quotes(str(e.get_attributes()["id"]))
-                            for side in cut_graph.partition
-                            for e in side
-                        }
-                        if cut_ids == {"0", "1"}:
-                            lmb_choice = [2, 6]
-                        elif cut_ids == {"6", "7"}:
-                            lmb_choice = [0, 2]
-                    if base_graph_name == "GL033":
-                        cut_ids = {
-                            _strip_quotes(str(e.get_attributes()["id"]))
-                            for side in cut_graph.partition
-                            for e in side
-                        }
-                        if cut_ids == {"0", "1"}:
-                            lmb_choice = [4, 3]
-                        elif cut_ids == {"4", "6"}:
-                            lmb_choice = [0, 3]
-                    if base_graph_name == "GL057":
-                        cut_ids = {
-                            _strip_quotes(str(e.get_attributes()["id"]))
-                            for side in cut_graph.partition
-                            for e in side
-                        }
-                        if cut_ids == {"0", "1"}:
-                            lmb_choice = [3, 4]
-                        elif cut_ids == {"4", "6"}:
-                            lmb_choice = [0, 3]
+                    if base_graph_name in ["GL033", "GL057"]:
+                        lmb_choice = [3, 4]
 
                     if base_graph_name == "GL059":
                         theta_flag = True
@@ -6068,43 +6024,7 @@ class LoopIntegrandConstructor(object):
 
                         if base_graph_name in ["GL010", "GL018"]:
                             theta_flag = True
-                    if base_graph_name == "GL073":
-                        theta_flag = False
-                        cut_ids = {
-                            _strip_quotes(str(e.get_attributes()["id"]))
-                            for side in cut_graph.partition
-                            for e in side
-                        }
-                        if cut_ids in [{"0", "1"}, {"0", "7", "8"}, {"0", "4", "8"}]:
-                            lmb_choice = [5, 6]
-                        elif cut_ids in [
-                            {"5", "8"},
-                            {"1", "4", "5"},
-                            {"1", "5", "7"},
-                        ]:
-                            lmb_choice = [1, 3]
-                    if base_graph_name == "GL075":
-                        theta_flag = False
-                        cut_key = frozenset(
-                            frozenset(
-                                _strip_quotes(str(e.get_attributes()["id"]))
-                                for e in side
-                            )
-                            for side in cut_graph.partition
-                        )
-                        if cut_key in {
-                            frozenset({frozenset({"0"}), frozenset({"1"})}),
-                            frozenset({frozenset({"1"}), frozenset({"7", "8"})}),
-                            frozenset({frozenset({"0"}), frozenset({"4", "8"})}),
-                            frozenset(
-                                {frozenset({"4", "8"}), frozenset({"7", "8"})}
-                            ),
-                        }:
-                            lmb_choice = [5, 2]
-                        else:
-                            lmb_choice = [1, 3]
-
-                    if base_graph_name in ["GL071", "GL077"]:
+                    if base_graph_name == "GL071":
                         theta_flag = True
                         lmb_choice = [2, 3]
                     if base_graph_name == "GL071":
@@ -6131,15 +6051,7 @@ class LoopIntegrandConstructor(object):
                             threshold_collinear_momentum = E("p(1)")
                     if base_graph_name == "GL077":
                         theta_flag = False
-                        cut_ids = {
-                            _strip_quotes(str(e.get_attributes()["id"]))
-                            for side in cut_graph.partition
-                            for e in side
-                        }
-                        if cut_ids == {"0", "1"}:
-                            lmb_choice = [3, 4]
-                        elif cut_ids == {"3", "5"}:
-                            lmb_choice = [0, 6]
+                        lmb_choice = [5, 6]
 
                     if base_graph_name in ["GL091"]:
                         theta_flag = False
@@ -6148,15 +6060,6 @@ class LoopIntegrandConstructor(object):
                     if base_graph_name == "GL105":
                         theta_flag = False
                         lmb_choice = [3, 6]
-                        cut_ids = {
-                            _strip_quotes(str(e.get_attributes()["id"]))
-                            for side in cut_graph.partition
-                            for e in side
-                        }
-                        if cut_ids == {"0", "1"}:
-                            lmb_choice = [4, 6]
-                        elif cut_ids == {"5", "6"}:
-                            lmb_choice = [4, 1]
 
                     if base_graph_name == "GL107":
                         theta_flag = False
@@ -6173,15 +6076,6 @@ class LoopIntegrandConstructor(object):
                     if base_graph_name == "GL117":
                         theta_flag = False
                         lmb_choice = [3, 6]
-                        cut_ids = {
-                            _strip_quotes(str(e.get_attributes()["id"]))
-                            for side in cut_graph.partition
-                            for e in side
-                        }
-                        if cut_ids == {"0", "1"}:
-                            lmb_choice = [3, 5]
-                        elif cut_ids == {"3", "4"}:
-                            lmb_choice = [0, 5]
 
                     if base_graph_name == "GL119":
                         theta_flag = False
@@ -6231,6 +6125,7 @@ class LoopIntegrandConstructor(object):
             self.L,
             self.emr_processor,
             deepcopy(orig_cut_graph),
+            integrated_numerator_factorisation=numerator_factorisation,
             disable_integrated_uv_cts=self.disable_integrated_uv_cts,
         )
         uv_ct = uv_approximator.construct_uv_counter_terms()

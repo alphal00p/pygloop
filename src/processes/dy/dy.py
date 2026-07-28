@@ -524,6 +524,62 @@ class DY(object):
             return []
         return self.compiled_bundle.graph_channel_names()
 
+    def _integration_graph_channel_indices(
+        self,
+        integrand_implementation: dict[str, Any] | str,
+        selectors: list[str] | None,
+    ) -> list[int] | None:
+        if selectors is None:
+            return None
+
+        channel_names = self.graph_channel_names(integrand_implementation)
+        if len(channel_names) == 0:
+            raise pygloopException(
+                "DY integration graph selection requires a compiled zenos "
+                "bundle with graph-grouped evaluators."
+            )
+
+        aliases = {name: index for index, name in enumerate(channel_names)}
+        if self.diagrams is not None:
+            if len(self.diagrams) != len(channel_names):
+                raise pygloopException(
+                    "Cannot map source graph names to compiled DY channels: "
+                    f"--diagrams contains {len(self.diagrams)} names but the "
+                    f"bundle contains {len(channel_names)} graph channels. "
+                    "Use native graph_N channel names instead."
+                )
+            aliases.update({
+                str(graph_name): index
+                for index, graph_name in enumerate(self.diagrams)
+            })
+
+        selected_indices: list[int] = []
+        for raw_selector in selectors:
+            selector = str(raw_selector)
+            if selector in aliases:
+                channel_index = aliases[selector]
+            elif selector.isdigit():
+                channel_index = int(selector)
+                if channel_index >= len(channel_names):
+                    raise pygloopException(
+                        f"DY integration graph channel {channel_index} out of "
+                        f"range for {len(channel_names)} channels."
+                    )
+            else:
+                known_aliases = list(channel_names)
+                if self.diagrams is not None and len(self.diagrams) == len(channel_names):
+                    known_aliases.extend(str(name) for name in self.diagrams)
+                raise pygloopException(
+                    f"Unknown DY integration graph '{selector}'. Known graph "
+                    f"selectors: {', '.join(known_aliases)}"
+                )
+            if channel_index not in selected_indices:
+                selected_indices.append(channel_index)
+
+        if len(selected_indices) == 0:
+            raise pygloopException("DY integration graph selection cannot be empty.")
+        return selected_indices
+
     @staticmethod
     def _build_symbolica_discrete_integrator(
         n_dim: int, n_channels: int
@@ -915,7 +971,20 @@ class DY(object):
         print("n routed:", len(processed_graphs))
         return processed_graphs
 
+    def _require_gg_generation_symmetrisation(self) -> None:
+        if (
+            self.n_loops == 2
+            and self.process_name == "tt~"
+            and self.dy_channel == (0, 0)
+            and not self.symmetrise_p1_p2
+        ):
+            raise pygloopException(
+                "Two-loop gg graph generation requires "
+                "symmetrise_p1_p2=True."
+            )
+
     def process_2L_generated_graphs(self, graphs: DYDotGraphs) -> DYDotGraphs:
+        self._require_gg_generation_symmetrisation()
         final_state = copy.deepcopy(self.final_state)
         process_name = self.process_name
         n_loops = self.n_loops
@@ -1253,6 +1322,7 @@ class DY(object):
         return processed_graphs
 
     def generate_graphs(self) -> None:
+        self._require_gg_generation_symmetrisation()
         graphs_process_name = self.get_integrand_name(suffix="_generated_graphs")
         integrand_name = self.get_integrand_name()
         amplitudes, _cross_sections = self.gl_worker.list_outputs()
@@ -2773,6 +2843,7 @@ class DY(object):
         multi_channeling: bool,
         all_xs: list[SymbolicaSample],
         call_args: list[Any],
+        graph_channel_indices: list[int] | None = None,
         skip_gl_worker_init: bool = False,
     ) -> tuple[int, list[float], IntegrationResult]:
         res = IntegrationResult(0.0, 0.0)
@@ -2788,7 +2859,15 @@ class DY(object):
             if not multi_channeling:
                 weight = process.integrand_xspace(xs.c, *( call_args + [False, ]))  # fmt: off
             else:
-                weight = process.integrand_xspace(xs.c, *(call_args + [xs.d[0]]))
+                local_channel_index = int(xs.d[0])
+                channel_index = (
+                    graph_channel_indices[local_channel_index]
+                    if graph_channel_indices is not None
+                    else local_channel_index
+                )
+                weight = process.integrand_xspace(
+                    xs.c, *(call_args + [channel_index])
+                )
             all_weights.append(weight)
             if res.max_wgt is None or abs(weight) > abs(res.max_wgt):
                 res.max_wgt = weight
@@ -2855,6 +2934,7 @@ class DY(object):
         multi_channeling: bool,
         call_args: list[Any],
         samples: list[Sample],
+        graph_channel_indices: list[int] | None = None,
     ) -> list[float]:
         all_weights = []
         if n_cores > 1:
@@ -2866,6 +2946,7 @@ class DY(object):
                     multi_channeling,
                     [SymbolicaSample(s) for s in all_xs_split],
                     call_args,
+                    graph_channel_indices,
                     skip_gl_worker_init,
                 )
                 for i_chunk, all_xs_split in enumerate(
@@ -2885,6 +2966,7 @@ class DY(object):
                 multi_channeling,
                 [SymbolicaSample(s) for s in samples],
                 call_args,
+                graph_channel_indices,
             )
             all_weights.extend(wgts)
             res.combine_with(this_result)
@@ -2907,16 +2989,33 @@ class DY(object):
 
         n_dim = self.integration_dimension(integrand_implementation)
 
+        requested_graphs = opts.get("dy_integration_graphs")
+        if requested_graphs is not None and not opts["multi_channeling"]:
+            raise pygloopException(
+                "--dy-integration-graphs requires --multi_channeling."
+            )
+
         if opts["multi_channeling"]:
-            graph_channel_names = self.graph_channel_names(integrand_implementation)
-            if len(graph_channel_names) == 0:
+            all_graph_channel_names = self.graph_channel_names(
+                integrand_implementation
+            )
+            if len(all_graph_channel_names) == 0:
                 raise pygloopException(
                     "DY Symbolica multi-channeling requires a compiled zenos bundle "
                     "with graph-grouped evaluators."
                 )
+            graph_channel_indices = self._integration_graph_channel_indices(
+                integrand_implementation, requested_graphs
+            )
+            if graph_channel_indices is None:
+                graph_channel_indices = list(range(len(all_graph_channel_names)))
+            graph_channel_names = [
+                all_graph_channel_names[index] for index in graph_channel_indices
+            ]
             logger.info(
-                "Symbolica discrete graph channels: %s",
+                "Symbolica discrete graph channels: %s (bundle indices: %s)",
                 ", ".join(graph_channel_names),
+                ", ".join(str(index) for index in graph_channel_indices),
             )
             integrator = self._build_symbolica_discrete_integrator(
                 n_dim, len(graph_channel_names)
@@ -2929,6 +3028,7 @@ class DY(object):
             ]
         else:
             graph_channel_names = []
+            graph_channel_indices = None
             integrator = NumericalIntegrator.continuous(n_dim)
             graph_channel_observers = []
 
@@ -2946,6 +3046,7 @@ class DY(object):
                 opts["multi_channeling"],
                 [parameterisation, integrand_implementation, opts.get("phase", "real")],
                 samples,
+                graph_channel_indices,
             )
             integrator.add_training_samples(samples, res)
 

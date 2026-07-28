@@ -934,11 +934,46 @@ def _open_lorentz_momenta(expr: Expression) -> list[str]:
     return list(dict.fromkeys(momenta))
 
 
-def _uv_int_numerator_factorisation(graph):
+def _uv_int_numerator_factorisation(graph, upstream_factorisation=None):
+    numerator_graph = graph
+    post_momentum_rewrite_factor = E("1")
+    protected_energy_ids = set()
+
+    if upstream_factorisation is not None:
+        factorisation_result = upstream_factorisation(graph)
+        protected_energy_ids.update(
+            getattr(factorisation_result, "protected_energy_ids", set()) or set()
+        )
+        if len(factorisation_result) == 2:
+            numerator_graph, post_momentum_rewrite_factor = factorisation_result
+        elif len(factorisation_result) == 3:
+            (
+                numerator_graph,
+                post_momentum_rewrite_factor,
+                explicit_protected_energy_ids,
+            ) = factorisation_result
+            protected_energy_ids.update(explicit_protected_energy_ids)
+        else:
+            raise ValueError(
+                "upstream numerator_factorisation must return graph/factor or "
+                "graph/factor/protected_energy_ids"
+            )
+
+    # Projector factors carry the Lorentz indices removed from the external
+    # cut-edge metrics.  Include them before closing the contracted UV tensor;
+    # multiplying them afterwards would leave those indices open.
     closed_numerator = _close_uv_int_tensor_numerator(
-        _raw_uv_int_graph_numerator(graph)
+        _raw_uv_int_graph_numerator(numerator_graph)
+        * post_momentum_rewrite_factor
     )
-    return _graph_without_numerators(graph), closed_numerator
+    graph_without_numerators = _graph_without_numerators(numerator_graph)
+    if protected_energy_ids:
+        return (
+            graph_without_numerators,
+            closed_numerator,
+            protected_energy_ids,
+        )
+    return graph_without_numerators, closed_numerator
 
 
 def _match_uv_external_edges(reference_edges, surviving_ports, boundary_edges):
@@ -1544,6 +1579,7 @@ def construct_integrated_counter_term(
     routed_integrand_cls,
     raised_energy_cleanup,
     uv_routing: UVSubgraphRouting | None = None,
+    external_numerator_factorisation=None,
 ):
     if subtraction.emr_processor is None or subtraction.L != 2:
         return None
@@ -1765,9 +1801,15 @@ def construct_integrated_counter_term(
                 f"cycle={list(uv_routing.cycle_edge_ids)}, "
                 f"adapted_lmb={list(uv_routing.adapted_lmb)}"
             )
+    def uv_int_numerator_factorisation(graph):
+        return _uv_int_numerator_factorisation(
+            graph,
+            upstream_factorisation=external_numerator_factorisation,
+        )
+
     contracted_emr = subtraction.emr_processor.get_integrand(
         deepcopy(contracted_cut_graph),
-        numerator_factorisation=_uv_int_numerator_factorisation,
+        numerator_factorisation=uv_int_numerator_factorisation,
     )
     contracted_emr, is_final_raised = raised_energy_cleanup(
         contracted_emr,
