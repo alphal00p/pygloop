@@ -14,7 +14,7 @@ import shutil
 import time
 import traceback
 from copy import deepcopy
-from decimal import Decimal
+from decimal import Decimal, localcontext
 from itertools import product  # noqa: F401
 from pprint import pformat, pprint  # noqa: F401
 from typing import Any, Callable
@@ -67,6 +67,14 @@ from processes.dy.dy_integrand import (
     EMRIntegrandConstructor,
     LoopIntegrandConstructor,
     routed_cut_graph,
+)
+from processes.dy.dy_stability import (
+    build_high_precision_sample,
+    decimal_from_input,
+    decimal_values_agree,
+    exact_rotation_from_xs,
+    float_values_agree,
+    rotate_vector,
 )
 from utils.utils import (
     CONFIGS_FOLDER,  # noqa: F401
@@ -272,10 +280,26 @@ class DY(object):
         self.large_weight_hp_salvaged_count: int = 0
         self.large_weight_unstable_count: int = 0
         self.large_weight_zeroed_count: int = 0
+        self.large_weight_zeroed_signed_sum: float = 0.0
+        self.large_weight_zeroed_abs_sum: float = 0.0
         self.large_weight_retry_example: list[float] | None = None
         self.large_weight_retry_example_momentum_point: str | None = None
         self.large_weight_retry_example_compiled_wgt: float | None = None
         self.large_weight_retry_example_arb_wgt: float | None = None
+        self.stability_float_pair_accepted_count: int = 0
+        self.stability_float_mismatch_retry_count: int = 0
+        self.stability_float_nonfinite_retry_count: int = 0
+        self.stability_hp_retry_count: int = 0
+        self.stability_hp_accepted_count: int = 0
+        self.stability_hp_disagreement_count: int = 0
+        self.stability_hp_nonfinite_count: int = 0
+        self.stability_hp_error_count: int = 0
+        self.stability_hp_failure_example: list[float] | None = None
+        self.stability_hp_failure_example_momentum_point: str | None = None
+        self.stability_hp_failure_reason: str | None = None
+        self.max_preclip_wgt: float | None = None
+        self.max_preclip_wgt_point: list[float] | None = None
+        self.max_preclip_wgt_momentum_point: str | None = None
         self.nan_weight_count: int = 0
         self.nan_weight_example: list[float] | None = None
         self.nan_weight_example_momentum_point: str | None = None
@@ -1602,60 +1626,438 @@ class DY(object):
         return float(x1) * float(x2) * (self.e_cm**2) >= 4.0 * (mt**2)
 
     @staticmethod
-    def _rotation_matrix_from_xs(xs: list[float]) -> tuple[tuple[float, ...], ...]:
-        # Deterministic SO(3) rotation from sample coordinates.
-        x0 = xs[0] if len(xs) > 0 else 0.123456789
-        x1 = xs[1] if len(xs) > 1 else 0.234567891
-        x2 = xs[2] if len(xs) > 2 else 0.345678912
-        x3 = xs[3] if len(xs) > 3 else 0.456789123
-
-        ux = math.sin(2.0 * math.pi * x0)
-        uy = math.cos(2.0 * math.pi * x1)
-        uz = math.sin(2.0 * math.pi * x2 + 0.5)
-        norm = math.sqrt(ux * ux + uy * uy + uz * uz)
-        if norm <= 1e-16:
-            return (
-                (1.0, 0.0, 0.0),
-                (0.0, 1.0, 0.0),
-                (0.0, 0.0, 1.0),
-            )
-        ux /= norm
-        uy /= norm
-        uz /= norm
-
-        theta = 2.0 * math.pi * x3
-        c = math.cos(theta)
-        s = math.sin(theta)
-        one_c = 1.0 - c
-
-        return (
-            (
-                c + ux * ux * one_c,
-                ux * uy * one_c - uz * s,
-                ux * uz * one_c + uy * s,
-            ),
-            (
-                uy * ux * one_c + uz * s,
-                c + uy * uy * one_c,
-                uy * uz * one_c - ux * s,
-            ),
-            (
-                uz * ux * one_c - uy * s,
-                uz * uy * one_c + ux * s,
-                c + uz * uz * one_c,
-            ),
-        )
+    def _rotation_matrix_from_xs(xs: list[float]):
+        return exact_rotation_from_xs(xs)
 
     @staticmethod
-    def _rotate_vec(v: Vector, rmat: tuple[tuple[float, ...], ...]) -> Vector:
-        x, y, z = v.to_list()
-        return Vector(
-            rmat[0][0] * x + rmat[0][1] * y + rmat[0][2] * z,
-            rmat[1][0] * x + rmat[1][1] * y + rmat[1][2] * z,
-            rmat[2][0] * x + rmat[2][1] * y + rmat[2][2] * z,
-        )
+    def _rotate_vec(v: Vector, rmat) -> Vector:
+        return rotate_vector(v, rmat)
 
-    # dy.py: replace integrand_xspace(...) with this version
+    @staticmethod
+    def _validated_optional_threshold(value: Any, option_name: str) -> float | None:
+        if value is None:
+            return None
+        threshold = float(value)
+        if not math.isfinite(threshold) or threshold <= 0.0:
+            raise pygloopException(f"{option_name} must be finite and strictly positive.")
+        return threshold
+
+    @classmethod
+    def _stability_thresholds(
+        cls, integrand_implementation: dict[str, Any]
+    ) -> tuple[float | None, float | None]:
+        precision_value = integrand_implementation.get("dy_large_weight_precision")
+        if precision_value is None:
+            precision_value = integrand_implementation.get("dy_large_weight_threshold")
+        clip_value = integrand_implementation.get("dy_large_weight_clip")
+        if (
+            clip_value is None
+            and bool(integrand_implementation.get("dy_zero_large_weight_samples", False))
+        ):
+            clip_value = integrand_implementation.get("dy_large_weight_threshold")
+
+        precision_threshold = cls._validated_optional_threshold(
+            precision_value, "DY large-weight precision threshold"
+        )
+        clip_threshold = cls._validated_optional_threshold(
+            clip_value, "DY large-weight clip threshold"
+        )
+        if (
+            precision_threshold is not None
+            and clip_threshold is not None
+            and precision_threshold > clip_threshold
+        ):
+            raise pygloopException(
+                "DY large-weight precision threshold must not exceed the clip "
+                "threshold; clipped points must first pass higher-precision validation."
+            )
+        return precision_threshold, clip_threshold
+
+    @staticmethod
+    def _stability_tolerances(
+        integrand_implementation: dict[str, Any], rotation_digits: int
+    ) -> tuple[float, float]:
+        default_relative = 10.0 ** (-rotation_digits) if rotation_digits > 0 else 1.0e-6
+        relative_value = integrand_implementation.get("dy_stability_rtol")
+        relative = float(
+            default_relative if relative_value is None else relative_value
+        )
+        absolute_value = integrand_implementation.get("dy_stability_atol")
+        if absolute_value is None:
+            absolute_value = integrand_implementation.get(
+                "dy_rotation_check_eps", 1.0e-15
+            )
+        absolute = float(absolute_value)
+        if not math.isfinite(relative) or relative < 0.0:
+            raise pygloopException(
+                "DY stability relative tolerance must be finite and non-negative."
+            )
+        if not math.isfinite(absolute) or absolute < 0.0:
+            raise pygloopException(
+                "DY stability absolute tolerance must be finite and non-negative."
+            )
+        if relative == 0.0 and absolute == 0.0:
+            raise pygloopException("DY stability tolerances cannot both be zero.")
+        return relative, absolute
+
+    @staticmethod
+    def _phase_value(value: complex, phase: str) -> float:
+        as_complex = complex(value)
+        if phase == "real":
+            return as_complex.real
+        if phase == "imag":
+            return as_complex.imag
+        raise pygloopException(f"Unsupported integration phase {phase!r}.")
+
+    def _record_hp_failure(
+        self,
+        xs: list[float],
+        momentum_point: str,
+        reason: str,
+    ) -> None:
+        if self.stability_hp_failure_example is None:
+            self.stability_hp_failure_example = list(xs)
+            self.stability_hp_failure_example_momentum_point = momentum_point
+            self.stability_hp_failure_reason = reason
+
+    def _evaluate_stability_hp_pair(
+        self,
+        xs: list[float],
+        parameterization: str,
+        integrand_implementation: dict[str, Any],
+        phase: str,
+        channel_selector: int | None,
+        expects_z: bool,
+        expects_beam_fractions: bool,
+        rotation,
+        decimal_digit_precision: int,
+        relative_tolerance: float,
+        absolute_tolerance: float,
+    ) -> tuple[Decimal | None, Decimal | None, str | None, str | None]:
+        if self.compiled_bundle is None:
+            raise pygloopException(
+                "Higher-precision DY validation requires a compiled zenos bundle."
+            )
+        if decimal_digit_precision < 2:
+            raise pygloopException(
+                "Higher-precision DY validation requires at least two digits."
+            )
+        self.compiled_bundle.require_fallback_supported(decimal_digit_precision)
+        try:
+            sample = build_high_precision_sample(
+                xs,
+                n_loops=self.n_loops,
+                parameterization=parameterization,
+                incoming_momenta=(self.ps_point[0], self.ps_point[1]),
+                expects_z=expects_z,
+                expects_beam_fractions=expects_beam_fractions,
+                rescaling=RESCALING,
+                decimal_digit_precision=decimal_digit_precision,
+            )
+            rotated_sample = sample.rotated(rotation)
+            hp_impl = dict(integrand_implementation)
+            hp_impl["dy_evaluation_mode"] = "arb"
+            hp_impl["dy_fallback_precision"] = decimal_digit_precision
+            hp_impl["dy_rotation_check_arb_digits"] = decimal_digit_precision
+            hp_impl["z"] = sample.z
+            hp_impl["mUV"] = decimal_from_input(hp_impl.get("mUV", 1.0))
+
+            first_total, _first_terms = self._zenos_arb_terms_with_externals(
+                list(sample.loop_momenta),
+                sample.p1,
+                sample.p2,
+                hp_impl,
+                decimal_digit_precision,
+                channel_selector=channel_selector,
+            )
+            rotated_total, _rotated_terms = self._zenos_arb_terms_with_externals(
+                list(rotated_sample.loop_momenta),
+                rotated_sample.p1,
+                rotated_sample.p2,
+                hp_impl,
+                decimal_digit_precision,
+                channel_selector=channel_selector,
+            )
+
+            with localcontext() as context:
+                context.prec = decimal_digit_precision + 12
+                if phase == "real":
+                    first_weight = first_total * sample.jacobian
+                    rotated_weight = rotated_total * rotated_sample.jacobian
+                elif phase == "imag":
+                    first_weight = Decimal(0)
+                    rotated_weight = Decimal(0)
+                else:
+                    raise pygloopException(f"Unsupported integration phase {phase!r}.")
+
+                if not first_weight.is_finite() or not rotated_weight.is_finite():
+                    return (
+                        None,
+                        None,
+                        "nonfinite",
+                        "higher-precision pair is non-finite",
+                    )
+                if not decimal_values_agree(
+                    first_weight,
+                    rotated_weight,
+                    relative_tolerance=Decimal(str(relative_tolerance)),
+                    absolute_tolerance=Decimal(str(absolute_tolerance)),
+                    decimal_digit_precision=decimal_digit_precision,
+                ):
+                    return (
+                        None,
+                        None,
+                        "disagreement",
+                        "higher-precision original/rotated pair disagrees",
+                    )
+                return +first_weight, +first_total, None, None
+        except BaseException as exc:
+            if isinstance(exc, (KeyboardInterrupt, SystemExit)):
+                raise
+            return None, None, "error", f"{type(exc).__name__}: {exc}"
+
+    def _evaluate_zenos_stability_sample(
+        self,
+        xs: list[float],
+        parameterization: str,
+        integrand_implementation: dict[str, Any],
+        phase: str,
+        channel_selector: int | None,
+        expects_z: bool,
+        expects_beam_fractions: bool,
+        loop_momenta: list[Vector],
+        p1: Vector,
+        p2: Vector,
+        total_jacobian: float,
+        momentum_point: str,
+        rotation_digits: int,
+        precision_threshold: float | None,
+        clip_threshold: float | None,
+    ) -> float:
+        relative_tolerance, absolute_tolerance = self._stability_tolerances(
+            integrand_implementation, rotation_digits
+        )
+        rotation = self._rotation_matrix_from_xs(xs)
+        float_impl = dict(integrand_implementation)
+        float_impl["dy_evaluation_mode"] = "compiled"
+
+        first_weight: complex | None = None
+        first_final = math.nan
+        float_error: str | None = None
+        try:
+            first_weight = self.zenos_integrand_with_externals(
+                loop_momenta,
+                p1,
+                p2,
+                float_impl,
+                channel_selector=channel_selector,
+            )
+            first_phase = self._phase_value(first_weight, phase)
+            first_final = first_phase * total_jacobian
+        except BaseException as exc:
+            if isinstance(exc, (KeyboardInterrupt, SystemExit)):
+                raise
+            float_error = f"{type(exc).__name__}: {exc}"
+
+        fallback_reason: str | None = None
+        large_trigger = False
+        if float_error is not None or not math.isfinite(first_final):
+            fallback_reason = "float_nonfinite"
+        else:
+            trigger_thresholds = [
+                threshold
+                for threshold in (precision_threshold, clip_threshold)
+                if threshold is not None
+            ]
+            large_trigger = any(
+                abs(first_final) > threshold for threshold in trigger_thresholds
+            )
+            if large_trigger:
+                # Deliberately do not spend time on a float rotation here.
+                fallback_reason = "large_weight"
+
+        rotated_final = math.nan
+        float_relative_difference = math.inf
+        if fallback_reason is None:
+            rotated_momenta = [
+                self._rotate_vec(momentum, rotation) for momentum in loop_momenta
+            ]
+            rotated_p1 = self._rotate_vec(p1, rotation)
+            rotated_p2 = self._rotate_vec(p2, rotation)
+            try:
+                rotated_weight = self.zenos_integrand_with_externals(
+                    rotated_momenta,
+                    rotated_p1,
+                    rotated_p2,
+                    float_impl,
+                    channel_selector=channel_selector,
+                )
+                rotated_final = (
+                    self._phase_value(rotated_weight, phase) * total_jacobian
+                )
+            except BaseException as exc:
+                if isinstance(exc, (KeyboardInterrupt, SystemExit)):
+                    raise
+                float_error = f"{type(exc).__name__}: {exc}"
+
+            if not math.isfinite(rotated_final):
+                fallback_reason = "float_nonfinite"
+                self.nan_weight_rotated_count += 1
+                if self.nan_weight_rotated_example is None:
+                    self.nan_weight_rotated_example = list(xs)
+                    self.nan_weight_rotated_example_momentum_point = momentum_point
+            elif not float_values_agree(
+                first_final,
+                rotated_final,
+                relative_tolerance=relative_tolerance,
+                absolute_tolerance=absolute_tolerance,
+            ):
+                fallback_reason = "float_mismatch"
+                scale = max(abs(first_final), abs(rotated_final))
+                float_relative_difference = (
+                    abs(first_final - rotated_final) / scale
+                    if scale > 0.0
+                    else math.inf
+                )
+            else:
+                self.stability_float_pair_accepted_count += 1
+
+        accepted_final: float | Decimal
+        accepted_unweighted: float | Decimal
+        if fallback_reason is None:
+            accepted_final = first_final
+            accepted_unweighted = (
+                self._phase_value(first_weight, phase)
+                if first_weight is not None
+                else 0.0
+            )
+        else:
+            self.stability_hp_retry_count += 1
+            if fallback_reason == "large_weight":
+                self.large_weight_hp_retry_count += 1
+                if self.large_weight_retry_example is None:
+                    self.large_weight_retry_example = list(xs)
+                    self.large_weight_retry_example_momentum_point = momentum_point
+                    self.large_weight_retry_example_compiled_wgt = first_final
+            else:
+                self.rotation_hp_retry_count += 1
+                if fallback_reason == "float_mismatch":
+                    self.stability_float_mismatch_retry_count += 1
+                else:
+                    self.stability_float_nonfinite_retry_count += 1
+                if self.rotation_hp_retry_example is None:
+                    self.rotation_hp_retry_example = list(xs)
+                    self.rotation_hp_retry_example_momentum_point = momentum_point
+                    self.rotation_hp_retry_example_rel = float_relative_difference
+
+            precision = self._dy_fallback_precision(integrand_implementation)
+            (
+                hp_final,
+                hp_unweighted,
+                hp_failure_kind,
+                hp_failure_reason,
+            ) = self._evaluate_stability_hp_pair(
+                xs,
+                parameterization,
+                integrand_implementation,
+                phase,
+                channel_selector,
+                expects_z,
+                expects_beam_fractions,
+                rotation,
+                precision,
+                relative_tolerance,
+                absolute_tolerance,
+            )
+            if (
+                hp_failure_kind is None
+                and hp_final is not None
+                and hp_unweighted is not None
+            ):
+                self.stability_hp_accepted_count += 1
+                accepted_final = hp_final
+                accepted_unweighted = hp_unweighted if phase == "real" else Decimal(0)
+                if fallback_reason == "large_weight":
+                    self.large_weight_hp_salvaged_count += 1
+                    if self.large_weight_retry_example_arb_wgt is None:
+                        self.large_weight_retry_example_arb_wgt = float(hp_final)
+                else:
+                    self.rotation_hp_salvaged_count += 1
+            else:
+                accepted_final = Decimal(0)
+                accepted_unweighted = Decimal(0)
+                reason = hp_failure_reason or "unknown higher-precision failure"
+                if hp_failure_kind == "disagreement":
+                    self.stability_hp_disagreement_count += 1
+                elif hp_failure_kind == "nonfinite":
+                    self.stability_hp_nonfinite_count += 1
+                else:
+                    self.stability_hp_error_count += 1
+                self._record_hp_failure(xs, momentum_point, reason)
+                if fallback_reason == "large_weight":
+                    self.large_weight_unstable_count += 1
+                else:
+                    self.rotation_unstable_count += 1
+                    if self.rotation_unstable_example is None:
+                        self.rotation_unstable_example = list(xs)
+                        self.rotation_unstable_example_momentum_point = momentum_point
+                logger.debug(
+                    "Rejecting DY sample after higher-precision validation at xs=%s: %s",
+                    xs,
+                    reason,
+                )
+
+        try:
+            preclip_weight = float(accepted_final)
+        except (OverflowError, ValueError):
+            preclip_weight = math.copysign(math.inf, -1.0 if accepted_final < 0 else 1.0)
+        if self.max_preclip_wgt is None or abs(preclip_weight) > abs(
+            self.max_preclip_wgt
+        ):
+            self.max_preclip_wgt = preclip_weight
+            self.max_preclip_wgt_point = list(xs)
+            self.max_preclip_wgt_momentum_point = momentum_point
+
+        if clip_threshold is not None:
+            if isinstance(accepted_final, Decimal):
+                exceeds_clip = abs(accepted_final) > Decimal(str(clip_threshold))
+            else:
+                exceeds_clip = math.isfinite(accepted_final) and abs(
+                    accepted_final
+                ) > clip_threshold
+            if exceeds_clip:
+                self.large_weight_zeroed_count += 1
+                self.large_weight_zeroed_signed_sum += preclip_weight
+                self.large_weight_zeroed_abs_sum += abs(preclip_weight)
+                accepted_final = Decimal(0) if isinstance(accepted_final, Decimal) else 0.0
+
+        try:
+            stable_weight_abs = float(abs(accepted_unweighted))
+        except (OverflowError, ValueError):
+            stable_weight_abs = math.inf
+        if self.max_stable_wgt is None or stable_weight_abs > self.max_stable_wgt:
+            self.max_stable_wgt = stable_weight_abs
+            self.max_stable_wgt_point = list(xs)
+            self.max_stable_wgt_jacobian = total_jacobian
+            self.max_stable_wgt_momentum_point = momentum_point
+
+        try:
+            final_weight = float(accepted_final)
+        except (OverflowError, ValueError):
+            final_weight = math.nan
+        if not math.isfinite(final_weight):
+            self.nan_weight_count += 1
+            if self.nan_weight_example is None:
+                self.nan_weight_example = list(xs)
+                self.nan_weight_example_momentum_point = momentum_point
+            final_weight = 0.0
+
+        if self.max_wgt is None or abs(final_weight) > abs(self.max_wgt):
+            self.max_wgt = final_weight
+            self.max_wgt_point = list(xs)
+            self.max_wgt_jacobian = total_jacobian
+            self.max_wgt_momentum_point = momentum_point
+        return final_weight
 
     def integrand_xspace(
         self,
@@ -1755,7 +2157,36 @@ class DY(object):
             n_digits_int = 0
             if is_zenos and n_digits is not None:
                 n_digits_int = int(n_digits)
+                if n_digits_int < 0:
+                    raise pygloopException(
+                        "DY rotation-check digits must be non-negative."
+                    )
                 rotation_check_enabled = n_digits_int > 0
+
+            precision_threshold, clip_threshold = self._stability_thresholds(impl)
+            stability_requested = is_zenos and (
+                rotation_check_enabled
+                or precision_threshold is not None
+                or clip_threshold is not None
+            )
+            if stability_requested:
+                return self._evaluate_zenos_stability_sample(
+                    xs,
+                    parameterization,
+                    impl,
+                    phase,
+                    channel_selector,
+                    expects_z,
+                    expects_beam_fractions,
+                    loop_momenta,
+                    p1,
+                    p2,
+                    total_jacobian,
+                    momentum_point,
+                    n_digits_int,
+                    precision_threshold,
+                    clip_threshold,
+                )
 
             if expects_beam_fractions:
                 wgt = self.zenos_integrand_with_externals(
@@ -1769,234 +2200,6 @@ class DY(object):
                 wgt = self.integrand(
                     loop_momenta, impl, channel_selector=channel_selector
                 )
-            wgt_in_arb = str(impl.get("dy_evaluation_mode", "compiled")) == "arb"
-
-            if rotation_check_enabled:
-                eps = float(impl.get("dy_rotation_check_eps", 1e-15))
-                rotation_check_abs_floor = max(
-                    abs(eps),
-                    abs(
-                        float(
-                            impl.get(
-                                "dy_rotation_check_abs_floor",
-                                10.0 ** (-(n_digits_int + 3)),
-                            )
-                        )
-                    ),
-                )
-                tolerance = 10.0 ** (-n_digits_int)
-                rmat = self._rotation_matrix_from_xs(xs)
-                rk = [self._rotate_vec(k_loop, rmat) for k_loop in loop_momenta]
-                rp1 = self._rotate_vec(p1, rmat)
-                rp2 = self._rotate_vec(p2, rmat)
-                wgt_rot = self.zenos_integrand_with_externals(
-                    rk, rp1, rp2, impl, channel_selector=channel_selector
-                )
-                pair_is_finite = self._integrand_weight_real_is_finite(
-                    wgt
-                ) and self._integrand_weight_real_is_finite(wgt_rot)
-                rel = (
-                    self._integrand_weight_rel(
-                        wgt, wgt_rot, rotation_check_abs_floor
-                    )
-                    if pair_is_finite
-                    else math.inf
-                )
-                if not pair_is_finite or rel > tolerance:
-                    self.rotation_hp_retry_count += 1
-                    if self.rotation_hp_retry_example is None:
-                        self.rotation_hp_retry_example = list(xs)
-                        self.rotation_hp_retry_example_momentum_point = momentum_point
-                        self.rotation_hp_retry_example_rel = rel
-                    fallback_precision = self._dy_fallback_precision(impl)
-                    escalated_digits = max(
-                        fallback_precision,
-                        int(impl.get("dy_rotation_check_min_arb_digits", 50)),
-                        n_digits_int + 20,
-                    )
-                    assert self.compiled_bundle is not None
-                    candidate_digits: list[int] = []
-
-                    def add_candidate(digits: int) -> None:
-                        digits = int(digits)
-                        if digits not in candidate_digits:
-                            candidate_digits.append(digits)
-
-                    add_candidate(fallback_precision)
-                    if (
-                        escalated_digits == fallback_precision
-                        or self.compiled_bundle.supports_arb()
-                    ):
-                        add_candidate(escalated_digits)
-
-                    arb_eps = max(
-                        abs(Decimal(str(rotation_check_abs_floor))),
-                        abs(
-                            Decimal(
-                                str(
-                                    impl.get(
-                                        "dy_rotation_check_arb_abs_floor",
-                                        Decimal(1).scaleb(-(n_digits_int + 6)),
-                                    )
-                                )
-                            )
-                        ),
-                    )
-                    arb_tolerance = Decimal(1).scaleb(-n_digits_int)
-                    accepted_wgt: complex | None = None
-                    for arb_digits in candidate_digits:
-                        arb_impl = dict(impl)
-                        arb_impl["dy_evaluation_mode"] = "arb"
-                        arb_impl["dy_rotation_check_arb_digits"] = arb_digits
-                        arb_impl["dy_fallback_precision"] = arb_digits
-                        try:
-                            self.compiled_bundle.require_fallback_supported(arb_digits)
-                            wgt_arb, terms_arb = self._zenos_arb_terms_with_externals(
-                                loop_momenta,
-                                p1,
-                                p2,
-                                arb_impl,
-                                arb_digits,
-                                channel_selector=channel_selector,
-                            )
-                            (
-                                wgt_rot_arb,
-                                terms_rot_arb,
-                            ) = self._zenos_arb_terms_with_externals(
-                                rk,
-                                rp1,
-                                rp2,
-                                arb_impl,
-                                arb_digits,
-                                channel_selector=channel_selector,
-                            )
-                            arb_pair_is_finite = self._integrand_decimal_is_finite(
-                                wgt_arb
-                            ) and self._integrand_decimal_is_finite(wgt_rot_arb)
-                            rel_arb = (
-                                self._integrand_weight_decimal_rel(
-                                    wgt_arb,
-                                    wgt_rot_arb,
-                                    arb_eps,
-                                    max(
-                                        (
-                                            abs(term_value)
-                                            for _name, term_value in (
-                                                terms_arb + terms_rot_arb
-                                            )
-                                        ),
-                                        default=Decimal(0),
-                                    ),
-                                )
-                                if arb_pair_is_finite
-                                else Decimal("Infinity")
-                            )
-                            if arb_pair_is_finite and rel_arb <= arb_tolerance:
-                                accepted_wgt = complex(float(wgt_arb), 0.0)
-                                break
-                        except Exception:
-                            continue
-
-                    if accepted_wgt is not None:
-                        self.rotation_hp_salvaged_count += 1
-                        wgt = accepted_wgt
-                        wgt_in_arb = True
-                    else:
-                        self.rotation_unstable_count += 1
-                        if self.rotation_unstable_example is None:
-                            self.rotation_unstable_example = list(xs)
-                            self.rotation_unstable_example_momentum_point = (
-                                momentum_point
-                            )
-                        wgt = 0.0 + 0.0j
-                else:
-                    wgt = complex(complex(wgt).real, 0.0)
-            else:
-                wgt = self._sanitize_integrand_weight(
-                    wgt, xs, momentum_point, rotated=False
-                )
-
-            large_weight_threshold = impl.get("dy_large_weight_threshold")
-            if (
-                is_zenos
-                and not wgt_in_arb
-                and large_weight_threshold is not None
-                and float(large_weight_threshold) > 0.0
-            ):
-                phase_wgt = wgt.real if phase == "real" else wgt.imag
-                tentative_final_wgt = phase_wgt * total_jacobian
-                if math.isfinite(tentative_final_wgt) and abs(
-                    tentative_final_wgt
-                ) > float(large_weight_threshold):
-                    self.large_weight_hp_retry_count += 1
-                    if self.large_weight_retry_example is None:
-                        self.large_weight_retry_example = list(xs)
-                        self.large_weight_retry_example_momentum_point = momentum_point
-                        self.large_weight_retry_example_compiled_wgt = (
-                            tentative_final_wgt
-                        )
-
-                    arb_impl = dict(impl)
-                    arb_impl["dy_evaluation_mode"] = "arb"
-                    arb_impl["dy_rotation_check_arb_digits"] = (
-                        self._dy_fallback_precision(impl)
-                    )
-                    arb_impl["dy_fallback_precision"] = arb_impl[
-                        "dy_rotation_check_arb_digits"
-                    ]
-                    assert self.compiled_bundle is not None
-                    self.compiled_bundle.require_fallback_supported(
-                        int(arb_impl["dy_rotation_check_arb_digits"])
-                    )
-                    try:
-                        arb_digits = int(arb_impl["dy_rotation_check_arb_digits"])
-                        arb_total, arb_terms = self._zenos_arb_terms_with_externals(
-                            loop_momenta,
-                            p1,
-                            p2,
-                            arb_impl,
-                            arb_digits,
-                            channel_selector=channel_selector,
-                        )
-                        wgt_arb = complex(float(arb_total), 0.0)
-                        phase_wgt_arb = (
-                            wgt_arb.real if phase == "real" else wgt_arb.imag
-                        )
-                        final_wgt_arb = phase_wgt_arb * total_jacobian
-                        cancellation_veto_rel = Decimal(
-                            str(
-                                impl.get(
-                                    "dy_large_weight_cancellation_veto_rel",
-                                    1.0e-12,
-                                )
-                            )
-                        )
-                        max_term = max(
-                            (abs(term_value) for _name, term_value in arb_terms),
-                            default=Decimal(0),
-                        )
-                        cancellation_veto = (
-                            cancellation_veto_rel > 0
-                            and max_term > 0
-                            and abs(arb_total) / max_term < cancellation_veto_rel
-                        )
-                        if math.isfinite(final_wgt_arb) and not cancellation_veto:
-                            self.large_weight_hp_salvaged_count += 1
-                            if self.large_weight_retry_example_arb_wgt is None:
-                                self.large_weight_retry_example_arb_wgt = final_wgt_arb
-                            wgt = wgt_arb
-                        else:
-                            self.large_weight_unstable_count += 1
-                            if (
-                                math.isfinite(final_wgt_arb)
-                                and self.large_weight_retry_example_arb_wgt is None
-                            ):
-                                self.large_weight_retry_example_arb_wgt = final_wgt_arb
-                            wgt = 0.0 + 0.0j
-                    except Exception:
-                        self.large_weight_unstable_count += 1
-                        wgt = 0.0 + 0.0j
-
             wgt = self._sanitize_integrand_weight(
                 wgt, xs, momentum_point, rotated=False
             )
@@ -2007,24 +2210,19 @@ class DY(object):
                 self.max_stable_wgt_jacobian = total_jacobian
                 self.max_stable_wgt_momentum_point = momentum_point
 
-            # t2 = time.perf_counter()
-
-            # print("overall integrand time:", t2 - t1)
-
-            wgt = wgt.real if phase == "real" else wgt.imag
-            final_wgt = wgt * total_jacobian
-            if bool(impl.get("dy_zero_large_weight_samples", False)):
-                zero_threshold = impl.get("dy_large_weight_threshold")
-                if (
-                    zero_threshold is not None
-                    and float(zero_threshold) > 0.0
-                    and math.isfinite(final_wgt)
-                    and abs(final_wgt) > float(zero_threshold)
-                ):
-                    self.large_weight_zeroed_count += 1
-                    final_wgt = 0.0
+            final_wgt = self._phase_value(wgt, phase) * total_jacobian
+            if self.max_preclip_wgt is None or abs(final_wgt) > abs(
+                self.max_preclip_wgt
+            ):
+                self.max_preclip_wgt = final_wgt
+                self.max_preclip_wgt_point = list(xs)
+                self.max_preclip_wgt_momentum_point = momentum_point
 
             if not math.isfinite(final_wgt):
+                self.nan_weight_count += 1
+                if self.nan_weight_example is None:
+                    self.nan_weight_example = list(xs)
+                    self.nan_weight_example_momentum_point = momentum_point
                 logger.debug(
                     f"Integrand evaluated to non-finite final weight at xs = [{Colour.BLUE}{', '.join(f'{xi:+.16e}' for xi in xs)}{Colour.END}]. Setting it to zero"
                 )
@@ -2162,12 +2360,12 @@ class DY(object):
                 f"No compiled DY bundle loaded for integrand '{self.get_integrand_name()}'."
             )
 
-        z = 1.0
-        m_uv = 1.0
+        z: float | Decimal = 1.0
+        m_uv: float | Decimal = 1.0
         if integrand_implementation is not None:
-            m_uv = float(integrand_implementation.get("mUV", m_uv))
+            m_uv = integrand_implementation.get("mUV", m_uv)
             if self.process_uses_z():
-                z = float(integrand_implementation.get("z", z))
+                z = integrand_implementation.get("z", z)
         evaluation_mode = "compiled"
         decimal_digit_precision = None
         theta_tolerance = 0.0
@@ -2233,19 +2431,20 @@ class DY(object):
                 f"No compiled DY bundle loaded for integrand '{self.get_integrand_name()}'."
             )
 
-        z = 1.0
-        m_uv = 1.0
+        z: float | Decimal = 1.0
+        m_uv: float | Decimal = 1.0
         if integrand_implementation is not None:
-            m_uv = float(integrand_implementation.get("mUV", m_uv))
+            m_uv = integrand_implementation.get("mUV", m_uv)
             if self.process_uses_z():
-                z = float(integrand_implementation.get("z", z))
+                z = integrand_implementation.get("z", z)
 
         evaluate_kwargs: dict[str, Any] = {
             "decimal_digit_precision": decimal_digit_precision,
-            "theta_tolerance": float(
+            "theta_tolerance": decimal_from_input(
                 (integrand_implementation or {}).get("dy_theta_tol", 0.0)
             ),
             "channel_selector": channel_selector,
+            "precision_preserving": True,
         }
         integrated_uv_ct_filter = (
             integrand_implementation.get("dy_integrated_uv_ct_filter")
@@ -2300,12 +2499,14 @@ class DY(object):
             return {"integrand_type": integrand_implementation}
         return integrand_implementation
 
-    @staticmethod
-    def _dy_fallback_precision(integrand_implementation: dict[str, Any]) -> int:
-        value = integrand_implementation.get(
-            "dy_fallback_precision",
-            integrand_implementation.get("dy_rotation_check_arb_digits", 80),
-        )
+    def _dy_fallback_precision(
+        self, integrand_implementation: dict[str, Any]
+    ) -> int:
+        value = integrand_implementation.get("dy_fallback_precision")
+        if value is None:
+            value = integrand_implementation.get("dy_rotation_check_arb_digits")
+        if value is None:
+            value = self.dy_fallback_precision
         return int(value)
 
     @staticmethod
@@ -2320,49 +2521,6 @@ class DY(object):
             and math.isfinite(math.hypot(z.real, z.imag))
         )
 
-    @staticmethod
-    def _integrand_weight_real_is_finite(value: complex) -> bool:
-        try:
-            z = complex(value)
-        except (OverflowError, TypeError, ValueError):
-            return False
-        return math.isfinite(z.real)
-
-    @staticmethod
-    def _integrand_decimal_is_finite(value: Decimal) -> bool:
-        return value.is_finite()
-
-    @staticmethod
-    def _integrand_weight_rel(
-        wgt: complex,
-        wgt_rot: complex,
-        eps: float,
-    ) -> float:
-        try:
-            z = complex(wgt)
-            z_rot = complex(wgt_rot)
-            numerator = abs(z.real - z_rot.real)
-            denominator = abs(z.real) + abs(z_rot.real) + abs(eps)
-            rel = numerator / denominator
-        except (OverflowError, TypeError, ValueError, ZeroDivisionError):
-            return math.inf
-        return rel if math.isfinite(rel) else math.inf
-
-    @staticmethod
-    def _integrand_weight_decimal_rel(
-        wgt: Decimal,
-        wgt_rot: Decimal,
-        eps: Decimal,
-        scale_floor: Decimal = Decimal(0),
-    ) -> Decimal:
-        if not wgt.is_finite() or not wgt_rot.is_finite():
-            return Decimal("Infinity")
-        numerator = abs(wgt - wgt_rot)
-        denominator = max(abs(wgt) + abs(wgt_rot) + abs(eps), abs(scale_floor))
-        if denominator.is_zero():
-            return Decimal(0) if numerator.is_zero() else Decimal("Infinity")
-        rel = numerator / denominator
-        return rel if rel.is_finite() else Decimal("Infinity")
 
     def _sanitize_integrand_weight(
         self,
@@ -2404,6 +2562,30 @@ class DY(object):
             return integrand_implementation.get("integrand_type") == "zenos"
         return False
 
+    @staticmethod
+    def _copy_stability_diagnostics(
+        process: DY, result: IntegrationResult
+    ) -> None:
+        for attribute in (
+            "large_weight_zeroed_signed_sum",
+            "large_weight_zeroed_abs_sum",
+            "stability_float_pair_accepted_count",
+            "stability_float_mismatch_retry_count",
+            "stability_float_nonfinite_retry_count",
+            "stability_hp_retry_count",
+            "stability_hp_accepted_count",
+            "stability_hp_disagreement_count",
+            "stability_hp_nonfinite_count",
+            "stability_hp_error_count",
+            "stability_hp_failure_example",
+            "stability_hp_failure_example_momentum_point",
+            "stability_hp_failure_reason",
+            "max_preclip_wgt",
+            "max_preclip_wgt_point",
+            "max_preclip_wgt_momentum_point",
+        ):
+            setattr(result, attribute, getattr(process, attribute))
+
     def integrate(
         self,
         integrator: str,
@@ -2423,6 +2605,43 @@ class DY(object):
             raise pygloopException(
                 "DY beam integration mode currently only supports the 'zenos' integrand implementation."
             )
+        if integrand_implementation.get("integrand_type") == "zenos":
+            rotation_digits_value = integrand_implementation.get(
+                "dy_rotation_check_digits"
+            )
+            rotation_digits = (
+                int(rotation_digits_value)
+                if rotation_digits_value is not None
+                else 0
+            )
+            if rotation_digits < 0:
+                raise pygloopException(
+                    "DY rotation-check digits must be non-negative."
+                )
+            precision_threshold, clip_threshold = self._stability_thresholds(
+                integrand_implementation
+            )
+            stability_requested = (
+                rotation_digits > 0
+                or precision_threshold is not None
+                or clip_threshold is not None
+            )
+            if stability_requested:
+                self._stability_tolerances(
+                    integrand_implementation, rotation_digits
+                )
+                fallback_precision = self._dy_fallback_precision(
+                    integrand_implementation
+                )
+                if fallback_precision < 2:
+                    raise pygloopException(
+                        "DY fallback precision must be at least two digits."
+                    )
+                if self.compiled_bundle is None:
+                    raise pygloopException(
+                        "DY stability validation requires a compiled zenos bundle."
+                    )
+                self.compiled_bundle.require_fallback_supported(fallback_precision)
         match integrator:
             case "naive":
                 return self.naive_integrator(
@@ -2619,6 +2838,11 @@ class DY(object):
         this_result.max_stable_wgt_momentum_point = (
             process_instance.max_stable_wgt_momentum_point
         )
+        copy_stability_diagnostics = getattr(
+            DY, "_copy_stability_diagnostics", None
+        )
+        if copy_stability_diagnostics is not None:
+            copy_stability_diagnostics(process_instance, this_result)
 
         return this_result
 
@@ -2753,6 +2977,11 @@ class DY(object):
         res.max_stable_wgt_point = process.max_stable_wgt_point
         res.max_stable_wgt_jacobian = process.max_stable_wgt_jacobian
         res.max_stable_wgt_momentum_point = process.max_stable_wgt_momentum_point
+        copy_stability_diagnostics = getattr(
+            DY, "_copy_stability_diagnostics", None
+        )
+        if copy_stability_diagnostics is not None:
+            copy_stability_diagnostics(process, res)
 
         return (id, all_weights, res)
 
@@ -2923,6 +3152,11 @@ class DY(object):
         res.max_stable_wgt_point = process.max_stable_wgt_point
         res.max_stable_wgt_jacobian = process.max_stable_wgt_jacobian
         res.max_stable_wgt_momentum_point = process.max_stable_wgt_momentum_point
+        copy_stability_diagnostics = getattr(
+            DY, "_copy_stability_diagnostics", None
+        )
+        if copy_stability_diagnostics is not None:
+            copy_stability_diagnostics(process, res)
 
         return (id, all_weights, res)
 

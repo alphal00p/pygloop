@@ -41,6 +41,8 @@ from processes.dy.dy_graph_utils import (
     get_components,
     get_LR_components,
     get_simple_cycles,
+    select_gl059_lmb_choice,
+    select_gl071_lmb_choice,
     select_gl081_lmb_choice,
     select_gl101_lmb_choice,
 )
@@ -5978,28 +5980,12 @@ class LoopIntegrandConstructor(object):
 
                     if base_graph_name == "GL059":
                         theta_flag = True
-                        cut_key = tuple(
-                            frozenset(
-                                _strip_quotes(str(e.get_attributes()["id"]))
-                                for e in side
-                            )
-                            for side in cut_graph.partition
+                        lmb_choice, collinear_sign = select_gl059_lmb_choice(
+                            cut_graph
                         )
-                        basis_26_cuts = {
-                            (frozenset({"0"}), frozenset({"1"})),
-                            (frozenset({"1"}), frozenset({"0"})),
-                            (frozenset({"7", "8"}), frozenset({"1"})),
-                            (frozenset({"1"}), frozenset({"7", "8"})),
-                            (frozenset({"8", "6"}), frozenset({"0"})),
-                            (frozenset({"0"}), frozenset({"8", "6"})),
-                            (frozenset({"0", "8"}), frozenset({"8", "6"})),
-                            (frozenset({"8", "6"}), frozenset({"0", "8"})),
-                        }
-                        if cut_key in basis_26_cuts:
-                            lmb_choice = [2, 6]
+                        if collinear_sign == -1:
                             threshold_collinear_momentum = -E("p(1)")
                         else:
-                            lmb_choice = [2, 1]
                             threshold_collinear_momentum = E("p(1)")
 
                     if base_graph_name in ["GL065"]:
@@ -6023,28 +6009,12 @@ class LoopIntegrandConstructor(object):
                             theta_flag = True
                     if base_graph_name == "GL071":
                         theta_flag = True
-                        lmb_choice = [2, 3]
-                    if base_graph_name == "GL071":
-                        cut_key = frozenset(
-                            frozenset(
-                                _strip_quotes(str(e.get_attributes()["id"]))
-                                for e in side
-                            )
-                            for side in cut_graph.partition
+                        lmb_choice, collinear_sign = select_gl071_lmb_choice(
+                            cut_graph
                         )
-                        basis_56_cuts = {
-                            frozenset({frozenset({"0"}), frozenset({"1"})}),
-                            frozenset({frozenset({"3", "7"}), frozenset({"0"})}),
-                            frozenset({frozenset({"5", "7"}), frozenset({"1"})}),
-                            frozenset(
-                                {frozenset({"1", "7"}), frozenset({"5", "7"})}
-                            ),
-                        }
-                        if cut_key in basis_56_cuts:
-                            lmb_choice = [5, 6]
+                        if collinear_sign == -1:
                             threshold_collinear_momentum = -E("p(1)")
                         else:
-                            lmb_choice = [6, 0]
                             threshold_collinear_momentum = E("p(1)")
                     if base_graph_name == "GL077":
                         theta_flag = False

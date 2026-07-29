@@ -10,7 +10,7 @@ import shutil
 import time
 from copy import deepcopy
 from dataclasses import dataclass
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal, InvalidOperation, localcontext
 from fractions import Fraction
 from functools import lru_cache
 from itertools import product
@@ -929,7 +929,7 @@ class DYCompiledTerm:
 
 class DYCompiledBundle:
     METADATA_FILE = "bundle_metadata.json"
-    BUNDLE_FORMAT_VERSION = 4
+    BUNDLE_FORMAT_VERSION = 5
     DOUBLE_FLOAT_PRECISION = 32
 
     def __init__(
@@ -1042,6 +1042,7 @@ class DYCompiledBundle:
         final_terms = []
         fallback_precision = None
         fallback_backend = None
+        fallback_backends = None
         fallback_parameter_order = None
         global_term_index = 0
         try:
@@ -1071,16 +1072,21 @@ class DYCompiledBundle:
                     source_metadata.get("fallback_precision", 80)
                 )
                 source_fallback_backend = source_metadata.get("fallback_backend", "arb")
+                source_fallback_backends = source_metadata.get(
+                    "fallback_backends", [source_fallback_backend]
+                )
                 source_fallback_order = source_metadata.get(
                     "fallback_parameter_order", []
                 )
                 if fallback_precision is None:
                     fallback_precision = source_fallback_precision
                     fallback_backend = source_fallback_backend
+                    fallback_backends = source_fallback_backends
                     fallback_parameter_order = source_fallback_order
                 elif (
                     fallback_precision != source_fallback_precision
                     or fallback_backend != source_fallback_backend
+                    or fallback_backends != source_fallback_backends
                     or fallback_parameter_order != source_fallback_order
                 ):
                     raise pygloopException(
@@ -1156,6 +1162,7 @@ class DYCompiledBundle:
                 "n_loops": n_loops,
                 "fallback_precision": fallback_precision,
                 "fallback_backend": fallback_backend,
+                "fallback_backends": fallback_backends,
                 "fallback_parameter_order": fallback_parameter_order,
                 "terms": final_terms,
             }
@@ -1374,13 +1381,9 @@ class DYCompiledBundle:
         loaded_evaluators: dict[str, PygloopEvaluator] = {}
         terms: list[DYCompiledTerm] = []
         fallback_precision = int(fallback_precision)
-        if fallback_precision <= 0:
-            raise pygloopException("DY fallback precision must be a positive integer.")
-        fallback_backend = (
-            "double_float"
-            if fallback_precision == cls.DOUBLE_FLOAT_PRECISION
-            else "arb"
-        )
+        if fallback_precision < 2:
+            raise pygloopException("DY fallback precision must be at least two digits.")
+        fallback_backend = "double_float_and_arb"
         fallback_params = cls._fallback_params_for_n_loops(n_loops)
 
         for i, ev in enumerate(evaluators):
@@ -1439,39 +1442,38 @@ class DYCompiledBundle:
             integrand_evaluator_path = None
             integrand_evaluator_parameter_order = None
             ttbar_pt_sq_evaluator_path = None
-            if fallback_backend == "double_float":
-                e_surface_evaluator_path = cls._saved_evaluator_relpath(
-                    i, "e_surface"
+            e_surface_evaluator_path = cls._saved_evaluator_relpath(
+                i, "e_surface"
+            )
+            cls._write_saved_evaluator(
+                out_dir, e_surface_evaluator_path, e_surface, fallback_params
+            )
+            for theta_index, theta_expr in enumerate(theta_expressions):
+                theta_path = cls._saved_evaluator_relpath(
+                    i, "theta", theta_index
                 )
                 cls._write_saved_evaluator(
-                    out_dir, e_surface_evaluator_path, e_surface, fallback_params
+                    out_dir, theta_path, theta_expr, fallback_params
                 )
-                for theta_index, theta_expr in enumerate(theta_expressions):
-                    theta_path = cls._saved_evaluator_relpath(
-                        i, "theta", theta_index
-                    )
-                    cls._write_saved_evaluator(
-                        out_dir, theta_path, theta_expr, fallback_params
-                    )
-                    theta_evaluator_paths.append(theta_path)
-                if integrand_expression is not None:
-                    integrand_evaluator_path = cls._saved_evaluator_relpath(
-                        i, "integrand"
-                    )
-                    cls._write_existing_evaluator(
-                        out_dir, integrand_evaluator_path, ev.evaluator
-                    )
-                    integrand_evaluator_parameter_order = list(ev.symbols)
-                if ttbar_pt_sq_expression is not None:
-                    ttbar_pt_sq_evaluator_path = cls._saved_evaluator_relpath(
-                        i, "ttbar_pt_sq"
-                    )
-                    cls._write_saved_evaluator(
-                        out_dir,
-                        ttbar_pt_sq_evaluator_path,
-                        ttbar_pt_sq_expression,
-                        fallback_params,
-                    )
+                theta_evaluator_paths.append(theta_path)
+            if integrand_expression is not None:
+                integrand_evaluator_path = cls._saved_evaluator_relpath(
+                    i, "integrand"
+                )
+                cls._write_existing_evaluator(
+                    out_dir, integrand_evaluator_path, ev.evaluator
+                )
+                integrand_evaluator_parameter_order = list(ev.symbols)
+            if ttbar_pt_sq_expression is not None:
+                ttbar_pt_sq_evaluator_path = cls._saved_evaluator_relpath(
+                    i, "ttbar_pt_sq"
+                )
+                cls._write_saved_evaluator(
+                    out_dir,
+                    ttbar_pt_sq_evaluator_path,
+                    ttbar_pt_sq_expression,
+                    fallback_params,
+                )
 
             terms.append(
                 DYCompiledTerm(
@@ -1517,6 +1519,7 @@ class DYCompiledBundle:
             "n_loops": n_loops,
             "fallback_precision": fallback_precision,
             "fallback_backend": fallback_backend,
+            "fallback_backends": ["double_float", "arb"],
             "fallback_parameter_order": [
                 param.to_canonical_string() for param in fallback_params
             ],
@@ -1525,14 +1528,11 @@ class DYCompiledBundle:
                     "evaluator_name": t.evaluator_name,
                     "e_surface": (
                         t.e_surface.to_canonical_string()
-                        if fallback_backend != "double_float"
-                        and t.e_surface is not None
+                        if t.e_surface is not None
                         else None
                     ),
-                    "e_surface_evaluator": (
-                        cls._saved_evaluator_relpath(i, "e_surface")
-                        if fallback_backend == "double_float"
-                        else None
+                    "e_surface_evaluator": cls._saved_evaluator_relpath(
+                        i, "e_surface"
                     ),
                     "theta_expressions": (
                         [
@@ -1540,27 +1540,19 @@ class DYCompiledBundle:
                             for th in t.theta_expressions
                             if th is not None
                         ]
-                        if fallback_backend != "double_float"
-                        else []
                     ),
-                    "theta_evaluators": (
-                        [
-                            cls._saved_evaluator_relpath(i, "theta", theta_index)
-                            for theta_index, _theta in enumerate(t.theta_expressions)
-                        ]
-                        if fallback_backend == "double_float"
-                        else []
-                    ),
+                    "theta_evaluators": [
+                        cls._saved_evaluator_relpath(i, "theta", theta_index)
+                        for theta_index, _theta in enumerate(t.theta_expressions)
+                    ],
                     "integrand_expression": (
                         t.integrand_expression.to_canonical_string()
-                        if fallback_backend != "double_float"
-                        and t.integrand_expression is not None
+                        if t.integrand_expression is not None
                         else None
                     ),
                     "integrand_evaluator": (
                         cls._saved_evaluator_relpath(i, "integrand")
-                        if fallback_backend == "double_float"
-                        and t.integrand_expression is not None
+                        if t.integrand_expression is not None
                         else None
                     ),
                     "integrand_evaluator_parameter_order": (
@@ -1568,20 +1560,17 @@ class DYCompiledBundle:
                             param.to_canonical_string()
                             for param in t.integrand_evaluator_parameter_order
                         ]
-                        if fallback_backend == "double_float"
-                        and t.integrand_evaluator_parameter_order is not None
+                        if t.integrand_evaluator_parameter_order is not None
                         else None
                     ),
                     "ttbar_pt_sq_expression": (
                         t.ttbar_pt_sq_expression.to_canonical_string()
-                        if fallback_backend != "double_float"
-                        and t.ttbar_pt_sq_expression is not None
+                        if t.ttbar_pt_sq_expression is not None
                         else None
                     ),
                     "ttbar_pt_sq_evaluator": (
                         cls._saved_evaluator_relpath(i, "ttbar_pt_sq")
-                        if fallback_backend == "double_float"
-                        and t.ttbar_pt_sq_expression is not None
+                        if t.ttbar_pt_sq_expression is not None
                         else None
                     ),
                     "t_initial_guess": t.t_initial_guess,
@@ -1705,6 +1694,23 @@ class DYCompiledBundle:
                 raise pygloopException(
                     f"Cannot convert non-finite float '{value}' to Decimal."
                 )
+            return Decimal.from_float(value)
+        return Decimal(str(value))
+
+    @staticmethod
+    def _legacy_decimal_from_number(
+        value: float | Decimal | str | int,
+    ) -> Decimal:
+        """Reproduce the pre-stability-pipeline Decimal conversion."""
+        if isinstance(value, Decimal):
+            return value
+        if isinstance(value, int):
+            return Decimal(value)
+        if isinstance(value, float):
+            if not math.isfinite(value):
+                raise pygloopException(
+                    f"Cannot convert non-finite float '{value}' to Decimal."
+                )
             return Decimal(repr(value))
         return Decimal(str(value))
 
@@ -1786,18 +1792,26 @@ class DYCompiledBundle:
                 else self._fallback_input_values(values)
             )
             try:
-                value = self._single_evaluator_output(
-                    evaluator.evaluate_with_prec(
-                        input_values,
-                        self.DOUBLE_FLOAT_PRECISION,
-                    )
+                value = _evaluate_symbolica_evaluator_with_prec(
+                    evaluator,
+                    [self._decimal_from_number(value) for value in input_values],
+                    self.DOUBLE_FLOAT_PRECISION,
                 )
             except BaseException as exc:
                 if isinstance(exc, (KeyboardInterrupt, SystemExit)):
                     raise
                 try:
+                    prepared_inputs = [
+                        Decimal(
+                            format(
+                                self._decimal_from_number(value),
+                                f".{self.DOUBLE_FLOAT_PRECISION - 1}e",
+                            )
+                        )
+                        for value in input_values
+                    ]
                     complex_outputs = evaluator.evaluate_complex_with_prec(
-                        [(value, Decimal(0)) for value in input_values],
+                        [(value, Decimal(0)) for value in prepared_inputs],
                         self.DOUBLE_FLOAT_PRECISION,
                     )
                     if len(complex_outputs) != 1:
@@ -1825,10 +1839,17 @@ class DYCompiledBundle:
                 "No arbitrary-precision expression data is present in this DY bundle. "
                 "Regenerate the bundle with --dy-fallback-precision <N> for N != 32."
             )
-        string_values = {key: str(value) for key, value in values.items()}
+        prepared_values = {
+            key: (
+                Decimal(format(value, f".{decimal_digit_precision - 1}e"))
+                if value.is_finite()
+                else value
+            )
+            for key, value in values.items()
+        }
         try:
             value = _evaluate_symbolica_expression_with_prec(
-                expr, string_values, decimal_digit_precision
+                expr, prepared_values, decimal_digit_precision
             )
         except BaseException as exc:
             if isinstance(exc, (KeyboardInterrupt, SystemExit)):
@@ -1840,6 +1861,85 @@ class DYCompiledBundle:
         except (InvalidOperation, ValueError, pygloopException):
             return None
 
+        if decimal_value.is_nan() or not decimal_value.is_finite():
+            return None
+        return decimal_value
+
+    def _evaluate_expression_with_prec_legacy(
+        self,
+        expr: Expression | None,
+        evaluator: Evaluator | None,
+        values: dict[Expression, Decimal],
+        decimal_digit_precision: int,
+        evaluator_parameter_order: list[Expression] | None = None,
+    ) -> Decimal | None:
+        """Evaluate using the historical fallback-input conversion contract."""
+        if decimal_digit_precision == self.DOUBLE_FLOAT_PRECISION:
+            if evaluator is None:
+                raise pygloopException(
+                    "No DoubleFloat fallback evaluator data is present in this DY "
+                    "bundle. Regenerate the bundle with --dy-fallback-precision 32."
+                )
+            input_values = (
+                self._fallback_input_values_for_order(
+                    values, evaluator_parameter_order
+                )
+                if evaluator_parameter_order is not None
+                else self._fallback_input_values(values)
+            )
+            try:
+                value = self._single_evaluator_output(
+                    evaluator.evaluate_with_prec(
+                        input_values,
+                        self.DOUBLE_FLOAT_PRECISION,
+                    )
+                )
+            except BaseException as exc:
+                if isinstance(exc, (KeyboardInterrupt, SystemExit)):
+                    raise
+                try:
+                    complex_outputs = evaluator.evaluate_complex_with_prec(
+                        [(value, Decimal(0)) for value in input_values],
+                        self.DOUBLE_FLOAT_PRECISION,
+                    )
+                    if len(complex_outputs) != 1:
+                        return None
+                    value = complex_outputs[0]
+                    if not isinstance(value, (list, tuple)) or len(value) != 2:
+                        return None
+                    value, imaginary_part = value
+                    if self._legacy_decimal_from_number(imaginary_part) != 0:
+                        return None
+                except BaseException as complex_exc:
+                    if isinstance(complex_exc, (KeyboardInterrupt, SystemExit)):
+                        raise
+                    return None
+            try:
+                decimal_value = self._legacy_decimal_from_number(value)
+            except (InvalidOperation, ValueError, pygloopException):
+                return None
+            if decimal_value.is_nan() or not decimal_value.is_finite():
+                return None
+            return decimal_value
+
+        if expr is None:
+            raise pygloopException(
+                "No arbitrary-precision expression data is present in this DY bundle. "
+                "Regenerate the bundle with --dy-fallback-precision <N> for N != 32."
+            )
+        string_values = {key: str(value) for key, value in values.items()}
+        try:
+            value = _evaluate_symbolica_expression_with_prec(
+                expr, string_values, decimal_digit_precision
+            )
+        except BaseException as exc:
+            if isinstance(exc, (KeyboardInterrupt, SystemExit)):
+                raise
+            return None
+        try:
+            decimal_value = self._legacy_decimal_from_number(value)
+        except (InvalidOperation, ValueError, pygloopException):
+            return None
         if decimal_value.is_nan() or not decimal_value.is_finite():
             return None
         return decimal_value
@@ -1891,6 +1991,33 @@ class DYCompiledBundle:
         pt_min = Decimal(str(ttbar_pt_min))
         return pt_sq >= pt_min * pt_min
 
+    def _ttbar_pt_cut_passes_with_prec_legacy(
+        self,
+        term: DYCompiledTerm,
+        vals: dict[Expression, Decimal],
+        ttbar_pt_min: float | None,
+        decimal_digit_precision: int,
+    ) -> bool:
+        if ttbar_pt_min is None:
+            return True
+        if term.ttbar_pt_sq_expression is None and term.ttbar_pt_sq_evaluator is None:
+            raise pygloopException(
+                f"DY bundle '{self.integrand_name}' does not contain ttbar pT cut "
+                "metadata. Regenerate the DY bundle before using --dy-ttbar-pt-min."
+            )
+        pt_sq = self._evaluate_expression_with_prec_legacy(
+            term.ttbar_pt_sq_expression,
+            term.ttbar_pt_sq_evaluator,
+            vals,
+            decimal_digit_precision,
+        )
+        if pt_sq is None:
+            raise pygloopException(
+                f"Failed to evaluate ttbar pT cut for DY term '{term.evaluator_name}'."
+            )
+        pt_min = Decimal(str(ttbar_pt_min))
+        return pt_sq >= pt_min * pt_min
+
     def supports_arb(self) -> bool:
         return all(
             t.e_surface is not None and t.integrand_expression is not None
@@ -1898,20 +2025,33 @@ class DYCompiledBundle:
         )
 
     def supports_double_float_fallback(self) -> bool:
-        return all(
-            t.e_surface_evaluator is not None
-            and t.integrand_evaluator is not None
-            and t.theta_evaluators is not None
-            for t in self.terms
-        )
+        for term in self.terms:
+            theta_evaluators = term.theta_evaluators
+            if (
+                term.e_surface_evaluator is None
+                or term.integrand_evaluator is None
+                or theta_evaluators is None
+                or any(evaluator is None for evaluator in theta_evaluators)
+            ):
+                return False
+            if term.theta_expressions and len(theta_evaluators) != len(
+                term.theta_expressions
+            ):
+                return False
+            if (
+                term.ttbar_pt_sq_expression is not None
+                and term.ttbar_pt_sq_evaluator is None
+            ):
+                return False
+        return True
 
     def require_arb_supported(self) -> None:
         if self.supports_arb():
             return
         raise pygloopException(
             f"DY bundle '{self.integrand_name}' does not contain symbolic term expressions "
-            "needed for arbitrary-precision fallback. Regenerate the DY bundle with "
-            "'--clean --process dy generate'."
+            "needed for arbitrary-precision fallback. Regenerate the DY bundle; "
+            "bundle format 5 stores both fallback backends."
         )
 
     def require_fallback_supported(self, decimal_digit_precision: int) -> None:
@@ -1923,7 +2063,8 @@ class DYCompiledBundle:
         if decimal_digit_precision == self.DOUBLE_FLOAT_PRECISION:
             raise pygloopException(
                 "No DoubleFloat fallback evaluator data is present in this DY "
-                "bundle. Regenerate the bundle with --dy-fallback-precision 32."
+                "bundle. Regenerate it with bundle format 5, which stores both "
+                "fallback backends."
             )
         self.require_arb_supported()
 
@@ -1958,6 +2099,41 @@ class DYCompiledBundle:
 
         return vals, (p1x, p1y, p1z, p2x, p2y, p2z)
 
+    def _build_runtime_values_prec(
+        self,
+        loop_momenta: list[Vector] | tuple[Vector, ...],
+        p1: Vector,
+        p2: Vector,
+        z: float | Decimal,
+        m_uv: float | Decimal,
+    ) -> tuple[
+        dict[Expression, Decimal],
+        tuple[Decimal, Decimal, Decimal, Decimal, Decimal, Decimal],
+    ]:
+        """Build fallback inputs without crossing a binary-float boundary."""
+        vals: dict[Expression, Decimal] = {}
+        for i, k in enumerate(loop_momenta):
+            kx, ky, kz = k.to_list()
+            k1, k2, k3 = self._k_keys[i]
+            vals[k1] = self._decimal_from_number(kx)
+            vals[k2] = self._decimal_from_number(ky)
+            vals[k3] = self._decimal_from_number(kz)
+
+        p1_values = tuple(self._decimal_from_number(value) for value in p1.to_list())
+        p2_values = tuple(self._decimal_from_number(value) for value in p2.to_list())
+        p1x, p1y, p1z = p1_values
+        p2x, p2y, p2z = p2_values
+        vals[self._p11] = p1x
+        vals[self._p12] = p1y
+        vals[self._p13] = p1z
+        vals[self._p21] = p2x
+        vals[self._p22] = p2y
+        vals[self._p23] = p2z
+        vals[self._z_key] = self._decimal_from_number(z)
+        vals[self._muv_key] = self._decimal_from_number(m_uv)
+
+        return vals, (p1x, p1y, p1z, p2x, p2y, p2z)
+
     def _initial_t_guess(
         self,
         term: DYCompiledTerm,
@@ -1988,6 +2164,41 @@ class DYCompiledBundle:
             if isinstance(exc, (KeyboardInterrupt, SystemExit)):
                 raise
             return 1.0
+
+    def _initial_t_guess_prec(
+        self,
+        term: DYCompiledTerm,
+        vals: dict[Expression, Decimal],
+        p1x: Decimal,
+        p1y: Decimal,
+        p1z: Decimal,
+        decimal_digit_precision: int,
+    ) -> Decimal:
+        valst1 = vals.copy()
+        valst1[self._t_key] = Decimal(1)
+        p_norm = (p1x * p1x + p1y * p1y + p1z * p1z).sqrt()
+        if p_norm.is_zero():
+            return Decimal(1)
+        try:
+            surface = self._evaluate_expression_with_prec(
+                term.e_surface,
+                term.e_surface_evaluator,
+                valst1,
+                decimal_digit_precision,
+            )
+            if surface is None:
+                return Decimal(1)
+            denominator = surface + Decimal(2) * p_norm
+            if denominator.is_zero() or not denominator.is_finite():
+                return Decimal(1)
+            guess = abs(Decimal(2) * p_norm / denominator)
+            if not guess.is_finite() or guess <= 0:
+                return Decimal(1)
+            return guess
+        except BaseException as exc:
+            if isinstance(exc, (KeyboardInterrupt, SystemExit)):
+                raise
+            return Decimal(1)
 
     #    @staticmethod
     #    def _set_inputs(pe: PygloopEvaluator, values: dict[str, float]) -> None:
@@ -2231,11 +2442,12 @@ class DYCompiledBundle:
         vals: dict[Expression, Decimal],
         t_key: Expression,
         decimal_digit_precision: int,
-        t0: float = 1.0,
+        t0: float | Decimal = 1.0,
         max_iter: int = 80,
         max_expand_rounds: int = 24,
         probes_per_round: int = 17,
         eval_map: dict[Expression, Decimal] | None = None,
+        precision_preserving: bool = True,
     ) -> Decimal | None:
         if decimal_digit_precision <= 0:
             raise pygloopException(
@@ -2245,7 +2457,19 @@ class DYCompiledBundle:
         if eval_map is None:
             eval_map = vals
 
-        tol_power = min(max(decimal_digit_precision // 2, 12), 32)
+        if precision_preserving:
+            # Resolve t to nearly the requested working precision. The old
+            # half-precision/32-digit cap made an 80-digit Arb retry depend on a
+            # much less accurate root and defeated the purpose of upcasting.
+            tol_power = max(decimal_digit_precision - 8, 12)
+            effective_max_iter = max(max_iter, 4 * tol_power)
+            evaluate_expression = self._evaluate_expression_with_prec
+            convert_number = self._decimal_from_number
+        else:
+            tol_power = min(max(decimal_digit_precision // 2, 12), 32)
+            effective_max_iter = max_iter
+            evaluate_expression = self._evaluate_expression_with_prec_legacy
+            convert_number = self._legacy_decimal_from_number
         tol_f = Decimal(10) ** (-tol_power)
         tol_x = Decimal(10) ** (-tol_power)
 
@@ -2253,7 +2477,7 @@ class DYCompiledBundle:
             if t.is_nan() or t < 0:
                 return None
             eval_map[t_key] = t
-            return self._evaluate_expression_with_prec(
+            return evaluate_expression(
                 term_e_surface,
                 term_e_surface_evaluator,
                 eval_map,
@@ -2261,7 +2485,7 @@ class DYCompiledBundle:
             )
 
         try:
-            x0 = self._decimal_from_number(t0)
+            x0 = convert_number(t0)
         except (InvalidOperation, ValueError, pygloopException):
             x0 = Decimal(1)
         if not x0.is_finite():
@@ -2313,7 +2537,7 @@ class DYCompiledBundle:
             a, b = b, a
             fa, fb = fb, fa
 
-        for _ in range(max_iter):
+        for _ in range(effective_max_iter):
             m = (a + b) / 2
             fm = f(m)
             if fm is None:
@@ -2338,15 +2562,113 @@ class DYCompiledBundle:
 
         return (a + b) / 2
 
-    def evaluate_arb(
+    def _evaluate_arb_terms_legacy(
         self,
-        loop_momenta: list[Vector],
+        loop_momenta: list[Vector] | tuple[Vector, ...],
         p1: Vector,
         p2: Vector,
-        z: float,
-        m_uv: float = 1.0,
+        z: float | Decimal,
+        m_uv: float | Decimal,
+        decimal_digit_precision: int,
+        theta_tolerance: float | Decimal,
+        channel_selector: int | None,
+        ttbar_pt_min: float | None,
+        integrated_uv_ct_filter: str | None,
+    ) -> tuple[Decimal, list[tuple[str, Decimal]]]:
+        """Keep reference diagnostics on their historical numerical contract."""
+        vals, (p1x, p1y, p1z, _p2x, _p2y, _p2z) = self._build_runtime_values(
+            loop_momenta, p1, p2, z, m_uv
+        )
+        dec_vals = {
+            key: self._legacy_decimal_from_number(value)
+            for key, value in vals.items()
+        }
+        total = Decimal(0)
+        term_values: list[tuple[str, Decimal]] = []
+        theta_tol = self._legacy_decimal_from_number(theta_tolerance)
+
+        for term in self.terms_for_channel(
+            channel_selector, integrated_uv_ct_filter
+        ):
+            my_t0 = self._initial_t_guess(term, vals, p1x, p1y, p1z)
+            t_sol = self.solve_t_convex_bisect_prec(
+                term.e_surface,
+                term.e_surface_evaluator,
+                dec_vals,
+                self._t_key,
+                decimal_digit_precision=decimal_digit_precision,
+                t0=my_t0,
+                eval_map=dec_vals,
+                precision_preserving=False,
+            )
+            if t_sol is None:
+                raise pygloopException(
+                    "Failed to solve t in arbitrary precision for DY term "
+                    f"'{term.evaluator_name}'."
+                )
+
+            dec_vals[self._t_key] = t_sol
+            if not self._ttbar_pt_cut_passes_with_prec_legacy(
+                term,
+                dec_vals,
+                ttbar_pt_min,
+                decimal_digit_precision,
+            ):
+                term_values.append((term.evaluator_name, Decimal(0)))
+                continue
+
+            theta_passes = True
+            theta_expressions = list(term.theta_expressions)
+            theta_evaluators = list(term.theta_evaluators or [])
+            theta_count = max(len(theta_expressions), len(theta_evaluators))
+            theta_expressions.extend(
+                [None] * (theta_count - len(theta_expressions))
+            )
+            theta_evaluators.extend(
+                [None] * (theta_count - len(theta_evaluators))
+            )
+            for theta_expression, theta_evaluator in zip(
+                theta_expressions, theta_evaluators
+            ):
+                theta_value = self._evaluate_expression_with_prec_legacy(
+                    theta_expression,
+                    theta_evaluator,
+                    dec_vals,
+                    decimal_digit_precision,
+                )
+                if theta_value is None or theta_value < -theta_tol:
+                    theta_passes = False
+                    break
+            if not theta_passes:
+                term_values.append((term.evaluator_name, Decimal(0)))
+                continue
+
+            term_value = self._evaluate_expression_with_prec_legacy(
+                term.integrand_expression,
+                term.integrand_evaluator,
+                dec_vals,
+                decimal_digit_precision,
+                term.integrand_evaluator_parameter_order,
+            )
+            if term_value is None:
+                raise pygloopException(
+                    f"Failed to evaluate DY term '{term.evaluator_name}' "
+                    "in arbitrary precision."
+                )
+            total += term_value
+            term_values.append((term.evaluator_name, term_value))
+
+        return total, term_values
+
+    def evaluate_arb(
+        self,
+        loop_momenta: list[Vector] | tuple[Vector, ...],
+        p1: Vector,
+        p2: Vector,
+        z: float | Decimal,
+        m_uv: float | Decimal = 1.0,
         decimal_digit_precision: int = 80,
-        theta_tolerance: float = 0.0,
+        theta_tolerance: float | Decimal = 0.0,
         channel_selector: int | None = None,
         ttbar_pt_min: float | None = None,
         integrated_uv_ct_filter: str | None = "all",
@@ -2362,95 +2684,137 @@ class DYCompiledBundle:
             channel_selector=channel_selector,
             ttbar_pt_min=ttbar_pt_min,
             integrated_uv_ct_filter=integrated_uv_ct_filter,
+            precision_preserving=True,
         )
         return total
 
     def evaluate_arb_terms(
         self,
-        loop_momenta: list[Vector],
+        loop_momenta: list[Vector] | tuple[Vector, ...],
         p1: Vector,
         p2: Vector,
-        z: float,
-        m_uv: float = 1.0,
+        z: float | Decimal,
+        m_uv: float | Decimal = 1.0,
         decimal_digit_precision: int = 80,
-        theta_tolerance: float = 0.0,
+        theta_tolerance: float | Decimal = 0.0,
         channel_selector: int | None = None,
         ttbar_pt_min: float | None = None,
         integrated_uv_ct_filter: str | None = "all",
+        precision_preserving: bool = False,
     ) -> tuple[Decimal, list[tuple[str, Decimal]]]:
         self.require_fallback_supported(decimal_digit_precision)
-
-        vals, (p1x, p1y, p1z, _p2x, _p2y, _p2z) = self._build_runtime_values(
-            loop_momenta, p1, p2, z, m_uv
-        )
-        dec_vals = {
-            key: self._decimal_from_number(value) for key, value in vals.items()
-        }
-        total = Decimal(0)
-        term_values: list[tuple[str, Decimal]] = []
-        theta_tol = self._decimal_from_number(theta_tolerance)
-
-        for term in self.terms_for_channel(channel_selector, integrated_uv_ct_filter):
-            my_t0 = self._initial_t_guess(term, vals, p1x, p1y, p1z)
-            t_sol = self.solve_t_convex_bisect_prec(
-                term.e_surface,
-                term.e_surface_evaluator,
-                dec_vals,
-                self._t_key,
-                decimal_digit_precision=decimal_digit_precision,
-                t0=my_t0,
-                eval_map=dec_vals,
+        if decimal_digit_precision <= 0:
+            raise pygloopException(
+                "Higher-precision DY evaluation requires a positive precision."
             )
-            if t_sol is None:
-                raise pygloopException(
-                    f"Failed to solve t in arbitrary precision for DY term '{term.evaluator_name}'."
-                )
 
-            dec_vals[self._t_key] = t_sol
-            if not self._ttbar_pt_cut_passes_with_prec(
-                term,
-                dec_vals,
-                ttbar_pt_min,
+        if not precision_preserving:
+            return self._evaluate_arb_terms_legacy(
+                loop_momenta,
+                p1,
+                p2,
+                z,
+                m_uv,
                 decimal_digit_precision,
-            ):
-                term_values.append((term.evaluator_name, Decimal(0)))
-                continue
+                theta_tolerance,
+                channel_selector,
+                ttbar_pt_min,
+                integrated_uv_ct_filter,
+            )
 
-            theta_passes = True
-            theta_expressions = list(term.theta_expressions)
-            theta_evaluators = list(term.theta_evaluators or [])
-            theta_count = max(len(theta_expressions), len(theta_evaluators))
-            theta_expressions.extend([None] * (theta_count - len(theta_expressions)))
-            theta_evaluators.extend([None] * (theta_count - len(theta_evaluators)))
-            for th, th_evaluator in zip(theta_expressions, theta_evaluators):
-                th_val = self._evaluate_expression_with_prec(
-                    th,
-                    th_evaluator,
+        # Decimal arithmetic otherwise inherits the process-global default of 28
+        # digits, silently truncating 32/80-digit evaluator outputs while summing
+        # terms or solving t. Keep guard digits around the complete fallback.
+        with localcontext() as context:
+            context.prec = decimal_digit_precision + 12
+            dec_vals, (p1x, p1y, p1z, _p2x, _p2y, _p2z) = (
+                self._build_runtime_values_prec(loop_momenta, p1, p2, z, m_uv)
+            )
+            total = Decimal(0)
+            term_values: list[tuple[str, Decimal]] = []
+            theta_tol = self._decimal_from_number(theta_tolerance)
+
+            for term in self.terms_for_channel(
+                channel_selector, integrated_uv_ct_filter
+            ):
+                my_t0 = self._initial_t_guess_prec(
+                    term,
                     dec_vals,
+                    p1x,
+                    p1y,
+                    p1z,
                     decimal_digit_precision,
                 )
-                if th_val is None or th_val < -theta_tol:
-                    theta_passes = False
-                    break
-            if not theta_passes:
-                term_values.append((term.evaluator_name, Decimal(0)))
-                continue
-
-            term_value = self._evaluate_expression_with_prec(
-                term.integrand_expression,
-                term.integrand_evaluator,
-                dec_vals,
-                decimal_digit_precision,
-                term.integrand_evaluator_parameter_order,
-            )
-            if term_value is None:
-                raise pygloopException(
-                    f"Failed to evaluate DY term '{term.evaluator_name}' in arbitrary precision."
+                t_sol = self.solve_t_convex_bisect_prec(
+                    term.e_surface,
+                    term.e_surface_evaluator,
+                    dec_vals,
+                    self._t_key,
+                    decimal_digit_precision=decimal_digit_precision,
+                    t0=my_t0,
+                    eval_map=dec_vals,
                 )
-            total += term_value
-            term_values.append((term.evaluator_name, term_value))
+                if t_sol is None:
+                    raise pygloopException(
+                        "Failed to solve t in higher precision for DY term "
+                        f"'{term.evaluator_name}'."
+                    )
 
-        return total, term_values
+                dec_vals[self._t_key] = t_sol
+                if not self._ttbar_pt_cut_passes_with_prec(
+                    term,
+                    dec_vals,
+                    ttbar_pt_min,
+                    decimal_digit_precision,
+                ):
+                    term_values.append((term.evaluator_name, Decimal(0)))
+                    continue
+
+                theta_passes = True
+                theta_expressions = list(term.theta_expressions)
+                theta_evaluators = list(term.theta_evaluators or [])
+                theta_count = max(len(theta_expressions), len(theta_evaluators))
+                theta_expressions.extend(
+                    [None] * (theta_count - len(theta_expressions))
+                )
+                theta_evaluators.extend(
+                    [None] * (theta_count - len(theta_evaluators))
+                )
+                for th, th_evaluator in zip(theta_expressions, theta_evaluators):
+                    th_val = self._evaluate_expression_with_prec(
+                        th,
+                        th_evaluator,
+                        dec_vals,
+                        decimal_digit_precision,
+                    )
+                    if th_val is None or th_val < -theta_tol:
+                        theta_passes = False
+                        break
+                if not theta_passes:
+                    term_values.append((term.evaluator_name, Decimal(0)))
+                    continue
+
+                term_value = self._evaluate_expression_with_prec(
+                    term.integrand_expression,
+                    term.integrand_evaluator,
+                    dec_vals,
+                    decimal_digit_precision,
+                    term.integrand_evaluator_parameter_order,
+                )
+                if term_value is None:
+                    raise pygloopException(
+                        f"Failed to evaluate DY term '{term.evaluator_name}' "
+                        "in higher precision."
+                    )
+                total += term_value
+                term_values.append((term.evaluator_name, term_value))
+
+            precise_total = +total
+            precise_terms = [
+                (term_name, +term_value) for term_name, term_value in term_values
+            ]
+
+        return precise_total, precise_terms
 
     def evaluate(
         self,
