@@ -5,6 +5,7 @@ from collections import Counter
 from copy import deepcopy
 from dataclasses import dataclass
 from fractions import Fraction
+from functools import cache
 from itertools import combinations, count, product
 
 import pydot
@@ -604,6 +605,513 @@ def _finalise_cff_momentum_heads(expression: Expression) -> Expression:
             + ", ".join(forbidden_heads)
         )
     return expression
+
+
+_GL085_CFF_BUCKET_A = "A"
+_GL085_CFF_BUCKET_B = "B"
+_GL085_CFF_BUCKETS = (_GL085_CFF_BUCKET_A, _GL085_CFF_BUCKET_B)
+_GL085_CFF_PARTITION = "GL085_AB"
+_GL085_CFF_CANONICAL_LMB = (2, 7)
+_GL085_CFF_BUCKET_LMBS = {
+    _GL085_CFF_BUCKET_A: (2, 4),
+    _GL085_CFF_BUCKET_B: (5, 6),
+}
+
+
+@dataclass(frozen=True)
+class _GL085CFFPartition:
+    expressions: dict[int, dict[str, Expression]]
+    inventory: dict[str, int]
+    surface_ids: dict[str, int]
+
+
+def _additive_terms(expression: Expression) -> list[Expression]:
+    expanded = expression.expand()
+    if expanded.is_type(AtomType.Add):
+        return list(expanded)
+    return [expanded]
+
+
+def _expression_is_zero(expression: Expression) -> bool:
+    return expression.expand().to_canonical_string() == "0"
+
+
+def _same_expression_up_to_sign(left: Expression, right: Expression) -> bool:
+    return _expression_is_zero(left - right) or _expression_is_zero(left + right)
+
+
+def _materialise_causal_etas(
+    expression: Expression,
+    mapped_eta_expressions: dict[int, Expression],
+) -> Expression:
+    result = expression
+    for eta_id, eta_expression in mapped_eta_expressions.items():
+        result = result.replace(
+            CFFStructure.SB["eta"](eta_id),
+            -eta_expression,
+        )
+    return result
+
+
+def _gl085_cff_surface_id(
+    mapped_eta_expressions: dict[int, Expression],
+    target: Expression,
+) -> int:
+    matching = [
+        eta_id
+        for eta_id, eta_expression in mapped_eta_expressions.items()
+        if _same_expression_up_to_sign(eta_expression, target)
+    ]
+    if len(matching) != 1:
+        raise ValueError(
+            "GL085 CFF split expected exactly one causal surface matching "
+            f"{target}, found {matching}."
+        )
+    return matching[0]
+
+
+def _partition_gl085_cff_expressions(
+    cff_structure: CFFStructure,
+    mapped_eta_expressions: dict[int, Expression],
+) -> _GL085CFFPartition:
+    """Split the physical GL085 {2,5} CFF before numerator multiplication."""
+
+    surface_targets = _gl085_causal_surfaces()
+    surface_ids = {
+        label: _gl085_cff_surface_id(mapped_eta_expressions, target)
+        for label, target in surface_targets.items()
+    }
+    eta_a = CFFStructure.SB["eta"](surface_ids["A"])
+    eta_b = CFFStructure.SB["eta"](surface_ids["B"])
+
+    bucket_terms: dict[int, dict[str, list[Expression]]] = {
+        cff_term.id: {bucket: [] for bucket in _GL085_CFF_BUCKETS}
+        for cff_term in cff_structure.expressions
+    }
+    inventory: Counter[str] = Counter()
+    overlapping: list[tuple[int, Expression, tuple[int, ...]]] = []
+    x_ = CFFStructure.SB["x_"]
+    eta_pattern = CFFStructure.SB["eta(x_)"]
+
+    for cff_term in cff_structure.expressions:
+        for atomic_term in _additive_terms(cff_term.expression):
+            has_a = bool(atomic_term.contains(eta_a**-1))
+            has_b = bool(atomic_term.contains(eta_b**-1))
+            if has_a and has_b:
+                eta_ids = tuple(
+                    int(str(match[x_])) for match in atomic_term.match(eta_pattern)
+                )
+                overlapping.append((cff_term.id, atomic_term, eta_ids))
+                inventory["both"] += 1
+            elif has_a:
+                bucket_terms[cff_term.id][_GL085_CFF_BUCKET_A].append(atomic_term)
+                inventory["A_only"] += 1
+            elif has_b:
+                bucket_terms[cff_term.id][_GL085_CFF_BUCKET_B].append(atomic_term)
+                inventory["B_only"] += 1
+            else:
+                # Neutral terms may be assigned to either class. Keep the
+                # convention deterministic by placing all of them in A.
+                bucket_terms[cff_term.id][_GL085_CFF_BUCKET_A].append(atomic_term)
+                inventory["neutral"] += 1
+
+    if len(overlapping) != 2 or len({row[0] for row in overlapping}) != 1:
+        raise ValueError(
+            "GL085 CFF split expected two overlapping causal families in one "
+            f"orientation, found {[(row[0], row[2]) for row in overlapping]}."
+        )
+
+    overlap_orientation = overlapping[0][0]
+    complementary_ids = []
+    coefficients = []
+    for _orientation_id, atomic_term, eta_ids in overlapping:
+        other_ids = set(eta_ids) - {surface_ids["A"], surface_ids["B"]}
+        if len(other_ids) != 1:
+            raise ValueError(
+                "GL085 overlapping CFF family did not contain exactly one "
+                f"complementary surface: {eta_ids}."
+            )
+        complementary_id = other_ids.pop()
+        complementary_ids.append(complementary_id)
+        eta_other = CFFStructure.SB["eta"](complementary_id)
+        coefficients.append((atomic_term * eta_a * eta_b * eta_other).cancel())
+
+    if complementary_ids[0] == complementary_ids[1]:
+        raise ValueError("GL085 overlapping CFF families use the same complement.")
+    if not _expression_is_zero(coefficients[0] - coefficients[1]):
+        raise ValueError(
+            "GL085 overlapping CFF families have different coefficients and "
+            "cannot use the causal partial-fraction identity."
+        )
+
+    c_id, d_id = complementary_ids
+    eta_c = CFFStructure.SB["eta"](c_id)
+    eta_d = CFFStructure.SB["eta"](d_id)
+    coefficient = coefficients[0]
+    mapped_a = mapped_eta_expressions[surface_ids["A"]]
+    mapped_b = mapped_eta_expressions[surface_ids["B"]]
+    mapped_c = mapped_eta_expressions[c_id]
+    mapped_d = mapped_eta_expressions[d_id]
+    if not _expression_is_zero(mapped_a + mapped_b - mapped_c - mapped_d):
+        raise ValueError(
+            "GL085 causal surfaces do not satisfy the required A+B=C+D relation."
+        )
+
+    rewritten_a = coefficient / (eta_a * eta_c * eta_d)
+    rewritten_b = coefficient / (eta_b * eta_c * eta_d)
+    original_overlap = sum((row[1] for row in overlapping), E("0"))
+    materialised_residual = (
+        _materialise_causal_etas(
+            original_overlap - rewritten_a - rewritten_b,
+            mapped_eta_expressions,
+        )
+        .together()
+        .expand()
+    )
+    if not _expression_is_zero(materialised_residual):
+        raise ValueError(
+            "GL085 causal partial-fraction rewrite failed exact reconstruction."
+        )
+
+    bucket_terms[overlap_orientation][_GL085_CFF_BUCKET_A].append(rewritten_a)
+    bucket_terms[overlap_orientation][_GL085_CFF_BUCKET_B].append(rewritten_b)
+    partitioned = {
+        orientation_id: {
+            bucket: sum(terms, E("0"))
+            for bucket, terms in expressions.items()
+        }
+        for orientation_id, expressions in bucket_terms.items()
+    }
+
+    original = sum(
+        (cff_term.expression for cff_term in cff_structure.expressions),
+        E("0"),
+    )
+    reconstructed = sum(
+        (
+            expression
+            for expressions in partitioned.values()
+            for expression in expressions.values()
+        ),
+        E("0"),
+    )
+    # Cancel the families copied verbatim while they are still expressed in
+    # compact eta heads. Materialising all neutral families before this
+    # cancellation causes an unnecessary large common-denominator problem.
+    causal_residual = (original - reconstructed).expand()
+    residual = (
+        _materialise_causal_etas(causal_residual, mapped_eta_expressions)
+        .together()
+        .expand()
+    )
+    if not _expression_is_zero(residual):
+        raise ValueError("GL085 CFF buckets do not reconstruct the original CFF.")
+
+    inventory["A_rewritten"] = 1
+    inventory["B_rewritten"] = 1
+    inventory["A_total"] = inventory["neutral"] + inventory["A_only"] + 1
+    inventory["B_total"] = inventory["B_only"] + 1
+    return _GL085CFFPartition(
+        expressions=partitioned,
+        inventory=dict(inventory),
+        surface_ids={
+            "A": surface_ids["A"],
+            "B": surface_ids["B"],
+            "C": c_id,
+            "D": d_id,
+        },
+    )
+
+
+def _materialise_gl085_scalar_causal_buckets(
+    partition: _GL085CFFPartition,
+    mapped_eta_expressions: dict[int, Expression],
+) -> dict[str, Expression]:
+    """Return the numerator-independent scalar CFF carried by each bucket."""
+
+    return {
+        bucket: _materialise_causal_etas(
+            sum(
+                (
+                    expressions[bucket]
+                    for expressions in partition.expressions.values()
+                ),
+                E("0"),
+            ),
+            mapped_eta_expressions,
+        )
+        for bucket in _GL085_CFF_BUCKETS
+    }
+
+
+@dataclass(frozen=True)
+class _GL085ReferenceCFFTerm:
+    id: int
+    expression: Expression
+
+
+@cache
+def _gl085_reference_scalar_causal_buckets() -> tuple[Expression, Expression]:
+    """Topology-locked scalar CFF used to partition the crossed {2,5} cut.
+
+    The crossed cut is tree-like after cutting and therefore has no loop CFF
+    of its own.  These 20 atomic terms are the canonical GL085 physical
+    {2,5} CFF.  Live physical-cut generation checks this template exactly, so
+    a GammaLoop CFF change cannot silently leave the crossed split stale.
+    """
+
+    mapped_eta_expressions = {
+        0: E("En(5)+En(6)+En(7)"),
+        1: E("-En(0)+En(3)+En(5)+En(7)"),
+        2: E("-En(0)+En(2)+En(4)+En(5)+En(7)"),
+        3: E("En(2)+En(3)+En(4)"),
+        4: E("En(0)+En(3)+En(6)"),
+        5: E("-En(2)+En(3)+En(4)"),
+        6: E("-En(2)+En(0)+En(4)+En(6)"),
+        7: E("-En(0)+En(3)+En(6)"),
+        8: E("-En(0)+En(2)+En(4)+En(6)"),
+        9: E("-En(5)+En(0)+En(3)+En(7)"),
+        10: E("-En(2)-En(5)+En(0)+En(4)+En(7)"),
+        11: E("-En(5)+En(6)+En(7)"),
+    }
+    atomic_eta_ids = (
+        ((0, 1, 2),),
+        ((0, 2, 3), (0, 3, 4)),
+        ((0, 1, 5), (0, 5, 6)),
+        ((0, 4, 6),),
+        ((1, 2, 7), (2, 7, 8)),
+        ((2, 3, 8),),
+        ((1, 5, 7),),
+        ((3, 4, 9),),
+        ((10, 5, 6),),
+        ((10, 4, 6), (10, 4, 9)),
+        ((11, 7, 8),),
+        ((11, 3, 8), (11, 3, 9)),
+        ((11, 5, 7), (10, 11, 5)),
+        ((10, 11, 9),),
+    )
+    expressions = []
+    for orientation_id, orientation_terms in enumerate(atomic_eta_ids):
+        expression = E("0")
+        for eta_ids in orientation_terms:
+            atomic_term = E("1")
+            for eta_id in eta_ids:
+                atomic_term /= CFFStructure.SB["eta"](eta_id)
+            expression += atomic_term
+        expressions.append(_GL085ReferenceCFFTerm(orientation_id, expression))
+
+    partition = _partition_gl085_cff_expressions(
+        type("GL085ReferenceCFF", (), {"expressions": expressions})(),
+        mapped_eta_expressions,
+    )
+    expected_inventory = {
+        "neutral": 10,
+        "A_only": 4,
+        "B_only": 4,
+        "both": 2,
+        "A_rewritten": 1,
+        "B_rewritten": 1,
+        "A_total": 15,
+        "B_total": 5,
+    }
+    if partition.inventory != expected_inventory:
+        raise ValueError(
+            "The topology-locked GL085 scalar CFF has an unexpected inventory."
+        )
+    buckets = _materialise_gl085_scalar_causal_buckets(
+        partition,
+        mapped_eta_expressions,
+    )
+    return tuple(buckets[bucket] for bucket in _GL085_CFF_BUCKETS)
+
+
+def _gl085_reference_scalar_causal_bucket_map() -> dict[str, Expression]:
+    expressions = _gl085_reference_scalar_causal_buckets()
+    return dict(zip(_GL085_CFF_BUCKETS, expressions, strict=True))
+
+
+def _gl085_crossed_25_residue(expression: Expression) -> Expression:
+    """Take the GL085 D-surface residue without mixing CFF orientations."""
+
+    delta = E("gl085_delta")
+    # D = En(0)+En(4)+En(7)-En(2)-En(5).  The crossed {2,5}
+    # cut enforces D=0, so solve D=delta for En(2).
+    replacement = E(
+        "En(0)+En(4)+En(7)-En(5)-gl085_delta"
+    )
+    return (
+        expression.replace(E("En(2)"), replacement)
+        .series(delta, 0, -1)
+        .to_expression()
+        .replace(delta, E("1"))
+    )
+
+
+@cache
+def _gl085_reference_scalar_crossed_residues() -> tuple[Expression, Expression]:
+    """Return the fixed-orientation A/B residues on the crossed D surface."""
+
+    causal_buckets = _gl085_reference_scalar_causal_bucket_map()
+    return tuple(
+        _gl085_crossed_25_residue(causal_buckets[bucket])
+        for bucket in _GL085_CFF_BUCKETS
+    )
+
+
+def _gl085_reference_scalar_crossed_residue_map() -> dict[str, Expression]:
+    expressions = _gl085_reference_scalar_crossed_residues()
+    return dict(zip(_GL085_CFF_BUCKETS, expressions, strict=True))
+
+
+def _gl085_crossed_25_cut_exchange_factor() -> Expression:
+    """Convert the physical-cut D residue to the crossed-cut measure."""
+
+    return E("-2*En(1)/((En(4)+En(7))^2-En(1)^2)")
+
+
+def _gl085_crossed_25_residue_buckets(
+    physical_buckets: dict[str, Expression],
+) -> dict[str, Expression]:
+    """Build crossed buckets without combining fixed-orientation numerators."""
+
+    if set(physical_buckets) != set(_GL085_CFF_BUCKETS):
+        raise ValueError("Incomplete GL085 physical CFF buckets for D residue.")
+    exchange_factor = _gl085_crossed_25_cut_exchange_factor()
+    return {
+        bucket: _gl085_crossed_25_residue(expression) * exchange_factor
+        for bucket, expression in physical_buckets.items()
+    }
+
+
+def _is_gl085_physical_25_cut(cut_graph) -> bool:
+    graph_name = _strip_quotes(
+        str(cut_graph.graph.get("base_graph_name") or cut_graph.graph.get_name())
+    )
+    if graph_name != "GL085":
+        return False
+    initial_ids = {
+        _strip_quotes(str(edge.get_attributes()["id"]))
+        for edge in cut_graph.initial_cut
+    }
+    final_ids = {
+        _strip_quotes(str(edge.get_attributes()["id"]))
+        for edge in cut_graph.final_cut
+    }
+    return initial_ids == {"0", "1"} and final_ids == {"2", "5"}
+
+
+def _is_gl085_anti_collinear_25_cut(cut_graph) -> bool:
+    graph_name = _strip_quotes(
+        str(cut_graph.graph.get("base_graph_name") or cut_graph.graph.get_name())
+    )
+    if graph_name != "GL085":
+        return False
+    initial_ids = {
+        _strip_quotes(str(edge.get_attributes()["id"]))
+        for edge in cut_graph.initial_cut
+    }
+    final_ids = {
+        _strip_quotes(str(edge.get_attributes()["id"]))
+        for edge in cut_graph.final_cut
+    }
+    return initial_ids == {"0", "4", "7"} and final_ids == {"2", "5"}
+
+
+def _gl085_physical_25_counterpart(cut_graph) -> routed_cut_graph:
+    """Recover the physical cut whose oriented D residues define this cut."""
+
+    if not _is_gl085_anti_collinear_25_cut(cut_graph):
+        raise ValueError("The GL085 counterpart builder received the wrong cut.")
+    graph = deepcopy(cut_graph.graph)
+    edge_by_id = {
+        _strip_quotes(str(edge.get_attributes()["id"])): edge
+        for edge in graph.get_edges()
+    }
+    if set(edge_by_id) != {str(edge_id) for edge_id in range(9)}:
+        raise ValueError("The GL085 counterpart topology has unexpected edges.")
+
+    physical_cut_signs = {"0": 1, "1": 1, "2": 1, "5": -1}
+    for edge_id, edge in edge_by_id.items():
+        attributes = edge.get_attributes()
+        attributes["is_cut"] = physical_cut_signs.get(edge_id, 0)
+        # normalise_graph will recreate this derived flag from is_cut.
+        attributes.pop("is_cut_DY", None)
+
+    return routed_cut_graph(
+        graph,
+        [edge_by_id["0"], edge_by_id["1"]],
+        [edge_by_id["2"], edge_by_id["5"]],
+        [[edge_by_id["0"]], [edge_by_id["1"]]],
+    )
+
+
+def _gl085_causal_surfaces() -> dict[str, Expression]:
+    return {
+        _GL085_CFF_BUCKET_A: E("En(3)+En(4)-En(2)"),
+        _GL085_CFF_BUCKET_B: E("En(6)+En(7)-En(5)"),
+    }
+
+
+def _gl085_physical_family_lmb(cut_graph) -> tuple[int, int] | None:
+    """Return the LMB shared by one GL085 causal cancellation family."""
+
+    graph_name = _strip_quotes(
+        str(cut_graph.graph.get("base_graph_name") or cut_graph.graph.get_name())
+    )
+    if graph_name != "GL085":
+        return None
+    initial_ids = {
+        _strip_quotes(str(edge.get_attributes()["id"]))
+        for edge in cut_graph.initial_cut
+    }
+    if initial_ids not in ({"0", "1"}, {"0", "4", "7"}):
+        return None
+    final_ids = {
+        _strip_quotes(str(edge.get_attributes()["id"]))
+        for edge in cut_graph.final_cut
+    }
+    if final_ids == {"3", "4", "5"}:
+        return _GL085_CFF_BUCKET_LMBS[_GL085_CFF_BUCKET_A]
+    if final_ids == {"2", "6", "7"}:
+        return _GL085_CFF_BUCKET_LMBS[_GL085_CFF_BUCKET_B]
+    return None
+
+
+_GL085_NO_THRESHOLD_TOPOLOGY = {
+    "0": ("2", "4", "g"),
+    "1": ("3", "5", "g"),
+    "2": ("0", "3", "t"),
+    "3": ("4", "0", "t"),
+    "4": ("0", "5", "g"),
+    "5": ("2", "1", "t"),
+    "6": ("1", "4", "t"),
+    "7": ("1", "5", "g"),
+    "8": ("3", "2", "t"),
+}
+
+
+def _assert_gl085_no_threshold_counterterm_topology(cut_graph) -> None:
+    """Guard the audited zero-threshold GL085 {2,5} topology."""
+
+    if not _is_gl085_physical_25_cut(cut_graph):
+        raise ValueError("The GL085 no-threshold guard received the wrong cut.")
+    actual = {}
+    for edge in cut_graph.graph.get_edges():
+        attributes = edge.get_attributes()
+        edge_id = _strip_quotes(str(attributes["id"]))
+        particle = _strip_quotes(str(attributes["particle"]))
+        if particle in {"t", "t~"}:
+            particle = "t"
+        actual[edge_id] = (
+            _base_node(edge.get_source()),
+            _base_node(edge.get_destination()),
+            particle,
+        )
+    if actual != _GL085_NO_THRESHOLD_TOPOLOGY:
+        raise ValueError(
+            "The GL085 {2,5} topology changed; re-audit threshold "
+            f"counterterms before splitting its CFF. Found {actual}."
+        )
 
 
 def _is_zero_cut_value(value) -> bool:
@@ -2148,6 +2656,10 @@ class RoutedIntegrand(object):
         self.approximation_type = type
         self.ir_limit = ir_limit
         self.t_derivative = t_derivative
+        # Set for independently routed pieces of a partitioned causal CFF.
+        # Ordinary routed integrands deliberately retain ``None``.
+        self.cff_bucket = None
+        self.cff_lmb = None
 
 
 # This class is responsible for generating the CFF representation of the cut graph
@@ -2864,6 +3376,28 @@ class EMRIntegrandConstructor(object):
             branch = _strip_namespaces_structurally(branch)
             out += substitute_process_couplings(branch, self.name, self.L)
         return out
+
+    def factorised_numerator_branches(
+        self,
+        numerator_graph,
+        post_momentum_rewrite_factor=E("1"),
+    ) -> list[tuple[Expression, Expression, Expression]]:
+        """Return scalar/colour/kinematic branches without simplifying them.
+
+        Integrated UV tensor closure needs the same branch separation as the
+        ordinary numerator path, but it has its own Lorentz and gamma closure.
+        Exposing the already-audited splitter here avoids sending expanded,
+        colourless kinematics through Idenso's colour simplifier while still
+        preserving correlated four-gluon colour/kinematic branches.
+        """
+
+        return [
+            _multiply_into_numerator_parts(
+                parts,
+                post_momentum_rewrite_factor,
+            )
+            for parts in _factorised_graph_numerator_branches(numerator_graph)
+        ]
 
     # Get the numerator of the graph
 
@@ -3636,8 +4170,23 @@ class EMRIntegrandConstructor(object):
         return numerator
 
     def get_cff(
-        self, cut_graph, amplitude_graphs, numerator, get_residues=False
+        self,
+        cut_graph,
+        amplitude_graphs,
+        numerator,
+        get_residues=False,
+        cff_partition=None,
     ):
+        split_gl085 = cff_partition == _GL085_CFF_PARTITION
+        if cff_partition is not None and not split_gl085:
+            raise ValueError(f"Unknown CFF partition request: {cff_partition}.")
+        if split_gl085 and get_residues:
+            raise ValueError("GL085 CFF splitting is not supported for residues.")
+        if split_gl085 and not _is_gl085_physical_25_cut(cut_graph):
+            raise ValueError(
+                "The GL085 CFF split is restricted to physical initial {0,1}, "
+                "final {2,5} cuts."
+            )
         had_pairs = bool(getattr(cut_graph, "raised_cut_pairs", ()))
         detection_was_complete = bool(
             getattr(cut_graph, "raised_cut_detection_complete", False)
@@ -3755,8 +4304,15 @@ class EMRIntegrandConstructor(object):
                 + ", ".join(sorted(missing_squared_ids, key=_id_sort_key))
             )
 
+        if split_gl085 and len(loop_graphs) != 1:
+            raise ValueError(
+                "The GL085 CFF split expects exactly one loop CFF component, "
+                f"found {len(loop_graphs)}."
+            )
+
         e_surfaces = set()
-        previous_cff = numerator
+        bucket_names = _GL085_CFF_BUCKETS if split_gl085 else ("all",)
+        previous_cffs = {bucket: numerator for bucket in bucket_names}
         cut_energy_reversal_ids = {
             _strip_quotes(str(edge.get_attributes()["id"]))
             for edge in cut_graph.graph.get_edges()
@@ -3764,53 +4320,94 @@ class EMRIntegrandConstructor(object):
         }
         for n_graph, g in enumerate(loop_graphs):
             cff_g = self.get_CFF(g.graph, [], [])
-            new_cff = E("0")
+            new_cffs = {bucket: E("0") for bucket in bucket_names}
             g_rep = g.replacements
 
+            mapped_eta_expressions = {}
+            for etas in cff_g.e_surfaces:
+                eta = etas.expression
+                for rep in g.replacements:
+                    eta = eta.replace(
+                        E(f"pygloop::E({rep[0]})"),
+                        E(f"En({rep[1]})"),
+                    )
+
+                for edge_id in cut_energy_reversal_ids:
+                    eta = eta.replace(E(f"En({edge_id})"), -E(f"En({edge_id})"))
+                if external_energy_replacement is not None:
+                    eta = eta.replace(*external_energy_replacement)
+                mapped_eta_expressions[etas.id] = eta
+                if get_residues:
+                    e_surfaces.add(deepcopy(eta))
+
+            cff_expression_partition = (
+                _partition_gl085_cff_expressions(
+                    cff_g,
+                    mapped_eta_expressions,
+                )
+                if split_gl085
+                else None
+            )
+            if cff_expression_partition is not None:
+                live_scalar_buckets = _materialise_gl085_scalar_causal_buckets(
+                    cff_expression_partition,
+                    mapped_eta_expressions,
+                )
+                reference_scalar_buckets = (
+                    _gl085_reference_scalar_causal_bucket_map()
+                )
+                mismatched_buckets = [
+                    bucket
+                    for bucket in _GL085_CFF_BUCKETS
+                    if not _expression_is_zero(
+                        live_scalar_buckets[bucket]
+                        - reference_scalar_buckets[bucket]
+                    )
+                ]
+                if mismatched_buckets:
+                    raise ValueError(
+                        "The live GL085 scalar CFF no longer matches its "
+                        "topology-locked crossed-cut template in buckets: "
+                        + ", ".join(mismatched_buckets)
+                    )
+
             for cffterm in cff_g.expressions:
-                cff_term = previous_cff * cffterm.expression
+                causal_expressions = (
+                    cff_expression_partition.expressions[cffterm.id]
+                    if cff_expression_partition is not None
+                    else {"all": cffterm.expression}
+                )
+                for bucket, causal_expression in causal_expressions.items():
+                    if _expression_is_zero(causal_expression):
+                        continue
+                    cff_term = previous_cffs[bucket] * causal_expression
 
-                for o, i in zip(cffterm.orientation, range(len(cffterm.orientation))):
-                    id_in_original_graph = g_rep[i][1]
-                    original_edge_id = _strip_quotes(str(id_in_original_graph))
-                    original_edge = cut_g_edge_by_id.get(original_edge_id)
-                    if original_edge is None:
-                        raise ValueError(
-                            f"Could not find original edge {original_edge_id} "
-                            "in cut graph CFF lookup."
-                        )
-                    if o.is_reversed():
+                    for o, i in zip(
+                        cffterm.orientation, range(len(cffterm.orientation))
+                    ):
+                        id_in_original_graph = g_rep[i][1]
+                        original_edge_id = _strip_quotes(str(id_in_original_graph))
+                        original_edge = cut_g_edge_by_id.get(original_edge_id)
+                        if original_edge is None:
+                            raise ValueError(
+                                f"Could not find original edge {original_edge_id} "
+                                "in cut graph CFF lookup."
+                            )
+                        if o.is_reversed():
+                            cff_term = cff_term.replace(
+                                E(f"sigma({id_in_original_graph})"), E("-1")
+                            )
+                        if o.is_default():
+                            cff_term = cff_term.replace(
+                                E(f"sigma({id_in_original_graph})"), E("1")
+                            )
+                    for eta_id, eta in mapped_eta_expressions.items():
                         cff_term = cff_term.replace(
-                            E(f"sigma({id_in_original_graph})"), E("-1")
+                            E(f"pygloop::η({eta_id})"), -eta
                         )
-                    if o.is_default():
-                        cff_term = cff_term.replace(
-                            E(f"sigma({id_in_original_graph})"), E("1")
-                        )
-                for etas in cff_g.e_surfaces:
-                    eta = etas.expression
-                    for rep in g.replacements:
-                        eta = eta.replace(
-                            E(f"pygloop::E({rep[0]})"),
-                            E(f"En({rep[1]})"),
-                        )
+                    new_cffs[bucket] += cff_term
 
-                    for edge_id in cut_energy_reversal_ids:
-                        eta = eta.replace(
-                            E(f"En({edge_id})"), -E(f"En({edge_id})")
-                        )
-                    if external_energy_replacement is not None:
-                        eta = eta.replace(*external_energy_replacement)
-
-                    cff_term = cff_term.replace(E(f"pygloop::η({etas.id})"), -eta)
-
-                    if get_residues:
-                        residue_eta = deepcopy(eta)
-                        e_surfaces.add(residue_eta)
-
-                new_cff += cff_term
-
-            previous_cff = new_cff
+            previous_cffs = new_cffs
 
         for (
             original_id,
@@ -3826,9 +4423,10 @@ class EMRIntegrandConstructor(object):
                 original_id not in external_cut_ids
                 and original_id not in squared_tree_ids
             ):
-                previous_cff = previous_cff.replace(
-                    E(f"En({original_id})"), energy_replacement
-                )
+                for bucket in bucket_names:
+                    previous_cffs[bucket] = previous_cffs[bucket].replace(
+                        E(f"En({original_id})"), energy_replacement
+                    )
             if get_residues:
                 e_surfaces = {
                     eta.replace(
@@ -3851,12 +4449,18 @@ class EMRIntegrandConstructor(object):
             tree_factor = tree_factor.replace(*external_energy_replacement)
             energies = energies.replace(*external_energy_replacement)
 
-        total_cff = previous_cff * tree_factor * energies
         raised_crossing_weight = 1
         for _pair in getattr(cut_graph, "raised_cut_pairs", ()):
             raised_crossing_weight *= -2
-        total_cff *= E(str(raised_crossing_weight))
+        common_scalar_factor = tree_factor * energies * E(
+            str(raised_crossing_weight)
+        )
+        total_cffs = {
+            bucket: previous_cff * common_scalar_factor
+            for bucket, previous_cff in previous_cffs.items()
+        }
         if get_residues:
+            total_cff = total_cffs["all"]
             delta = E("δ")
             residues = []
             for eta in e_surfaces:
@@ -3893,11 +4497,14 @@ class EMRIntegrandConstructor(object):
         # Qr deliberately bypasses routing reversal, synthetic cut signs,
         # signable-loop orientation, protected-energy substitutions, and
         # residue pivots. It becomes En only at the completed-CFF boundary.
-        total_cff = _finalise_cff_momentum_heads(total_cff)
+        total_cffs = {
+            bucket: _finalise_cff_momentum_heads(total_cff)
+            for bucket, total_cff in total_cffs.items()
+        }
 
         # print(total_cff)
 
-        return total_cff
+        return total_cffs if split_gl085 else total_cffs["all"]
 
     def get_integrand(
         self,
@@ -3905,6 +4512,7 @@ class EMRIntegrandConstructor(object):
         get_residues=False,
         numerator_factorisation=None,
         prepared_numerator=None,
+        cff_partition=None,
     ):
 
         # Derives numerator, eliminates useless labels, get left and right graphs and further
@@ -3952,12 +4560,23 @@ class EMRIntegrandConstructor(object):
 
         print("got to cff construction")
 
-        cut_graph_cff = self.get_cff(
-            cut_graph,
-            amplitude_graphs,
-            num,
-            get_residues,
-        )
+        if cff_partition is None:
+            # Preserve the historical four-argument call boundary for
+            # downstream wrappers and lightweight test doubles.
+            cut_graph_cff = self.get_cff(
+                cut_graph,
+                amplitude_graphs,
+                num,
+                get_residues,
+            )
+        else:
+            cut_graph_cff = self.get_cff(
+                cut_graph,
+                amplitude_graphs,
+                num,
+                get_residues,
+                cff_partition=cff_partition,
+            )
 
         print("and beyond cff construction")
 
@@ -5769,10 +6388,213 @@ class LoopIntegrandConstructor(object):
 
         return cut_graph
 
+    def _gl085_oriented_25_bucket_expressions(self, physical_cut_graph):
+        """Generate and cache the physical buckets and their crossed residues."""
+
+        if not _is_gl085_physical_25_cut(physical_cut_graph):
+            raise ValueError("GL085 oriented buckets require its physical cut.")
+        _assert_gl085_no_threshold_counterterm_topology(physical_cut_graph)
+        cached = getattr(
+            self,
+            "_gl085_physical_25_bucket_expressions",
+            None,
+        )
+        if cached is not None:
+            return cached
+
+        canonical_cut_graph = deepcopy(physical_cut_graph)
+        canonical_cut_graph.graph = change_routing(
+            canonical_cut_graph.graph,
+            _GL085_CFF_CANONICAL_LMB,
+        )
+        self.emr_processor.identify_and_mark_raised_cuts(canonical_cut_graph)
+        canonical_cut_graph = self.modify_t_channel_gluon_numerator(
+            canonical_cut_graph
+        )
+
+        numerator_factorisation = None
+        if self.external_gluon_polarisation:
+            numerator_factorisation = (
+                self.external_gluon_polarisation_numerator_factorisation
+            )
+        physical_buckets = self.emr_processor.get_integrand(
+            canonical_cut_graph,
+            numerator_factorisation=numerator_factorisation,
+            cff_partition=_GL085_CFF_PARTITION,
+        )
+        if set(physical_buckets) != set(_GL085_CFF_BUCKETS):
+            raise ValueError(
+                "GL085 CFF construction returned unexpected buckets: "
+                f"{sorted(physical_buckets)}."
+            )
+        self._gl085_physical_25_bucket_expressions = physical_buckets
+        self._gl085_crossed_25_bucket_expressions = (
+            _gl085_crossed_25_residue_buckets(physical_buckets)
+        )
+        return physical_buckets
+
+    def _get_gl085_split_integrand(self, cut_graph):
+        """Build the two physical GL085 {2,5} CFF buckets from one numerator."""
+
+        if self.channel != (0, 0) or not _is_gl085_physical_25_cut(cut_graph):
+            raise ValueError(
+                "The GL085 split pipeline was called outside its gg physical "
+                "initial {0,1}, final {2,5} target."
+            )
+
+        source_cut_graph = deepcopy(cut_graph)
+        numerator_factorisation = None
+        if self.external_gluon_polarisation:
+            numerator_factorisation = (
+                self.external_gluon_polarisation_numerator_factorisation
+            )
+        bucket_expressions = self._gl085_oriented_25_bucket_expressions(
+            source_cut_graph
+        )
+
+        routed_buckets = []
+        for bucket in _GL085_CFF_BUCKETS:
+            lmb_choice = _GL085_CFF_BUCKET_LMBS[bucket]
+            bucket_cut_graph = deepcopy(source_cut_graph)
+            bucket_orig_cut_graph = deepcopy(source_cut_graph)
+            bucket_cut_graph.graph = change_routing(
+                bucket_cut_graph.graph,
+                lmb_choice,
+            )
+            bucket_orig_cut_graph.graph = change_routing(
+                bucket_orig_cut_graph.graph,
+                lmb_choice,
+            )
+
+            self.emr_processor.identify_and_mark_raised_cuts(bucket_cut_graph)
+            bucket_cut_graph = self.modify_t_channel_gluon_numerator(
+                bucket_cut_graph
+            )
+            _copy_raised_cut_annotations(
+                bucket_cut_graph,
+                bucket_orig_cut_graph,
+            )
+
+            loop_integrand, raised_cut, is_final_raised = (
+                self.eliminate_raised_cuts(
+                    bucket_expressions[bucket],
+                    bucket_cut_graph,
+                )
+            )
+
+            uv_approximator = UltraVioletSubtraction(
+                loop_integrand,
+                deepcopy(bucket_cut_graph),
+                self.L,
+                self.emr_processor,
+                deepcopy(bucket_orig_cut_graph),
+                integrated_numerator_factorisation=numerator_factorisation,
+                disable_integrated_uv_cts=self.disable_integrated_uv_cts,
+            )
+            uv_ct = uv_approximator.construct_uv_counter_terms()
+
+            # This exact topology was audited with the ordinary residue
+            # pipeline and has no selected threshold surface.  Re-running
+            # that empty probe for both buckets regenerates the full numerator
+            # twice, so retain a structural guard instead.
+            _assert_gl085_no_threshold_counterterm_topology(
+                bucket_orig_cut_graph
+            )
+            threshold_cts = []
+
+            if uv_ct or threshold_cts:
+                raise ValueError(
+                    "The GL085 CFF split cannot duplicate counterterms; "
+                    f"bucket {bucket} unexpectedly produced {len(uv_ct)} UV "
+                    f"and {len(threshold_cts)} threshold terms."
+                )
+
+            bucket_integrands = self.leading_virtuality_expansion(
+                loop_integrand,
+                bucket_cut_graph,
+                raised_cut,
+            )
+            if is_final_raised:
+                for routed_integrand in bucket_integrands:
+                    routed_integrand.t_derivative = is_final_raised
+
+            for routed_integrand in bucket_integrands:
+                routed_integrand.cff_bucket = bucket
+                routed_integrand.cff_lmb = tuple(lmb_choice)
+            routed_buckets.extend(bucket_integrands)
+
+        return routed_buckets
+
+    def _get_gl085_anti_collinear_25_split_integrand(self, cut_graph):
+        """Split the GL085 {2,5} anti-collinear partner by causal surface."""
+
+        if self.channel != (0, 0) or not _is_gl085_anti_collinear_25_cut(
+            cut_graph
+        ):
+            raise ValueError(
+                "The GL085 anti-collinear split pipeline received the wrong cut."
+            )
+
+        source_cut_graph = deepcopy(cut_graph)
+        if _post_cut_graph_has_loop(source_cut_graph):
+            raise ValueError(
+                "The GL085 crossed {2,5} residue split unexpectedly retained "
+                "a post-cut loop."
+            )
+        # The crossed graph is tree-like, so its ordinary CFF path collapses
+        # all loop orientations under one numerator.  Recover the physical
+        # CFF instead and take D residues before those numerators are combined.
+        physical_counterpart = _gl085_physical_25_counterpart(source_cut_graph)
+        self._gl085_oriented_25_bucket_expressions(physical_counterpart)
+        bucket_expressions = self._gl085_crossed_25_bucket_expressions
+
+        routed_buckets = []
+        for bucket in _GL085_CFF_BUCKETS:
+            lmb_choice = _GL085_CFF_BUCKET_LMBS[bucket]
+            bucket_cut_graph = deepcopy(source_cut_graph)
+            bucket_cut_graph.graph = change_routing(
+                bucket_cut_graph.graph,
+                lmb_choice,
+            )
+            self.emr_processor.identify_and_mark_raised_cuts(bucket_cut_graph)
+            bucket_cut_graph = self.modify_t_channel_gluon_numerator(
+                bucket_cut_graph
+            )
+            # The canonical graph was normalised during CFF construction;
+            # these independently routed copies must expose the same
+            # is_cut_DY metadata before the anti-collinear expansion.
+            self.emr_processor.normalise_graph(bucket_cut_graph.graph)
+
+            bucket_loop_integrand, bucket_raised_cut, bucket_is_final_raised = (
+                self.eliminate_raised_cuts(
+                    bucket_expressions[bucket],
+                    bucket_cut_graph,
+                )
+            )
+            bucket_integrands = self.leading_virtuality_expansion(
+                bucket_loop_integrand,
+                bucket_cut_graph,
+                bucket_raised_cut,
+            )
+            if bucket_is_final_raised:
+                for routed_integrand in bucket_integrands:
+                    routed_integrand.t_derivative = bucket_is_final_raised
+            for routed_integrand in bucket_integrands:
+                routed_integrand.cff_bucket = bucket
+                routed_integrand.cff_lmb = tuple(lmb_choice)
+            routed_buckets.extend(bucket_integrands)
+
+        return routed_buckets
+
     # Derive cff, set the lmb so that the loop momentum coincides with the photon (for DY), and
     # derive the approximated representation.
 
     def get_integrand(self, cut_graph):
+
+        if self.channel == (0, 0) and _is_gl085_physical_25_cut(cut_graph):
+            return self._get_gl085_split_integrand(cut_graph)
+        if self.channel == (0, 0) and _is_gl085_anti_collinear_25_cut(cut_graph):
+            return self._get_gl085_anti_collinear_25_split_integrand(cut_graph)
 
         # FIX: cut graph logic and overwriting
         orig_cut_graph = deepcopy(cut_graph)
@@ -6051,6 +6873,11 @@ class LoopIntegrandConstructor(object):
                     if base_graph_name == "GL123":
                         theta_flag = False
                         lmb_choice = [2, 6]
+
+                    gl085_family_lmb = _gl085_physical_family_lmb(cut_graph)
+                    if gl085_family_lmb is not None:
+                        theta_flag = False
+                        lmb_choice = list(gl085_family_lmb)
 
             print(lmb_choice)
             # lmb_choice = [7, 2]

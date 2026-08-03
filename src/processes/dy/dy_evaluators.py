@@ -929,7 +929,7 @@ class DYCompiledTerm:
 
 class DYCompiledBundle:
     METADATA_FILE = "bundle_metadata.json"
-    BUNDLE_FORMAT_VERSION = 5
+    BUNDLE_FORMAT_VERSION = 6
     DOUBLE_FLOAT_PRECISION = 32
 
     def __init__(
@@ -1124,6 +1124,18 @@ class DYCompiledBundle:
                             pickle.dump(additional_data, handle)
 
                     merged_term = dict(term)
+
+                    # Saved Symbolica evaluators support evaluate_with_prec at
+                    # arbitrary precision.  Expression bodies used by bundle
+                    # formats <= 5 are therefore redundant and can be very
+                    # large; never propagate them into a merged bundle.
+                    for expression_key in (
+                        "e_surface",
+                        "theta_expressions",
+                        "integrand_expression",
+                        "ttbar_pt_sq_expression",
+                    ):
+                        merged_term.pop(expression_key, None)
 
                     def copy_saved_evaluator(relpath, kind, theta_index=None):
                         if relpath is None:
@@ -1383,7 +1395,7 @@ class DYCompiledBundle:
         fallback_precision = int(fallback_precision)
         if fallback_precision < 2:
             raise pygloopException("DY fallback precision must be at least two digits.")
-        fallback_backend = "double_float_and_arb"
+        fallback_backend = "saved_evaluator"
         fallback_params = cls._fallback_params_for_n_loops(n_loops)
 
         for i, ev in enumerate(evaluators):
@@ -1519,37 +1531,20 @@ class DYCompiledBundle:
             "n_loops": n_loops,
             "fallback_precision": fallback_precision,
             "fallback_backend": fallback_backend,
-            "fallback_backends": ["double_float", "arb"],
+            "fallback_backends": ["saved_evaluator"],
             "fallback_parameter_order": [
                 param.to_canonical_string() for param in fallback_params
             ],
             "terms": [
                 {
                     "evaluator_name": t.evaluator_name,
-                    "e_surface": (
-                        t.e_surface.to_canonical_string()
-                        if t.e_surface is not None
-                        else None
-                    ),
                     "e_surface_evaluator": cls._saved_evaluator_relpath(
                         i, "e_surface"
-                    ),
-                    "theta_expressions": (
-                        [
-                            th.to_canonical_string()
-                            for th in t.theta_expressions
-                            if th is not None
-                        ]
                     ),
                     "theta_evaluators": [
                         cls._saved_evaluator_relpath(i, "theta", theta_index)
                         for theta_index, _theta in enumerate(t.theta_expressions)
                     ],
-                    "integrand_expression": (
-                        t.integrand_expression.to_canonical_string()
-                        if t.integrand_expression is not None
-                        else None
-                    ),
                     "integrand_evaluator": (
                         cls._saved_evaluator_relpath(i, "integrand")
                         if t.integrand_expression is not None
@@ -1561,11 +1556,6 @@ class DYCompiledBundle:
                             for param in t.integrand_evaluator_parameter_order
                         ]
                         if t.integrand_evaluator_parameter_order is not None
-                        else None
-                    ),
-                    "ttbar_pt_sq_expression": (
-                        t.ttbar_pt_sq_expression.to_canonical_string()
-                        if t.ttbar_pt_sq_expression is not None
                         else None
                     ),
                     "ttbar_pt_sq_evaluator": (
@@ -1778,12 +1768,7 @@ class DYCompiledBundle:
         decimal_digit_precision: int,
         evaluator_parameter_order: list[Expression] | None = None,
     ) -> Decimal | None:
-        if decimal_digit_precision == self.DOUBLE_FLOAT_PRECISION:
-            if evaluator is None:
-                raise pygloopException(
-                    "No DoubleFloat fallback evaluator data is present in this DY "
-                    "bundle. Regenerate the bundle with --dy-fallback-precision 32."
-                )
+        if evaluator is not None:
             input_values = (
                 self._fallback_input_values_for_order(
                     values, evaluator_parameter_order
@@ -1795,7 +1780,7 @@ class DYCompiledBundle:
                 value = _evaluate_symbolica_evaluator_with_prec(
                     evaluator,
                     [self._decimal_from_number(value) for value in input_values],
-                    self.DOUBLE_FLOAT_PRECISION,
+                    decimal_digit_precision,
                 )
             except BaseException as exc:
                 if isinstance(exc, (KeyboardInterrupt, SystemExit)):
@@ -1805,14 +1790,14 @@ class DYCompiledBundle:
                         Decimal(
                             format(
                                 self._decimal_from_number(value),
-                                f".{self.DOUBLE_FLOAT_PRECISION - 1}e",
+                                f".{decimal_digit_precision - 1}e",
                             )
                         )
                         for value in input_values
                     ]
                     complex_outputs = evaluator.evaluate_complex_with_prec(
                         [(value, Decimal(0)) for value in prepared_inputs],
-                        self.DOUBLE_FLOAT_PRECISION,
+                        decimal_digit_precision,
                     )
                     if len(complex_outputs) != 1:
                         return None
@@ -1836,8 +1821,8 @@ class DYCompiledBundle:
 
         if expr is None:
             raise pygloopException(
-                "No arbitrary-precision expression data is present in this DY bundle. "
-                "Regenerate the bundle with --dy-fallback-precision <N> for N != 32."
+                "No saved fallback evaluator data is present in this DY bundle. "
+                "Regenerate the compiled bundle."
             )
         prepared_values = {
             key: (
@@ -1874,12 +1859,7 @@ class DYCompiledBundle:
         evaluator_parameter_order: list[Expression] | None = None,
     ) -> Decimal | None:
         """Evaluate using the historical fallback-input conversion contract."""
-        if decimal_digit_precision == self.DOUBLE_FLOAT_PRECISION:
-            if evaluator is None:
-                raise pygloopException(
-                    "No DoubleFloat fallback evaluator data is present in this DY "
-                    "bundle. Regenerate the bundle with --dy-fallback-precision 32."
-                )
+        if evaluator is not None:
             input_values = (
                 self._fallback_input_values_for_order(
                     values, evaluator_parameter_order
@@ -1891,7 +1871,7 @@ class DYCompiledBundle:
                 value = self._single_evaluator_output(
                     evaluator.evaluate_with_prec(
                         input_values,
-                        self.DOUBLE_FLOAT_PRECISION,
+                        decimal_digit_precision,
                     )
                 )
             except BaseException as exc:
@@ -1900,7 +1880,7 @@ class DYCompiledBundle:
                 try:
                     complex_outputs = evaluator.evaluate_complex_with_prec(
                         [(value, Decimal(0)) for value in input_values],
-                        self.DOUBLE_FLOAT_PRECISION,
+                        decimal_digit_precision,
                     )
                     if len(complex_outputs) != 1:
                         return None
@@ -1924,8 +1904,8 @@ class DYCompiledBundle:
 
         if expr is None:
             raise pygloopException(
-                "No arbitrary-precision expression data is present in this DY bundle. "
-                "Regenerate the bundle with --dy-fallback-precision <N> for N != 32."
+                "No saved fallback evaluator data is present in this DY bundle. "
+                "Regenerate the compiled bundle."
             )
         string_values = {key: str(value) for key, value in values.items()}
         try:
@@ -2019,53 +1999,52 @@ class DYCompiledBundle:
         return pt_sq >= pt_min * pt_min
 
     def supports_arb(self) -> bool:
-        return all(
-            t.e_surface is not None and t.integrand_expression is not None
-            for t in self.terms
-        )
+        return all(self._term_supports_fallback(term) for term in self.terms)
 
-    def supports_double_float_fallback(self) -> bool:
-        for term in self.terms:
-            theta_evaluators = term.theta_evaluators
-            if (
-                term.e_surface_evaluator is None
-                or term.integrand_evaluator is None
-                or theta_evaluators is None
-                or any(evaluator is None for evaluator in theta_evaluators)
-            ):
-                return False
-            if term.theta_expressions and len(theta_evaluators) != len(
-                term.theta_expressions
-            ):
-                return False
-            if (
-                term.ttbar_pt_sq_expression is not None
-                and term.ttbar_pt_sq_evaluator is None
-            ):
+    @staticmethod
+    def _term_supports_fallback(term: DYCompiledTerm) -> bool:
+        if term.e_surface_evaluator is None and term.e_surface is None:
+            return False
+        if term.integrand_evaluator is None and term.integrand_expression is None:
+            return False
+
+        theta_expressions = list(term.theta_expressions)
+        theta_evaluators = list(term.theta_evaluators or [])
+        for theta_index in range(max(len(theta_expressions), len(theta_evaluators))):
+            expression = (
+                theta_expressions[theta_index]
+                if theta_index < len(theta_expressions)
+                else None
+            )
+            evaluator = (
+                theta_evaluators[theta_index]
+                if theta_index < len(theta_evaluators)
+                else None
+            )
+            if expression is None and evaluator is None:
                 return False
         return True
+
+    def supports_double_float_fallback(self) -> bool:
+        # Kept as a compatibility alias. Saved Symbolica evaluators are not
+        # tied to 32 digits; the same sidecars support every fallback precision.
+        return self.supports_arb()
 
     def require_arb_supported(self) -> None:
         if self.supports_arb():
             return
         raise pygloopException(
-            f"DY bundle '{self.integrand_name}' does not contain symbolic term expressions "
-            "needed for arbitrary-precision fallback. Regenerate the DY bundle; "
-            "bundle format 5 stores both fallback backends."
+            f"DY bundle '{self.integrand_name}' does not contain complete saved "
+            "fallback evaluators. Regenerate the DY bundle."
         )
 
     def require_fallback_supported(self, decimal_digit_precision: int) -> None:
-        if (
-            decimal_digit_precision == self.DOUBLE_FLOAT_PRECISION
-            and self.supports_double_float_fallback()
-        ):
-            return
-        if decimal_digit_precision == self.DOUBLE_FLOAT_PRECISION:
+        if decimal_digit_precision < 1:
             raise pygloopException(
-                "No DoubleFloat fallback evaluator data is present in this DY "
-                "bundle. Regenerate it with bundle format 5, which stores both "
-                "fallback backends."
+                "Higher-precision DY evaluation requires a positive precision."
             )
+        if self.supports_arb():
+            return
         self.require_arb_supported()
 
     def _build_runtime_values(

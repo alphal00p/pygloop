@@ -901,7 +901,44 @@ def _graph_without_numerators(graph):
     return graph_without_numerators
 
 
+def _close_uv_int_kinematic_numerator(expr: Expression) -> Expression:
+    for _ in range(8):
+        previous = expr.to_canonical_string()
+        expr = _contract_lorentz_metrics(expr)
+        expr = simplify_metrics(expr)
+        expr = fold_momentum_components_into_gamma(expr)
+        expr = simplify_metrics(simplify_gamma(expr)).expand()
+        expr = _contract_lorentz_metrics(expr)
+        if expr.to_canonical_string() == previous:
+            break
+    return expr
+
+
+def _close_uv_int_colour_numerator(expr: Expression) -> Expression:
+    """Iterate the historical colour closure on a colour-only expression."""
+
+    for _ in range(8):
+        previous = expr.to_canonical_string()
+        expr = _contract_closed_fundamental_colour_chains(
+            simplify_color(expr)
+        )
+        if expr.to_canonical_string() == previous:
+            break
+    return expr
+
+
+def _finish_uv_int_tensor_numerator(expr: Expression) -> Expression:
+    expr = _unwrap_single_gamma_chains(expr)
+    expr = _strip_namespaces_structurally(expr)
+    expr = _contract_lorentz_metrics(expr)
+    expr = _contract_lorentz_momentum_pairs(expr).expand()
+    _assert_closed_uv_tensor_numerator(expr)
+    return expr
+
+
 def _close_uv_int_tensor_numerator(expr: Expression) -> Expression:
+    """Legacy whole-expression closure retained for standalone callers."""
+
     for _ in range(8):
         previous = expr.to_canonical_string()
         expr = _contract_lorentz_metrics(expr)
@@ -913,12 +950,25 @@ def _close_uv_int_tensor_numerator(expr: Expression) -> Expression:
         expr = _contract_lorentz_metrics(expr)
         if expr.to_canonical_string() == previous:
             break
-    expr = _unwrap_single_gamma_chains(expr)
-    expr = _strip_namespaces_structurally(expr)
-    expr = _contract_lorentz_metrics(expr)
-    expr = _contract_lorentz_momentum_pairs(expr).expand()
-    _assert_closed_uv_tensor_numerator(expr)
-    return expr
+    return _finish_uv_int_tensor_numerator(expr)
+
+
+def _close_factorised_uv_int_tensor_numerator(
+    branches: list[tuple[Expression, Expression, Expression]],
+) -> Expression:
+    """Close integrated-UV branches with colour and kinematics separated."""
+
+    colour_simplified = E("0")
+    for scalar, colour, kinematic in branches:
+        closed_colour = _close_uv_int_colour_numerator(colour)
+        colour_simplified += scalar * closed_colour * kinematic
+
+    # Recombine before Lorentz/gamma closure. Those transformations are
+    # linear, but their structural fixed-point implementation relies on the
+    # same complete expression and cross-branch canonicalisation as the
+    # historical whole-numerator path.
+    closed = _close_uv_int_kinematic_numerator(colour_simplified)
+    return _finish_uv_int_tensor_numerator(closed)
 
 
 def _open_lorentz_momenta(expr: Expression) -> list[str]:
@@ -934,7 +984,11 @@ def _open_lorentz_momenta(expr: Expression) -> list[str]:
     return list(dict.fromkeys(momenta))
 
 
-def _uv_int_numerator_factorisation(graph, upstream_factorisation=None):
+def _uv_int_numerator_factorisation(
+    graph,
+    upstream_factorisation=None,
+    numerator_branch_factorisation=None,
+):
     numerator_graph = graph
     post_momentum_rewrite_factor = E("1")
     protected_energy_ids = set()
@@ -960,12 +1014,22 @@ def _uv_int_numerator_factorisation(graph, upstream_factorisation=None):
             )
 
     # Projector factors carry the Lorentz indices removed from the external
-    # cut-edge metrics.  Include them before closing the contracted UV tensor;
-    # multiplying them afterwards would leave those indices open.
-    closed_numerator = _close_uv_int_tensor_numerator(
-        _raw_uv_int_graph_numerator(numerator_graph)
-        * post_momentum_rewrite_factor
-    )
+    # cut-edge metrics. Include them in each kinematic branch before closing
+    # the contracted UV tensor; multiplying them afterwards would leave those
+    # indices open. Production uses the ordinary numerator branch splitter so
+    # Idenso only sees colour expressions. Keep the whole-expression fallback
+    # for small standalone callers that do not own an EMR processor.
+    if numerator_branch_factorisation is None:
+        closed_numerator = _close_uv_int_tensor_numerator(
+            _raw_uv_int_graph_numerator(numerator_graph)
+            * post_momentum_rewrite_factor
+        )
+    else:
+        branches = numerator_branch_factorisation(
+            numerator_graph,
+            post_momentum_rewrite_factor,
+        )
+        closed_numerator = _close_factorised_uv_int_tensor_numerator(branches)
     graph_without_numerators = _graph_without_numerators(numerator_graph)
     if protected_energy_ids:
         return (
@@ -1805,6 +1869,9 @@ def construct_integrated_counter_term(
         return _uv_int_numerator_factorisation(
             graph,
             upstream_factorisation=external_numerator_factorisation,
+            numerator_branch_factorisation=(
+                subtraction.emr_processor.factorised_numerator_branches
+            ),
         )
 
     contracted_emr = subtraction.emr_processor.get_integrand(
