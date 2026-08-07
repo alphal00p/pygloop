@@ -68,12 +68,25 @@ from processes.dy.dy_integrand import (
     LoopIntegrandConstructor,
     routed_cut_graph,
 )
+from processes.dy.dy_pdf import (
+    DY_INTEGRATED_LEPTONIC_PHASE_SPACE_FACTOR,
+    DYPDFProvider,
+    DYSchemeCountertermResult,
+    QQBAR_SCHEME_COUNTERTERM_FACTOR,
+    integrate_gq_scheme_counterterm,
+    integrate_qqbar_scheme_counterterm,
+    integrate_ttbar_qqbar_scheme_counterterm,
+    physical_beam_normalisation_factor,
+    resolve_factorisation_scale_sq,
+)
 from processes.dy.dy_stability import (
+    SoftEdgeRouting,
     build_high_precision_sample,
     decimal_from_input,
     decimal_values_agree,
     exact_rotation_from_xs,
     float_values_agree,
+    mirror_loop_momenta_for_soft_edge,
     rotate_vector,
 )
 from utils.utils import (
@@ -100,6 +113,10 @@ from utils.vectors import LorentzVector, Vector
 pjoin = os.path.join
 
 TOLERANCE: float = 1e-10
+DY_DEFAULT_LAMBDA_MUR_SQ: dict[int, tuple[float, float]] = {
+    1: (2.0, 1.0),
+    2: (50000.0, 50000.0),
+}
 
 
 def _dy_process_2l_graph_worker(task: dict[str, Any]) -> dict[str, Any]:
@@ -201,6 +218,11 @@ class DY(object):
         dy_channel: tuple[int, int] | list[int] | None = None,
         skip_ps_validation: bool = False,
         integrate_beams: bool = False,
+        dy_z_bin: tuple[float, float] | list[float] | None = None,
+        dy_q_min: float | None = None,
+        dy_q_max: float | None = None,
+        dy_physical_normalisation: bool = False,
+        dy_integrated_leptonic_phase_space: bool = False,
         external_gluon_polarisation: bool = False,
         disable_integrated_uv_cts: bool = True,
         dy_check_generation_limits: bool = False,
@@ -208,6 +230,15 @@ class DY(object):
         dy_fallback_precision: int | None = None,
         dy_lambda_sq: float | None = None,
         dy_mur_sq: float | None = None,
+        dy_pdf_set: str | None = None,
+        dy_pdf_member: int = 0,
+        dy_muf_sq: float | None = None,
+        dy_msbar_scheme_counterterm: bool = False,
+        dy_scheme_counterterm_sobol_power: int = 15,
+        dy_scheme_counterterm_replicas: int = 8,
+        dy_scheme_counterterm_factor: float | None = None,
+        dy_scheme_born_bundle: str | None = None,
+        dy_scheme_counterterm_clip: float | None = None,
         dy_observable_muv: float | None = None,
         skip_gl_worker_init: bool = False,
         load_compiled_bundle: bool = True,
@@ -232,6 +263,7 @@ class DY(object):
         )
         self.process_name = process_name if process_name is not None else "DY"
         self.diagrams = copy.deepcopy(diagrams) if diagrams is not None else None
+        dy_channel_was_explicit = dy_channel is not None
         self.dy_channel = (
             tuple(int(parton) for parton in dy_channel)
             if dy_channel is not None
@@ -239,11 +271,84 @@ class DY(object):
         )
         if self.dy_channel not in {(0, 0), (0, 1), (1, 0), (1, -1), (-1, 1)}:
             raise ValueError(
-                "Unsupported DY two-loop channel "
+                "Unsupported DY channel "
                 f"{self.dy_channel}; supported channels are (0,0), (0,1), "
                 "(1,0), (1,-1), and (-1,1)."
             )
         self.integrate_beams = bool(integrate_beams)
+        self.dy_z_bin: tuple[float, float] | None = None
+        if dy_z_bin is not None:
+            if not self.integrate_beams or self.process_name.lower() != "dy":
+                raise pygloopException(
+                    "--dy-z-bin requires beam-convoluted Drell-Yan."
+                )
+            z_min, z_max = (float(value) for value in dy_z_bin)
+            if not (
+                math.isfinite(z_min)
+                and math.isfinite(z_max)
+                and 0.0 <= z_min < z_max <= 1.0
+            ):
+                raise pygloopException(
+                    "--dy-z-bin requires 0 <= ZMIN < ZMAX <= 1."
+                )
+            self.dy_z_bin = (z_min, z_max)
+
+        self.dy_q_min = float(dy_q_min) if dy_q_min is not None else None
+        self.dy_q_max = float(dy_q_max) if dy_q_max is not None else None
+        if self.dy_q_min is not None or self.dy_q_max is not None:
+            if not self.integrate_beams or self.process_name.lower() != "dy":
+                raise pygloopException(
+                    "--dy-q-min/--dy-q-max require beam-convoluted Drell-Yan."
+                )
+            if self.dy_q_min is not None and (
+                not math.isfinite(self.dy_q_min) or self.dy_q_min < 0.0
+            ):
+                raise pygloopException("--dy-q-min must be finite and non-negative.")
+            if self.dy_q_max is not None and (
+                not math.isfinite(self.dy_q_max) or self.dy_q_max <= 0.0
+            ):
+                raise pygloopException("--dy-q-max must be finite and positive.")
+            if (
+                self.dy_q_min is not None
+                and self.dy_q_max is not None
+                and self.dy_q_min >= self.dy_q_max
+            ):
+                raise pygloopException("DY virtuality bounds require QMIN < QMAX.")
+        self.dy_physical_normalisation = bool(dy_physical_normalisation)
+        self.dy_physical_normalisation_factor = 1.0
+        if self.dy_physical_normalisation:
+            if not self.integrate_beams:
+                raise pygloopException(
+                    "DY physical normalisation requires --dy-integrate-beams."
+                )
+            if not dy_channel_was_explicit:
+                raise pygloopException(
+                    "DY physical normalisation requires an explicit --dy-channel."
+                )
+            self.dy_physical_normalisation_factor = (
+                physical_beam_normalisation_factor(
+                    self.dy_channel,
+                    self.n_loops,
+                )
+            )
+        self.dy_integrated_leptonic_phase_space = bool(
+            dy_integrated_leptonic_phase_space
+        )
+        self.dy_integrated_leptonic_phase_space_factor = 1.0
+        if self.dy_integrated_leptonic_phase_space:
+            if not self.integrate_beams or self.process_name.lower() != "dy":
+                raise pygloopException(
+                    "The integrated leptonic phase-space factor requires "
+                    "beam-convoluted Drell-Yan."
+                )
+            if self.n_loops != 1:
+                raise pygloopException(
+                    "The integrated leptonic phase-space factor currently "
+                    "supports one-loop Drell-Yan."
+                )
+            self.dy_integrated_leptonic_phase_space_factor = (
+                DY_INTEGRATED_LEPTONIC_PHASE_SPACE_FACTOR
+            )
         self.external_gluon_polarisation = bool(external_gluon_polarisation)
         self.dy_fallback_precision = (
             int(dy_fallback_precision) if dy_fallback_precision is not None else 80
@@ -261,6 +366,141 @@ class DY(object):
         self.dy_emr_state_name = None
         self.dy_lambda_sq = float(dy_lambda_sq) if dy_lambda_sq is not None else None
         self.dy_mur_sq = float(dy_mur_sq) if dy_mur_sq is not None else None
+        self.dy_pdf_set = (
+            str(dy_pdf_set).strip() if dy_pdf_set is not None else None
+        )
+        self.dy_pdf_member = int(dy_pdf_member)
+        self.dy_muf_sq = dy_muf_sq
+        self._dy_pdf_provider: DYPDFProvider | None = None
+        if self.dy_pdf_set is not None:
+            if not self.dy_pdf_set:
+                raise pygloopException("The DY PDF set name cannot be empty.")
+            if not self.integrate_beams:
+                raise pygloopException(
+                    "DY PDF weighting requires --dy-integrate-beams."
+                )
+            if not dy_channel_was_explicit:
+                raise pygloopException(
+                    "DY PDF weighting requires an explicit --dy-channel."
+            )
+            if self.dy_pdf_member < 0:
+                raise pygloopException("The DY PDF member must be non-negative.")
+            try:
+                default_lambda_sq, default_mur_sq = DY_DEFAULT_LAMBDA_MUR_SQ[
+                    self.n_loops
+                ]
+            except KeyError as exc:
+                raise pygloopException(
+                    "DY PDF weighting currently supports one or two loops."
+                ) from exc
+            self.dy_muf_sq = resolve_factorisation_scale_sq(
+                dy_muf_sq,
+                (
+                    self.dy_lambda_sq
+                    if self.dy_lambda_sq is not None
+                    else default_lambda_sq
+                ),
+                self.dy_mur_sq if self.dy_mur_sq is not None else default_mur_sq,
+            )
+        self.dy_msbar_scheme_counterterm = bool(dy_msbar_scheme_counterterm)
+        self.dy_scheme_counterterm_sobol_power = int(
+            dy_scheme_counterterm_sobol_power
+        )
+        self.dy_scheme_counterterm_replicas = int(
+            dy_scheme_counterterm_replicas
+        )
+        self.dy_scheme_born_bundle = (
+            str(dy_scheme_born_bundle).strip()
+            if dy_scheme_born_bundle is not None
+            else None
+        )
+        self.dy_scheme_counterterm_clip = (
+            float(dy_scheme_counterterm_clip)
+            if dy_scheme_counterterm_clip is not None
+            else None
+        )
+        self._dy_scheme_born_compiled_bundle: DYCompiledBundle | None = None
+        if dy_scheme_counterterm_factor is None:
+            self.dy_scheme_counterterm_factor = (
+                QQBAR_SCHEME_COUNTERTERM_FACTOR
+                if self.dy_msbar_scheme_counterterm
+                and self.process_name.lower() == "dy"
+                and self.n_loops == 1
+                and self.dy_channel in {(1, -1), (-1, 1)}
+                else 1.0
+            )
+        else:
+            self.dy_scheme_counterterm_factor = float(
+                dy_scheme_counterterm_factor
+            )
+        if self.dy_msbar_scheme_counterterm:
+            is_one_loop_dy = (
+                self.integrate_beams
+                and self.process_name.lower() == "dy"
+                and self.n_loops == 1
+            )
+            is_two_loop_ttbar = (
+                self.integrate_beams
+                and self.process_name.lower() == "tt~"
+                and self.n_loops == 2
+            )
+            if not is_one_loop_dy and not is_two_loop_ttbar:
+                raise pygloopException(
+                    "The DY MSbar scheme counterterm supports beam-convoluted "
+                    "one-loop Drell-Yan and two-loop ttbar."
+                )
+            supported_channels = (
+                {(1, -1), (-1, 1)}
+                if is_two_loop_ttbar
+                else {(1, 0), (0, 1), (1, -1), (-1, 1)}
+            )
+            if self.dy_channel not in supported_channels:
+                raise pygloopException(
+                    "The DY MSbar scheme counterterm requires channel selection "
+                    "compatible with the chosen quark process."
+                )
+            if self.dy_pdf_set is None or self.dy_muf_sq is None:
+                raise pygloopException(
+                    "The DY MSbar scheme counterterm requires PDF weighting."
+                )
+            if not self.dy_physical_normalisation:
+                raise pygloopException(
+                    "The DY MSbar scheme counterterm requires physical "
+                    "normalisation."
+                )
+            if is_one_loop_dy and (
+                self.dy_q_min is None or self.dy_q_min <= 0.0
+            ):
+                raise pygloopException(
+                    "The DY MSbar scheme counterterm requires a positive "
+                    "--dy-q-min."
+                )
+            if is_two_loop_ttbar and not self.dy_scheme_born_bundle:
+                raise pygloopException(
+                    "The two-loop ttbar MSbar scheme counterterm requires "
+                    "--dy-scheme-born-bundle naming a one-loop ttbar bundle."
+                )
+            if not 1 <= self.dy_scheme_counterterm_sobol_power <= 30:
+                raise pygloopException(
+                    "DY scheme-counterterm Sobol power must be between 1 and 30."
+                )
+            if self.dy_scheme_counterterm_replicas < 2:
+                raise pygloopException(
+                    "DY scheme-counterterm integration requires at least two "
+                    "replicas."
+                )
+            if not math.isfinite(self.dy_scheme_counterterm_factor):
+                raise pygloopException(
+                    "DY scheme-counterterm factor must be finite."
+                )
+            if self.dy_scheme_counterterm_clip is not None and (
+                not math.isfinite(self.dy_scheme_counterterm_clip)
+                or self.dy_scheme_counterterm_clip <= 0.0
+            ):
+                raise pygloopException(
+                    "DY scheme-counterterm clipping threshold must be finite "
+                    "and positive."
+                )
         self.dy_observable_muv = (
             float(dy_observable_muv) if dy_observable_muv is not None else None
         )
@@ -297,6 +537,19 @@ class DY(object):
         self.stability_hp_failure_example: list[float] | None = None
         self.stability_hp_failure_example_momentum_point: str | None = None
         self.stability_hp_failure_reason: str | None = None
+        self.soft_mirror_pair_count: int = 0
+        self.soft_mirror_large_trigger_count: int = 0
+        self.soft_mirror_hp_orbit_retry_count: int = 0
+        self.soft_mirror_hp_orbit_salvaged_count: int = 0
+        self.soft_mirror_hp_orbit_failure_count: int = 0
+        self.soft_mirror_max_raw_side_wgt: float | None = None
+        self.soft_mirror_max_raw_side_wgt_point: list[float] | None = None
+        self.soft_mirror_max_raw_side: str | None = None
+        self.soft_mirror_max_post_average_wgt: float | None = None
+        self.soft_mirror_max_post_average_wgt_point: list[float] | None = None
+        self.soft_mirror_min_residual_ratio: float | None = None
+        self.soft_mirror_min_residual_ratio_point: list[float] | None = None
+        self.soft_mirror_min_residual_ratio_sides: tuple[float, float] | None = None
         self.max_preclip_wgt: float | None = None
         self.max_preclip_wgt_point: list[float] | None = None
         self.max_preclip_wgt_momentum_point: str | None = None
@@ -436,12 +689,30 @@ class DY(object):
             logger_level=logging.CRITICAL,
             skip_ps_validation=self.skip_ps_validation,
             integrate_beams=self.integrate_beams,
+            dy_z_bin=self.dy_z_bin,
+            dy_q_min=self.dy_q_min,
+            dy_q_max=self.dy_q_max,
+            dy_physical_normalisation=self.dy_physical_normalisation,
+            dy_integrated_leptonic_phase_space=(
+                self.dy_integrated_leptonic_phase_space
+            ),
             dy_check_generation_limits=self.dy_check_generation_limits,
             dy_parallel_graphs=self.dy_parallel_graphs,
             symmetrise_p1_p2=self.symmetrise_p1_p2,
             dy_fallback_precision=self.dy_fallback_precision,
             dy_lambda_sq=self.dy_lambda_sq,
             dy_mur_sq=self.dy_mur_sq,
+            dy_pdf_set=self.dy_pdf_set,
+            dy_pdf_member=self.dy_pdf_member,
+            dy_muf_sq=self.dy_muf_sq,
+            dy_msbar_scheme_counterterm=self.dy_msbar_scheme_counterterm,
+            dy_scheme_counterterm_sobol_power=(
+                self.dy_scheme_counterterm_sobol_power
+            ),
+            dy_scheme_counterterm_replicas=self.dy_scheme_counterterm_replicas,
+            dy_scheme_counterterm_factor=self.dy_scheme_counterterm_factor,
+            dy_scheme_born_bundle=self.dy_scheme_born_bundle,
+            dy_scheme_counterterm_clip=self.dy_scheme_counterterm_clip,
             dy_observable_muv=self.dy_observable_muv,
             skip_gl_worker_init=self.skip_gl_worker_init,
             load_compiled_bundle=self.load_compiled_bundle,
@@ -463,6 +734,13 @@ class DY(object):
             "dy_channel": self.dy_channel,
             "skip_ps_validation": self.skip_ps_validation,
             "integrate_beams": self.integrate_beams,
+            "dy_z_bin": self.dy_z_bin,
+            "dy_q_min": self.dy_q_min,
+            "dy_q_max": self.dy_q_max,
+            "dy_physical_normalisation": self.dy_physical_normalisation,
+            "dy_integrated_leptonic_phase_space": (
+                self.dy_integrated_leptonic_phase_space
+            ),
             "external_gluon_polarisation": self.external_gluon_polarisation,
             "disable_integrated_uv_cts": self.disable_integrated_uv_cts,
             "dy_check_generation_limits": self.dy_check_generation_limits,
@@ -471,6 +749,19 @@ class DY(object):
             "dy_fallback_precision": self.dy_fallback_precision,
             "dy_lambda_sq": self.dy_lambda_sq,
             "dy_mur_sq": self.dy_mur_sq,
+            "dy_pdf_set": self.dy_pdf_set,
+            "dy_pdf_member": self.dy_pdf_member,
+            "dy_muf_sq": self.dy_muf_sq,
+            "dy_msbar_scheme_counterterm": self.dy_msbar_scheme_counterterm,
+            "dy_scheme_counterterm_sobol_power": (
+                self.dy_scheme_counterterm_sobol_power
+            ),
+            "dy_scheme_counterterm_replicas": (
+                self.dy_scheme_counterterm_replicas
+            ),
+            "dy_scheme_counterterm_factor": self.dy_scheme_counterterm_factor,
+            "dy_scheme_born_bundle": self.dy_scheme_born_bundle,
+            "dy_scheme_counterterm_clip": self.dy_scheme_counterterm_clip,
             "dy_observable_muv": self.dy_observable_muv,
         }
 
@@ -874,6 +1165,7 @@ class DY(object):
         final_state = copy.deepcopy(self.final_state)
         process_name = self.process_name
         n_loops = self.n_loops
+        channel = getattr(self, "dy_channel", (1, -1))
 
         processed_graphs = DYDotGraphs()
 
@@ -894,6 +1186,7 @@ class DY(object):
             [],
             process_name,
             n_loops,
+            channel=channel,
             external_gluon_polarisation=self.external_gluon_polarisation,
             disable_integrated_uv_cts=self.disable_integrated_uv_cts,
             symmetrise_p1_p2=self.symmetrise_p1_p2,
@@ -911,6 +1204,22 @@ class DY(object):
             routed_graphs = vacuum_g.cut_graphs_with_routing_leading_virtuality(
                 [], final_state
             )
+            indexed_routed_graphs = [
+                (routed_graph_index, routed_graph)
+                for routed_graph_index, routed_graph in enumerate(routed_graphs)
+                if _strip_quotes(str(routed_graph[3].get("particle_channel")))
+                == str(channel)
+            ]
+            if self.symmetrise_p1_p2:
+                symmetrised_graphs = filter_symmetrised_p1_p2_routed_cuts(
+                    [routed_graph for _, routed_graph in indexed_routed_graphs]
+                )
+                retained_graph_ids = {id(graph) for graph in symmetrised_graphs}
+                indexed_routed_graphs = [
+                    (routed_graph_index, routed_graph)
+                    for routed_graph_index, routed_graph in indexed_routed_graphs
+                    if id(routed_graph) in retained_graph_ids
+                ]
 
             print("############################")
             print("Routed graphs: ", len(routed_graphs))
@@ -919,7 +1228,7 @@ class DY(object):
             routed_integrands = []
             evaluators = []
 
-            for routed_graph_index, gg in enumerate(routed_graphs):
+            for routed_graph_index, gg in indexed_routed_graphs:
                 processed_graphs.append(gg[3])
                 cut_graph = deepcopy(routed_cut_graph(gg[3], gg[0], gg[1], gg[2]))
                 # print(cut_graph.graph.get_name())
@@ -1345,6 +1654,30 @@ class DY(object):
         )
         return processed_graphs
 
+    @staticmethod
+    def initial_state_for_dy_channel(channel: tuple[int, int]) -> str:
+        initial_state_by_channel = {
+            (0, 0): "g g",
+            (0, 1): "g d",
+            (1, 0): "d g",
+            (1, -1): "d d~",
+            (-1, 1): "d~ d",
+        }
+        try:
+            return initial_state_by_channel[tuple(channel)]
+        except KeyError as exc:
+            raise pygloopException(
+                f"Unsupported DY partonic channel {tuple(channel)}."
+            ) from exc
+
+    @classmethod
+    def initial_state_family_for_dy_channel(cls, channel: tuple[int, int]) -> str:
+        if tuple(channel) == (0, 1):
+            return cls.initial_state_for_dy_channel((1, 0))
+        if tuple(channel) == (-1, 1):
+            return cls.initial_state_for_dy_channel((1, -1))
+        return cls.initial_state_for_dy_channel(channel)
+
     def generate_graphs(self) -> None:
         self._require_gg_generation_symmetrisation()
         graphs_process_name = self.get_integrand_name(suffix="_generated_graphs")
@@ -1359,25 +1692,25 @@ class DY(object):
         match self.n_loops:
             case 1:
                 logger.info("Generating one-loop graphs ...")
-
-                if self.process_name == "dy":
+                initial_state = self.initial_state_for_dy_channel(self.dy_channel)
+                process_name = self.process_name.lower()
+                if process_name == "dy":
                     self.gl_worker.run(
-                        f"generate xs d d~ > a | d d~ g a QED^2==2 [{{{{1}}}} QCD=1] --only-diagrams --numerator-grouping only_detect_zeroes -p {base_name} -i {graphs_process_name} --max-multiplicity-for-fast-cut-filter 99"
+                        f"generate xs {initial_state} > a | d d~ g a QED^2==2 [{{{{1}}}} QCD=1] --only-diagrams --numerator-grouping only_detect_zeroes -p {base_name} -i {graphs_process_name} --max-multiplicity-for-fast-cut-filter 99"
                     )
-
+                elif process_name == "tt~":
+                    numerator_grouping = (
+                        " --numerator-grouping group_identical_graphs_up_to_scalar_rescaling"
+                        if self.dy_channel in {(0, 0), (1, -1), (-1, 1)}
+                        else ""
+                    )
                     self.gl_worker.run(
-                        f"generate xs d g > a | d d~ g a QED^2==2 [{{{{1}}}} QCD=1] --only-diagrams --numerator-grouping only_detect_zeroes -p {base_name} -i {graphs_process_name} --max-multiplicity-for-fast-cut-filter 99"
+                        f"generate xs {initial_state} > t t~ | d d~ g t t~ [{{{{1}}}} QCD=1] --only-diagrams{numerator_grouping} --symmetrize-left-right-states true --symmetrize-initial-states true -p {base_name} -i {graphs_process_name} --max-multiplicity-for-fast-cut-filter 99"
                     )
-                if self.process_name == "tt~":
-                    # self.gl_worker.run(
-                    #        f"generate xs d d~ > t t~ | d d~ g t t~ [{{{{1}}}} QCD=1] --only-diagrams --numerator-grouping group_identical_graphs_up_to_scalar_rescaling --symmetrize-left-right-states true --symmetrize-initial-states true -p {base_name} -i {graphs_process_name} --max-multiplicity-for-fast-cut-filter 99"
-                    # )
-                    self.gl_worker.run(
-                        f"generate xs g g > t t~ | d d~ g t t~ [{{{{1}}}} QCD=1] --only-diagrams --numerator-grouping group_identical_graphs_up_to_scalar_rescaling --symmetrize-left-right-states true --symmetrize-initial-states true -p {base_name} -i {graphs_process_name} --max-multiplicity-for-fast-cut-filter 99"
+                else:
+                    raise pygloopException(
+                        f"Unsupported one-loop DY process {self.process_name!r}."
                     )
-                    # self.gl_worker.run(
-                    #    f"generate xs ghG ghG~ > t t~ | d d~ g t t~ ghG ghG~ [{{{{1}}}} QCD=1] --only-diagrams --numerator-grouping group_identical_graphs_up_to_scalar_rescaling --symmetrize-left-right-states true --symmetrize-initial-states true -p {base_name} -i {graphs_process_name} --max-multiplicity-for-fast-cut-filter 99"
-                    # )
 
                 self.gl_worker.run("save state -o")
                 DY_1L_dot_files = self.gl_worker.get_dot_files(
@@ -1398,19 +1731,15 @@ class DY(object):
                 )
             case 2:
                 logger.info("Generating two-loop graphs ...")
-                if self.process_name == "tt~":
+                if self.process_name.lower() == "tt~":
                     select_graphs = (
                         f" --select-graphs {' '.join(self.diagrams)}"
                         if self.diagrams
                         else ""
                     )
-                    initial_state_by_channel = {
-                        (0, 0): "g g",
-                        (0, 1): "d g",
-                        (1, 0): "d g",
-                        (1, -1): "d d~",
-                        (-1, 1): "d d~",
-                    }
+                    initial_state = self.initial_state_family_for_dy_channel(
+                        self.dy_channel
+                    )
                     numerator_grouping = (
                         " --numerator-grouping group_identical_graphs_up_to_scalar_rescaling"
                         if self.dy_channel in {(0, 0), (1, -1), (-1, 1)}
@@ -1420,7 +1749,7 @@ class DY(object):
                     #    f"generate xs d g > t t~ | d d~ g t t~ ghG ghG~ [{{{{2}}}} QCD=1] --only-diagrams --symmetrize-left-right-states true --symmetrize-initial-states true{select_graphs} -p {base_name} -i {graphs_process_name} --max-multiplicity-for-fast-cut-filter 99"
                     # )
                     self.gl_worker.run(  # GL06 GL14  --select-graphs GL14
-                        f"generate xs {initial_state_by_channel[self.dy_channel]} > t t~ | d d~ g t t~ ghG ghG~ [{{{{2}}}} QCD=1] --only-diagrams{numerator_grouping} --symmetrize-left-right-states true --symmetrize-initial-states true{select_graphs} -p {base_name} -i {graphs_process_name} --max-multiplicity-for-fast-cut-filter 99"
+                        f"generate xs {initial_state} > t t~ | d d~ g t t~ ghG ghG~ [{{{{2}}}} QCD=1] --only-diagrams{numerator_grouping} --symmetrize-left-right-states true --symmetrize-initial-states true{select_graphs} -p {base_name} -i {graphs_process_name} --max-multiplicity-for-fast-cut-filter 99"
                     )
                 else:
                     raise ValueError(
@@ -1619,11 +1948,398 @@ class DY(object):
         #    Vector(0.0, 0.0, -self.e_cm * float(x2)),
         # )
 
+    def dy_pdf_luminosity(self, x1: float, x2: float) -> float:
+        if self.dy_pdf_set is None or self.dy_muf_sq is None:
+            raise pygloopException("DY PDF luminosity requested without PDF setup.")
+        if self._dy_pdf_provider is None:
+            self._dy_pdf_provider = DYPDFProvider(
+                self.dy_pdf_set,
+                self.dy_pdf_member,
+            )
+        return self._dy_pdf_provider.luminosity(
+            self.dy_channel,
+            x1,
+            x2,
+            float(self.dy_muf_sq),
+        )
+
+    def _integrate_dy_msbar_scheme_counterterm(
+        self,
+        seed: int,
+        parameterisation: str = "spherical",
+        phase: str = "real",
+    ) -> DYSchemeCountertermResult:
+        if self.dy_pdf_set is None or self.dy_muf_sq is None:
+            raise pygloopException(
+                "DY MSbar scheme counterterm requested without PDF setup."
+            )
+        if self._dy_pdf_provider is None:
+            self._dy_pdf_provider = DYPDFProvider(
+                self.dy_pdf_set,
+                self.dy_pdf_member,
+            )
+
+        if self.process_name.lower() == "tt~":
+            return self._integrate_ttbar_msbar_scheme_counterterm(
+                seed,
+                parameterisation,
+                phase,
+            )
+
+        # In the current one-loop DY convention, the integrated Born factor
+        # multiplying the finite scheme kernel is (pi/2)*(128/e_cm^2) on top
+        # of the selected channel's physical beam normalisation.
+        physical_normalisation = (
+            64.0
+            * math.pi
+            * self.dy_physical_normalisation_factor
+            / self.e_cm**2
+        )
+        if self.dy_integrated_leptonic_phase_space:
+            physical_normalisation *= (
+                self.dy_integrated_leptonic_phase_space_factor
+            )
+        counterterm_integrator = (
+            integrate_gq_scheme_counterterm
+            if self.dy_channel in {(1, 0), (0, 1)}
+            else integrate_qqbar_scheme_counterterm
+        )
+        return counterterm_integrator(
+            provider=self._dy_pdf_provider,
+            channel=self.dy_channel,
+            muf_sq=float(self.dy_muf_sq),
+            e_cm_sq=self.e_cm**2,
+            z_bin=self.dy_z_bin,
+            q_min=float(self.dy_q_min),
+            q_max=self.dy_q_max,
+            physical_normalisation=physical_normalisation,
+            sobol_power=self.dy_scheme_counterterm_sobol_power,
+            replicas=self.dy_scheme_counterterm_replicas,
+            seed=seed,
+        )
+
+    def _load_ttbar_scheme_born_bundle(self) -> DYCompiledBundle:
+        if self._dy_scheme_born_compiled_bundle is not None:
+            return self._dy_scheme_born_compiled_bundle
+        if self.dy_scheme_born_bundle is None:
+            raise pygloopException(
+                "The two-loop ttbar scheme counterterm has no configured "
+                "one-loop Born bundle."
+            )
+        bundle = DYCompiledBundle.load("tt~", self.dy_scheme_born_bundle)
+        if bundle.n_loops != 1:
+            raise pygloopException(
+                "The ttbar scheme-counterterm Born bundle must contain a "
+                f"one-loop integrand, got L={bundle.n_loops}."
+            )
+        bundle.require_fallback_supported(self.dy_fallback_precision)
+        self._dy_scheme_born_compiled_bundle = bundle
+        return bundle
+
+    def _integrate_ttbar_msbar_scheme_counterterm(
+        self,
+        seed: int,
+        parameterisation: str,
+        phase: str,
+    ) -> DYSchemeCountertermResult:
+        if self._dy_pdf_provider is None or self.dy_muf_sq is None:
+            raise pygloopException(
+                "The ttbar MSbar scheme counterterm was requested without "
+                "PDF setup."
+            )
+        born_bundle = self._load_ttbar_scheme_born_bundle()
+
+        def born_integrand(
+            partonic_scale_sq: float,
+            loop_coordinates: tuple[float, float, float],
+            use_fallback: bool,
+        ) -> float:
+            loop_momentum, jacobian = self.parameterize(
+                list(loop_coordinates),
+                parameterisation,
+            )
+            beam_energy = math.sqrt(partonic_scale_sq) / 2.0
+            p1 = Vector(0.0, 0.0, beam_energy)
+            p2 = Vector(0.0, 0.0, -beam_energy)
+            if use_fallback:
+                value, _term_values = born_bundle.evaluate_arb_terms(
+                    [loop_momentum],
+                    p1,
+                    p2,
+                    1.0,
+                    1.0,
+                    decimal_digit_precision=self.dy_fallback_precision,
+                    precision_preserving=True,
+                )
+            else:
+                value = born_bundle.evaluate(
+                    [loop_momentum],
+                    p1,
+                    p2,
+                    1.0,
+                    1.0,
+                )
+            return self._phase_value(complex(value), phase) * jacobian
+
+        return integrate_ttbar_qqbar_scheme_counterterm(
+            provider=self._dy_pdf_provider,
+            channel=self.dy_channel,
+            muf_sq=float(self.dy_muf_sq),
+            e_cm_sq=self.e_cm**2,
+            m_top=self.m_top,
+            physical_normalisation=physical_beam_normalisation_factor(
+                self.dy_channel,
+                1,
+            ),
+            born_integrand=born_integrand,
+            sobol_power=self.dy_scheme_counterterm_sobol_power,
+            replicas=self.dy_scheme_counterterm_replicas,
+            seed=seed,
+            clip_threshold=self.dy_scheme_counterterm_clip,
+        )
+
+    def _add_dy_msbar_scheme_counterterm(
+        self,
+        hard_result: IntegrationResult,
+        seed: int,
+        parameterisation: str = "spherical",
+        phase: str = "real",
+    ) -> IntegrationResult:
+        scheme_result = self._integrate_dy_msbar_scheme_counterterm(
+            seed,
+            parameterisation,
+            phase,
+        )
+        scheme_factor = self.dy_scheme_counterterm_factor
+        applied_central_value = scheme_factor * scheme_result.central_value
+        applied_error = abs(scheme_factor) * scheme_result.error
+        applied_replica_values = tuple(
+            scheme_factor * value for value in scheme_result.replica_values
+        )
+        hard_result.dy_hard_central_value = hard_result.central_value
+        hard_result.dy_hard_error = hard_result.error
+        hard_result.dy_scheme_counterterm_unscaled_central_value = (
+            scheme_result.central_value
+        )
+        hard_result.dy_scheme_counterterm_unscaled_error = scheme_result.error
+        hard_result.dy_scheme_counterterm_factor = scheme_factor
+        hard_result.dy_scheme_counterterm_central_value = applied_central_value
+        hard_result.dy_scheme_counterterm_error = applied_error
+        hard_result.dy_scheme_counterterm_n_samples = scheme_result.n_samples
+        hard_result.dy_scheme_counterterm_elapsed_time = scheme_result.elapsed_time
+        hard_result.dy_scheme_counterterm_fallback_count = (
+            scheme_result.fallback_count
+        )
+        hard_result.dy_scheme_counterterm_clipped_count = scheme_result.clipped_count
+        hard_result.dy_scheme_counterterm_clipped_fraction = (
+            scheme_result.clipped_count / scheme_result.n_samples
+            if scheme_result.n_samples
+            else 0.0
+        )
+        hard_result.dy_scheme_counterterm_nonfinite_count = (
+            scheme_result.nonfinite_count
+        )
+        hard_result.dy_scheme_counterterm_unscaled_replica_values = (
+            scheme_result.replica_values
+        )
+        hard_result.dy_scheme_counterterm_replica_values = applied_replica_values
+        hard_result.central_value += applied_central_value
+        hard_result.error = math.hypot(hard_result.error, applied_error)
+        channel_label = (
+            "gq" if self.dy_channel in {(1, 0), (0, 1)} else "qqbar"
+        )
+        process_label = (
+            "ttbar" if self.process_name.lower() == "tt~" else "DY"
+        )
+        logger.info(
+            "%s MSbar %s scheme counterterm: %+.16e +/- %.4e "
+            "(raw %+.16e +/- %.4e; factor %+.16e; %d Sobol samples in %.2fs); "
+            "fallback/clipped/nonfinite = %d/%d (%.3e)/%d; "
+            "combined: %+.16e +/- %.4e",
+            process_label,
+            channel_label,
+            applied_central_value,
+            applied_error,
+            scheme_result.central_value,
+            scheme_result.error,
+            scheme_factor,
+            scheme_result.n_samples,
+            scheme_result.elapsed_time,
+            scheme_result.fallback_count,
+            scheme_result.clipped_count,
+            hard_result.dy_scheme_counterterm_clipped_fraction,
+            scheme_result.nonfinite_count,
+            hard_result.central_value,
+            hard_result.error,
+        )
+        return hard_result
+
+    @staticmethod
+    def _apply_dy_pdf_luminosity(
+        hard_weight: float,
+        luminosity: float,
+        xs: list[float],
+    ) -> float:
+        weighted = hard_weight * luminosity
+        if not math.isfinite(weighted):
+            raise pygloopException(
+                "The PDF-weighted DY sample is non-finite at "
+                f"xs={list(xs)}."
+            )
+        return weighted
+
+    def _apply_dy_beam_weights(
+        self,
+        hard_weight: float,
+        pdf_luminosity: float | None,
+        xs: list[float],
+    ) -> float:
+        weighted = hard_weight
+        if pdf_luminosity is not None:
+            weighted = self._apply_dy_pdf_luminosity(
+                weighted,
+                pdf_luminosity,
+                xs,
+            )
+        if self.dy_physical_normalisation:
+            weighted *= self.dy_physical_normalisation_factor
+            if not math.isfinite(weighted):
+                raise pygloopException(
+                    "The physically normalised DY beam sample is non-finite at "
+                    f"xs={list(xs)}."
+                )
+        if self.dy_integrated_leptonic_phase_space:
+            weighted *= self.dy_integrated_leptonic_phase_space_factor
+            if not math.isfinite(weighted):
+                raise pygloopException(
+                    "The DY sample with integrated leptonic phase space is "
+                    f"non-finite at xs={list(xs)}."
+                )
+        return weighted
+
+    def _rescale_dy_beam_stability_thresholds(
+        self,
+        precision_threshold: float | None,
+        clip_threshold: float | None,
+        pdf_luminosity: float | None,
+    ) -> tuple[float | None, float | None]:
+        """Express final beam-weight thresholds in pre-weight integrand units."""
+
+        beam_weight_scale = 1.0
+        if pdf_luminosity is not None:
+            beam_weight_scale *= abs(pdf_luminosity)
+        if self.dy_physical_normalisation:
+            beam_weight_scale *= abs(self.dy_physical_normalisation_factor)
+        if self.dy_integrated_leptonic_phase_space:
+            beam_weight_scale *= abs(
+                self.dy_integrated_leptonic_phase_space_factor
+            )
+        if not math.isfinite(beam_weight_scale):
+            raise pygloopException(
+                "The DY beam-weight scale for stability thresholds is non-finite."
+            )
+        if beam_weight_scale == 0.0:
+            return None, None
+        return (
+            precision_threshold / beam_weight_scale
+            if precision_threshold is not None
+            else None,
+            clip_threshold / beam_weight_scale
+            if clip_threshold is not None
+            else None,
+        )
+
     def ttbar_beam_threshold_passes(self, x1: float, x2: float) -> bool:
         if not self.enforce_ttbar_beam_threshold:
             return True
         mt = 173.0
         return float(x1) * float(x2) * (self.e_cm**2) >= 4.0 * (mt**2)
+
+    def dy_physical_z_interval(
+        self, x1: float, x2: float
+    ) -> tuple[float, float] | None:
+        z_min, z_max = self.dy_z_bin if self.dy_z_bin is not None else (0.0, 1.0)
+        shat = float(x1) * float(x2) * (self.e_cm**2)
+        if shat <= 0.0:
+            return None
+        if self.dy_q_min is not None:
+            z_min = max(z_min, self.dy_q_min**2 / shat)
+        if self.dy_q_max is not None:
+            z_max = min(z_max, self.dy_q_max**2 / shat)
+        if z_min >= z_max:
+            return None
+        return z_min, z_max
+
+    def _soft_mirror_routing(
+        self,
+        integrand_implementation: dict[str, Any],
+        channel_selector: int | None,
+    ) -> SoftEdgeRouting | None:
+        specifications = integrand_implementation.get("dy_soft_mirror_edges")
+        if specifications is None:
+            return None
+        if self.compiled_bundle is None:
+            raise pygloopException(
+                "DY soft mirroring requires a compiled bundle with edge-routing "
+                "metadata. Regenerate and load the zenos bundle."
+            )
+        normalised = self.compiled_bundle._normalise_soft_mirror_edge_specs(
+            specifications
+        )
+        cache_key = ("dy_soft_mirror_routing", normalised, channel_selector)
+        if cache_key not in self.cache:
+            self.cache[cache_key] = self.compiled_bundle.resolve_soft_mirror_routing(
+                normalised,
+                channel_selector,
+            )
+        routing = self.cache[cache_key]
+        return routing if isinstance(routing, SoftEdgeRouting) else None
+
+    def _record_soft_mirror_pair(
+        self,
+        xs: list[float],
+        first: float | Decimal,
+        mirrored: float | Decimal,
+    ) -> None:
+        try:
+            first_float = float(first)
+        except (OverflowError, ValueError):
+            first_float = math.copysign(math.inf, -1.0 if first < 0 else 1.0)
+        try:
+            mirrored_float = float(mirrored)
+        except (OverflowError, ValueError):
+            mirrored_float = math.copysign(
+                math.inf, -1.0 if mirrored < 0 else 1.0
+            )
+
+        for side, value in (("original", first_float), ("mirror", mirrored_float)):
+            if self.soft_mirror_max_raw_side_wgt is None or abs(value) > abs(
+                self.soft_mirror_max_raw_side_wgt
+            ):
+                self.soft_mirror_max_raw_side_wgt = value
+                self.soft_mirror_max_raw_side_wgt_point = list(xs)
+                self.soft_mirror_max_raw_side = side
+
+        average = 0.5 * (first_float + mirrored_float)
+        if self.soft_mirror_max_post_average_wgt is None or abs(average) > abs(
+            self.soft_mirror_max_post_average_wgt
+        ):
+            self.soft_mirror_max_post_average_wgt = average
+            self.soft_mirror_max_post_average_wgt_point = list(xs)
+
+        side_scale = max(abs(first_float), abs(mirrored_float))
+        if side_scale > 0.0 and math.isfinite(side_scale) and math.isfinite(average):
+            residual_ratio = abs(average) / side_scale
+            if (
+                self.soft_mirror_min_residual_ratio is None
+                or residual_ratio < self.soft_mirror_min_residual_ratio
+            ):
+                self.soft_mirror_min_residual_ratio = residual_ratio
+                self.soft_mirror_min_residual_ratio_point = list(xs)
+                self.soft_mirror_min_residual_ratio_sides = (
+                    first_float,
+                    mirrored_float,
+                )
 
     @staticmethod
     def _rotation_matrix_from_xs(xs: list[float]):
@@ -1733,6 +2449,7 @@ class DY(object):
         decimal_digit_precision: int,
         relative_tolerance: float,
         absolute_tolerance: float,
+        soft_mirror_routing: SoftEdgeRouting | None = None,
     ) -> tuple[Decimal | None, Decimal | None, str | None, str | None]:
         if self.compiled_bundle is None:
             raise pygloopException(
@@ -1744,6 +2461,30 @@ class DY(object):
             )
         self.compiled_bundle.require_fallback_supported(decimal_digit_precision)
         try:
+            soft_center_resolver = None
+            if (
+                soft_mirror_routing is not None
+                and soft_mirror_routing.has_external_offset
+            ):
+                precise_m_uv = decimal_from_input(
+                    integrand_implementation.get("mUV", 1.0)
+                )
+
+                def resolve_soft_center(loop_momenta, p1, p2, z):
+                    assert self.compiled_bundle is not None
+                    return self.compiled_bundle.soft_center_for_routing(
+                        list(loop_momenta),
+                        p1,
+                        p2,
+                        z,
+                        precise_m_uv,
+                        soft_mirror_routing,
+                        channel_selector,
+                        decimal_digit_precision=decimal_digit_precision,
+                    )
+
+                soft_center_resolver = resolve_soft_center
+
             sample = build_high_precision_sample(
                 xs,
                 n_loops=self.n_loops,
@@ -1753,8 +2494,20 @@ class DY(object):
                 expects_beam_fractions=expects_beam_fractions,
                 rescaling=RESCALING,
                 decimal_digit_precision=decimal_digit_precision,
+                soft_mirror_routing=soft_mirror_routing,
+                soft_center_resolver=soft_center_resolver,
             )
             rotated_sample = sample.rotated(rotation)
+            mirrored_sample = (
+                sample.soft_mirrored(soft_mirror_routing)
+                if soft_mirror_routing is not None
+                else None
+            )
+            rotated_mirrored_sample = (
+                mirrored_sample.rotated(rotation)
+                if mirrored_sample is not None
+                else None
+            )
             hp_impl = dict(integrand_implementation)
             hp_impl["dy_evaluation_mode"] = "arb"
             hp_impl["dy_fallback_precision"] = decimal_digit_precision
@@ -1778,24 +2531,68 @@ class DY(object):
                 decimal_digit_precision,
                 channel_selector=channel_selector,
             )
+            mirrored_total: Decimal | None = None
+            rotated_mirrored_total: Decimal | None = None
+            if mirrored_sample is not None and rotated_mirrored_sample is not None:
+                mirrored_total, _mirrored_terms = self._zenos_arb_terms_with_externals(
+                    list(mirrored_sample.loop_momenta),
+                    mirrored_sample.p1,
+                    mirrored_sample.p2,
+                    hp_impl,
+                    decimal_digit_precision,
+                    channel_selector=channel_selector,
+                )
+                (
+                    rotated_mirrored_total,
+                    _rotated_mirrored_terms,
+                ) = self._zenos_arb_terms_with_externals(
+                    list(rotated_mirrored_sample.loop_momenta),
+                    rotated_mirrored_sample.p1,
+                    rotated_mirrored_sample.p2,
+                    hp_impl,
+                    decimal_digit_precision,
+                    channel_selector=channel_selector,
+                )
 
             with localcontext() as context:
                 context.prec = decimal_digit_precision + 12
                 if phase == "real":
                     first_weight = first_total * sample.jacobian
                     rotated_weight = rotated_total * rotated_sample.jacobian
+                    mirrored_weight = (
+                        mirrored_total * mirrored_sample.jacobian
+                        if mirrored_total is not None and mirrored_sample is not None
+                        else None
+                    )
+                    rotated_mirrored_weight = (
+                        rotated_mirrored_total * rotated_mirrored_sample.jacobian
+                        if rotated_mirrored_total is not None
+                        and rotated_mirrored_sample is not None
+                        else None
+                    )
                 elif phase == "imag":
                     first_weight = Decimal(0)
                     rotated_weight = Decimal(0)
+                    mirrored_weight = (
+                        Decimal(0) if mirrored_sample is not None else None
+                    )
+                    rotated_mirrored_weight = (
+                        Decimal(0) if rotated_mirrored_sample is not None else None
+                    )
                 else:
                     raise pygloopException(f"Unsupported integration phase {phase!r}.")
 
-                if not first_weight.is_finite() or not rotated_weight.is_finite():
+                all_weights = [first_weight, rotated_weight]
+                if mirrored_weight is not None:
+                    all_weights.append(mirrored_weight)
+                if rotated_mirrored_weight is not None:
+                    all_weights.append(rotated_mirrored_weight)
+                if any(not weight.is_finite() for weight in all_weights):
                     return (
                         None,
                         None,
                         "nonfinite",
-                        "higher-precision pair is non-finite",
+                        "higher-precision stability orbit is non-finite",
                     )
                 if not decimal_values_agree(
                     first_weight,
@@ -1809,6 +2606,28 @@ class DY(object):
                         None,
                         "disagreement",
                         "higher-precision original/rotated pair disagrees",
+                    )
+                if mirrored_weight is not None and rotated_mirrored_weight is not None:
+                    if not decimal_values_agree(
+                        mirrored_weight,
+                        rotated_mirrored_weight,
+                        relative_tolerance=Decimal(str(relative_tolerance)),
+                        absolute_tolerance=Decimal(str(absolute_tolerance)),
+                        decimal_digit_precision=decimal_digit_precision,
+                    ):
+                        return (
+                            None,
+                            None,
+                            "disagreement",
+                            "higher-precision mirror/rotated-mirror pair disagrees",
+                        )
+                    assert mirrored_total is not None
+                    self._record_soft_mirror_pair(xs, first_weight, mirrored_weight)
+                    return (
+                        +(first_weight + mirrored_weight) / Decimal(2),
+                        +(first_total + mirrored_total) / Decimal(2),
+                        None,
+                        None,
                     )
                 return +first_weight, +first_total, None, None
         except BaseException as exc:
@@ -1833,6 +2652,8 @@ class DY(object):
         rotation_digits: int,
         precision_threshold: float | None,
         clip_threshold: float | None,
+        soft_mirror_routing: SoftEdgeRouting | None = None,
+        soft_center: Vector | None = None,
     ) -> float:
         relative_tolerance, absolute_tolerance = self._stability_tolerances(
             integrand_implementation, rotation_digits
@@ -1840,6 +2661,17 @@ class DY(object):
         rotation = self._rotation_matrix_from_xs(xs)
         float_impl = dict(integrand_implementation)
         float_impl["dy_evaluation_mode"] = "compiled"
+        if soft_mirror_routing is not None:
+            self.soft_mirror_pair_count += 1
+
+        trigger_thresholds = [
+            threshold
+            for threshold in (precision_threshold, clip_threshold)
+            if threshold is not None
+        ]
+
+        def exceeds_precision_trigger(value: float) -> bool:
+            return any(abs(value) > threshold for threshold in trigger_thresholds)
 
         first_weight: complex | None = None
         first_final = math.nan
@@ -1861,22 +2693,52 @@ class DY(object):
 
         fallback_reason: str | None = None
         large_trigger = False
+        large_trigger_value = first_final
         if float_error is not None or not math.isfinite(first_final):
             fallback_reason = "float_nonfinite"
-        else:
-            trigger_thresholds = [
-                threshold
-                for threshold in (precision_threshold, clip_threshold)
-                if threshold is not None
-            ]
-            large_trigger = any(
-                abs(first_final) > threshold for threshold in trigger_thresholds
-            )
-            if large_trigger:
-                # Deliberately do not spend time on a float rotation here.
+        elif exceeds_precision_trigger(first_final):
+            large_trigger = True
+            # Deliberately do not spend time on a float rotation here.
+            fallback_reason = "large_weight"
+
+        mirrored_momenta: tuple[Vector, ...] | None = None
+        mirrored_weight: complex | None = None
+        mirrored_final = math.nan
+        if fallback_reason is None and soft_mirror_routing is not None:
+            try:
+                mirrored_momenta = mirror_loop_momenta_for_soft_edge(
+                    loop_momenta,
+                    p1,
+                    p2,
+                    soft_mirror_routing,
+                    soft_center,
+                )
+                mirrored_weight = self.zenos_integrand_with_externals(
+                    list(mirrored_momenta),
+                    p1,
+                    p2,
+                    float_impl,
+                    channel_selector=channel_selector,
+                )
+                mirrored_final = (
+                    self._phase_value(mirrored_weight, phase) * total_jacobian
+                )
+            except BaseException as exc:
+                if isinstance(exc, (KeyboardInterrupt, SystemExit)):
+                    raise
+                float_error = f"{type(exc).__name__}: {exc}"
+            if float_error is not None or not math.isfinite(mirrored_final):
+                fallback_reason = "float_nonfinite"
+            elif exceeds_precision_trigger(mirrored_final):
+                large_trigger = True
+                large_trigger_value = mirrored_final
                 fallback_reason = "large_weight"
 
+        if large_trigger and soft_mirror_routing is not None:
+            self.soft_mirror_large_trigger_count += 1
+
         rotated_final = math.nan
+        rotated_mirrored_final = math.nan
         float_relative_difference = math.inf
         if fallback_reason is None:
             rotated_momenta = [
@@ -1919,26 +2781,80 @@ class DY(object):
                     if scale > 0.0
                     else math.inf
                 )
-            else:
-                self.stability_float_pair_accepted_count += 1
+            elif soft_mirror_routing is not None:
+                assert mirrored_momenta is not None
+                rotated_mirrored_momenta = [
+                    self._rotate_vec(momentum, rotation)
+                    for momentum in mirrored_momenta
+                ]
+                try:
+                    rotated_mirrored_weight = self.zenos_integrand_with_externals(
+                        rotated_mirrored_momenta,
+                        rotated_p1,
+                        rotated_p2,
+                        float_impl,
+                        channel_selector=channel_selector,
+                    )
+                    rotated_mirrored_final = (
+                        self._phase_value(rotated_mirrored_weight, phase)
+                        * total_jacobian
+                    )
+                except BaseException as exc:
+                    if isinstance(exc, (KeyboardInterrupt, SystemExit)):
+                        raise
+                    float_error = f"{type(exc).__name__}: {exc}"
+
+                if not math.isfinite(rotated_mirrored_final):
+                    fallback_reason = "float_nonfinite"
+                    self.nan_weight_rotated_count += 1
+                    if self.nan_weight_rotated_example is None:
+                        self.nan_weight_rotated_example = list(xs)
+                        self.nan_weight_rotated_example_momentum_point = momentum_point
+                elif not float_values_agree(
+                    mirrored_final,
+                    rotated_mirrored_final,
+                    relative_tolerance=relative_tolerance,
+                    absolute_tolerance=absolute_tolerance,
+                ):
+                    fallback_reason = "float_mismatch"
+                    scale = max(abs(mirrored_final), abs(rotated_mirrored_final))
+                    float_relative_difference = (
+                        abs(mirrored_final - rotated_mirrored_final) / scale
+                        if scale > 0.0
+                        else math.inf
+                    )
+
+            if fallback_reason is None:
+                self.stability_float_pair_accepted_count += (
+                    2 if soft_mirror_routing is not None else 1
+                )
 
         accepted_final: float | Decimal
         accepted_unweighted: float | Decimal
         if fallback_reason is None:
-            accepted_final = first_final
-            accepted_unweighted = (
-                self._phase_value(first_weight, phase)
-                if first_weight is not None
-                else 0.0
+            first_unweighted = (
+                self._phase_value(first_weight, phase) if first_weight is not None else 0.0
             )
+            if soft_mirror_routing is not None:
+                assert mirrored_weight is not None
+                accepted_final = 0.5 * (first_final + mirrored_final)
+                accepted_unweighted = 0.5 * (
+                    first_unweighted + self._phase_value(mirrored_weight, phase)
+                )
+                self._record_soft_mirror_pair(xs, first_final, mirrored_final)
+            else:
+                accepted_final = first_final
+                accepted_unweighted = first_unweighted
         else:
             self.stability_hp_retry_count += 1
+            if soft_mirror_routing is not None:
+                self.soft_mirror_hp_orbit_retry_count += 1
             if fallback_reason == "large_weight":
                 self.large_weight_hp_retry_count += 1
                 if self.large_weight_retry_example is None:
                     self.large_weight_retry_example = list(xs)
                     self.large_weight_retry_example_momentum_point = momentum_point
-                    self.large_weight_retry_example_compiled_wgt = first_final
+                    self.large_weight_retry_example_compiled_wgt = large_trigger_value
             else:
                 self.rotation_hp_retry_count += 1
                 if fallback_reason == "float_mismatch":
@@ -1968,6 +2884,7 @@ class DY(object):
                 precision,
                 relative_tolerance,
                 absolute_tolerance,
+                soft_mirror_routing,
             )
             if (
                 hp_failure_kind is None
@@ -1977,6 +2894,8 @@ class DY(object):
                 self.stability_hp_accepted_count += 1
                 accepted_final = hp_final
                 accepted_unweighted = hp_unweighted if phase == "real" else Decimal(0)
+                if soft_mirror_routing is not None:
+                    self.soft_mirror_hp_orbit_salvaged_count += 1
                 if fallback_reason == "large_weight":
                     self.large_weight_hp_salvaged_count += 1
                     if self.large_weight_retry_example_arb_wgt is None:
@@ -1986,6 +2905,8 @@ class DY(object):
             else:
                 accepted_final = Decimal(0)
                 accepted_unweighted = Decimal(0)
+                if soft_mirror_routing is not None:
+                    self.soft_mirror_hp_orbit_failure_count += 1
                 reason = hp_failure_reason or "unknown higher-precision failure"
                 if hp_failure_kind == "disagreement":
                     self.stability_hp_disagreement_count += 1
@@ -2079,6 +3000,14 @@ class DY(object):
             )
             expects_z = self.sampled_uses_z(impl)
             expects_beam_fractions = self.sampled_uses_beam_fractions(impl)
+            if self.dy_pdf_set is not None and not expects_beam_fractions:
+                raise pygloopException(
+                    "DY PDF weighting requires zenos beam-fraction sampling."
+                )
+            if self.dy_physical_normalisation and not expects_beam_fractions:
+                raise pygloopException(
+                    "DY physical normalisation requires zenos beam-fraction sampling."
+                )
             n_k_vars = 3 * self.n_loops
             expected_dim = n_k_vars + int(expects_z) + 2 * int(expects_beam_fractions)
             k_rescaling = 1.0
@@ -2119,22 +3048,78 @@ class DY(object):
 
             p1 = self.ps_point[0].spatial()
             p2 = self.ps_point[1].spatial()
+            pdf_luminosity: float | None = None
             if expects_beam_fractions:
                 beam_offset = n_k_vars + int(expects_z)
                 x1 = xs[beam_offset]
                 x2 = xs[beam_offset + 1]
                 if not self.ttbar_beam_threshold_passes(x1, x2):
                     return 0.0
+                if (
+                    self.dy_z_bin is not None
+                    or self.dy_q_min is not None
+                    or self.dy_q_max is not None
+                ):
+                    physical_z_interval = self.dy_physical_z_interval(x1, x2)
+                    if physical_z_interval is None:
+                        return 0.0
+                    (
+                        impl["dy_physical_z_min"],
+                        impl["dy_physical_z_max"],
+                    ) = physical_z_interval
                 p1, p2 = self.sampled_beam_momenta(x1, x2)
+                if self.dy_pdf_set is not None:
+                    pdf_luminosity = self.dy_pdf_luminosity(x1, x2)
 
-            loop_momenta = []
+            is_zenos = impl.get("integrand_type") == "zenos"
+            soft_mirror_requested = impl.get("dy_soft_mirror_edges") is not None
+            if soft_mirror_requested and not is_zenos:
+                raise pygloopException(
+                    "DY soft mirroring is only supported by the zenos integrand."
+                )
+            soft_mirror_routing = (
+                self._soft_mirror_routing(impl, channel_selector)
+                if is_zenos and soft_mirror_requested
+                else None
+            )
+
+            loop_momenta = [Vector(0.0, 0.0, 0.0) for _ in range(self.n_loops)]
             jac_k = 1.0
+            shifted_routing = (
+                soft_mirror_routing
+                if soft_mirror_routing is not None
+                and soft_mirror_routing.has_external_offset
+                else None
+            )
+            pivot = shifted_routing.pivot_loop_index if shifted_routing else None
             for i_loop in range(self.n_loops):
+                if i_loop == pivot:
+                    continue
                 k_loop, jac_loop = self.parameterize(
                     k_xs[3 * i_loop : 3 * (i_loop + 1)], parameterization
                 )
-                loop_momenta.append(k_loop)
+                loop_momenta[i_loop] = k_loop
                 jac_k *= jac_loop
+
+            soft_center: Vector | None = None
+            if shifted_routing is not None:
+                assert self.compiled_bundle is not None
+                soft_center = self.compiled_bundle.soft_center_for_routing(
+                    loop_momenta,
+                    p1,
+                    p2,
+                    impl["z"],
+                    impl.get("mUV", 1.0),
+                    shifted_routing,
+                    channel_selector,
+                )
+                pivot_loop, pivot_jacobian = self.parameterize(
+                    k_xs[3 * pivot : 3 * (pivot + 1)],
+                    parameterization,
+                    origin=soft_center,
+                )
+                loop_momenta[pivot] = pivot_loop
+                jac_k *= pivot_jacobian
 
             total_jacobian = jac_k * jac_z * k_rescaling
             momentum_point = f"k = [{'; '.join('[' + ', '.join(f'{ki:.16e}' for ki in km.to_list()) + ']' for km in loop_momenta)}]"
@@ -2151,7 +3136,6 @@ class DY(object):
             # print("-" * 15)
             # print("parametrisation time:", t1 - t0)
 
-            is_zenos = impl.get("integrand_type") == "zenos"
             n_digits = impl.get("dy_rotation_check_digits")
             rotation_check_enabled = False
             n_digits_int = 0
@@ -2164,13 +3148,22 @@ class DY(object):
                 rotation_check_enabled = n_digits_int > 0
 
             precision_threshold, clip_threshold = self._stability_thresholds(impl)
+            if expects_beam_fractions:
+                precision_threshold, clip_threshold = (
+                    self._rescale_dy_beam_stability_thresholds(
+                        precision_threshold,
+                        clip_threshold,
+                        pdf_luminosity,
+                    )
+                )
             stability_requested = is_zenos and (
                 rotation_check_enabled
                 or precision_threshold is not None
                 or clip_threshold is not None
+                or soft_mirror_routing is not None
             )
             if stability_requested:
-                return self._evaluate_zenos_stability_sample(
+                stability_weight = self._evaluate_zenos_stability_sample(
                     xs,
                     parameterization,
                     impl,
@@ -2186,7 +3179,20 @@ class DY(object):
                     n_digits_int,
                     precision_threshold,
                     clip_threshold,
+                    soft_mirror_routing,
+                    soft_center,
                 )
+                if (
+                    pdf_luminosity is not None
+                    or self.dy_physical_normalisation
+                    or self.dy_integrated_leptonic_phase_space
+                ):
+                    return self._apply_dy_beam_weights(
+                        stability_weight,
+                        pdf_luminosity,
+                        xs,
+                    )
+                return stability_weight
 
             if expects_beam_fractions:
                 wgt = self.zenos_integrand_with_externals(
@@ -2233,6 +3239,17 @@ class DY(object):
                 self.max_wgt_point = list(xs)
                 self.max_wgt_jacobian = total_jacobian
                 self.max_wgt_momentum_point = momentum_point
+
+            if (
+                pdf_luminosity is not None
+                or self.dy_physical_normalisation
+                or self.dy_integrated_leptonic_phase_space
+            ):
+                final_wgt = self._apply_dy_beam_weights(
+                    final_wgt,
+                    pdf_luminosity,
+                    xs,
+                )
 
             # print("res")
             # print(xs)
@@ -2407,6 +3424,15 @@ class DY(object):
             evaluate_kwargs["ttbar_pt_min"] = self._validate_ttbar_pt_min(
                 integrand_implementation["dy_ttbar_pt_min"]
             )
+        if integrand_implementation is not None:
+            if integrand_implementation.get("dy_physical_z_min") is not None:
+                evaluate_kwargs["physical_z_min"] = integrand_implementation[
+                    "dy_physical_z_min"
+                ]
+            if integrand_implementation.get("dy_physical_z_max") is not None:
+                evaluate_kwargs["physical_z_max"] = integrand_implementation[
+                    "dy_physical_z_max"
+                ]
 
         return self.compiled_bundle.evaluate(
             loop_momentum,
@@ -2463,6 +3489,15 @@ class DY(object):
             evaluate_kwargs["ttbar_pt_min"] = self._validate_ttbar_pt_min(
                 integrand_implementation["dy_ttbar_pt_min"]
             )
+        if integrand_implementation is not None:
+            if integrand_implementation.get("dy_physical_z_min") is not None:
+                evaluate_kwargs["physical_z_min"] = decimal_from_input(
+                    integrand_implementation["dy_physical_z_min"]
+                )
+            if integrand_implementation.get("dy_physical_z_max") is not None:
+                evaluate_kwargs["physical_z_max"] = decimal_from_input(
+                    integrand_implementation["dy_physical_z_max"]
+                )
 
         return self.compiled_bundle.evaluate_arb_terms(
             loop_momentum,
@@ -2580,6 +3615,19 @@ class DY(object):
             "stability_hp_failure_example",
             "stability_hp_failure_example_momentum_point",
             "stability_hp_failure_reason",
+            "soft_mirror_pair_count",
+            "soft_mirror_large_trigger_count",
+            "soft_mirror_hp_orbit_retry_count",
+            "soft_mirror_hp_orbit_salvaged_count",
+            "soft_mirror_hp_orbit_failure_count",
+            "soft_mirror_max_raw_side_wgt",
+            "soft_mirror_max_raw_side_wgt_point",
+            "soft_mirror_max_raw_side",
+            "soft_mirror_max_post_average_wgt",
+            "soft_mirror_max_post_average_wgt_point",
+            "soft_mirror_min_residual_ratio",
+            "soft_mirror_min_residual_ratio_point",
+            "soft_mirror_min_residual_ratio_sides",
             "max_preclip_wgt",
             "max_preclip_wgt_point",
             "max_preclip_wgt_momentum_point",
@@ -2644,14 +3692,14 @@ class DY(object):
                 self.compiled_bundle.require_fallback_supported(fallback_precision)
         match integrator:
             case "naive":
-                return self.naive_integrator(
+                integration_result = self.naive_integrator(
                     parameterisation,
                     integrand_implementation,
                     target,
                     **opts,
                 )
             case "vegas":
-                return DY.vegas_integrator(
+                integration_result = DY.vegas_integrator(
                     self,
                     parameterisation,
                     integrand_implementation,
@@ -2659,16 +3707,24 @@ class DY(object):
                     **opts,
                 )
             case "symbolica":
-                return self.symbolica_integrator(
+                integration_result = self.symbolica_integrator(
                     parameterisation,
                     integrand_implementation,
                     target,
                     **opts,
                 )
             case "gammaloop":
-                return self.gammaloop_integrator(target, **opts)
+                integration_result = self.gammaloop_integrator(target, **opts)
             case _:
                 raise pygloopException(f"Integrator {integrator} not implemented.")
+        if self.dy_msbar_scheme_counterterm:
+            return self._add_dy_msbar_scheme_counterterm(
+                integration_result,
+                int(opts.get("seed", 1337)),
+                parameterisation,
+                str(opts.get("phase", "real")),
+            )
+        return integration_result
 
     def gammaloop_integrator(
         self,

@@ -1740,7 +1740,9 @@ _AUTHORITATIVE_GG_LMB_CHOICES = {
     "GL021": (2, 7),
     "GL027": (2, 7),
     "GL033": (3, 4),
+    "GL043": (2, 5),
     "GL045": (5, 6),
+    "GL051": (2, 5),
     "GL053": (5, 6),
     "GL057": (3, 4),
     "GL061": (2, 6),
@@ -1749,7 +1751,7 @@ _AUTHORITATIVE_GG_LMB_CHOICES = {
     "GL077": (5, 6),
     "GL079": (2, 7),
     "GL091": (2, 8),
-    "GL093": (2, 8),
+    "GL093": (2, 5),
     "GL105": (3, 6),
     "GL115": (6, 8),
     "GL117": (3, 6),
@@ -6789,14 +6791,7 @@ class LoopIntegrandConstructor(object):
                         theta_flag = False
                         lmb_choice = [2, 6]
                     if base_graph_name == "GL101":
-                        theta_flag = True
-                        lmb_choice, collinear_sign = select_gl101_lmb_choice(
-                            cut_graph, lmb_choice
-                        )
-                        if collinear_sign == 1:
-                            threshold_collinear_momentum = E("p(1)")
-                        elif collinear_sign == -1:
-                            threshold_collinear_momentum = -E("p(1)")
+                        lmb_choice = select_gl101_lmb_choice(cut_graph, lmb_choice)[0]
                     if base_graph_name in ["GL033", "GL057"]:
                         lmb_choice = [3, 4]
 
@@ -6821,7 +6816,6 @@ class LoopIntegrandConstructor(object):
                         "GL073",
                         "GL075",
                         "GL083",
-                        "GL093",
                         "GL099",
                     ]:
                         theta_flag = False
@@ -6829,6 +6823,9 @@ class LoopIntegrandConstructor(object):
 
                         if base_graph_name == "GL018":
                             theta_flag = True
+                    if base_graph_name == "GL093":
+                        theta_flag = False
+                        lmb_choice = [2, 5]
                     if base_graph_name == "GL071":
                         theta_flag = True
                         lmb_choice, collinear_sign = select_gl071_lmb_choice(

@@ -55,7 +55,16 @@
             ["g", ["mu", "q", "a"]]
         ],
         "internal_particles": ["g", "d", "d"],
-        "integrated_ct": "2*(GC_10**3*Pi*(-(gamma(i,mu,j)*T(i1,a,j1)*(2 + log(muvsq/mursq))))/3)"
+        "integrated_ct": "GC_10**3*Pi*(-(gamma(i,mu,j)*T(i1,a,j1)*(2 + log(muvsq/mursq))))/3"
+    },
+    {
+        "external_particles": [
+            ["d", ["i", "p1", "i1"]],
+            ["d~", ["j", "p2", "j1"]],
+            ["a", ["mu","q"]]
+        ],
+        "internal_particles": ["g", "d", "d"],
+        "integrated_ct": "8*(GC_10**2*GC_1*Pi*(gamma(i,mu,j)*delta(i1,j1)*(2 + log(muvsq))))/3"
     },
     {
         "external_particles": [
@@ -82,7 +91,7 @@
             ["g", ["rho", "p3", "c"]]
         ],
         "internal_particles": ["g", "g", "g"],
-        "integrated_ct": "GC_10**3*Pi*1/8*f(a, b, c)*(22 + 39*log(muvsq/mursq))*(g(nu,rho)*(p1(mu) + 2*p2(mu))- g(mu, rho)*(2*p1(nu) + p2(nu)) + g(mu, nu)*(p1(rho) - p2(rho)))"
+        "integrated_ct": "2*(GC_10**3*Pi*1/8*f(a, b, c)*(22 + 39*log(muvsq/mursq))*(g(nu,rho)*(p1(mu) + 2*p2(mu))- g(mu, rho)*(2*p1(nu) + p2(nu)) + g(mu, nu)*(p1(rho) - p2(rho))))"
     },
     {
         "external_particles": [
@@ -91,7 +100,7 @@
             ["g", ["rho", "p3", "c"]]
         ],
         "internal_particles": ["d", "d", "d"],
-        "integrated_ct": "(-4/9)*(-GC_10**3*Pi*(2/3)*f(a, b, c)*(1 + log(muvsq/mursq))*(g(nu,rho)*(p1(mu) + 2*p2(mu)) - g(mu,rho)*(2*p1(nu) + p2(nu)) + g(mu,nu)*(p1(rho) - p2(rho))))"
+        "integrated_ct": "-GC_10**3*Pi*(2/3)*f(a, b, c)*(1 + log(muvsq/mursq))*(g(nu,rho)*(p1(mu) + 2*p2(mu)) - g(mu,rho)*(2*p1(nu) + p2(nu)) + g(mu,nu)*(p1(rho) - p2(rho)))"
     },
     {
         "external_particles": [

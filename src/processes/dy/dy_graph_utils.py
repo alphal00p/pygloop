@@ -87,24 +87,55 @@ def _partition_key(partition):
     return tuple(frozenset(_edge_ids(side)) for side in partition)
 
 
-def select_gl081_lmb_choice(cut_graph, default_lmb_choice):
-    partition_ids = {
-        _strip_quotes(str(e.get_attributes()["id"]))
-        for side in cut_graph.partition
-        for e in side
+def select_gl059_lmb_choice(cut_graph):
+    initial_cut_ids = _edge_ids(cut_graph.initial_cut)
+    if initial_cut_ids == {"0", "1"}:
+        return [2, 6], -1
+
+    cut_key = _partition_key(cut_graph.partition)
+    basis_26_crossed_cuts = {
+        (frozenset({"7", "8"}), frozenset({"1"})),
+        (frozenset({"1"}), frozenset({"7", "8"})),
+        (frozenset({"8", "6"}), frozenset({"0"})),
+        (frozenset({"0"}), frozenset({"8", "6"})),
+        (frozenset({"0", "8"}), frozenset({"8", "6"})),
+        (frozenset({"8", "6"}), frozenset({"0", "8"})),
     }
+    if cut_key in basis_26_crossed_cuts:
+        return [2, 6], -1
+    return [2, 1], 1
+
+
+def select_gl071_lmb_choice(cut_graph):
+    initial_cut_ids = _edge_ids(cut_graph.initial_cut)
+    if initial_cut_ids == {"0", "1"}:
+        return [5, 6], -1
+
+    cut_key = frozenset(_partition_key(cut_graph.partition))
+    basis_56_crossed_cuts = {
+        frozenset({frozenset({"3", "7"}), frozenset({"0"})}),
+        frozenset({frozenset({"5", "7"}), frozenset({"1"})}),
+        frozenset({frozenset({"1", "7"}), frozenset({"5", "7"})}),
+    }
+    if cut_key in basis_56_crossed_cuts:
+        return [5, 6], -1
+    return [6, 0], 1
+
+
+def select_gl081_lmb_choice(cut_graph, default_lmb_choice):
+    initial_cut_ids = _edge_ids(cut_graph.initial_cut)
     final_cut_ids = _edge_ids(cut_graph.final_cut)
 
-    if partition_ids == {"0", "1"}:
-        if {"2", "3"}.issubset(final_cut_ids):
+    if initial_cut_ids == {"0", "1"}:
+        if final_cut_ids == {"2", "3", "7"}:
             return [2, 4]
-        if {"5", "6"}.issubset(final_cut_ids):
-            return [7, 6]
+        if final_cut_ids == {"4", "5", "6"}:
+            return [6, 7]
 
-    if partition_ids == {"4", "7"}:
-        if {"2", "5"}.issubset(final_cut_ids):
+    if initial_cut_ids == {"4", "7"}:
+        if final_cut_ids == {"1", "2", "5"}:
             return [0, 2]
-        if {"3", "6"}.issubset(final_cut_ids):
+        if final_cut_ids == {"0", "3", "6"}:
             return [1, 6]
 
     return default_lmb_choice
@@ -117,20 +148,20 @@ def select_gl101_lmb_choice(cut_graph, default_lmb_choice):
     unordered_partition_key = frozenset(partition_key)
 
     if initial_cut_ids == {"0", "1"}:
-        if {"3", "4"}.issubset(final_cut_ids):
+        if final_cut_ids == {"3", "4", "5"}:
             return [2, 4], 1
-        if {"6", "7"}.issubset(final_cut_ids):
+        if final_cut_ids == {"2", "6", "7"}:
             return [5, 6], -1
 
     if initial_cut_ids == {"2", "5"}:
-        if {"4", "7"}.issubset(final_cut_ids):
+        if final_cut_ids == {"0", "4", "7"}:
             return [4, 1], -1
-        if {"3", "6"}.issubset(final_cut_ids):
+        if final_cut_ids == {"1", "3", "6"}:
             return [6, 0], 1
 
     ordinary_partition_cases = {
-        frozenset({frozenset({"2", "8"}), frozenset({"0"})}): ([2, 4], 1),
-        frozenset({frozenset({"5", "8"}), frozenset({"1"})}): ([5, 6], -1),
+        frozenset({frozenset({"2", "8"}), frozenset({"0"})}): ([5, 6], 1),
+        frozenset({frozenset({"5", "8"}), frozenset({"1"})}): ([2, 4], -1),
         frozenset({frozenset({"1", "8"}), frozenset({"5"})}): ([6, 0], 1),
         frozenset({frozenset({"0", "8"}), frozenset({"2"})}): ([4, 1], -1),
     }

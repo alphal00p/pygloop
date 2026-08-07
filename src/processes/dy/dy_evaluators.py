@@ -14,6 +14,7 @@ from decimal import Decimal, InvalidOperation, localcontext
 from fractions import Fraction
 from functools import lru_cache
 from itertools import product
+from typing import Any, Callable
 
 from symbolica import AtomType, E, Evaluator, Expression, Replacement, S
 
@@ -120,6 +121,7 @@ def _evaluate_symbolica_evaluator_with_prec(
 from processes.dy.dy_graph_utils import (
     _strip_quotes,
 )
+from processes.dy.dy_stability import SoftEdgeRouting, soft_center_for_rescaling
 
 # MT = 0.69200000000000000000000000000000  # s=500
 # MT = 0.46133333333333333333333333333333  # s=750
@@ -925,11 +927,14 @@ class DYCompiledTerm:
     ttbar_pt_sq_expression: Expression | None = None
     ttbar_pt_sq_evaluator: Evaluator | None = None
     approximation_type: str | None = None
+    source_graph_name: str | None = None
+    routed_graph_name: str | None = None
+    edge_routings: dict[str, dict[str, Any]] | None = None
 
 
 class DYCompiledBundle:
     METADATA_FILE = "bundle_metadata.json"
-    BUNDLE_FORMAT_VERSION = 6
+    BUNDLE_FORMAT_VERSION = 7
     DOUBLE_FLOAT_PRECISION = 32
 
     def __init__(
@@ -1011,6 +1016,9 @@ class DYCompiledBundle:
             group_name: graph_group_terms[group_name]
             for group_name in self._graph_group_names
         }
+        self._soft_center_term_cache: dict[
+            tuple[SoftEdgeRouting, int], DYCompiledTerm
+        ] = {}
 
     @staticmethod
     def _bundle_dir(process: str, integrand_name: str) -> str:
@@ -1314,6 +1322,331 @@ class DYCompiledBundle:
     def graph_channel_count(self) -> int:
         return len(self._graph_group_names)
 
+    def _term_source_graph_name(self, term: DYCompiledTerm) -> str | None:
+        if term.source_graph_name is not None:
+            return term.source_graph_name
+        evaluator = self.evaluators.get(term.evaluator_name)
+        if evaluator is None:
+            return None
+        value = evaluator.additional_data.get("source_graph_name")
+        return str(value) if value is not None else None
+
+    def graph_channel_source_names(self) -> list[str | None]:
+        names: list[str | None] = []
+        for group_name in self._graph_group_names:
+            source_names = {
+                source_name
+                for term in self._graph_group_terms[group_name]
+                if (source_name := self._term_source_graph_name(term)) is not None
+            }
+            if len(source_names) > 1:
+                raise pygloopException(
+                    f"DY graph channel {group_name!r} mixes source graphs "
+                    f"{sorted(source_names)}."
+                )
+            names.append(next(iter(source_names), None))
+        return names
+
+    @staticmethod
+    def _normalise_soft_mirror_edge_specs(value: Any) -> tuple[str, ...]:
+        if value is None:
+            return ()
+        if isinstance(value, str):
+            raw_specs = [value]
+        elif isinstance(value, (list, tuple)):
+            raw_specs = list(value)
+        else:
+            raise pygloopException(
+                "DY soft-mirror edges must be a string or a list of strings."
+            )
+        specs = tuple(str(spec).strip() for spec in raw_specs)
+        if any(not spec for spec in specs):
+            raise pygloopException("DY soft-mirror edge specifications cannot be empty.")
+        return specs
+
+    def resolve_soft_mirror_routing(
+        self,
+        specifications: Any,
+        channel_selector: int | None,
+    ) -> SoftEdgeRouting | None:
+        """Resolve a GRAPH:EDGE selector and validate routing across all terms."""
+        specs = self._normalise_soft_mirror_edge_specs(specifications)
+        if not specs:
+            return None
+
+        source_names = self.graph_channel_source_names()
+        known_graph_identifiers = set(self._graph_group_names)
+        known_graph_identifiers.update(name for name in source_names if name is not None)
+        graph_to_edge: dict[str, str] = {}
+        bare_edge: str | None = None
+        for spec in specs:
+            graph_name, separator, edge_id = spec.partition(":")
+            if separator:
+                graph_name = graph_name.strip()
+                edge_id = edge_id.strip()
+                if not graph_name or not edge_id:
+                    raise pygloopException(
+                        f"Invalid DY soft-mirror edge specification {spec!r}; "
+                        "expected GRAPH:EDGE."
+                    )
+                if graph_name not in known_graph_identifiers:
+                    raise pygloopException(
+                        f"Unknown DY soft-mirror graph {graph_name!r}; available "
+                        f"graphs are {sorted(known_graph_identifiers)}."
+                    )
+                if graph_name in graph_to_edge:
+                    raise pygloopException(
+                        f"Duplicate DY soft-mirror specification for {graph_name!r}."
+                    )
+                graph_to_edge[graph_name] = edge_id
+            else:
+                if bare_edge is not None or graph_to_edge:
+                    raise pygloopException(
+                        "A bare DY soft-mirror edge cannot be combined with other "
+                        "edge specifications."
+                    )
+                bare_edge = graph_name.strip()
+
+        if bare_edge is not None and self.graph_channel_count() != 1:
+            raise pygloopException(
+                "A bare --dy-soft-mirror-edge is only valid for a single-graph "
+                "bundle; use GRAPH:EDGE for multi-graph bundles."
+            )
+        if channel_selector is None:
+            if self.graph_channel_count() != 1:
+                raise pygloopException(
+                    "Graph-specific DY soft mirroring in a multi-graph bundle "
+                    "requires graph multi-channeling."
+                )
+            channel_selector = 0
+        if channel_selector < 0 or channel_selector >= self.graph_channel_count():
+            raise pygloopException(
+                f"DY graph channel {channel_selector} is out of range for soft mirroring."
+            )
+
+        group_name = self._graph_group_names[channel_selector]
+        source_name = source_names[channel_selector]
+        if bare_edge is not None:
+            edge_id = bare_edge
+        else:
+            matching_edges = {
+                edge
+                for identifier in (group_name, source_name)
+                if identifier is not None and (edge := graph_to_edge.get(identifier))
+            }
+            if len(matching_edges) > 1:
+                raise pygloopException(
+                    f"Conflicting DY soft-mirror edges select graph {source_name or group_name}."
+                )
+            if not matching_edges:
+                return None
+            edge_id = next(iter(matching_edges))
+
+        routing_label = source_name or group_name
+        selected_routing: SoftEdgeRouting | None = None
+        for term in self._graph_group_terms[group_name]:
+            edge_routings = term.edge_routings
+            if edge_routings is None:
+                evaluator = self.evaluators.get(term.evaluator_name)
+                if evaluator is not None:
+                    edge_routings = evaluator.additional_data.get("edge_routings")
+            if not isinstance(edge_routings, dict):
+                raise pygloopException(
+                    f"DY bundle {self.integrand_name!r} lacks routing metadata for "
+                    f"term {term.evaluator_name!r}. Regenerate the bundle before "
+                    "enabling soft mirroring."
+                )
+            # Reduced terms, notably integrated UV counterterms, need not retain
+            # every edge of the parent graph.  They are still evaluated at the
+            # parent graph's mirrored loop point.  Validate every retained copy
+            # of the selected edge and require at least one such copy below.
+            if edge_id not in edge_routings:
+                continue
+            try:
+                term_routing = SoftEdgeRouting.from_metadata(
+                    routing_label,
+                    edge_routings[edge_id],
+                )
+            except ValueError as exc:
+                raise pygloopException(
+                    f"Invalid DY soft-mirror routing in term "
+                    f"{term.evaluator_name!r}: {exc}"
+                ) from exc
+            if selected_routing is None:
+                selected_routing = term_routing
+            elif term_routing != selected_routing:
+                raise pygloopException(
+                    f"DY soft-mirror edge {routing_label}:{edge_id} "
+                    "has inconsistent routing across cuts/terms. Regenerate with "
+                    "a common LMB before enabling soft mirroring."
+                )
+
+        if selected_routing is None:
+            raise pygloopException(
+                f"DY bundle {self.integrand_name!r} has no routing metadata for "
+                f"edge {routing_label}:{edge_id}. Regenerate the bundle "
+                "and verify that the selected parent edge survives at least one term."
+            )
+        return selected_routing
+
+    def _soft_center_target_term(
+        self,
+        routing: SoftEdgeRouting,
+        channel_selector: int | None,
+    ) -> DYCompiledTerm:
+        """Select the unique soft term whose E-surface defines the centre."""
+        if channel_selector is None:
+            if self.graph_channel_count() != 1:
+                raise pygloopException(
+                    "Shifted DY soft centring requires graph multi-channeling."
+                )
+            channel_selector = 0
+        cache_key = (routing, channel_selector)
+        cached = self._soft_center_term_cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+        if channel_selector < 0 or channel_selector >= self.graph_channel_count():
+            raise pygloopException(
+                f"DY graph channel {channel_selector} is out of range for soft centring."
+            )
+        group_name = self._graph_group_names[channel_selector]
+        candidates: list[DYCompiledTerm] = []
+        for term in self._graph_group_terms[group_name]:
+            if term.approximation_type != "soft":
+                continue
+            metadata = (term.edge_routings or {}).get(routing.edge_id)
+            if metadata is None:
+                continue
+            try:
+                term_routing = SoftEdgeRouting.from_metadata(
+                    routing.source_graph_name, metadata
+                )
+            except ValueError as exc:
+                raise pygloopException(
+                    f"Invalid shifted soft routing in term {term.evaluator_name!r}: "
+                    f"{exc}"
+                ) from exc
+            if term_routing == routing:
+                candidates.append(term)
+
+        if len(candidates) != 1:
+            raise pygloopException(
+                f"Shifted soft edge {routing.label} requires exactly one matching "
+                f"'soft' term in graph channel {group_name!r}; found "
+                f"{len(candidates)}."
+            )
+        target = candidates[0]
+        if target.e_surface is None and target.e_surface_evaluator is None:
+            raise pygloopException(
+                f"Soft term {target.evaluator_name!r} has no saved E-surface evaluator."
+            )
+        self._soft_center_term_cache[cache_key] = target
+        return target
+
+    def soft_center_for_routing(
+        self,
+        loop_momenta: list[Vector],
+        p1: Vector,
+        p2: Vector,
+        z: float | Decimal,
+        m_uv: float | Decimal,
+        routing: SoftEdgeRouting,
+        channel_selector: int | None,
+        *,
+        decimal_digit_precision: int | None = None,
+    ) -> Vector:
+        """Solve the selected soft E-surface and return its raw pivot centre."""
+        if not routing.has_external_offset:
+            raise pygloopException(
+                f"Soft edge {routing.label} has no shifted centre to solve."
+            )
+        if len(loop_momenta) != self.n_loops:
+            raise pygloopException(
+                f"Soft edge {routing.label} expects {self.n_loops} loop momenta, "
+                f"got {len(loop_momenta)}."
+            )
+
+        target = self._soft_center_target_term(routing, channel_selector)
+        pivot_keys = self._k_keys[routing.pivot_loop_index]
+
+        if decimal_digit_precision is None:
+            vals, _externals = self._build_runtime_values(
+                loop_momenta, p1, p2, float(z), float(m_uv)
+            )
+
+            def update_float(t_value: float, values: dict[Expression, float]) -> None:
+                centre = soft_center_for_rescaling(
+                    loop_momenta, p1, p2, routing, t_value
+                )
+                for key, component in zip(
+                    pivot_keys, centre.to_list(), strict=True
+                ):
+                    values[key] = float(component)
+
+            t_solution = self.solve_t_newton_bisect(
+                target.e_surface,
+                target.e_surface_evaluator,
+                vals,
+                self._t_key,
+                t0=target.t_initial_guess,
+                max_bracket_expands=64,
+                eval_map=vals,
+                update_values_for_t=update_float,
+                minimum_t=1.0e-100,
+            )
+        else:
+            if decimal_digit_precision < 2:
+                raise pygloopException(
+                    "Shifted soft centring needs at least two decimal digits."
+                )
+            with localcontext() as context:
+                context.prec = decimal_digit_precision + 12
+                vals, _externals = self._build_runtime_values_prec(
+                    loop_momenta, p1, p2, z, m_uv
+                )
+
+                def update_precise(
+                    t_value: Decimal,
+                    values: dict[Expression, Decimal],
+                ) -> None:
+                    centre = soft_center_for_rescaling(
+                        loop_momenta, p1, p2, routing, t_value
+                    )
+                    for key, component in zip(
+                        pivot_keys, centre.to_list(), strict=True
+                    ):
+                        values[key] = self._decimal_from_number(component)
+
+                t_solution = self.solve_t_convex_bisect_prec(
+                    target.e_surface,
+                    target.e_surface_evaluator,
+                    vals,
+                    self._t_key,
+                    decimal_digit_precision,
+                    t0=self._decimal_from_number(target.t_initial_guess),
+                    max_expand_rounds=64,
+                    eval_map=vals,
+                    update_values_for_t=update_precise,
+                    minimum_t=Decimal(1).scaleb(
+                        -(decimal_digit_precision + 16)
+                    ),
+                )
+                if t_solution is None:
+                    raise pygloopException(
+                        f"Could not solve the conditional soft centre for "
+                        f"{routing.label}."
+                    )
+                return soft_center_for_rescaling(
+                    loop_momenta, p1, p2, routing, t_solution
+                )
+
+        if t_solution is None:
+            raise pygloopException(
+                f"Could not solve the conditional soft centre for {routing.label}."
+            )
+        return soft_center_for_rescaling(loop_momenta, p1, p2, routing, t_solution)
+
     @staticmethod
     def _normalise_integrated_uv_ct_filter(value: str | None) -> str:
         if value is None:
@@ -1370,6 +1703,60 @@ class DYCompiledBundle:
             integrated_uv_ct_filter,
         )
 
+    @staticmethod
+    def _serialise_routing_value(value: Any, default: str = "0") -> str:
+        if value is None:
+            return default
+        return _strip_quotes(str(value)).strip()
+
+    @classmethod
+    def _edge_routings_from_evaluator(
+        cls,
+        evaluator: Any,
+        n_loops: int,
+    ) -> dict[str, dict[str, Any]]:
+        supplied = getattr(evaluator, "edge_routings", None)
+        if supplied is not None:
+            return deepcopy(supplied)
+
+        routed_integrand = getattr(evaluator, "routed_integrand", None)
+        cut_graph = getattr(routed_integrand, "cut_graph", None)
+        graph = getattr(cut_graph, "graph", None)
+        if graph is None:
+            return {}
+
+        routings: dict[str, dict[str, Any]] = {}
+        for edge in graph.get_edges():
+            attributes = edge.get_attributes()
+            edge_id = cls._serialise_routing_value(attributes.get("id"), "")
+            if not edge_id:
+                continue
+            lmb_id = attributes.get("lmb_id")
+            routings[edge_id] = {
+                "edge_id": edge_id,
+                "particle": cls._serialise_routing_value(
+                    attributes.get("particle"), ""
+                ),
+                "loop_coefficients": [
+                    cls._serialise_routing_value(
+                        attributes.get(f"routing_k{loop_index}"), "0"
+                    )
+                    for loop_index in range(n_loops)
+                ],
+                "p1_coefficient": cls._serialise_routing_value(
+                    attributes.get("routing_p1"), "0"
+                ),
+                "p2_coefficient": cls._serialise_routing_value(
+                    attributes.get("routing_p2"), "0"
+                ),
+                "lmb_id": (
+                    cls._serialise_routing_value(lmb_id, "")
+                    if lmb_id is not None
+                    else None
+                ),
+            }
+        return routings
+
     @classmethod
     def create_from_evaluators(
         cls,
@@ -1416,10 +1803,15 @@ class DYCompiledBundle:
                 additional_data["graph_group_name"] = graph_group_name
             source_graph_name = getattr(ev, "source_graph_name", None)
             if source_graph_name is not None:
+                source_graph_name = str(source_graph_name)
                 additional_data["source_graph_name"] = source_graph_name
             routed_graph_name = getattr(ev, "routed_graph_name", None)
             if routed_graph_name is not None:
+                routed_graph_name = str(routed_graph_name)
                 additional_data["routed_graph_name"] = routed_graph_name
+            edge_routings = cls._edge_routings_from_evaluator(ev, n_loops)
+            if edge_routings:
+                additional_data["edge_routings"] = edge_routings
             approximation_type = getattr(ev, "approximation_type", None)
             if approximation_type is not None:
                 approximation_type = str(approximation_type)
@@ -1521,6 +1913,9 @@ class DYCompiledBundle:
                     t_initial_guess=1.0,
                     graph_group_name=graph_group_name,
                     approximation_type=approximation_type,
+                    source_graph_name=source_graph_name,
+                    routed_graph_name=routed_graph_name,
+                    edge_routings=edge_routings,
                 )
             )
 
@@ -1566,6 +1961,9 @@ class DYCompiledBundle:
                     "t_initial_guess": t.t_initial_guess,
                     "graph_group_name": t.graph_group_name,
                     "approximation_type": t.approximation_type,
+                    "source_graph_name": t.source_graph_name,
+                    "routed_graph_name": t.routed_graph_name,
+                    "edge_routings": t.edge_routings,
                 }
                 for i, t in enumerate(terms)
             ],
@@ -1599,6 +1997,19 @@ class DYCompiledBundle:
                 approximation_type = evaluators[name].additional_data.get(
                     "approximation_type"
                 )
+            source_graph_name = t.get("source_graph_name")
+            if source_graph_name is None:
+                source_graph_name = evaluators[name].additional_data.get(
+                    "source_graph_name"
+                )
+            routed_graph_name = t.get("routed_graph_name")
+            if routed_graph_name is None:
+                routed_graph_name = evaluators[name].additional_data.get(
+                    "routed_graph_name"
+                )
+            edge_routings = t.get("edge_routings")
+            if edge_routings is None:
+                edge_routings = evaluators[name].additional_data.get("edge_routings")
             e_surface_raw = t.get("e_surface")
             theta_raw = t.get("theta_expressions", [])
             integrand_raw = t.get("integrand_expression")
@@ -1646,6 +2057,21 @@ class DYCompiledBundle:
                     approximation_type=(
                         str(approximation_type)
                         if approximation_type is not None
+                        else None
+                    ),
+                    source_graph_name=(
+                        str(source_graph_name)
+                        if source_graph_name is not None
+                        else None
+                    ),
+                    routed_graph_name=(
+                        str(routed_graph_name)
+                        if routed_graph_name is not None
+                        else None
+                    ),
+                    edge_routings=(
+                        deepcopy(edge_routings)
+                        if isinstance(edge_routings, dict)
                         else None
                     ),
                 )
@@ -1998,6 +2424,18 @@ class DYCompiledBundle:
         pt_min = Decimal(str(ttbar_pt_min))
         return pt_sq >= pt_min * pt_min
 
+    @staticmethod
+    def _physical_z_cut_passes(
+        physical_z,
+        physical_z_min,
+        physical_z_max,
+    ) -> bool:
+        if physical_z_min is not None and physical_z < physical_z_min:
+            return False
+        if physical_z_max is not None and physical_z > physical_z_max:
+            return False
+        return True
+
     def supports_arb(self) -> bool:
         return all(self._term_supports_fallback(term) for term in self.terms)
 
@@ -2228,84 +2666,105 @@ class DYCompiledBundle:
         tol_f: float = 1e-12,
         tol_x: float = 1e-12,
         max_iter: int = 32,
-        max_bracket_expands: int = 12,
+        max_bracket_expands: int = 64,
         eval_map: dict[Expression, float] | None = None,
+        update_values_for_t: (
+            Callable[[float, dict[Expression, float]], None] | None
+        ) = None,
+        minimum_t: float = 0.0,
     ) -> float | None:
-        """Fast hybrid secant+bisection root solve for term_e_surface(t)=0 using evaluate()."""
+        """Solve a positive E-surface root with a validated secant bracket."""
 
-        # Reuse one mutable map to avoid allocations in hot loop.
         if eval_map is None:
             eval_map = vals
-
-        def f(t: float) -> float:
-            eval_map[t_key] = t
-            # try:
-            #    y = term_e_surface.evaluate(eval_map, {})
-            #    return y if math.isfinite(y) else None
-            # except Exception:
-            #    return None
-            y = self._evaluate_float_expression(
-                term_e_surface, term_e_surface_evaluator, eval_map
+        minimum_t = float(minimum_t)
+        if not math.isfinite(minimum_t) or minimum_t < 0.0:
+            raise pygloopException(
+                "The minimum E-surface t must be finite and non-negative."
             )
-            return y
 
-        # Initial point
-        x0 = float(t0)
+        def f(t: float) -> float | None:
+            if not math.isfinite(t) or t < minimum_t:
+                return None
+            eval_map[t_key] = t
+            if update_values_for_t is not None:
+                update_values_for_t(t, eval_map)
+            try:
+                y = float(
+                    self._evaluate_float_expression(
+                        term_e_surface, term_e_surface_evaluator, eval_map
+                    )
+                )
+            except BaseException as exc:
+                if isinstance(exc, (KeyboardInterrupt, SystemExit)):
+                    raise
+                return None
+            return y if math.isfinite(y) else None
+
+        x0 = max(minimum_t, float(t0))
+        if not math.isfinite(x0):
+            x0 = max(minimum_t, 1.0)
         f0 = f(x0)
-        if abs(f0) <= tol_f:
+        if f0 is not None and abs(f0) <= tol_f:
             return x0
 
-        # Bracket around x0
         span = max(1.0, abs(x0))
-        a = max(0.0, x0 - span)
-        b = max(a + 1e-14, x0 + span)
-        fa, fb = f(a), f(b)
-
-        for _ in range(max_bracket_expands):
-            # if fa * fb <= 0.0:
-            #    break
-            span *= 2.0
-            a = max(0.0, x0 - span)
-            b = max(a + 1e-14, x0 + span)
+        bracket: tuple[float, float, float, float] | None = None
+        residual_scale = max(1.0, abs(f0) if f0 is not None else 1.0)
+        for _ in range(max_bracket_expands + 1):
+            a = max(minimum_t, x0 - span)
+            b = max(a + max(1.0e-14, abs(a) * 1.0e-15), x0 + span)
             fa, fb = f(a), f(b)
+            if fa is not None:
+                residual_scale = max(residual_scale, abs(fa))
+                if abs(fa) <= tol_f:
+                    return a
+            if fb is not None:
+                residual_scale = max(residual_scale, abs(fb))
+                if abs(fb) <= tol_f:
+                    return b
+            if fa is not None and fb is not None and fa * fb <= 0.0:
+                bracket = (a, b, fa, fb)
+                break
+            span *= 2.0
+        if bracket is None:
+            return None
 
-        # else:
-        #    print("hereeeeeeeee")
-        #    return None  # no bracket
-
-        # Secant state (keep points inside bracket)
-        x_prev, f_prev = a, fa
-        x_curr, f_curr = b, fb
-
-        for _ in range(max_iter):
-            if abs(f_curr) <= tol_f or abs(b - a) <= tol_x * max(1.0, abs(x_curr)):
-                return x_curr
-
-            # Secant step; fallback to bisection if degenerate or out of bracket.
-            if f_curr != f_prev:
-                x_next = x_curr - f_curr * (x_curr - x_prev) / (f_curr - f_prev)
+        a, b, fa, fb = bracket
+        best_x, best_f = (a, fa) if abs(fa) <= abs(fb) else (b, fb)
+        for _ in range(max(max_iter, 64)):
+            if fb != fa:
+                x_next = b - fb * (b - a) / (fb - fa)
             else:
                 x_next = 0.5 * (a + b)
-            if not (min(a, b) <= x_next <= max(a, b)) or not math.isfinite(x_next):
+            guard = 0.05 * (b - a)
+            if (
+                not math.isfinite(x_next)
+                or x_next <= a + guard
+                or x_next >= b - guard
+            ):
                 x_next = 0.5 * (a + b)
-
             f_next = f(x_next)
-            # if f_next is None:
-            #    x_next = 0.5 * (a + b)
-            #    f_next = f(x_next)
-            #    if f_next is None:
-            #        return None
+            if f_next is None:
+                x_next = 0.5 * (a + b)
+                f_next = f(x_next)
+                if f_next is None:
+                    return None
 
-            # Keep bracket valid
+            if abs(f_next) < abs(best_f):
+                best_x, best_f = x_next, f_next
+            if abs(f_next) <= tol_f:
+                return x_next
             if fa * f_next <= 0.0:
                 b, fb = x_next, f_next
             else:
                 a, fa = x_next, f_next
+            if abs(b - a) <= tol_x * max(1.0, abs(best_x)):
+                residual_limit = max(tol_f, 1.0e-10 * residual_scale)
+                return best_x if abs(best_f) <= residual_limit else None
 
-            x_prev, f_prev = x_curr, f_curr
-            x_curr, f_curr = x_next, f_next
-
-        return x_curr  # if math.isfinite(x_curr) else None
+        residual_limit = max(tol_f, 1.0e-10 * residual_scale)
+        return best_x if abs(best_f) <= residual_limit else None
 
     def solve_t_convex_bisect(
         self,
@@ -2427,6 +2886,10 @@ class DYCompiledBundle:
         probes_per_round: int = 17,
         eval_map: dict[Expression, Decimal] | None = None,
         precision_preserving: bool = True,
+        update_values_for_t: (
+            Callable[[Decimal, dict[Expression, Decimal]], None] | None
+        ) = None,
+        minimum_t: float | Decimal = Decimal(0),
     ) -> Decimal | None:
         if decimal_digit_precision <= 0:
             raise pygloopException(
@@ -2451,11 +2914,18 @@ class DYCompiledBundle:
             convert_number = self._legacy_decimal_from_number
         tol_f = Decimal(10) ** (-tol_power)
         tol_x = Decimal(10) ** (-tol_power)
+        minimum = convert_number(minimum_t)
+        if not minimum.is_finite() or minimum < 0:
+            raise pygloopException(
+                "The minimum precise E-surface t must be finite and non-negative."
+            )
 
         def f(t: Decimal) -> Decimal | None:
-            if t.is_nan() or t < 0:
+            if t.is_nan() or t < minimum:
                 return None
             eval_map[t_key] = t
+            if update_values_for_t is not None:
+                update_values_for_t(t, eval_map)
             return evaluate_expression(
                 term_e_surface,
                 term_e_surface_evaluator,
@@ -2469,19 +2939,18 @@ class DYCompiledBundle:
             x0 = Decimal(1)
         if not x0.is_finite():
             x0 = Decimal(1)
-        if x0 < 0:
-            x0 = -x0
+        if x0 < minimum:
+            x0 = minimum
 
         y0 = f(x0)
         if y0 is not None and abs(y0) <= tol_f:
             return x0
 
         one = Decimal(1)
-        zero = Decimal(0)
         best_bracket: tuple[Decimal, Decimal, Decimal, Decimal] | None = None
         span = max(one, abs(x0))
         for _ in range(max_expand_rounds):
-            left = max(zero, x0 - span)
+            left = max(minimum, x0 - span)
             right = x0 + span
             if right <= left:
                 right = left + one
@@ -2553,6 +3022,8 @@ class DYCompiledBundle:
         channel_selector: int | None,
         ttbar_pt_min: float | None,
         integrated_uv_ct_filter: str | None,
+        physical_z_min: float | Decimal | None,
+        physical_z_max: float | Decimal | None,
     ) -> tuple[Decimal, list[tuple[str, Decimal]]]:
         """Keep reference diagnostics on their historical numerical contract."""
         vals, (p1x, p1y, p1z, _p2x, _p2y, _p2z) = self._build_runtime_values(
@@ -2565,6 +3036,16 @@ class DYCompiledBundle:
         total = Decimal(0)
         term_values: list[tuple[str, Decimal]] = []
         theta_tol = self._legacy_decimal_from_number(theta_tolerance)
+        z_min = (
+            self._legacy_decimal_from_number(physical_z_min)
+            if physical_z_min is not None
+            else None
+        )
+        z_max = (
+            self._legacy_decimal_from_number(physical_z_max)
+            if physical_z_max is not None
+            else None
+        )
 
         for term in self.terms_for_channel(
             channel_selector, integrated_uv_ct_filter
@@ -2587,6 +3068,11 @@ class DYCompiledBundle:
                 )
 
             dec_vals[self._t_key] = t_sol
+            if not self._physical_z_cut_passes(
+                t_sol * t_sol * dec_vals[self._z_key], z_min, z_max
+            ):
+                term_values.append((term.evaluator_name, Decimal(0)))
+                continue
             if not self._ttbar_pt_cut_passes_with_prec_legacy(
                 term,
                 dec_vals,
@@ -2651,6 +3137,8 @@ class DYCompiledBundle:
         channel_selector: int | None = None,
         ttbar_pt_min: float | None = None,
         integrated_uv_ct_filter: str | None = "all",
+        physical_z_min: float | Decimal | None = None,
+        physical_z_max: float | Decimal | None = None,
     ) -> Decimal:
         total, _term_values = self.evaluate_arb_terms(
             loop_momenta,
@@ -2663,6 +3151,8 @@ class DYCompiledBundle:
             channel_selector=channel_selector,
             ttbar_pt_min=ttbar_pt_min,
             integrated_uv_ct_filter=integrated_uv_ct_filter,
+            physical_z_min=physical_z_min,
+            physical_z_max=physical_z_max,
             precision_preserving=True,
         )
         return total
@@ -2680,6 +3170,8 @@ class DYCompiledBundle:
         ttbar_pt_min: float | None = None,
         integrated_uv_ct_filter: str | None = "all",
         precision_preserving: bool = False,
+        physical_z_min: float | Decimal | None = None,
+        physical_z_max: float | Decimal | None = None,
     ) -> tuple[Decimal, list[tuple[str, Decimal]]]:
         self.require_fallback_supported(decimal_digit_precision)
         if decimal_digit_precision <= 0:
@@ -2699,6 +3191,8 @@ class DYCompiledBundle:
                 channel_selector,
                 ttbar_pt_min,
                 integrated_uv_ct_filter,
+                physical_z_min,
+                physical_z_max,
             )
 
         # Decimal arithmetic otherwise inherits the process-global default of 28
@@ -2712,6 +3206,16 @@ class DYCompiledBundle:
             total = Decimal(0)
             term_values: list[tuple[str, Decimal]] = []
             theta_tol = self._decimal_from_number(theta_tolerance)
+            z_min = (
+                self._decimal_from_number(physical_z_min)
+                if physical_z_min is not None
+                else None
+            )
+            z_max = (
+                self._decimal_from_number(physical_z_max)
+                if physical_z_max is not None
+                else None
+            )
 
             for term in self.terms_for_channel(
                 channel_selector, integrated_uv_ct_filter
@@ -2740,6 +3244,11 @@ class DYCompiledBundle:
                     )
 
                 dec_vals[self._t_key] = t_sol
+                if not self._physical_z_cut_passes(
+                    t_sol * t_sol * dec_vals[self._z_key], z_min, z_max
+                ):
+                    term_values.append((term.evaluator_name, Decimal(0)))
+                    continue
                 if not self._ttbar_pt_cut_passes_with_prec(
                     term,
                     dec_vals,
@@ -2808,6 +3317,8 @@ class DYCompiledBundle:
         channel_selector: int | None = None,
         ttbar_pt_min: float | None = None,
         integrated_uv_ct_filter: str | None = "all",
+        physical_z_min: float | None = None,
+        physical_z_max: float | None = None,
     ) -> complex:
         if mode == "arb":
             if decimal_digit_precision is None:
@@ -2825,6 +3336,8 @@ class DYCompiledBundle:
                         channel_selector=channel_selector,
                         ttbar_pt_min=ttbar_pt_min,
                         integrated_uv_ct_filter=integrated_uv_ct_filter,
+                        physical_z_min=physical_z_min,
+                        physical_z_max=physical_z_max,
                     )
                 ),
                 0.0,
@@ -2867,6 +3380,12 @@ class DYCompiledBundle:
                 continue
 
             vals[self._t_key] = t_sol
+            if not self._physical_z_cut_passes(
+                t_sol * t_sol * vals[self._z_key],
+                physical_z_min,
+                physical_z_max,
+            ):
+                continue
             if not self._ttbar_pt_cut_passes(term, vals, ttbar_pt_min):
                 continue
 

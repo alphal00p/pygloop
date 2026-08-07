@@ -64,6 +64,17 @@ class UVSubgraphRouting:
         return value
 
 
+@dataclass(frozen=True)
+class UVTriangleProjection:
+    """Topology-aware projection of an oriented three-gluon UV triangle."""
+
+    factor: Fraction
+    orientation: int
+    host_node_count: int
+    internal_particle: str
+    boundary_edge_ids: tuple[str, ...]
+
+
 def attach_uv_routing_metadata(
     graph: pydot.Dot,
     routing: UVSubgraphRouting,
@@ -352,6 +363,8 @@ def _external_particles_from_process(process: str) -> list[str]:
         return ["t", "t"]
     if process == "d d~ > g":
         return ["d", "d~", "g"]
+    if process == "d d~ > a":
+        return ["d", "d~", "a"]
     if process == "t t~ > g":
         return ["t", "t~", "g"]
     return []
@@ -539,6 +552,8 @@ def _uv_process_from_external_particles(particles: list[str]) -> str | None:
         return "t > t"
     if external_multiset == ("d", "d~", "g"):
         return "d d~ > g"
+    if external_multiset == ("d", "d~", "a"):
+        return "d d~ > a"
     if (
         len(particles) == 3
         and _uv_particle_multiset(particles, _normalise_uv_particle)
@@ -1040,6 +1055,202 @@ def _uv_int_numerator_factorisation(
     return graph_without_numerators, closed_numerator
 
 
+def _uv_boundary_endpoint(edge, port: str) -> tuple[str, int] | None:
+    """Return the UV endpoint and the sign of momentum flowing into it."""
+
+    target_port = _strip_quotes(str(port))
+    for endpoint, inward_sign in (
+        (edge.get_source(), -1),
+        (edge.get_destination(), 1),
+    ):
+        endpoint_text = _strip_quotes(str(endpoint))
+        if ":" not in endpoint_text:
+            continue
+        if endpoint_text.split(":", 1)[1] == target_port:
+            return _base_node(endpoint), inward_sign
+    return None
+
+
+def _uv_boundary_host_node(edge, port: str) -> str | None:
+    """Return the endpoint opposite the UV port of a boundary edge."""
+
+    target_port = _strip_quotes(str(port))
+    source = _strip_quotes(str(edge.get_source()))
+    destination = _strip_quotes(str(edge.get_destination()))
+    if ":" in source and source.split(":", 1)[1] == target_port:
+        return _base_node(destination)
+    if ":" in destination and destination.split(":", 1)[1] == target_port:
+        return _base_node(source)
+    return None
+
+
+def _three_gluon_triangle_projection(
+    cycle,
+    external_particle_multiset: tuple[str, ...],
+    internal_particle_multiset: tuple[str, ...],
+    surviving_ports,
+    boundary_edges,
+) -> UVTriangleProjection | None:
+    """Return the contracted colour/orientation factor for a ggg triangle.
+
+    A compact table entry proportional to ``f(a,b,c)`` is sufficient only
+    after its oriented fundamental, ghost, or adjoint triangle has been
+    contracted with the host graph.  A tree-like host projects out the
+    symmetric fundamental colour tensor.  A second fundamental triangle
+    retains both contractions, giving ``(d.d-f.f)/f.f = -4/9`` in SU(3).
+    The adjoint triangle is purely antisymmetric, so reversing its boundary
+    orientation reverses the compact tensor.
+    """
+
+    if (
+        len(cycle) != 3
+        or external_particle_multiset != ("g", "g", "g")
+        or len(surviving_ports) != 3
+        or len(boundary_edges) != 3
+    ):
+        return None
+
+    homogeneous_internal = set(internal_particle_multiset)
+    if len(homogeneous_internal) != 1:
+        return None
+    internal_particle = next(iter(homogeneous_internal))
+    if internal_particle not in {"d", "t", "g", "ghG"}:
+        return None
+
+    cycle_nodes = {
+        *(_base_node(edge.get_source()) for edge in cycle),
+        *(_base_node(edge.get_destination()) for edge in cycle),
+    }
+    enriched = []
+    for port, edge in zip(surviving_ports, boundary_edges, strict=True):
+        endpoint = _uv_boundary_endpoint(edge, port)
+        host_node = _uv_boundary_host_node(edge, port)
+        if endpoint is None or host_node is None:
+            raise ValueError("Cannot resolve a ggg triangle boundary endpoint")
+        uv_node, momentum_sign = endpoint
+        if uv_node not in cycle_nodes:
+            raise ValueError(
+                f"Resolved UV boundary node {uv_node} is outside triangle "
+                f"nodes {sorted(cycle_nodes)}"
+            )
+        enriched.append(
+            {
+                "edge_id": _strip_quotes(str(edge.get_attributes()["id"])),
+                "uv_node": uv_node,
+                "host_node": host_node,
+                "momentum_sign": momentum_sign,
+            }
+        )
+
+    uv_node_counts = sorted(
+        sum(item["uv_node"] == node for item in enriched)
+        for node in {item["uv_node"] for item in enriched}
+    )
+    if uv_node_counts != [1, 1, 1]:
+        # The existing [1,2] swordfish mapping is not a triangle projection.
+        return None
+
+    ordered = sorted(enriched, key=lambda item: _uv_id_sort_key(item["edge_id"]))
+    signs = tuple(int(item["momentum_sign"]) for item in ordered)
+    if signs not in {(-1, -1, 1), (1, 1, -1)}:
+        raise ValueError(
+            "Unexpected ordered ggg triangle boundary orientation: "
+            f"edges={[item['edge_id'] for item in ordered]}, signs={signs}"
+        )
+    orientation = signs[0]
+    host_node_count = len({item["host_node"] for item in ordered})
+
+    if internal_particle == "ghG":
+        factor = Fraction(orientation)
+    elif internal_particle == "g":
+        factor = Fraction(-orientation)
+    elif host_node_count == 2:
+        factor = Fraction(1)
+    elif host_node_count == 3:
+        factor = Fraction(-4 * orientation, 9)
+    else:
+        raise ValueError(
+            "Unsupported host topology for a fundamental ggg triangle: "
+            f"host_node_count={host_node_count}"
+        )
+
+    return UVTriangleProjection(
+        factor=factor,
+        orientation=orientation,
+        host_node_count=host_node_count,
+        internal_particle=internal_particle,
+        boundary_edge_ids=tuple(item["edge_id"] for item in ordered),
+    )
+
+
+def _quark_gluon_vertex_embedding_factor(
+    uv_process: str,
+    internal_particle_multiset: tuple[str, ...],
+    contraction_cut_graph,
+) -> Fraction:
+    """Return the conjugate-embedding multiplicity of the compact gdd tensor."""
+
+    if (
+        uv_process != "d d~ > g"
+        or internal_particle_multiset != ("d", "d", "g")
+    ):
+        return Fraction(1)
+    initial_particles = _uv_particle_multiset(
+        (
+            _strip_quotes(str(edge.get_attributes().get("particle", "")))
+            for edge in contraction_cut_graph.initial_cut
+        ),
+        _normalise_uv_external_particle,
+    )
+    # A physical qqbar cut represents both conjugate embeddings.  The qg and
+    # gg contractions select one embedding explicitly and need no multiplier.
+    return Fraction(2) if initial_particles == ("d", "d~") else Fraction(1)
+
+
+def _same_uv_node_ggg_boundary_order(actual_edges):
+    """Identify the paired and lone legs of a two-vertex ggg UV boundary.
+
+    The compact two-propagator three-gluon counterterm labels its first two
+    legs as the pair incident on the same UV-cycle node.  Boundary-edge
+    enumeration does not in general preserve that topology.
+    """
+
+    if len(actual_edges) != 3 or any(
+        actual_edge["particle"] != "g" for actual_edge in actual_edges
+    ):
+        return None
+
+    enriched_edges = []
+    for actual_edge in actual_edges:
+        endpoint = _uv_boundary_endpoint(
+            actual_edge["edge"], actual_edge["port"]
+        )
+        if endpoint is None:
+            return None
+        uv_node, momentum_sign = endpoint
+        enriched_edges.append(
+            {
+                **actual_edge,
+                "uv_node": uv_node,
+                "momentum_sign": momentum_sign,
+            }
+        )
+
+    node_counts = {
+        node: sum(edge["uv_node"] == node for edge in enriched_edges)
+        for node in {edge["uv_node"] for edge in enriched_edges}
+    }
+    paired_nodes = [node for node, count in node_counts.items() if count == 2]
+    if len(paired_nodes) != 1 or sorted(node_counts.values()) != [1, 2]:
+        return None
+
+    paired_node = paired_nodes[0]
+    return [
+        *[edge for edge in enriched_edges if edge["uv_node"] == paired_node],
+        *[edge for edge in enriched_edges if edge["uv_node"] != paired_node],
+    ]
+
+
 def _match_uv_external_edges(reference_edges, surviving_ports, boundary_edges):
     if not reference_edges or len(reference_edges) != len(surviving_ports):
         return None
@@ -1060,6 +1271,21 @@ def _match_uv_external_edges(reference_edges, surviving_ports, boundary_edges):
         _normalise_uv_external_particle(edge.get("particle", ""))
         for edge in reference_edges
     ]
+    if reference_particles == ["g", "g", "g"]:
+        topology_ordered_edges = _same_uv_node_ggg_boundary_order(actual_edges)
+        if topology_ordered_edges is not None:
+            return [
+                {
+                    "reference": reference_edge,
+                    "actual_port": actual_edge["port"],
+                    "actual_edge": actual_edge["edge"],
+                    "actual_momentum_sign": actual_edge["momentum_sign"],
+                    "actual_uv_node": actual_edge["uv_node"],
+                }
+                for reference_edge, actual_edge in zip(
+                    reference_edges, topology_ordered_edges, strict=True
+                )
+            ]
     if (
         len(reference_particles) == 3
         and reference_particles.count("t") == 2
@@ -1152,6 +1378,12 @@ def _compact_fermion_color_slot(edge, actual_port: str) -> str:
     return f"dind(cof(3,hedge({actual_port})))"
 
 
+def _compact_antifermion_color_slot(edge, actual_port: str) -> str:
+    if _port_suffix(edge.get_destination()) == actual_port:
+        return f"dind(cof(3,hedge({actual_port})))"
+    return f"cof(3,hedge({actual_port}))"
+
+
 def _external_routing_component(edge, key: str) -> Fraction:
     value = _strip_quotes(str(edge.get_attributes().get(key, "0"))).strip()
     if value in {"", "+0", "-0"}:
@@ -1179,6 +1411,11 @@ def _external_edges_have_opposite_routing(edge_a, edge_b) -> bool:
 
 
 def _compact_remapping_maps(external_mappings):
+    external_particles = tuple(
+        _normalise_uv_external_particle(mapping["reference"].get("particle", ""))
+        for mapping in external_mappings
+    )
+    is_photon_vertex = external_particles == ("d", "d~", "a")
     index_slots = {}
     momentum_edges = {}
     momentum_edge_by_slot = {}
@@ -1203,6 +1440,15 @@ def _compact_remapping_maps(external_mappings):
             momentum_slots.setdefault(str(labels[1]), []).append(str(labels[0]))
             momentum_edge_by_slot[(str(labels[1]), str(labels[0]))] = edge_id
             index_slots[str(labels[2])] = f"coad(8,hedge({actual_port}))"
+        elif particle == "a" and labels:
+            index_slots[str(labels[0])] = f"mink(4,hedge({actual_port}))"
+            if len(labels) >= 2:
+                momentum_edges.setdefault(str(labels[1]), []).append(edge_id)
+                momentum_actual_edges.setdefault(str(labels[1]), []).append(
+                    mapping["actual_edge"]
+                )
+                momentum_slots.setdefault(str(labels[1]), []).append(str(labels[0]))
+                momentum_edge_by_slot[(str(labels[1]), str(labels[0]))] = edge_id
         elif particle == "d" and len(labels) >= 3:
             index_slots[str(labels[0])] = f"bis(4,hedge({actual_port}))"
             momentum_edges.setdefault(str(labels[1]), []).append(edge_id)
@@ -1211,7 +1457,11 @@ def _compact_remapping_maps(external_mappings):
             )
             momentum_slots.setdefault(str(labels[1]), []).append(str(labels[0]))
             momentum_edge_by_slot[(str(labels[1]), str(labels[0]))] = edge_id
-            index_slots[str(labels[2])] = f"cof(3,hedge({actual_port}))"
+            index_slots[str(labels[2])] = (
+                _compact_fermion_color_slot(mapping["actual_edge"], actual_port)
+                if is_photon_vertex
+                else f"cof(3,hedge({actual_port}))"
+            )
         elif particle == "t" and len(labels) >= 3:
             index_slots[str(labels[0])] = f"bis(4,hedge({actual_port}))"
             momentum_edges.setdefault(str(labels[1]), []).append(edge_id)
@@ -1232,7 +1482,13 @@ def _compact_remapping_maps(external_mappings):
             )
             momentum_slots.setdefault(str(labels[1]), []).append(str(labels[0]))
             momentum_edge_by_slot[(str(labels[1]), str(labels[0]))] = edge_id
-            index_slots[str(labels[2])] = f"dind(cof(3,hedge({actual_port})))"
+            index_slots[str(labels[2])] = (
+                _compact_antifermion_color_slot(
+                    mapping["actual_edge"], actual_port
+                )
+                if is_photon_vertex
+                else f"dind(cof(3,hedge({actual_port})))"
+            )
 
     momentum_signs = {}
     momentum_factors = {}
@@ -1252,6 +1508,34 @@ def _compact_remapping_maps(external_mappings):
             strict=True,
         ):
             momentum_signs[(momentum_label, slot_label)] = sign
+
+    # The compact tensor uses all external momenta as incoming to the UV
+    # subgraph.  For the two-vertex ggg topology this cannot be inferred from
+    # routing-vector comparisons alone, because each momentum label occurs on
+    # only one boundary edge.
+    for mapping in external_mappings:
+        orientation = int(mapping.get("actual_momentum_sign", 1))
+        if orientation == 1:
+            continue
+        reference = mapping["reference"]
+        labels = reference.get("labels", [])
+        if len(labels) < 2:
+            continue
+        momentum_label = str(labels[1])
+        lorentz_label = str(labels[0])
+        edge_id = _strip_quotes(
+            str(mapping["actual_edge"].get_attributes()["id"])
+        )
+        momentum_factors[momentum_label] = [
+            (candidate_edge, sign * orientation)
+            if candidate_edge == edge_id
+            else (candidate_edge, sign)
+            for candidate_edge, sign in momentum_factors[momentum_label]
+        ]
+        momentum_signs[(momentum_label, lorentz_label)] = (
+            momentum_signs.get((momentum_label, lorentz_label), 1)
+            * orientation
+        )
 
     return index_slots, momentum_factors, momentum_edge_by_slot, momentum_signs
 
@@ -1338,6 +1622,7 @@ def _replace_compact_spin_color_functions(
     transpose_color_spinors: bool = False,
     replace_free_lorentz_gamma: bool = False,
     replace_spin_delta: bool = False,
+    replace_color_delta: bool = False,
 ) -> Expression:
     labels = set(index_slots)
     for first in labels:
@@ -1384,6 +1669,22 @@ def _replace_compact_spin_color_functions(
                 expr = expr.replace(
                     Eu(f"delta({first},{second})"),
                     Eu(f"g({index_slots[first]},{index_slots[second]})"),
+                    repeat=True,
+                )
+        if replace_color_delta:
+            for second in labels:
+                first_slot = index_slots[first]
+                second_slot = index_slots[second]
+                if not (
+                    first_slot.startswith("cof(")
+                    and second_slot.startswith("dind(cof(")
+                    or first_slot.startswith("dind(cof(")
+                    and second_slot.startswith("cof(")
+                ):
+                    continue
+                expr = expr.replace(
+                    Eu(f"delta({first},{second})"),
+                    Eu(f"g({first_slot},{second_slot})"),
                     repeat=True,
                 )
         if replace_free_lorentz_gamma and index_slots[first].startswith("bis("):
@@ -1446,6 +1747,17 @@ def _transpose_compact_top_spinors(external_mappings) -> bool:
     )
 
 
+def _transpose_compact_photon_spinors(external_mappings) -> bool:
+    external_particles = tuple(
+        _normalise_uv_external_particle(mapping["reference"].get("particle", ""))
+        for mapping in external_mappings
+    )
+    return (
+        external_particles == ("d", "d~", "a")
+        and _actual_port_is_source(external_mappings[0])
+    )
+
+
 def _remap_compact_uv_integrated_expression(
     expr: Expression, external_mappings
 ) -> Expression:
@@ -1469,16 +1781,21 @@ def _remap_compact_uv_integrated_expression(
     transpose_top_spinors = _transpose_compact_top_spinors(
         external_mappings
     )
+    transpose_photon_spinors = _transpose_compact_photon_spinors(
+        external_mappings
+    )
     expr = _replace_compact_spin_color_functions(
         expr,
         index_slots,
         transpose_gamma_spinors=external_particles == ("d", "d~", "g")
-        or transpose_top_spinors,
+        or transpose_top_spinors
+        or transpose_photon_spinors,
         transpose_color_spinors=(
             transpose_top_spinors and len(external_particles) == 3
         ),
         replace_free_lorentz_gamma=external_particles == ("t", "t"),
         replace_spin_delta=external_particles == ("t", "t"),
+        replace_color_delta=external_particles == ("d", "d~", "a"),
     )
     expr = _replace_compact_index_labels(expr, index_slots)
     return _contract_lorentz_metrics(expr)
@@ -1645,7 +1962,7 @@ def construct_integrated_counter_term(
     uv_routing: UVSubgraphRouting | None = None,
     external_numerator_factorisation=None,
 ):
-    if subtraction.emr_processor is None or subtraction.L != 2:
+    if subtraction.emr_processor is None or subtraction.L not in {1, 2}:
         return None
 
     contraction_cut_graph = (
@@ -1717,6 +2034,18 @@ def construct_integrated_counter_term(
     external_particle_multiset = _uv_particle_multiset(
         external_particles, _normalise_uv_external_particle
     )
+    triangle_projection = _three_gluon_triangle_projection(
+        cycle,
+        external_particle_multiset,
+        internal_particles,
+        surviving_ports,
+        boundary_edges,
+    )
+    vertex_embedding_factor = _quark_gluon_vertex_embedding_factor(
+        uv_process,
+        internal_particles,
+        contraction_cut_graph,
+    )
     candidates = _uv_integrated_counterterm_table().get(
         (uv_process, external_particle_multiset, internal_particles), []
     )
@@ -1763,18 +2092,40 @@ def construct_integrated_counter_term(
         return None
 
     if candidates[0].get("source") == "compact":
-        tensor_numerator = _format_compact_uv_integrated_numerator(
-            _remap_compact_uv_integrated_expression(
-                finite_counterterm,
-                external_mappings,
+        remapped_tensor_numerator = _remap_compact_uv_integrated_expression(
+            finite_counterterm,
+            external_mappings,
+        )
+        if triangle_projection is not None:
+            remapped_tensor_numerator *= E(
+                f"{triangle_projection.factor.numerator}/"
+                f"{triangle_projection.factor.denominator}"
             )
+        if vertex_embedding_factor != 1:
+            remapped_tensor_numerator *= E(
+                f"{vertex_embedding_factor.numerator}/"
+                f"{vertex_embedding_factor.denominator}"
+            )
+        tensor_numerator = _format_compact_uv_integrated_numerator(
+            remapped_tensor_numerator
         )
     else:
-        tensor_numerator = _format_uv_integrated_numerator(
-            _remap_uv_integrated_expression(
-                finite_counterterm,
-                external_mappings,
+        remapped_tensor_numerator = _remap_uv_integrated_expression(
+            finite_counterterm,
+            external_mappings,
+        )
+        if triangle_projection is not None:
+            remapped_tensor_numerator *= E(
+                f"{triangle_projection.factor.numerator}/"
+                f"{triangle_projection.factor.denominator}"
             )
+        if vertex_embedding_factor != 1:
+            remapped_tensor_numerator *= E(
+                f"{vertex_embedding_factor.numerator}/"
+                f"{vertex_embedding_factor.denominator}"
+            )
+        tensor_numerator = _format_uv_integrated_numerator(
+            remapped_tensor_numerator
         )
 
     def contract_graph(source_graph):
@@ -1795,6 +2146,33 @@ def construct_integrated_counter_term(
                 dod="0",
                 int_id="UV_CONTRACT",
                 num=tensor_numerator,
+                **(
+                    {
+                        "uv_triangle_projection_factor": str(
+                            triangle_projection.factor
+                        ),
+                        "uv_triangle_orientation": str(
+                            triangle_projection.orientation
+                        ),
+                        "uv_triangle_host_node_count": str(
+                            triangle_projection.host_node_count
+                        ),
+                        "uv_triangle_internal_particle": (
+                            triangle_projection.internal_particle
+                        ),
+                    }
+                    if triangle_projection is not None
+                    else {}
+                ),
+                **(
+                    {
+                        "uv_vertex_embedding_factor": str(
+                            vertex_embedding_factor
+                        )
+                    }
+                    if vertex_embedding_factor != 1
+                    else {}
+                ),
             )
         )
         for edge in source_graph.get_edges():
