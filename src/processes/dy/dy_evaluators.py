@@ -7,7 +7,9 @@ import math
 import os
 import pickle
 import shutil
+import tempfile
 import time
+from collections.abc import Mapping
 from copy import deepcopy
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation, localcontext
@@ -22,6 +24,7 @@ from utils.utils import (
     EVALUATORS_FOLDER,
     ParamBuilder,
     PygloopEvaluator,
+    logger,
     pygloopException,
 )
 from utils.vectors import Vector
@@ -122,6 +125,16 @@ from processes.dy.dy_graph_utils import (
     _strip_quotes,
 )
 from processes.dy.dy_stability import SoftEdgeRouting, soft_center_for_rescaling
+from processes.dy.dy_runtime_parameters import (
+    EVALUATOR_PARAMETER_ORDER,
+    EVALUATOR_SYMBOLS,
+    PI_DECIMAL,
+    RUNTIME_PARAMETER_REGISTRY_KEY,
+    build_runtime_parameter_registry,
+    exact_decimal_string,
+    resolve_runtime_parameter_values,
+    validate_runtime_parameter_registry,
+)
 
 # MT = 0.69200000000000000000000000000000  # s=500
 # MT = 0.46133333333333333333333333333333  # s=750
@@ -180,29 +193,16 @@ def _complex_to_symbolica_expr(value: complex) -> Expression:
 
 @lru_cache(maxsize=1)
 def _sm_ttbar_couplings() -> dict[str, Expression]:
-    from ufo_model_loader.commands import load_model
-
-    model, _ = load_model(
-        "sm",
-        None,
-        simplify_model=True,
-        wrap_indices_in_lorentz_structures=False,
-    )
-
-    coupling_names = {"GC_1", "GC_10", "GC_11", "GC_12"}
-    couplings: dict[str, Expression] = {}
-    for coupling in model.couplings:
-        if coupling.name in coupling_names:
-            couplings[coupling.name] = _complex_to_symbolica_expr(coupling.value)
-
-    missing = coupling_names.difference(couplings)
-    if missing:
-        raise pygloopException(
-            "Missing SM ttbar couplings in UFO model load: "
-            + ", ".join(sorted(missing))
-        )
-
-    return couplings
+    """Return exact UFO coupling relations over common real runtime inputs."""
+    strong = E(EVALUATOR_SYMBOLS["strong_coupling"])
+    electric = E(EVALUATOR_SYMBOLS["electromagnetic_coupling"])
+    imaginary = E("1i")
+    return {
+        "GC_1": -imaginary * electric / 3,
+        "GC_10": -strong,
+        "GC_11": imaginary * strong,
+        "GC_12": imaginary * strong**2,
+    }
 
 
 def substitute_process_couplings(expr: Expression, process: str, L: int) -> Expression:
@@ -308,7 +308,9 @@ class evaluate_integrand:
             integrand = integrand.replace(E("m(a)^2"), E("4*z*sp3D(p(1),p(1))"))
 
         if self.process == "tt~":
-            integrand = integrand.replace(E("m(t)"), E(str(MT)))
+            integrand = integrand.replace(
+                E("m(t)"), E(EVALUATOR_SYMBOLS["m_top"])
+            )
 
         return integrand.replace(
             E("sp3D(w_(x_),z_(y_))"),
@@ -378,20 +380,11 @@ class evaluate_integrand:
                 Replacement(E("cf"), E("4/3")),
                 Replacement(E("CF"), E("4/3")),
                 Replacement(E("TR"), E("1/2")),
-                Replacement(E("m(t)"), E(str(MT))),
-                Replacement(E("MT"), E(str(MT))),
-                Replacement(
-                    E("Lambdasq"), E(str(observable_params["Lambdasq"]))
-                ),
-                Replacement(
-                    E("mUV"), E(str(observable_params.get("mUV", 1.0)))
-                ),
-                Replacement(
-                    E("mursq"), E(str(observable_params.get("mursq", 1.0)))
-                ),
+                Replacement(E("m(t)"), E(EVALUATOR_SYMBOLS["m_top"])),
+                Replacement(E("MT"), E(EVALUATOR_SYMBOLS["m_top"])),
                 Replacement(
                     E("\U0001d70b"),
-                    E("3.141592653589793238462643383279502884"),
+                    E(EVALUATOR_SYMBOLS["pi"]),
                 ),
             ]
         )
@@ -545,10 +538,13 @@ class evaluate_integrand:
         n_hornerscheme_iterations,  #: int | None = None,
         n_cpe_iterations,  #: int | None = None,
         observable_params,
+        *,
+        use_exponential_importance_map: bool = True,
     ):
         self.L = L
         self.process = process
         self.routed_integrand = routed_integrand
+        self.use_exponential_importance_map = use_exponential_importance_map
 
         self.symbols = []
         for i in range(self.L):
@@ -563,7 +559,33 @@ class evaluate_integrand:
 
         self.symbols.append(E("t"))
 
+        # Keep one deterministic evaluator ABI for every term in a bundle.
+        # Some terms do not depend on every entry, but a shared order makes
+        # native, E-surface, theta, and saved fallback evaluators agree exactly.
+        for parameter_name in EVALUATOR_PARAMETER_ORDER:
+            parameter = E(EVALUATOR_SYMBOLS[parameter_name])
+            if parameter not in self.symbols:
+                self.symbols.append(parameter)
+
         self.observable_params = observable_params
+        self.runtime_parameter_registry = build_runtime_parameter_registry({
+            "m_top": observable_params.get("m_top", MT),
+            "muv": observable_params.get("mUV", 1),
+            "lambda_sq": observable_params.get("Lambdasq", 1),
+            "mur_sq": observable_params.get("mursq", 1),
+            "alpha_s": observable_params.get("alpha_s", "0.118"),
+            "alpha_ew_inverse": observable_params.get(
+                "alpha_ew_inverse", "132.507"
+            ),
+            "zmin": observable_params.get("zmin", 0),
+            "zmax": observable_params.get("zmax", 1),
+            "pi": observable_params.get("pi", PI_DECIMAL),
+        })
+        self.runtime_parameter_defaults = resolve_runtime_parameter_values(
+            self.runtime_parameter_registry,
+            {},
+            decimal_digit_precision=None,
+        )
 
         self.theta_expressions: list[Expression] = []
         self._theta_val: list[Evaluator] | None = None
@@ -595,11 +617,11 @@ class evaluate_integrand:
         )
 
         if len(self.routed_integrand.cut_graph.final_cut) > 1 and self.process == "DY":
-            theta_zmin_expr = E("t^2*z") - E(str(observable_params["zmin"]))
+            theta_zmin_expr = E("t^2*z") - E(EVALUATOR_SYMBOLS["zmin"])
             self.theta_expressions.append(theta_zmin_expr)
 
         if len(self.routed_integrand.cut_graph.final_cut) > 1 and self.process == "DY":
-            theta_zmax_expr = E(str(observable_params["zmax"])) - E("t^2*z")
+            theta_zmax_expr = E(EVALUATOR_SYMBOLS["zmax"]) - E("t^2*z")
             self.theta_expressions.append(theta_zmax_expr)
 
         self.sp3D = S("sp3D", is_linear=True, is_symmetric=True)
@@ -620,7 +642,10 @@ class evaluate_integrand:
         if self.process == "tt~":
             jacobian = E("t") ** (3 * self.L) / self.e_surface.derivative(E("t"))
 
-        self.routed_integrand.integrand = self.routed_integrand.integrand * ht
+        # This diagnostic switch controls h(t) only.  Keep the production
+        # derivative and Jacobian branches below active in either mode.
+        if self.use_exponential_importance_map:
+            self.routed_integrand.integrand = self.routed_integrand.integrand * ht
 
         if self.routed_integrand.t_derivative:
             jacobian1 = 1 / self.e_surface.derivative(E("t")) ** 2 / 4
@@ -702,6 +727,11 @@ class evaluate_integrand:
         e_surface = e_surface.replace(E("s"), s)
         if self.process == "DY":
             e_surface = e_surface.replace(E("z"), z)
+        for parameter_name in EVALUATOR_PARAMETER_ORDER:
+            e_surface = e_surface.replace(
+                E(EVALUATOR_SYMBOLS[parameter_name]),
+                E(repr(float(self.runtime_parameter_defaults[parameter_name]))),
+            )
 
         return e_surface.nsolve(E("t"), 1.0)
 
@@ -718,6 +748,11 @@ class evaluate_integrand:
         input = input_k | input_p1 | input_p2
         input[E("z")] = z
         input[E("t")] = tstar
+        input.update({
+            E(EVALUATOR_SYMBOLS[name]): value
+            for name, value in self.runtime_parameter_defaults.items()
+            if name in EVALUATOR_PARAMETER_ORDER
+        })
 
         for e in self.routed_integrand.cut_graph.graph.get_edges():
             e_atts = e.get_attributes()
@@ -772,7 +807,9 @@ class evaluate_integrand:
             for key, val in input.items():
                 for i in range(3):
                     mom3d[i] = mom3d[i].replace(key, val)
-                    mass_sq = mass_sq.replace(E("m(t)"), E(str(MT))).replace(key, val)
+                    mass_sq = mass_sq.replace(
+                        E("m(t)"), E(EVALUATOR_SYMBOLS["m_top"])
+                    ).replace(key, val)
 
             energy_symbol = E(f"En({id})")
             energies[energy_symbol] = (
@@ -786,7 +823,9 @@ class evaluate_integrand:
             eval_emr_int = eval_emr_int.replace(
                 energy_symbol, energies[energy_symbol]
             )
-            eval_emr_int = eval_emr_int.replace(E("MT"), E(str(MT)))
+            eval_emr_int = eval_emr_int.replace(
+                E("MT"), E(EVALUATOR_SYMBOLS["m_top"])
+            )
 
         ht_prefactor = (
             1.0 / 0.1199377719680614473680365016367935162194504519102290907562408570
@@ -845,6 +884,11 @@ class evaluate_integrand:
         t_sol = self.set_t_value(k, p1, p2, z)
 
         param_list.append(t_sol)
+
+        param_list.extend(
+            self.runtime_parameter_defaults[name]
+            for name in EVALUATOR_PARAMETER_ORDER
+        )
 
         return param_list
 
@@ -930,12 +974,27 @@ class DYCompiledTerm:
     source_graph_name: str | None = None
     routed_graph_name: str | None = None
     edge_routings: dict[str, dict[str, Any]] | None = None
+    closed_ghost_loop_count: int | None = None
 
 
 class DYCompiledBundle:
     METADATA_FILE = "bundle_metadata.json"
-    BUNDLE_FORMAT_VERSION = 7
+    BUNDLE_FORMAT_VERSION = 9
     DOUBLE_FLOAT_PRECISION = 32
+    CORE_METADATA_KEYS = frozenset(
+        {
+            "bundle_format_version",
+            "process",
+            "integrand_name",
+            "n_loops",
+            "fallback_precision",
+            "fallback_backend",
+            "fallback_backends",
+            "fallback_parameter_order",
+            RUNTIME_PARAMETER_REGISTRY_KEY,
+            "terms",
+        }
+    )
 
     def __init__(
         self,
@@ -944,12 +1003,31 @@ class DYCompiledBundle:
         n_loops: int,
         terms: list[DYCompiledTerm],
         evaluators: dict[str, PygloopEvaluator],
+        *,
+        metadata: Mapping[str, Any] | None = None,
     ):
         self.process = process
         self.integrand_name = integrand_name
         self.n_loops = n_loops
         self.terms = terms
         self.evaluators = evaluators
+        self._metadata = deepcopy(dict(metadata)) if metadata is not None else {}
+        raw_runtime_registry = self._metadata.get(RUNTIME_PARAMETER_REGISTRY_KEY)
+        try:
+            self._runtime_parameter_registry = (
+                validate_runtime_parameter_registry(raw_runtime_registry)
+                if raw_runtime_registry is not None
+                else None
+            )
+        except ValueError as exc:
+            raise pygloopException(
+                f"Malformed DY runtime parameter registry in bundle "
+                f"'{integrand_name}': {exc}"
+            ) from exc
+        self._runtime_parameter_cache: dict[
+            tuple[int | None, tuple[tuple[str, str], ...]],
+            dict[str, float | Decimal],
+        ] = {}
         self.t_symbol = E("t")
         self._t_key = self.t_symbol
         self._z_key = E("z")
@@ -963,7 +1041,13 @@ class DYCompiledBundle:
         self._k_keys = [
             (E(f"k({i},1)"), E(f"k({i},2)"), E(f"k({i},3)")) for i in range(n_loops)
         ]
-        self._fallback_param_order = self._fallback_params_for_n_loops(n_loops)
+        fallback_parameter_order = self._metadata.get("fallback_parameter_order")
+        if isinstance(fallback_parameter_order, list) and fallback_parameter_order:
+            self._fallback_param_order = [E(str(param)) for param in fallback_parameter_order]
+        else:
+            self._fallback_param_order = self._fallback_params_for_n_loops(
+                n_loops, self._runtime_parameter_registry
+            )
 
         self._value_key_by_name: dict[str, Expression] = {
             self._normalize_symbol_key(self._p11.to_canonical_string()): self._p11,
@@ -983,6 +1067,15 @@ class DYCompiledBundle:
                 self._value_key_by_name[
                     self._normalize_symbol_key(k_expr.to_canonical_string())
                 ] = k_expr
+        if self._runtime_parameter_registry is not None:
+            evaluator_symbols = self._runtime_parameter_registry["evaluator_symbols"]
+            for parameter_name in self._runtime_parameter_registry[
+                "evaluator_parameter_order"
+            ]:
+                parameter = E(evaluator_symbols[parameter_name])
+                self._value_key_by_name[
+                    self._normalize_symbol_key(parameter.to_canonical_string())
+                ] = parameter
 
         self._input_plans: dict[str, list[tuple[tuple[Expression], Expression]]] = {}
         self._input_index_plans: dict[str, list[tuple[int, Expression]]] = {}
@@ -1016,6 +1109,40 @@ class DYCompiledBundle:
             group_name: graph_group_terms[group_name]
             for group_name in self._graph_group_names
         }
+        self._graph_group_closed_ghost_loop_counts: dict[str, int] = {}
+        legacy_groups: list[str] = []
+        for group_name, group_terms in self._graph_group_terms.items():
+            raw_counts = [term.closed_ghost_loop_count for term in group_terms]
+            if all(count is None for count in raw_counts):
+                self._graph_group_closed_ghost_loop_counts[group_name] = 0
+                legacy_groups.append(group_name)
+                continue
+            if any(count is None for count in raw_counts):
+                raise pygloopException(
+                    f"DY graph group {group_name!r} mixes legacy and explicit "
+                    "closed-ghost-loop metadata."
+                )
+            counts = set()
+            for count in raw_counts:
+                if isinstance(count, bool) or not isinstance(count, int) or count < 0:
+                    raise pygloopException(
+                        f"DY graph group {group_name!r} has invalid "
+                        f"closed_ghost_loop_count={count!r}."
+                    )
+                counts.add(count)
+            if len(counts) != 1:
+                raise pygloopException(
+                    f"DY graph group {group_name!r} has conflicting closed-ghost-"
+                    f"loop metadata: {sorted(counts)}."
+                )
+            self._graph_group_closed_ghost_loop_counts[group_name] = counts.pop()
+        if legacy_groups:
+            logger.warning(
+                "DY bundle '%s' has legacy graph groups without closed-ghost-loop "
+                "metadata; applying automatic factor +1 to: %s",
+                self.integrand_name,
+                ", ".join(legacy_groups),
+            )
         self._soft_center_term_cache: dict[
             tuple[SoftEdgeRouting, int], DYCompiledTerm
         ] = {}
@@ -1023,6 +1150,167 @@ class DYCompiledBundle:
     @staticmethod
     def _bundle_dir(process: str, integrand_name: str) -> str:
         return pjoin(EVALUATORS_FOLDER, process, integrand_name)
+
+    @property
+    def metadata(self) -> dict[str, Any]:
+        """Return a detached copy of all metadata loaded for this bundle."""
+        return deepcopy(self._metadata)
+
+    @property
+    def runtime_parameter_registry(self) -> dict[str, Any] | None:
+        """Return the versioned registry, or ``None`` for a legacy bundle."""
+        return (
+            deepcopy(self._runtime_parameter_registry)
+            if self._runtime_parameter_registry is not None
+            else None
+        )
+
+    @property
+    def supports_runtime_parameter_overrides(self) -> bool:
+        return self._runtime_parameter_registry is not None
+
+    def resolve_runtime_parameters(
+        self,
+        overrides: Mapping[str, Any] | None = None,
+        *,
+        decimal_digit_precision: int | None = None,
+    ) -> dict[str, float | Decimal]:
+        """Resolve bundle defaults and overrides with a cached numeric backend."""
+        supplied = {} if overrides is None else dict(overrides)
+        if self._runtime_parameter_registry is None:
+            if supplied:
+                raise pygloopException(
+                    f"DY bundle '{self.integrand_name}' predates runtime-parameter "
+                    "metadata. Regenerate it before supplying runtime overrides."
+                )
+            return {}
+        cache_key = (
+            decimal_digit_precision,
+            tuple(sorted((str(name), str(value)) for name, value in supplied.items())),
+        )
+        cached = self._runtime_parameter_cache.get(cache_key)
+        if cached is not None:
+            return dict(cached)
+        try:
+            resolved = resolve_runtime_parameter_values(
+                self._runtime_parameter_registry,
+                supplied,
+                decimal_digit_precision=decimal_digit_precision,
+            )
+        except ValueError as exc:
+            raise pygloopException(str(exc)) from exc
+        self._runtime_parameter_cache[cache_key] = dict(resolved)
+        return resolved
+
+    @property
+    def bundle_metadata(self) -> dict[str, Any]:
+        """Alias for :attr:`metadata` with an explicit bundle-scoped name."""
+        return self.metadata
+
+    @property
+    def provenance_metadata(self) -> dict[str, Any]:
+        """Return optional top-level metadata without structural bundle fields."""
+        return {
+            key: deepcopy(value)
+            for key, value in self._metadata.items()
+            if key not in self.CORE_METADATA_KEYS
+        }
+
+    @classmethod
+    def metadata_path(cls, process: str, integrand_name: str) -> str:
+        """Return the metadata path for a compiled bundle."""
+        return pjoin(cls._bundle_dir(process, integrand_name), cls.METADATA_FILE)
+
+    @classmethod
+    def augment_metadata_file(
+        cls,
+        metadata_path: str | os.PathLike[str],
+        updates: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        """Atomically add or replace optional top-level bundle metadata.
+
+        Structural fields are owned by the bundle writer and cannot be changed
+        through this helper.  The replacement file is written in the bundle
+        directory so that ``os.replace`` remains atomic on a single filesystem.
+        """
+        metadata_path = os.path.abspath(os.fspath(metadata_path))
+        if not os.path.isfile(metadata_path):
+            raise pygloopException(f"Missing bundle metadata: {metadata_path}")
+        if not isinstance(updates, Mapping):
+            raise pygloopException("DY bundle metadata updates must be a mapping.")
+
+        detached_updates = deepcopy(dict(updates))
+        invalid_keys = [key for key in detached_updates if not isinstance(key, str)]
+        if invalid_keys:
+            raise pygloopException("DY bundle metadata update keys must be strings.")
+        reserved_keys = sorted(cls.CORE_METADATA_KEYS.intersection(detached_updates))
+        if reserved_keys:
+            raise pygloopException(
+                "Cannot augment structural DY bundle metadata fields: "
+                + ", ".join(reserved_keys)
+            )
+
+        try:
+            with open(metadata_path, "r", encoding="utf-8") as handle:
+                metadata = json.load(handle)
+        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+            raise pygloopException(
+                f"Could not read DY bundle metadata '{metadata_path}': {exc}"
+            ) from exc
+        if not isinstance(metadata, dict):
+            raise pygloopException(
+                f"DY bundle metadata must contain a JSON object: {metadata_path}"
+            )
+
+        metadata.update(detached_updates)
+        try:
+            serialised = json.dumps(metadata, indent=2, allow_nan=False) + "\n"
+        except (TypeError, ValueError) as exc:
+            raise pygloopException(
+                f"DY bundle metadata updates are not valid JSON: {exc}"
+            ) from exc
+
+        metadata_dir = os.path.dirname(metadata_path)
+        current_mode = os.stat(metadata_path).st_mode & 0o7777
+        temporary_path = None
+        try:
+            descriptor, temporary_path = tempfile.mkstemp(
+                prefix=f".{cls.METADATA_FILE}.",
+                suffix=".tmp",
+                dir=metadata_dir,
+            )
+            with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+                os.fchmod(handle.fileno(), current_mode)
+                handle.write(serialised)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(temporary_path, metadata_path)
+            temporary_path = None
+        except OSError as exc:
+            raise pygloopException(
+                f"Could not atomically update DY bundle metadata "
+                f"'{metadata_path}': {exc}"
+            ) from exc
+        finally:
+            if temporary_path is not None:
+                try:
+                    os.unlink(temporary_path)
+                except FileNotFoundError:
+                    pass
+
+        return deepcopy(metadata)
+
+    @classmethod
+    def augment_metadata(
+        cls,
+        process: str,
+        integrand_name: str,
+        updates: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        """Atomically augment optional metadata for a named compiled bundle."""
+        return cls.augment_metadata_file(
+            cls.metadata_path(process, integrand_name), updates
+        )
 
     @staticmethod
     def _copy_if_present(src: str, dst: str) -> None:
@@ -1052,6 +1340,9 @@ class DYCompiledBundle:
         fallback_backend = None
         fallback_backends = None
         fallback_parameter_order = None
+        runtime_parameter_registry = None
+        runtime_parameter_registry_seen = False
+        shared_optional_metadata = None
         global_term_index = 0
         try:
             for source_integrand_name in source_integrand_names:
@@ -1064,6 +1355,19 @@ class DYCompiledBundle:
 
                 with open(source_metadata_path, "r", encoding="utf-8") as f:
                     source_metadata = json.load(f)
+
+                source_optional_metadata = {
+                    key: deepcopy(value)
+                    for key, value in source_metadata.items()
+                    if key not in cls.CORE_METADATA_KEYS
+                }
+                if shared_optional_metadata is None:
+                    shared_optional_metadata = source_optional_metadata
+                elif shared_optional_metadata != source_optional_metadata:
+                    # Provenance is meaningful only as one coherent record.
+                    # Never attach one shard's optional metadata to a merged
+                    # bundle when the source records disagree.
+                    shared_optional_metadata = {}
 
                 if source_metadata.get("process") != process:
                     raise pygloopException(
@@ -1086,16 +1390,22 @@ class DYCompiledBundle:
                 source_fallback_order = source_metadata.get(
                     "fallback_parameter_order", []
                 )
+                source_runtime_registry = source_metadata.get(
+                    RUNTIME_PARAMETER_REGISTRY_KEY
+                )
                 if fallback_precision is None:
                     fallback_precision = source_fallback_precision
                     fallback_backend = source_fallback_backend
                     fallback_backends = source_fallback_backends
                     fallback_parameter_order = source_fallback_order
+                    runtime_parameter_registry = deepcopy(source_runtime_registry)
+                    runtime_parameter_registry_seen = True
                 elif (
                     fallback_precision != source_fallback_precision
                     or fallback_backend != source_fallback_backend
                     or fallback_backends != source_fallback_backends
                     or fallback_parameter_order != source_fallback_order
+                    or runtime_parameter_registry != source_runtime_registry
                 ):
                     raise pygloopException(
                         f"Cannot merge DY bundle '{source_integrand_name}' with "
@@ -1184,8 +1494,12 @@ class DYCompiledBundle:
                 "fallback_backend": fallback_backend,
                 "fallback_backends": fallback_backends,
                 "fallback_parameter_order": fallback_parameter_order,
+                RUNTIME_PARAMETER_REGISTRY_KEY: runtime_parameter_registry,
                 "terms": final_terms,
             }
+            if not runtime_parameter_registry_seen or runtime_parameter_registry is None:
+                metadata.pop(RUNTIME_PARAMETER_REGISTRY_KEY, None)
+            metadata.update(shared_optional_metadata or {})
             with open(pjoin(staging_dir, cls.METADATA_FILE), "w", encoding="utf-8") as f:
                 json.dump(metadata, f, indent=2)
 
@@ -1200,7 +1514,10 @@ class DYCompiledBundle:
         return cls.load(process, integrand_name)
 
     @staticmethod
-    def _fallback_params_for_n_loops(n_loops: int) -> list[Expression]:
+    def _fallback_params_for_n_loops(
+        n_loops: int,
+        runtime_parameter_registry: Mapping[str, Any] | None = None,
+    ) -> list[Expression]:
         params: list[Expression] = []
         for i in range(n_loops):
             params.extend([E(f"k({i},1)"), E(f"k({i},2)"), E(f"k({i},3)")])
@@ -1215,6 +1532,12 @@ class DYCompiledBundle:
             E("mUV"),
             E("t"),
         ])
+        if runtime_parameter_registry is not None:
+            evaluator_symbols = runtime_parameter_registry["evaluator_symbols"]
+            for name in runtime_parameter_registry["evaluator_parameter_order"]:
+                parameter = E(evaluator_symbols[name])
+                if parameter not in params:
+                    params.append(parameter)
         return params
 
     @staticmethod
@@ -1321,6 +1644,25 @@ class DYCompiledBundle:
 
     def graph_channel_count(self) -> int:
         return len(self._graph_group_names)
+
+    def graph_channel_closed_ghost_loop_counts(self) -> list[int]:
+        return [
+            self._graph_group_closed_ghost_loop_counts[group_name]
+            for group_name in self._graph_group_names
+        ]
+
+    def graph_channel_automatic_factors(self) -> list[int]:
+        return [
+            -1 if count % 2 else 1
+            for count in self.graph_channel_closed_ghost_loop_counts()
+        ]
+
+    def _automatic_graph_factor(self, term: DYCompiledTerm) -> int:
+        group_name = term.graph_group_name or self._graph_group_name_from_term(term)
+        return -1 if self._graph_group_closed_ghost_loop_counts[group_name] % 2 else 1
+
+    def _apply_automatic_graph_factor(self, term: DYCompiledTerm, value):
+        return value * self._automatic_graph_factor(term)
 
     def _term_source_graph_name(self, term: DYCompiledTerm) -> str | None:
         if term.source_graph_name is not None:
@@ -1550,11 +1892,12 @@ class DYCompiledBundle:
         p1: Vector,
         p2: Vector,
         z: float | Decimal,
-        m_uv: float | Decimal,
+        m_uv: float | Decimal | None,
         routing: SoftEdgeRouting,
         channel_selector: int | None,
         *,
         decimal_digit_precision: int | None = None,
+        runtime_parameters: Mapping[str, Any] | None = None,
     ) -> Vector:
         """Solve the selected soft E-surface and return its raw pivot centre."""
         if not routing.has_external_offset:
@@ -1572,7 +1915,12 @@ class DYCompiledBundle:
 
         if decimal_digit_precision is None:
             vals, _externals = self._build_runtime_values(
-                loop_momenta, p1, p2, float(z), float(m_uv)
+                loop_momenta,
+                p1,
+                p2,
+                float(z),
+                float(m_uv) if m_uv is not None else None,
+                runtime_parameters,
             )
 
             def update_float(t_value: float, values: dict[Expression, float]) -> None:
@@ -1603,7 +1951,13 @@ class DYCompiledBundle:
             with localcontext() as context:
                 context.prec = decimal_digit_precision + 12
                 vals, _externals = self._build_runtime_values_prec(
-                    loop_momenta, p1, p2, z, m_uv
+                    loop_momenta,
+                    p1,
+                    p2,
+                    z,
+                    m_uv,
+                    runtime_parameters,
+                    decimal_digit_precision,
                 )
 
                 def update_precise(
@@ -1766,6 +2120,7 @@ class DYCompiledBundle:
         observable: str,
         evaluators: list,
         fallback_precision: int = 80,
+        bundle_metadata: Mapping[str, Any] | None = None,
     ) -> DYCompiledBundle:
         if len(evaluators) == 0:
             raise pygloopException(
@@ -1783,7 +2138,30 @@ class DYCompiledBundle:
         if fallback_precision < 2:
             raise pygloopException("DY fallback precision must be at least two digits.")
         fallback_backend = "saved_evaluator"
-        fallback_params = cls._fallback_params_for_n_loops(n_loops)
+        raw_runtime_registry = getattr(
+            evaluators[0], "runtime_parameter_registry", None
+        )
+        if raw_runtime_registry is None:
+            raise pygloopException(
+                "Generated DY evaluators do not carry runtime-parameter defaults."
+            )
+        try:
+            runtime_parameter_registry = validate_runtime_parameter_registry(
+                raw_runtime_registry
+            )
+        except ValueError as exc:
+            raise pygloopException(
+                f"Cannot create DY bundle with malformed runtime parameters: {exc}"
+            ) from exc
+        for evaluator_index, evaluator in enumerate(evaluators[1:], start=1):
+            if getattr(evaluator, "runtime_parameter_registry", None) != raw_runtime_registry:
+                raise pygloopException(
+                    "Cannot create a DY bundle from evaluators with different "
+                    f"runtime-parameter registries (term {evaluator_index})."
+                )
+        fallback_params = cls._fallback_params_for_n_loops(
+            n_loops, runtime_parameter_registry
+        )
 
         for i, ev in enumerate(evaluators):
             evaluator_name = getattr(ev, "compiled_name", f"term_{i}_integrand")
@@ -1816,6 +2194,24 @@ class DYCompiledBundle:
             if approximation_type is not None:
                 approximation_type = str(approximation_type)
                 additional_data["approximation_type"] = approximation_type
+            closed_ghost_loop_count = getattr(
+                ev,
+                "closed_ghost_loop_count",
+                None,
+            )
+            if closed_ghost_loop_count is not None:
+                if (
+                    isinstance(closed_ghost_loop_count, bool)
+                    or not isinstance(closed_ghost_loop_count, int)
+                    or closed_ghost_loop_count < 0
+                ):
+                    raise pygloopException(
+                        "Generated DY evaluator has invalid "
+                        f"closed_ghost_loop_count={closed_ghost_loop_count!r}."
+                    )
+                additional_data["closed_ghost_loop_count"] = (
+                    closed_ghost_loop_count
+                )
 
             pe = PygloopEvaluator(
                 evaluator=ev.evaluator,
@@ -1916,6 +2312,7 @@ class DYCompiledBundle:
                     source_graph_name=source_graph_name,
                     routed_graph_name=routed_graph_name,
                     edge_routings=edge_routings,
+                    closed_ghost_loop_count=closed_ghost_loop_count,
                 )
             )
 
@@ -1930,6 +2327,7 @@ class DYCompiledBundle:
             "fallback_parameter_order": [
                 param.to_canonical_string() for param in fallback_params
             ],
+            RUNTIME_PARAMETER_REGISTRY_KEY: runtime_parameter_registry,
             "terms": [
                 {
                     "evaluator_name": t.evaluator_name,
@@ -1964,14 +2362,33 @@ class DYCompiledBundle:
                     "source_graph_name": t.source_graph_name,
                     "routed_graph_name": t.routed_graph_name,
                     "edge_routings": t.edge_routings,
+                    "closed_ghost_loop_count": t.closed_ghost_loop_count,
                 }
                 for i, t in enumerate(terms)
             ],
         }
+        if bundle_metadata is not None:
+            detached_metadata = deepcopy(dict(bundle_metadata))
+            reserved = sorted(
+                cls.CORE_METADATA_KEYS.intersection(detached_metadata)
+            )
+            if reserved:
+                raise pygloopException(
+                    "Cannot set structural DY bundle metadata fields: "
+                    + ", ".join(reserved)
+                )
+            metadata.update(detached_metadata)
         with open(pjoin(out_dir, cls.METADATA_FILE), "w", encoding="utf-8") as f:
             json.dump(metadata, f, indent=2)
 
-        return cls(process, integrand_name, n_loops, terms, loaded_evaluators)
+        return cls(
+            process,
+            integrand_name,
+            n_loops,
+            terms,
+            loaded_evaluators,
+            metadata=metadata,
+        )
 
     @classmethod
     def load(cls, process: str, integrand_name: str) -> DYCompiledBundle:
@@ -2010,6 +2427,11 @@ class DYCompiledBundle:
             edge_routings = t.get("edge_routings")
             if edge_routings is None:
                 edge_routings = evaluators[name].additional_data.get("edge_routings")
+            closed_ghost_loop_count = t.get("closed_ghost_loop_count")
+            if closed_ghost_loop_count is None:
+                closed_ghost_loop_count = evaluators[name].additional_data.get(
+                    "closed_ghost_loop_count"
+                )
             e_surface_raw = t.get("e_surface")
             theta_raw = t.get("theta_expressions", [])
             integrand_raw = t.get("integrand_expression")
@@ -2074,6 +2496,7 @@ class DYCompiledBundle:
                         if isinstance(edge_routings, dict)
                         else None
                     ),
+                    closed_ghost_loop_count=closed_ghost_loop_count,
                 )
             )
 
@@ -2083,6 +2506,7 @@ class DYCompiledBundle:
             n_loops=int(metadata["n_loops"]),
             terms=terms,
             evaluators=evaluators,
+            metadata=metadata,
         )
 
     @staticmethod
@@ -2485,13 +2909,63 @@ class DYCompiledBundle:
             return
         self.require_arb_supported()
 
+    def _runtime_evaluator_values(
+        self,
+        runtime_parameters: Mapping[str, Any] | None,
+        m_uv: float | Decimal | None,
+        *,
+        decimal_digit_precision: int | None,
+    ) -> dict[Expression, float | Decimal]:
+        """Map public runtime values onto the symbols in evaluator ABIs."""
+        overrides = {} if runtime_parameters is None else dict(runtime_parameters)
+        if self._runtime_parameter_registry is None:
+            # ``m_uv`` is the historical positional input and remains usable by
+            # legacy/manual bundles. New named overrides require registry data.
+            if overrides:
+                self.resolve_runtime_parameters(overrides)
+            value: float | Decimal
+            if decimal_digit_precision is None:
+                value = float(1.0 if m_uv is None else m_uv)
+            else:
+                value = self._decimal_from_number(1 if m_uv is None else m_uv)
+            return {self._muv_key: value}
+
+        if m_uv is not None:
+            if "muv" in overrides:
+                try:
+                    named_muv = Decimal(
+                        exact_decimal_string(overrides["muv"], name="muv")
+                    )
+                    positional_muv = Decimal(
+                        exact_decimal_string(m_uv, name="muv")
+                    )
+                except ValueError as exc:
+                    raise pygloopException(str(exc)) from exc
+                if named_muv != positional_muv:
+                    raise pygloopException(
+                        "Conflicting DY runtime values were supplied for 'muv'."
+                    )
+            overrides.setdefault("muv", m_uv)
+        resolved = self.resolve_runtime_parameters(
+            overrides,
+            decimal_digit_precision=decimal_digit_precision,
+        )
+        evaluator_symbols = self._runtime_parameter_registry["evaluator_symbols"]
+        return {
+            E(evaluator_symbols[name]): resolved[name]
+            for name in self._runtime_parameter_registry[
+                "evaluator_parameter_order"
+            ]
+        }
+
     def _build_runtime_values(
         self,
         loop_momenta: list[Vector],
         p1: Vector,
         p2: Vector,
         z: float,
-        m_uv: float,
+        m_uv: float | None,
+        runtime_parameters: Mapping[str, Any] | None = None,
     ) -> tuple[
         dict[Expression, float], tuple[float, float, float, float, float, float]
     ]:
@@ -2512,7 +2986,13 @@ class DYCompiledBundle:
         vals[self._p22] = float(p2y)
         vals[self._p23] = float(p2z)
         vals[self._z_key] = float(z)
-        vals[self._muv_key] = float(m_uv)
+        vals.update(
+            self._runtime_evaluator_values(
+                runtime_parameters,
+                m_uv,
+                decimal_digit_precision=None,
+            )
+        )
 
         return vals, (p1x, p1y, p1z, p2x, p2y, p2z)
 
@@ -2522,7 +3002,9 @@ class DYCompiledBundle:
         p1: Vector,
         p2: Vector,
         z: float | Decimal,
-        m_uv: float | Decimal,
+        m_uv: float | Decimal | None,
+        runtime_parameters: Mapping[str, Any] | None = None,
+        decimal_digit_precision: int = 80,
     ) -> tuple[
         dict[Expression, Decimal],
         tuple[Decimal, Decimal, Decimal, Decimal, Decimal, Decimal],
@@ -2547,7 +3029,13 @@ class DYCompiledBundle:
         vals[self._p22] = p2y
         vals[self._p23] = p2z
         vals[self._z_key] = self._decimal_from_number(z)
-        vals[self._muv_key] = self._decimal_from_number(m_uv)
+        vals.update(
+            self._runtime_evaluator_values(
+                runtime_parameters,
+                m_uv,
+                decimal_digit_precision=decimal_digit_precision,
+            )
+        )
 
         return vals, (p1x, p1y, p1z, p2x, p2y, p2z)
 
@@ -3016,7 +3504,8 @@ class DYCompiledBundle:
         p1: Vector,
         p2: Vector,
         z: float | Decimal,
-        m_uv: float | Decimal,
+        m_uv: float | Decimal | None,
+        runtime_parameters: Mapping[str, Any] | None,
         decimal_digit_precision: int,
         theta_tolerance: float | Decimal,
         channel_selector: int | None,
@@ -3024,10 +3513,27 @@ class DYCompiledBundle:
         integrated_uv_ct_filter: str | None,
         physical_z_min: float | Decimal | None,
         physical_z_max: float | Decimal | None,
-    ) -> tuple[Decimal, list[tuple[str, Decimal]]]:
+        return_support: bool = False,
+    ) -> (
+        tuple[Decimal, list[tuple[str, Decimal]]]
+        | tuple[
+            Decimal,
+            list[tuple[str, Decimal]],
+            list[tuple[str, bool]],
+        ]
+    ):
         """Keep reference diagnostics on their historical numerical contract."""
         vals, (p1x, p1y, p1z, _p2x, _p2y, _p2z) = self._build_runtime_values(
-            loop_momenta, p1, p2, z, m_uv
+            loop_momenta, p1, p2, z, m_uv, runtime_parameters
+        )
+        # Keep the legacy conversion contract for sampled kinematics, but never
+        # round registry parameters through binary64 on a fallback path.
+        vals.update(
+            self._runtime_evaluator_values(
+                runtime_parameters,
+                m_uv,
+                decimal_digit_precision=decimal_digit_precision,
+            )
         )
         dec_vals = {
             key: self._legacy_decimal_from_number(value)
@@ -3035,6 +3541,7 @@ class DYCompiledBundle:
         }
         total = Decimal(0)
         term_values: list[tuple[str, Decimal]] = []
+        term_support: list[tuple[str, bool]] = []
         theta_tol = self._legacy_decimal_from_number(theta_tolerance)
         z_min = (
             self._legacy_decimal_from_number(physical_z_min)
@@ -3072,6 +3579,7 @@ class DYCompiledBundle:
                 t_sol * t_sol * dec_vals[self._z_key], z_min, z_max
             ):
                 term_values.append((term.evaluator_name, Decimal(0)))
+                term_support.append((term.evaluator_name, False))
                 continue
             if not self._ttbar_pt_cut_passes_with_prec_legacy(
                 term,
@@ -3080,6 +3588,7 @@ class DYCompiledBundle:
                 decimal_digit_precision,
             ):
                 term_values.append((term.evaluator_name, Decimal(0)))
+                term_support.append((term.evaluator_name, False))
                 continue
 
             theta_passes = True
@@ -3106,6 +3615,7 @@ class DYCompiledBundle:
                     break
             if not theta_passes:
                 term_values.append((term.evaluator_name, Decimal(0)))
+                term_support.append((term.evaluator_name, False))
                 continue
 
             term_value = self._evaluate_expression_with_prec_legacy(
@@ -3120,9 +3630,13 @@ class DYCompiledBundle:
                     f"Failed to evaluate DY term '{term.evaluator_name}' "
                     "in arbitrary precision."
                 )
+            term_value = self._apply_automatic_graph_factor(term, term_value)
             total += term_value
             term_values.append((term.evaluator_name, term_value))
+            term_support.append((term.evaluator_name, True))
 
+        if return_support:
+            return total, term_values, term_support
         return total, term_values
 
     def evaluate_arb(
@@ -3131,7 +3645,7 @@ class DYCompiledBundle:
         p1: Vector,
         p2: Vector,
         z: float | Decimal,
-        m_uv: float | Decimal = 1.0,
+        m_uv: float | Decimal | None = None,
         decimal_digit_precision: int = 80,
         theta_tolerance: float | Decimal = 0.0,
         channel_selector: int | None = None,
@@ -3139,6 +3653,7 @@ class DYCompiledBundle:
         integrated_uv_ct_filter: str | None = "all",
         physical_z_min: float | Decimal | None = None,
         physical_z_max: float | Decimal | None = None,
+        runtime_parameters: Mapping[str, Any] | None = None,
     ) -> Decimal:
         total, _term_values = self.evaluate_arb_terms(
             loop_momenta,
@@ -3154,6 +3669,7 @@ class DYCompiledBundle:
             physical_z_min=physical_z_min,
             physical_z_max=physical_z_max,
             precision_preserving=True,
+            runtime_parameters=runtime_parameters,
         )
         return total
 
@@ -3163,7 +3679,7 @@ class DYCompiledBundle:
         p1: Vector,
         p2: Vector,
         z: float | Decimal,
-        m_uv: float | Decimal = 1.0,
+        m_uv: float | Decimal | None = None,
         decimal_digit_precision: int = 80,
         theta_tolerance: float | Decimal = 0.0,
         channel_selector: int | None = None,
@@ -3172,7 +3688,23 @@ class DYCompiledBundle:
         precision_preserving: bool = False,
         physical_z_min: float | Decimal | None = None,
         physical_z_max: float | Decimal | None = None,
-    ) -> tuple[Decimal, list[tuple[str, Decimal]]]:
+        return_support: bool = False,
+        runtime_parameters: Mapping[str, Any] | None = None,
+    ) -> (
+        tuple[Decimal, list[tuple[str, Decimal]]]
+        | tuple[
+            Decimal,
+            list[tuple[str, Decimal]],
+            list[tuple[str, bool]],
+        ]
+    ):
+        """Evaluate terms and optionally return their exact cut/theta support.
+
+        The optional support rows are derived from the same per-term precise
+        ``t`` solution as the value.  They therefore distinguish a supported
+        term whose numerator cancels to zero from a term rejected by a
+        physical or theta predicate.
+        """
         self.require_fallback_supported(decimal_digit_precision)
         if decimal_digit_precision <= 0:
             raise pygloopException(
@@ -3186,6 +3718,7 @@ class DYCompiledBundle:
                 p2,
                 z,
                 m_uv,
+                runtime_parameters,
                 decimal_digit_precision,
                 theta_tolerance,
                 channel_selector,
@@ -3193,6 +3726,7 @@ class DYCompiledBundle:
                 integrated_uv_ct_filter,
                 physical_z_min,
                 physical_z_max,
+                return_support,
             )
 
         # Decimal arithmetic otherwise inherits the process-global default of 28
@@ -3201,10 +3735,19 @@ class DYCompiledBundle:
         with localcontext() as context:
             context.prec = decimal_digit_precision + 12
             dec_vals, (p1x, p1y, p1z, _p2x, _p2y, _p2z) = (
-                self._build_runtime_values_prec(loop_momenta, p1, p2, z, m_uv)
+                self._build_runtime_values_prec(
+                    loop_momenta,
+                    p1,
+                    p2,
+                    z,
+                    m_uv,
+                    runtime_parameters,
+                    decimal_digit_precision,
+                )
             )
             total = Decimal(0)
             term_values: list[tuple[str, Decimal]] = []
+            term_support: list[tuple[str, bool]] = []
             theta_tol = self._decimal_from_number(theta_tolerance)
             z_min = (
                 self._decimal_from_number(physical_z_min)
@@ -3248,6 +3791,7 @@ class DYCompiledBundle:
                     t_sol * t_sol * dec_vals[self._z_key], z_min, z_max
                 ):
                     term_values.append((term.evaluator_name, Decimal(0)))
+                    term_support.append((term.evaluator_name, False))
                     continue
                 if not self._ttbar_pt_cut_passes_with_prec(
                     term,
@@ -3256,6 +3800,7 @@ class DYCompiledBundle:
                     decimal_digit_precision,
                 ):
                     term_values.append((term.evaluator_name, Decimal(0)))
+                    term_support.append((term.evaluator_name, False))
                     continue
 
                 theta_passes = True
@@ -3280,6 +3825,7 @@ class DYCompiledBundle:
                         break
                 if not theta_passes:
                     term_values.append((term.evaluator_name, Decimal(0)))
+                    term_support.append((term.evaluator_name, False))
                     continue
 
                 term_value = self._evaluate_expression_with_prec(
@@ -3294,14 +3840,18 @@ class DYCompiledBundle:
                         f"Failed to evaluate DY term '{term.evaluator_name}' "
                         "in higher precision."
                     )
+                term_value = self._apply_automatic_graph_factor(term, term_value)
                 total += term_value
                 term_values.append((term.evaluator_name, term_value))
+                term_support.append((term.evaluator_name, True))
 
             precise_total = +total
             precise_terms = [
                 (term_name, +term_value) for term_name, term_value in term_values
             ]
 
+        if return_support:
+            return precise_total, precise_terms, term_support
         return precise_total, precise_terms
 
     def evaluate(
@@ -3310,7 +3860,7 @@ class DYCompiledBundle:
         p1: Vector,
         p2: Vector,
         z: float,
-        m_uv: float = 1.0,
+        m_uv: float | Decimal | None = None,
         mode: str = "compiled",
         decimal_digit_precision: int | None = None,
         theta_tolerance: float = 0.0,
@@ -3319,6 +3869,7 @@ class DYCompiledBundle:
         integrated_uv_ct_filter: str | None = "all",
         physical_z_min: float | None = None,
         physical_z_max: float | None = None,
+        runtime_parameters: Mapping[str, Any] | None = None,
     ) -> complex:
         if mode == "arb":
             if decimal_digit_precision is None:
@@ -3338,6 +3889,7 @@ class DYCompiledBundle:
                         integrated_uv_ct_filter=integrated_uv_ct_filter,
                         physical_z_min=physical_z_min,
                         physical_z_max=physical_z_max,
+                        runtime_parameters=runtime_parameters,
                     )
                 ),
                 0.0,
@@ -3346,7 +3898,7 @@ class DYCompiledBundle:
             raise pygloopException(f"Unsupported DY bundle evaluation mode '{mode}'.")
 
         vals, (p1x, p1y, p1z, _p2x, _p2y, _p2z) = self._build_runtime_values(
-            loop_momenta, p1, p2, z, m_uv
+            loop_momenta, p1, p2, z, m_uv, runtime_parameters
         )
 
         total = 0.0 + 0.0j
@@ -3415,7 +3967,8 @@ class DYCompiledBundle:
                 pe, vals, self._input_index_plans[term.evaluator_name]
             )
 
-            total += complex(pe.evaluate(eager=False)[0])
+            term_value = complex(pe.evaluate(eager=False)[0])
+            total += self._apply_automatic_graph_factor(term, term_value)
 
         return total
 
@@ -3429,6 +3982,7 @@ class compile_integrands:
         observable,
         evaluators,
         fallback_precision: int = 80,
+        bundle_metadata: Mapping[str, Any] | None = None,
     ):
         self.L = L
         self.process = process
@@ -3436,6 +3990,11 @@ class compile_integrands:
         self.evaluators = evaluators
         self.name = name
         self.fallback_precision = int(fallback_precision)
+        self.bundle_metadata = (
+            deepcopy(dict(bundle_metadata))
+            if bundle_metadata is not None
+            else None
+        )
 
     def save_compiled_integrand(self):
 
@@ -3446,4 +4005,5 @@ class compile_integrands:
             observable=self.observable,
             evaluators=self.evaluators,
             fallback_precision=self.fallback_precision,
+            bundle_metadata=self.bundle_metadata,
         )

@@ -835,6 +835,8 @@ class IntegrationResult(object):
         large_weight_salvaged_count: int = 0,
         large_weight_unstable_count: int = 0,
         large_weight_zeroed_count: int = 0,
+        large_weight_zeroed_signed_sum: float = 0.0,
+        large_weight_zeroed_abs_sum: float = 0.0,
         nan_weight_count: int = 0,
         nan_weight_rotated_count: int = 0,
         nan_weight_example: list[float] | None = None,
@@ -845,6 +847,33 @@ class IntegrationResult(object):
         large_weight_retry_example_momentum_point: str | None = None,
         large_weight_retry_example_compiled_wgt: float | None = None,
         large_weight_retry_example_arb_wgt: float | None = None,
+        stability_float_pair_accepted_count: int = 0,
+        stability_float_mismatch_retry_count: int = 0,
+        stability_float_nonfinite_retry_count: int = 0,
+        stability_hp_retry_count: int = 0,
+        stability_hp_accepted_count: int = 0,
+        stability_hp_disagreement_count: int = 0,
+        stability_hp_nonfinite_count: int = 0,
+        stability_hp_error_count: int = 0,
+        stability_hp_failure_example: list[float] | None = None,
+        stability_hp_failure_example_momentum_point: str | None = None,
+        stability_hp_failure_reason: str | None = None,
+        soft_mirror_pair_count: int = 0,
+        soft_mirror_large_trigger_count: int = 0,
+        soft_mirror_hp_orbit_retry_count: int = 0,
+        soft_mirror_hp_orbit_salvaged_count: int = 0,
+        soft_mirror_hp_orbit_failure_count: int = 0,
+        soft_mirror_max_raw_side_wgt: float | None = None,
+        soft_mirror_max_raw_side_wgt_point: list[float] | None = None,
+        soft_mirror_max_raw_side: str | None = None,
+        soft_mirror_max_post_average_wgt: float | None = None,
+        soft_mirror_max_post_average_wgt_point: list[float] | None = None,
+        soft_mirror_min_residual_ratio: float | None = None,
+        soft_mirror_min_residual_ratio_point: list[float] | None = None,
+        soft_mirror_min_residual_ratio_sides: tuple[float, float] | None = None,
+        max_preclip_wgt: float | None = None,
+        max_preclip_wgt_point: list[float] | None = None,
+        max_preclip_wgt_momentum_point: str | None = None,
     ):
         self.n_samples = n_samples
         self.central_value = central_value
@@ -872,6 +901,8 @@ class IntegrationResult(object):
         self.large_weight_salvaged_count = large_weight_salvaged_count
         self.large_weight_unstable_count = large_weight_unstable_count
         self.large_weight_zeroed_count = large_weight_zeroed_count
+        self.large_weight_zeroed_signed_sum = large_weight_zeroed_signed_sum
+        self.large_weight_zeroed_abs_sum = large_weight_zeroed_abs_sum
         self.nan_weight_count = nan_weight_count
         self.nan_weight_rotated_count = nan_weight_rotated_count
         self.nan_weight_example = nan_weight_example
@@ -888,6 +919,49 @@ class IntegrationResult(object):
             large_weight_retry_example_compiled_wgt
         )
         self.large_weight_retry_example_arb_wgt = large_weight_retry_example_arb_wgt
+        self.stability_float_pair_accepted_count = (
+            stability_float_pair_accepted_count
+        )
+        self.stability_float_mismatch_retry_count = (
+            stability_float_mismatch_retry_count
+        )
+        self.stability_float_nonfinite_retry_count = (
+            stability_float_nonfinite_retry_count
+        )
+        self.stability_hp_retry_count = stability_hp_retry_count
+        self.stability_hp_accepted_count = stability_hp_accepted_count
+        self.stability_hp_disagreement_count = stability_hp_disagreement_count
+        self.stability_hp_nonfinite_count = stability_hp_nonfinite_count
+        self.stability_hp_error_count = stability_hp_error_count
+        self.stability_hp_failure_example = stability_hp_failure_example
+        self.stability_hp_failure_example_momentum_point = (
+            stability_hp_failure_example_momentum_point
+        )
+        self.stability_hp_failure_reason = stability_hp_failure_reason
+        self.soft_mirror_pair_count = soft_mirror_pair_count
+        self.soft_mirror_large_trigger_count = soft_mirror_large_trigger_count
+        self.soft_mirror_hp_orbit_retry_count = soft_mirror_hp_orbit_retry_count
+        self.soft_mirror_hp_orbit_salvaged_count = (
+            soft_mirror_hp_orbit_salvaged_count
+        )
+        self.soft_mirror_hp_orbit_failure_count = soft_mirror_hp_orbit_failure_count
+        self.soft_mirror_max_raw_side_wgt = soft_mirror_max_raw_side_wgt
+        self.soft_mirror_max_raw_side_wgt_point = soft_mirror_max_raw_side_wgt_point
+        self.soft_mirror_max_raw_side = soft_mirror_max_raw_side
+        self.soft_mirror_max_post_average_wgt = soft_mirror_max_post_average_wgt
+        self.soft_mirror_max_post_average_wgt_point = (
+            soft_mirror_max_post_average_wgt_point
+        )
+        self.soft_mirror_min_residual_ratio = soft_mirror_min_residual_ratio
+        self.soft_mirror_min_residual_ratio_point = (
+            soft_mirror_min_residual_ratio_point
+        )
+        self.soft_mirror_min_residual_ratio_sides = (
+            soft_mirror_min_residual_ratio_sides
+        )
+        self.max_preclip_wgt = max_preclip_wgt
+        self.max_preclip_wgt_point = max_preclip_wgt_point
+        self.max_preclip_wgt_momentum_point = max_preclip_wgt_momentum_point
 
     def combine_with(self, other):
         """Combine self statistics with all those of another IntegrationResult object."""
@@ -906,8 +980,34 @@ class IntegrationResult(object):
             other, "large_weight_unstable_count", 0
         )
         self.large_weight_zeroed_count += getattr(other, "large_weight_zeroed_count", 0)
+        self.large_weight_zeroed_signed_sum += getattr(
+            other, "large_weight_zeroed_signed_sum", 0.0
+        )
+        self.large_weight_zeroed_abs_sum += getattr(
+            other, "large_weight_zeroed_abs_sum", 0.0
+        )
         self.nan_weight_count += getattr(other, "nan_weight_count", 0)
         self.nan_weight_rotated_count += getattr(other, "nan_weight_rotated_count", 0)
+        for counter_name in (
+            "stability_float_pair_accepted_count",
+            "stability_float_mismatch_retry_count",
+            "stability_float_nonfinite_retry_count",
+            "stability_hp_retry_count",
+            "stability_hp_accepted_count",
+            "stability_hp_disagreement_count",
+            "stability_hp_nonfinite_count",
+            "stability_hp_error_count",
+            "soft_mirror_pair_count",
+            "soft_mirror_large_trigger_count",
+            "soft_mirror_hp_orbit_retry_count",
+            "soft_mirror_hp_orbit_salvaged_count",
+            "soft_mirror_hp_orbit_failure_count",
+        ):
+            setattr(
+                self,
+                counter_name,
+                getattr(self, counter_name, 0) + getattr(other, counter_name, 0),
+            )
         if self.unstable_retry_example is None:
             self.unstable_retry_example = getattr(other, "unstable_retry_example", None)
             self.unstable_retry_example_momentum_point = getattr(
@@ -946,6 +1046,16 @@ class IntegrationResult(object):
             self.large_weight_retry_example_arb_wgt = getattr(
                 other, "large_weight_retry_example_arb_wgt", None
             )
+        if self.stability_hp_failure_example is None:
+            self.stability_hp_failure_example = getattr(
+                other, "stability_hp_failure_example", None
+            )
+            self.stability_hp_failure_example_momentum_point = getattr(
+                other, "stability_hp_failure_example_momentum_point", None
+            )
+            self.stability_hp_failure_reason = getattr(
+                other, "stability_hp_failure_reason", None
+            )
         if other.max_wgt is not None:
             if self.max_wgt is None or abs(other.max_wgt) > abs(self.max_wgt):
                 self.max_wgt = other.max_wgt
@@ -968,6 +1078,55 @@ class IntegrationResult(object):
                 self.max_stable_wgt_momentum_point = getattr(
                     other, "max_stable_wgt_momentum_point", None
                 )
+        other_max_preclip_wgt = getattr(other, "max_preclip_wgt", None)
+        if other_max_preclip_wgt is not None:
+            if self.max_preclip_wgt is None or abs(other_max_preclip_wgt) > abs(
+                self.max_preclip_wgt
+            ):
+                self.max_preclip_wgt = other_max_preclip_wgt
+                self.max_preclip_wgt_point = getattr(
+                    other, "max_preclip_wgt_point", None
+                )
+                self.max_preclip_wgt_momentum_point = getattr(
+                    other, "max_preclip_wgt_momentum_point", None
+                )
+        other_raw_side = getattr(other, "soft_mirror_max_raw_side_wgt", None)
+        if other_raw_side is not None:
+            if self.soft_mirror_max_raw_side_wgt is None or abs(other_raw_side) > abs(
+                self.soft_mirror_max_raw_side_wgt
+            ):
+                self.soft_mirror_max_raw_side_wgt = other_raw_side
+                self.soft_mirror_max_raw_side_wgt_point = getattr(
+                    other, "soft_mirror_max_raw_side_wgt_point", None
+                )
+                self.soft_mirror_max_raw_side = getattr(
+                    other, "soft_mirror_max_raw_side", None
+                )
+        other_post_average = getattr(
+            other, "soft_mirror_max_post_average_wgt", None
+        )
+        if other_post_average is not None:
+            if self.soft_mirror_max_post_average_wgt is None or abs(
+                other_post_average
+            ) > abs(self.soft_mirror_max_post_average_wgt):
+                self.soft_mirror_max_post_average_wgt = other_post_average
+                self.soft_mirror_max_post_average_wgt_point = getattr(
+                    other, "soft_mirror_max_post_average_wgt_point", None
+                )
+        other_residual_ratio = getattr(
+            other, "soft_mirror_min_residual_ratio", None
+        )
+        if other_residual_ratio is not None:
+            if self.soft_mirror_min_residual_ratio is None or (
+                other_residual_ratio < self.soft_mirror_min_residual_ratio
+            ):
+                self.soft_mirror_min_residual_ratio = other_residual_ratio
+                self.soft_mirror_min_residual_ratio_point = getattr(
+                    other, "soft_mirror_min_residual_ratio_point", None
+                )
+                self.soft_mirror_min_residual_ratio_sides = getattr(
+                    other, "soft_mirror_min_residual_ratio_sides", None
+                )
 
     def normalize(self):
         """Normalize the statistics."""
@@ -977,7 +1136,7 @@ class IntegrationResult(object):
         )
 
     def str_report(self, target: float | None = None) -> str:
-        if self.central_value == 0.0 or self.n_samples == 0:
+        if self.n_samples == 0:
             return "No integration result available yet"
 
         # First printout sample and timing statitics
@@ -1011,6 +1170,55 @@ class IntegrationResult(object):
                 report.append(
                     f"    momentum space  : {self.max_stable_wgt_momentum_point}"
                 )
+        if self.max_preclip_wgt is not None:
+            line = f"  before clipping   : {self.max_preclip_wgt:.5e}"
+            if self.max_preclip_wgt_point is not None:
+                line += f" at xs = [{' '.join(f'{x:.16e}' for x in self.max_preclip_wgt_point)}]"
+            report.append(line)
+            if self.max_preclip_wgt_momentum_point is not None:
+                report.append(
+                    f"    momentum space  : {self.max_preclip_wgt_momentum_point}"
+                )
+        report.append(
+            "Stability pipeline: "
+            f"float pairs accepted = {self.stability_float_pair_accepted_count}, "
+            f"HP pairs attempted/accepted = {self.stability_hp_retry_count}/"
+            f"{self.stability_hp_accepted_count}"
+        )
+        report.append(
+            "Stability triggers: "
+            f"float mismatch = {self.stability_float_mismatch_retry_count}, "
+            f"float non-finite/error = {self.stability_float_nonfinite_retry_count}"
+        )
+        report.append(
+            "Higher-precision rejections: "
+            f"disagreement = {self.stability_hp_disagreement_count}, "
+            f"non-finite = {self.stability_hp_nonfinite_count}, "
+            f"error = {self.stability_hp_error_count}"
+        )
+        if self.soft_mirror_pair_count:
+            report.append(
+                "Soft-mirror stability: "
+                f"pairs = {self.soft_mirror_pair_count}, "
+                f"large-side triggers = {self.soft_mirror_large_trigger_count}, "
+                "HP orbits attempted/salvaged/failed = "
+                f"{self.soft_mirror_hp_orbit_retry_count}/"
+                f"{self.soft_mirror_hp_orbit_salvaged_count}/"
+                f"{self.soft_mirror_hp_orbit_failure_count}"
+            )
+            if self.soft_mirror_max_raw_side_wgt is not None:
+                report.append(
+                    "Soft-mirror extrema: "
+                    f"raw {self.soft_mirror_max_raw_side or 'side'} = "
+                    f"{self.soft_mirror_max_raw_side_wgt:.5e}, "
+                    "post-average = "
+                    f"{self.soft_mirror_max_post_average_wgt:.5e}"
+                )
+            if self.soft_mirror_min_residual_ratio is not None:
+                report.append(
+                    "Strongest soft-mirror cancellation: residual/raw = "
+                    f"{self.soft_mirror_min_residual_ratio:.5e}"
+                )
         report.append(
             f"Unstable rotational-check points rejected = {self.unstable_count}"
         )
@@ -1029,13 +1237,19 @@ class IntegrationResult(object):
         report.append(
             f"Large-weight high-precision rejected = {self.large_weight_unstable_count}"
         )
-        report.append(f"Large-weight samples zeroed = {self.large_weight_zeroed_count}")
-        report.append(f"NaN/non-finite weights zeroed = {self.nan_weight_count}")
+        clipped_fraction = self.large_weight_zeroed_count / self.n_samples
         report.append(
-            f"NaN/non-finite rotated weights zeroed = {self.nan_weight_rotated_count}"
+            f"Large-weight samples zeroed = {self.large_weight_zeroed_count} "
+            f"({clipped_fraction:.3e} of samples; removed signed/absolute sums = "
+            f"{self.large_weight_zeroed_signed_sum:.5e}/"
+            f"{self.large_weight_zeroed_abs_sum:.5e})"
+        )
+        report.append(f"Non-finite final outputs zeroed = {self.nan_weight_count}")
+        report.append(
+            f"Non-finite float rotated evaluations seen = {self.nan_weight_rotated_count}"
         )
         if self.unstable_retry_example is not None:
-            line = f"Example arb-retried xs = [{' '.join(f'{x:.16e}' for x in self.unstable_retry_example)}]"
+            line = f"Example higher-precision-retried xs = [{' '.join(f'{x:.16e}' for x in self.unstable_retry_example)}]"
             if self.unstable_retry_example_rel is not None:
                 line += f" | float rel = {self.unstable_retry_example_rel:.5e}"
             report.append(line)
@@ -1045,7 +1259,7 @@ class IntegrationResult(object):
                 )
         if self.large_weight_retry_example is not None:
             line = (
-                "Example large-weight arb-retried xs = ["
+                "Example large-weight higher-precision-retried xs = ["
                 + " ".join(f"{x:.16e}" for x in self.large_weight_retry_example)
                 + "]"
             )
@@ -1054,7 +1268,7 @@ class IntegrationResult(object):
                     f" | compiled = {self.large_weight_retry_example_compiled_wgt:.5e}"
                 )
             if self.large_weight_retry_example_arb_wgt is not None:
-                line += f" | arb = {self.large_weight_retry_example_arb_wgt:.5e}"
+                line += f" | higher precision = {self.large_weight_retry_example_arb_wgt:.5e}"
             report.append(line)
             if self.large_weight_retry_example_momentum_point is not None:
                 report.append(
@@ -1068,6 +1282,22 @@ class IntegrationResult(object):
             if self.unstable_example_momentum_point is not None:
                 report.append(
                     f"    momentum space  : {self.unstable_example_momentum_point}"
+                )
+        if self.stability_hp_failure_example is not None:
+            line = (
+                "Example higher-precision rejection xs = ["
+                + " ".join(
+                    f"{x:.16e}" for x in self.stability_hp_failure_example
+                )
+                + "]"
+            )
+            if self.stability_hp_failure_reason is not None:
+                line += f" | reason = {self.stability_hp_failure_reason}"
+            report.append(line)
+            if self.stability_hp_failure_example_momentum_point is not None:
+                report.append(
+                    "    momentum space  : "
+                    f"{self.stability_hp_failure_example_momentum_point}"
                 )
         if self.nan_weight_example is not None:
             report.append(
@@ -1089,14 +1319,51 @@ class IntegrationResult(object):
                     f"{self.nan_weight_rotated_example_momentum_point}"
                 )
 
+        if hasattr(self, "dy_scheme_conversion_enabled"):
+            report.append(
+                "DY qqbar scheme/decoupling: "
+                f"scheme={getattr(self, 'dy_scheme_conversion_enabled')}, "
+                f"decoupling={getattr(self, 'dy_decoupling_enabled')}; "
+                f"coefficients hard/Dqq/Born="
+                f"{getattr(self, 'dy_hard_factor'):+.8e}/"
+                f"{getattr(self, 'dy_scheme_counterterm_factor'):+.8e}/"
+                f"{getattr(self, 'dy_decoupling_coefficient'):+.8e}"
+            )
+            report.append(
+                "DY qqbar applied hard/Dqq/Born/auxiliary: "
+                f"{getattr(self, 'dy_hard_central_value'):+.16e} +/- "
+                f"{getattr(self, 'dy_hard_error'):.4e}; "
+                f"{getattr(self, 'dy_scheme_counterterm_central_value'):+.16e} +/- "
+                f"{getattr(self, 'dy_scheme_counterterm_error'):.4e}; "
+                f"{getattr(self, 'dy_decoupling_born_central_value'):+.16e} +/- "
+                f"{getattr(self, 'dy_decoupling_born_error'):.4e}; "
+                f"{getattr(self, 'dy_auxiliary_central_value'):+.16e} +/- "
+                f"{getattr(self, 'dy_auxiliary_error'):.4e}"
+            )
+            report.append(
+                "DY qqbar auxiliary samples/fallback/nonfinite/clipped: "
+                f"{getattr(self, 'dy_auxiliary_n_samples')}/"
+                f"{getattr(self, 'dy_auxiliary_fallback_count')}/"
+                f"{getattr(self, 'dy_auxiliary_nonfinite_count')}/"
+                f"{getattr(self, 'dy_auxiliary_clipped_count')} "
+                "(fractions "
+                f"{getattr(self, 'dy_auxiliary_fallback_fraction'):.3e}/"
+                f"{getattr(self, 'dy_auxiliary_nonfinite_fraction'):.3e}/"
+                f"{getattr(self, 'dy_auxiliary_clipped_fraction'):.3e})"
+            )
+
         # Finally return information about current best estimate of the central value
         report.append(f"{Colour.GREEN}Central value{Colour.END} : {self.central_value:<+25.16e} +/- {self.error:<12.2e}")  # fmt: off
 
-        err_perc = abs(self.error / self.central_value) * 100
-        if err_perc < 1.0:
-            report[-1] += f" ({Colour.GREEN}{err_perc:.3f}%{Colour.END})"
+        if self.central_value == 0.0:
+            err_perc = math.inf
+            report[-1] += " (relative uncertainty undefined)"
         else:
-            report[-1] += f" ({Colour.RED}{err_perc:.3f}%{Colour.END})"
+            err_perc = abs(self.error / self.central_value) * 100
+            if err_perc < 1.0:
+                report[-1] += f" ({Colour.GREEN}{err_perc:.3f}%{Colour.END})"
+            else:
+                report[-1] += f" ({Colour.RED}{err_perc:.3f}%{Colour.END})"
 
         # Also indicate distance to target if specified
         if target is not None and target != 0.0:
@@ -1106,10 +1373,15 @@ class IntegrationResult(object):
                 report[-1] += f" ({Colour.GREEN}{diff_perc:.3f}%{Colour.END}"
             else:
                 report[-1] += f" ({Colour.RED}{diff_perc:.3f}%{Colour.END}"
-            if abs(diff_perc / err_perc) < 3.0:
-                report[-1] += f" {Colour.GREEN} = {abs(diff_perc / err_perc):.2f}σ{Colour.END})"  # fmt: off
+            sigma_distance = (
+                abs((self.central_value - target) / self.error)
+                if self.error != 0.0
+                else math.inf
+            )
+            if sigma_distance < 3.0:
+                report[-1] += f" {Colour.GREEN} = {sigma_distance:.2f}σ{Colour.END})"  # fmt: off
             else:
-                report[-1] += f" {Colour.RED} = {abs(diff_perc / err_perc):.2f}σ{Colour.END})"  # fmt: off
+                report[-1] += f" {Colour.RED} = {sigma_distance:.2f}σ{Colour.END})"  # fmt: off
 
         # Join all lines and return
         return "\n".join(f"| > {line}" for line in report)

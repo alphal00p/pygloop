@@ -305,6 +305,110 @@ def decimal_from_input(value: RealInput) -> Decimal:
     return Decimal(value)
 
 
+def parameterize_ttbar_beam_fractions(
+    u_beta: RealInput,
+    u_y: RealInput,
+    *,
+    m_top: RealInput,
+    e_cm: RealInput,
+) -> tuple[float | Decimal, float | Decimal, float | Decimal]:
+    """Map two unit coordinates to threshold-adapted ttbar beam fractions."""
+    use_decimal = any(
+        isinstance(value, Decimal) for value in (u_beta, u_y, m_top, e_cm)
+    )
+    if use_decimal:
+        beta_coordinate = decimal_from_input(u_beta)
+        rapidity_coordinate = decimal_from_input(u_y)
+        mass = decimal_from_input(m_top)
+        energy = decimal_from_input(e_cm)
+        zero = Decimal(0)
+        one = Decimal(1)
+        if not all(
+            value.is_finite()
+            for value in (beta_coordinate, rapidity_coordinate, mass, energy)
+        ):
+            raise ValueError("The beta-Y beam map requires finite inputs.")
+        if not (
+            zero <= beta_coordinate <= one
+            and zero <= rapidity_coordinate <= one
+        ):
+            raise ValueError("The beta-Y beam coordinates must lie in [0, 1].")
+        if mass <= zero or energy <= zero:
+            raise ValueError(
+                "The beta-Y beam map requires positive m_top and e_cm."
+            )
+
+        tau_threshold = Decimal(4) * mass * mass / (energy * energy)
+        if tau_threshold >= one or beta_coordinate == one:
+            return one, one, zero
+        beta_max = (one - tau_threshold).sqrt()
+        beta = beta_max * beta_coordinate
+        one_minus_beta_sq = one - beta * beta
+        tau = tau_threshold / one_minus_beta_sq
+        rapidity_width = -tau.ln()
+        rapidity = (rapidity_coordinate - one / Decimal(2)) * rapidity_width
+        if rapidity_coordinate == zero:
+            x1, x2 = tau, one
+        elif rapidity_coordinate == one:
+            x1, x2 = one, tau
+        else:
+            sqrt_tau = tau.sqrt()
+            x1 = sqrt_tau * rapidity.exp()
+            x2 = sqrt_tau * rapidity.copy_negate().exp()
+        jacobian = (
+            beta_max
+            * (
+                Decimal(2)
+                * tau_threshold
+                * beta
+                / (one_minus_beta_sq * one_minus_beta_sq)
+            )
+            * rapidity_width
+        )
+        return x1, x2, jacobian
+
+    beta_coordinate = float(u_beta)
+    rapidity_coordinate = float(u_y)
+    mass = float(m_top)
+    energy = float(e_cm)
+    if not all(
+        math.isfinite(value)
+        for value in (beta_coordinate, rapidity_coordinate, mass, energy)
+    ):
+        raise ValueError("The beta-Y beam map requires finite inputs.")
+    if not (
+        0.0 <= beta_coordinate <= 1.0
+        and 0.0 <= rapidity_coordinate <= 1.0
+    ):
+        raise ValueError("The beta-Y beam coordinates must lie in [0, 1].")
+    if mass <= 0.0 or energy <= 0.0:
+        raise ValueError("The beta-Y beam map requires positive m_top and e_cm.")
+
+    tau_threshold = 4.0 * mass * mass / (energy * energy)
+    if tau_threshold >= 1.0 or beta_coordinate == 1.0:
+        return 1.0, 1.0, 0.0
+    beta_max = math.sqrt(1.0 - tau_threshold)
+    beta = beta_max * beta_coordinate
+    one_minus_beta_sq = 1.0 - beta * beta
+    tau = tau_threshold / one_minus_beta_sq
+    rapidity_width = -math.log(tau)
+    rapidity = (rapidity_coordinate - 0.5) * rapidity_width
+    if rapidity_coordinate == 0.0:
+        x1, x2 = tau, 1.0
+    elif rapidity_coordinate == 1.0:
+        x1, x2 = 1.0, tau
+    else:
+        sqrt_tau = math.sqrt(tau)
+        x1 = sqrt_tau * math.exp(rapidity)
+        x2 = sqrt_tau * math.exp(-rapidity)
+    jacobian = (
+        beta_max
+        * (2.0 * tau_threshold * beta / (one_minus_beta_sq**2))
+        * rapidity_width
+    )
+    return x1, x2, jacobian
+
+
 @lru_cache(maxsize=32)
 def decimal_pi(decimal_digit_precision: int) -> Decimal:
     """Compute pi with Decimal arithmetic using the Gauss-Legendre algorithm."""
@@ -596,6 +700,8 @@ def build_high_precision_sample(
     expects_beam_fractions: bool,
     rescaling: RealInput,
     decimal_digit_precision: int,
+    beam_parameterisation: str = "x1_x2",
+    beam_threshold_mass: RealInput | None = None,
     soft_mirror_routing: SoftEdgeRouting | None = None,
     soft_center_resolver: Callable[
         [Sequence[Vector], Vector, Vector, Decimal], Vector
@@ -632,8 +738,28 @@ def build_high_precision_sample(
 
         if expects_beam_fractions:
             beam_offset = n_k_vars + int(expects_z)
-            x1 = coordinates[beam_offset]
-            x2 = coordinates[beam_offset + 1]
+            if beam_parameterisation == "x1_x2":
+                x1 = coordinates[beam_offset]
+                x2 = coordinates[beam_offset + 1]
+            elif beam_parameterisation == "beta_y":
+                if beam_threshold_mass is None:
+                    raise ValueError(
+                        "The beta-Y beam map requires the ttbar threshold mass."
+                    )
+                x1, x2, beam_jacobian = parameterize_ttbar_beam_fractions(
+                    coordinates[beam_offset],
+                    coordinates[beam_offset + 1],
+                    m_top=decimal_from_input(beam_threshold_mass),
+                    e_cm=e_cm,
+                )
+                assert isinstance(x1, Decimal)
+                assert isinstance(x2, Decimal)
+                assert isinstance(beam_jacobian, Decimal)
+                jacobian *= beam_jacobian
+            else:
+                raise ValueError(
+                    f"Beam parameterisation {beam_parameterisation!r} is not implemented."
+                )
             beam_energy = e_cm * (x1 * x2).sqrt() / Decimal(2)
             zero = Decimal(0)
             p1 = Vector(zero, zero, beam_energy)

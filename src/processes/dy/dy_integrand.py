@@ -53,6 +53,10 @@ from processes.dy.dy_integrated_uv_ct import (
     construct_integrated_counter_term as construct_integrated_uv_counter_term,
     remap_uv_expression_to_production,
 )
+from processes.dy.dy_top_self_energy import (
+    PROJECTED_OS_SPATIAL_PROBE_ID,
+    resolve_top_self_energy_renormalisation,
+)
 from utils.cff import CFFStructure
 from utils.utils import (
     EVALUATORS_FOLDER,
@@ -76,6 +80,53 @@ _DY_COLLINEAR_X = S(
     is_scalar=True,
     is_positive=True,
 )
+
+THRESHOLD_H_FUNCTIONS = frozenset(
+    {"gaussian", "inverse_square_damped"}
+)
+
+
+def resolve_threshold_h_function(name, threshold_h_function=None):
+    """Resolve an optional threshold h-function choice without changing defaults."""
+    if threshold_h_function is None:
+        return "gaussian" if name == "DY" else "inverse_square_damped"
+    resolved = str(threshold_h_function).strip()
+    if resolved not in THRESHOLD_H_FUNCTIONS:
+        choices = ", ".join(sorted(THRESHOLD_H_FUNCTIONS))
+        raise ValueError(
+            f"threshold_h_function must be one of {choices}; got {resolved!r}"
+        )
+    return resolved
+
+
+def _projected_top_self_energy_tensor_coefficients(
+    loop_momentum_sq: Expression,
+) -> dict[str, Expression]:
+    """Exact identity/spatial coefficients of the two-branch projector.
+
+    The input is the squared spatial momentum of the massive cycle line at
+    the fixed on-shell boundary momentum.  No angular averaging is performed;
+    the spatial coefficient multiplies the open ``slash(k_spatial)`` basis.
+    """
+
+    radius = loop_momentum_sq ** E("1/2")
+    top_energy = (loop_momentum_sq + E("MT") ** 2) ** E("1/2")
+    causal_sum = top_energy + radius
+    causal_denominator = causal_sum**2 - E("MT") ** 2
+    uv_energy = (loop_momentum_sq + E("mUV") ** 2) ** E("1/2")
+    return {
+        "pole_identity": (
+            -2
+            * E("MT")
+            * causal_sum
+            / (top_energy * radius * causal_denominator)
+            + E("MT") / (radius * causal_denominator)
+        ),
+        "pole_spatial": causal_sum
+        / (top_energy * radius * causal_denominator),
+        "uv_identity": -3 * E("MT") / (4 * uv_energy**3),
+        "uv_spatial": E("1") / (2 * uv_energy**3),
+    }
 
 
 class _LaurentSeriesImplementationError(RuntimeError):
@@ -4595,9 +4646,13 @@ class UltraVioletSubtraction(object):
         integrated_cut_graph=None,
         integrated_numerator_factorisation=None,
         disable_integrated_uv_cts=True,
+        raw_emr_integrand=None,
+        top_self_energy_os_subtraction=None,
+        top_self_energy_renormalisation=None,
     ):
         self.cut_graph = cut_graph
         self.emr_integrand = emr_integrand
+        self.raw_emr_integrand = raw_emr_integrand
         self.sp3D = S("sp3D", is_linear=True, is_symmetric=True)
         self.L = L
         self.emr_processor = emr_processor
@@ -4606,6 +4661,297 @@ class UltraVioletSubtraction(object):
             integrated_numerator_factorisation
         )
         self.disable_integrated_uv_cts = bool(disable_integrated_uv_cts)
+        self.top_self_energy_renormalisation = (
+            resolve_top_self_energy_renormalisation(
+                top_self_energy_renormalisation,
+                top_self_energy_os_subtraction,
+            )
+        )
+        # Keep the historical attribute faithful to its public meaning.  A
+        # projected-os instance is active, but it did not originate from the
+        # legacy boolean and must never be serialised as ordinary ``os``.
+        self.top_self_energy_os_subtraction = (
+            self.top_self_energy_renormalisation == "os"
+        )
+        if (
+            self.top_self_energy_renormalisation != "no-os"
+            and self.disable_integrated_uv_cts
+        ):
+            raise ValueError(
+                "On-shell top self-energy subtraction requires integrated "
+                "UV counterterms to be enabled."
+            )
+
+    @staticmethod
+    def _edge_id(edge) -> str:
+        return _strip_quotes(str(edge.get_attributes()["id"]))
+
+    def _top_self_energy_context(self, cycle=(), boundary=()) -> str:
+        graph_name = _strip_quotes(
+            str(
+                self.cut_graph.graph.get("base_graph_name")
+                or self.cut_graph.graph.get_name()
+            )
+        )
+        initial_ids = sorted(
+            (self._edge_id(edge) for edge in self.cut_graph.initial_cut),
+            key=_id_sort_key,
+        )
+        final_ids = sorted(
+            (self._edge_id(edge) for edge in self.cut_graph.final_cut),
+            key=_id_sort_key,
+        )
+        cycle_ids = sorted(
+            (self._edge_id(edge) for edge in cycle),
+            key=_id_sort_key,
+        )
+        boundary_ids = sorted(
+            (self._edge_id(edge) for edge in boundary),
+            key=_id_sort_key,
+        )
+        return (
+            f"graph={graph_name}, initial_cut={initial_ids}, "
+            f"final_cut={final_ids}, cycle={cycle_ids}, "
+            f"boundary={boundary_ids}"
+        )
+
+    @staticmethod
+    def _normalised_self_energy_particle(edge) -> str:
+        particle = _strip_quotes(
+            str(edge.get_attributes().get("particle", ""))
+        )
+        return "t" if particle in {"t", "t~"} else particle
+
+    def _top_self_energy_boundary(self, cycle):
+        particles = sorted(
+            self._normalised_self_energy_particle(edge) for edge in cycle
+        )
+        if particles != ["g", "t"]:
+            return None
+
+        cycle_nodes = {
+            _base_node(endpoint)
+            for edge in cycle
+            for endpoint in (edge.get_source(), edge.get_destination())
+        }
+        boundary = boundary_edges(self.cut_graph.graph, cycle_nodes)
+        if len(boundary) != 2:
+            return None
+        if any(
+            self._normalised_self_energy_particle(edge) != "t"
+            for edge in boundary
+        ):
+            return None
+        if _routing_sign_match(boundary[0], boundary[1]) is None:
+            return None
+        return tuple(boundary)
+
+    def _select_top_self_energy_cycle(self, spinneys):
+        if self.top_self_energy_renormalisation == "no-os":
+            return None
+
+        selected = []
+        for cycle, dod in spinneys:
+            boundary = self._top_self_energy_boundary(cycle)
+            if boundary is not None:
+                selected.append((cycle, dod, boundary))
+        if len(selected) > 1:
+            details = "; ".join(
+                self._top_self_energy_context(cycle, boundary)
+                for cycle, _dod, boundary in selected
+            )
+            raise ValueError(
+                "Multiple eligible top self-energy cycles in one cut are "
+                f"unsupported: {details}"
+            )
+        return selected[0] if selected else None
+
+    def _rest_cycle_graph(self, cycle, boundary):
+        rest_cut_graph = deepcopy(self.cut_graph)
+        edge_by_id = {
+            self._edge_id(edge): edge
+            for edge in rest_cut_graph.graph.get_edges()
+        }
+        rest_cycle = tuple(edge_by_id[self._edge_id(edge)] for edge in cycle)
+        context = self._top_self_energy_context(cycle, boundary)
+
+        external_keys = sorted(
+            {
+                key
+                for edge in rest_cut_graph.graph.get_edges()
+                for key in edge.get_attributes()
+                if key.startswith("routing_p")
+            }
+        )
+
+        def is_pure_loop_coordinate(edge):
+            attributes = edge.get_attributes()
+            loop_coefficients = [
+                Fraction(
+                    _strip_quotes(
+                        str(attributes.get(f"routing_k{index}", "0"))
+                    )
+                )
+                for index in range(self.L)
+            ]
+            return (
+                sum(coefficient != 0 for coefficient in loop_coefficients) == 1
+                and any(abs(coefficient) == 1 for coefficient in loop_coefficients)
+                and all(
+                    Fraction(
+                        _strip_quotes(str(attributes.get(key, "0")))
+                    )
+                    == 0
+                    for key in external_keys
+                )
+            )
+
+        preserved = [
+            edge for edge in rest_cycle if is_pure_loop_coordinate(edge)
+        ]
+        if len(preserved) != 1:
+            raise ValueError(
+                "Expected exactly one pure UV loop-coordinate edge while "
+                f"constructing the rest routing; found {len(preserved)}; "
+                f"{context}"
+            )
+        preserved_edge = preserved[0]
+        changed_edge = next(edge for edge in rest_cycle if edge is not preserved_edge)
+
+        cycle_nodes = sorted(
+            {
+                _base_node(endpoint)
+                for edge in rest_cycle
+                for endpoint in (edge.get_source(), edge.get_destination())
+            }
+        )
+        if len(cycle_nodes) != 2:
+            raise ValueError(
+                "A top self-energy rest routing requires a two-vertex cycle; "
+                f"found nodes {cycle_nodes}; {context}"
+            )
+        reference_node = cycle_nodes[0]
+
+        def incidence(edge):
+            source = _base_node(edge.get_source())
+            destination = _base_node(edge.get_destination())
+            if source == reference_node and destination != reference_node:
+                return Fraction(1)
+            if destination == reference_node and source != reference_node:
+                return Fraction(-1)
+            raise ValueError(
+                "Cycle incidence is ambiguous at reference node "
+                f"{reference_node}; {context}"
+            )
+
+        opposite_factor = -incidence(preserved_edge) / incidence(changed_edge)
+        routing_keys = [f"routing_k{index}" for index in range(self.L)]
+        routing_keys.extend(external_keys)
+        preserved_attributes = preserved_edge.get_attributes()
+        changed_attributes = changed_edge.get_attributes()
+        for key in routing_keys:
+            coefficient = opposite_factor * Fraction(
+                _strip_quotes(str(preserved_attributes.get(key, "0")))
+            )
+            changed_attributes[key] = (
+                str(coefficient.numerator)
+                if coefficient.denominator == 1
+                else str(coefficient)
+            )
+
+        if _routing_sign_match(preserved_edge, changed_edge) != (
+            "opp" if opposite_factor == -1 else "same"
+        ):
+            raise ValueError(
+                "Failed to construct incidence-opposite rest routing; "
+                f"{context}"
+            )
+        return rest_cut_graph, rest_cycle
+
+    @staticmethod
+    def _residual_overall_sign(residual: Expression) -> int | None:
+        factored = residual.factor()
+        if factored == E("0"):
+            return None
+        if bool(factored.is_type(AtomType.Mul)):
+            factors = list(factored)
+            if any(factor == E("-1") for factor in factors):
+                return -1
+        return 1
+
+    def _replace_self_energy_causal_factors_at_rest(
+        self,
+        expression,
+        cycle,
+        boundary,
+    ):
+        cycle_ids = sorted(
+            (self._edge_id(edge) for edge in cycle),
+            key=_id_sort_key,
+        )
+        context = self._top_self_energy_context(cycle, boundary)
+        if len(cycle_ids) != 2:
+            raise ValueError(
+                "A top self-energy causal replacement requires two cycle "
+                f"edges; {context}"
+            )
+        first_energy, second_energy = (
+            E(f"En({cycle_ids[0]})"),
+            E(f"En({cycle_ids[1]})"),
+        )
+        denominator_base = S("top_se_denominator_base_")
+        candidates = {}
+        for match in expression.match(E("top_se_denominator_base_^-1")):
+            base = match[denominator_base]
+            residual = (base - first_energy - second_energy).expand()
+            if residual.contains(first_energy) or residual.contains(second_energy):
+                continue
+            candidates.setdefault(
+                base.to_canonical_string(),
+                (base, residual),
+            )
+        if len(candidates) != 2:
+            raise ValueError(
+                "Expected exactly two unique reciprocal causal denominators "
+                "containing both self-energy cycle energies with coefficient "
+                f"+1; found {len(candidates)}; {context}"
+            )
+
+        candidate_values = list(candidates.values())
+        if (
+            candidate_values[0][1] + candidate_values[1][1]
+        ).expand().to_canonical_string() != "0":
+            raise ValueError(
+                "Top self-energy causal residuals are not symbolic "
+                f"opposites; residuals={[str(value[1]) for value in candidate_values]}; "
+                f"{context}"
+            )
+        signs = [
+            self._residual_overall_sign(residual)
+            for _base, residual in candidate_values
+        ]
+        if None in signs or sorted(signs) != [-1, 1]:
+            raise ValueError(
+                "Could not inherit opposite signs from top self-energy causal "
+                f"residuals; signs={signs}; {context}"
+            )
+
+        transformed = expression
+        old_factors = []
+        for (base, _residual), sign in zip(candidate_values, signs, strict=True):
+            old_factor = base**E("-1")
+            new_factor = (
+                first_energy + second_energy + sign * E("MT")
+            ) ** E("-1")
+            old_factors.append(old_factor)
+            transformed = transformed.replace(old_factor, new_factor)
+        remaining = [factor for factor in old_factors if transformed.contains(factor)]
+        if remaining:
+            raise ValueError(
+                "Failed to replace every old top self-energy causal factor; "
+                f"remaining={[str(factor) for factor in remaining]}; {context}"
+            )
+        return transformed
 
     # Focuses on cycles, and not unions of cycles. Specialised to NLO
     def enumerate_spinneys(self):
@@ -4672,19 +5018,251 @@ class UltraVioletSubtraction(object):
         )
         return integrand
 
+    @staticmethod
+    def _replace_edge_masses_with_particle_masses(integrand, graph):
+        for edge in graph.get_edges():
+            attributes = edge.get_attributes()
+            particle = _strip_quotes(str(attributes["particle"]))
+            mass = (
+                E("0")
+                if particle in ["d", "d~", "g", "ghG", "ghG~"]
+                else E(f"m({particle})")
+            )
+            integrand = integrand.replace(
+                E(f"m({attributes['id']})"),
+                mass,
+            )
+        return integrand
+
+    def _projected_top_self_energy_loop_momentum(
+        self,
+        cycle,
+        boundary,
+        uv_routing=None,
+    ) -> Expression:
+        """Return the fixed production UV coordinate used by both branches.
+
+        The projector evaluates the two boundary-energy branches without a
+        dummy-loop relabelling.  In particular, a massive propagator routed as
+        ``-k(uv)+p_boundary`` at rest does *not* turn the open spatial basis
+        into ``slash(-k(uv))``: the validated tensor is expressed in the
+        unchanged positive UV coordinate.
+        """
+
+        external_keys = sorted(
+            {
+                key
+                for edge in self.cut_graph.graph.get_edges()
+                for key in edge.get_attributes()
+                if key.startswith("routing_p")
+            }
+        )
+
+        def routing_fraction(edge, key):
+            return Fraction(
+                _strip_quotes(str(edge.get_attributes().get(key, "0")))
+            )
+
+        def is_pure_loop_coordinate(edge):
+            coefficients = [
+                routing_fraction(edge, f"routing_k{index}")
+                for index in range(self.L)
+            ]
+            return (
+                sum(value != 0 for value in coefficients) == 1
+                and any(abs(value) == 1 for value in coefficients)
+                and all(routing_fraction(edge, key) == 0 for key in external_keys)
+            )
+
+        context = self._top_self_energy_context(cycle, boundary)
+        massive_edges = [
+            edge
+            for edge in cycle
+            if self._normalised_self_energy_particle(edge) == "t"
+        ]
+        if len(massive_edges) != 1:
+            raise ValueError(
+                "Expected one massive line in the projected top self-energy; "
+                f"found {len(massive_edges)}; {context}"
+            )
+
+        common_loop_indices = set(range(self.L))
+        for edge in cycle:
+            common_loop_indices &= {
+                loop_index
+                for loop_index in range(self.L)
+                if routing_fraction(edge, f"routing_k{loop_index}") != 0
+            }
+        if len(common_loop_indices) == 1:
+            # The coordinate itself, not an individual edge's possibly
+            # negative coefficient, defines the unrelabelled tensor basis.
+            return E(f"k({next(iter(common_loop_indices))})")
+
+        pure_edges = sorted(
+            (edge for edge in cycle if is_pure_loop_coordinate(edge)),
+            key=lambda edge: _id_sort_key(self._edge_id(edge)),
+        )
+        if pure_edges:
+            reference_edge = pure_edges[0]
+            loop_indices = [
+                loop_index
+                for loop_index in range(self.L)
+                if routing_fraction(
+                    reference_edge, f"routing_k{loop_index}"
+                )
+                != 0
+            ]
+            if len(loop_indices) == 1:
+                return E(f"k({loop_indices[0]})")
+
+        if uv_routing is not None:
+            row = uv_routing.adapted_loop_matrix[uv_routing.uv_loop_index]
+            nonzero_indices = [
+                index for index, coefficient in enumerate(row)
+                if Fraction(coefficient) != 0
+            ]
+            if len(nonzero_indices) == 1:
+                return E(f"k({nonzero_indices[0]})")
+
+        raise ValueError(
+            "Could not identify one unrelabelled projected top self-energy "
+            f"UV coordinate; {context}"
+        )
+
+    def _projected_top_self_energy_local_terms(
+        self,
+        cycle,
+        dod,
+        boundary,
+        uv_routing,
+    ) -> tuple[RoutedIntegrand, RoutedIntegrand]:
+        """Embed the projected identity and spatial Dirac tensors in the host."""
+
+        graph_edge_ids = {
+            self._edge_id(edge) for edge in self.cut_graph.graph.get_edges()
+        }
+        if PROJECTED_OS_SPATIAL_PROBE_ID in graph_edge_ids:
+            raise ValueError(
+                "Projected top self-energy spatial probe collides with a "
+                "production graph edge; "
+                + self._top_self_energy_context(cycle, boundary)
+            )
+
+        identity_basis = self.construct_integrated_counter_term(
+            cycle,
+            dod,
+            uv_routing,
+            top_self_energy_renormalisation="projected-os",
+            projected_os_basis="identity",
+        )
+        spatial_basis = self.construct_integrated_counter_term(
+            cycle,
+            dod,
+            uv_routing,
+            top_self_energy_renormalisation="projected-os",
+            projected_os_basis="spatial",
+        )
+        if identity_basis is None or spatial_basis is None:
+            raise ValueError(
+                "Projected top self-energy could not construct both open "
+                "Dirac host bases; "
+                + self._top_self_energy_context(cycle, boundary)
+            )
+
+        loop_momentum = self._projected_top_self_energy_loop_momentum(
+            cycle,
+            boundary,
+            uv_routing,
+        )
+        loop_sq = self.sp3D(loop_momentum, loop_momentum)
+        normalising_tadpole = (
+            E("mUV")
+            / E("𝜋") ** 2
+            / (loop_sq + E("mUV") ** 2) ** 2
+        )
+
+        spatial_host = spatial_basis.integrand.replace(
+            E(f"En({PROJECTED_OS_SPATIAL_PROBE_ID})"), E("0"), repeat=True
+        )
+        spatial_host = spatial_host.replace(
+            E(f"q({PROJECTED_OS_SPATIAL_PROBE_ID})"), loop_momentum, repeat=True
+        )
+        if spatial_host.contains(
+            E(f"En({PROJECTED_OS_SPATIAL_PROBE_ID})")
+        ) or spatial_host.contains(
+            E(f"q({PROJECTED_OS_SPATIAL_PROBE_ID})")
+        ):
+            raise ValueError(
+                "Projected top self-energy spatial slot was not fully routed; "
+                + self._top_self_energy_context(cycle, boundary)
+            )
+
+        coefficients = _projected_top_self_energy_tensor_coefficients(loop_sq)
+
+        def tensor_term(
+            identity_coefficient: Expression,
+            spatial_coefficient: Expression,
+            approximation_type: str,
+        ) -> RoutedIntegrand:
+            term = deepcopy(identity_basis)
+            term.integrand = (
+                identity_basis.integrand
+                * (-2 / E("𝜋"))
+                * identity_coefficient
+                / E("MT")
+                / normalising_tadpole
+                + spatial_host
+                * (-2 / E("𝜋"))
+                * spatial_coefficient
+                / normalising_tadpole
+            )
+            term.emr_integrand = E("0")
+            term.approximation_type = approximation_type
+            term.ir_limit = approximation_type
+            attach_uv_routing_metadata(
+                term.cut_graph.graph,
+                uv_routing,
+                contracted=False,
+            )
+            return term
+
+        return (
+            tensor_term(
+                -coefficients["pole_identity"],
+                -coefficients["pole_spatial"],
+                "os",
+            ),
+            tensor_term(
+                coefficients["uv_identity"],
+                coefficients["uv_spatial"],
+                "uv_os",
+            ),
+        )
+
     # For now we construct the counter-term associated to a cycle. This ignores loop-induced.
-    def construct_counter_term(self, cycle, dod):
+    def construct_counter_term(
+        self,
+        cycle,
+        dod,
+        *,
+        emr_integrand=None,
+        cut_graph=None,
+    ):
 
         lam = S("λ", is_scalar=True)
         mUV = E("mUV")
+        source_integrand = (
+            self.emr_integrand if emr_integrand is None else emr_integrand
+        )
+        source_cut_graph = self.cut_graph if cut_graph is None else cut_graph
 
         uv_routing, uv_graph = build_uv_subgraph_routing(
-            self.cut_graph,
+            source_cut_graph,
             cycle,
             self.L,
         )
 
-        routed_integrand = self.replace_energies(self.emr_integrand, uv_graph)
+        routed_integrand = self.replace_energies(source_integrand, uv_graph)
         routed_integrand = self.route_integrand(routed_integrand, uv_graph)
 
         parametrised_integrand = routed_integrand.replace(E("k(0)"), E("k(0)") / lam)
@@ -4698,17 +5276,10 @@ class UltraVioletSubtraction(object):
                 1 / lam**2 * mUV**2 + (E(f"m({e_atts['id']})") ** 2 - mUV**2),
             )
 
-        for e in self.cut_graph.graph.get_edges():
-            e_atts = e.get_attributes()
-            e_id = e_atts["id"]
-            e_particle = _strip_quotes(str(e_atts["particle"]))
-            if e_particle in ["d", "d~", "g", "ghG", "ghG~"]:
-                mass = E("0")
-            else:
-                mass = E(f"m({e_particle})")
-            parametrised_integrand = parametrised_integrand.replace(
-                E(f"m({e_atts['id']})"), mass
-            )
+        parametrised_integrand = self._replace_edge_masses_with_particle_masses(
+            parametrised_integrand,
+            source_cut_graph.graph,
+        )
 
         print("DOD" * 10)
         print(dod)
@@ -4726,7 +5297,16 @@ class UltraVioletSubtraction(object):
         )
         return -expanded_integrand, uv_routing
 
-    def construct_integrated_counter_term(self, cycle, dod, uv_routing):
+    def construct_integrated_counter_term(
+        self,
+        cycle,
+        dod,
+        uv_routing,
+        *,
+        top_self_energy_os_subtraction=False,
+        top_self_energy_renormalisation=None,
+        projected_os_basis=None,
+    ):
         if self.disable_integrated_uv_cts:
             return None
 
@@ -4741,11 +5321,30 @@ class UltraVioletSubtraction(object):
             external_numerator_factorisation=(
                 self.integrated_numerator_factorisation
             ),
+            top_self_energy_os_subtraction=(
+                top_self_energy_os_subtraction
+            ),
+            top_self_energy_renormalisation=(
+                top_self_energy_renormalisation
+            ),
+            projected_os_basis=projected_os_basis,
         )
 
     def construct_uv_counter_terms(self):
         spinneys = self.enumerate_spinneys()
         counterms = []
+        selected = self._select_top_self_energy_cycle(spinneys)
+        selected_cycle_ids = (
+            {self._edge_id(edge) for edge in selected[0]}
+            if selected is not None
+            else set()
+        )
+        if selected is not None and self.raw_emr_integrand is None:
+            raise ValueError(
+                "On-shell top self-energy subtraction requires the raw "
+                "pre-cleanup EMR expression; "
+                + self._top_self_energy_context(selected[0], selected[2])
+            )
 
         # check copies and deepcopies
         for cycle in spinneys:
@@ -4760,12 +5359,149 @@ class UltraVioletSubtraction(object):
                 uv_ct, uv_cut_graph, [], self.emr_integrand, "uv", "uv"
             )
             counterms.append(routed_uv_ct)
-            if not self.disable_integrated_uv_cts:
-                integrated_uv_ct = self.construct_integrated_counter_term(
-                    cycle[0], cycle[1], uv_routing
+            is_selected = (
+                bool(selected_cycle_ids)
+                and {self._edge_id(edge) for edge in cycle[0]}
+                == selected_cycle_ids
+            )
+            if is_selected and self.top_self_energy_renormalisation == "projected-os":
+                boundary = selected[2]
+                partition = tuple(getattr(self.cut_graph, "partition", ()))
+                if (
+                    len(partition) != 2
+                    or any(len(side) != 1 for side in partition)
+                ):
+                    raise ValueError(
+                        "Projected top self-energy subtraction currently "
+                        "supports only the ordinary one-edge-per-side virtual "
+                        "partition; "
+                        + self._top_self_energy_context(cycle[0], boundary)
+                    )
+                counterms.extend(
+                    self._projected_top_self_energy_local_terms(
+                        cycle[0],
+                        cycle[1],
+                        boundary,
+                        uv_routing,
+                    )
                 )
+            if is_selected and self.top_self_energy_renormalisation == "os":
+                boundary = selected[2]
+                partition = tuple(getattr(self.cut_graph, "partition", ()))
+                if (
+                    len(partition) != 2
+                    or any(len(side) != 1 for side in partition)
+                ):
+                    raise ValueError(
+                        "On-shell top self-energy subtraction currently "
+                        "supports only the ordinary one-edge-per-side virtual "
+                        "partition; "
+                        + self._top_self_energy_context(cycle[0], boundary)
+                    )
+                rest_cut_graph, rest_cycle = self._rest_cycle_graph(
+                    cycle[0],
+                    boundary,
+                )
+                rest_emr = self._replace_self_energy_causal_factors_at_rest(
+                    self.raw_emr_integrand,
+                    cycle[0],
+                    boundary,
+                )
+                _physical_cleaned, physical_is_final_raised = (
+                    _cleanup_final_state_raised_energies(
+                        self.raw_emr_integrand,
+                        self.cut_graph,
+                    )
+                )
+                rest_emr, rest_is_final_raised = (
+                    _cleanup_final_state_raised_energies(
+                        rest_emr,
+                        rest_cut_graph,
+                    )
+                )
+                if rest_is_final_raised != physical_is_final_raised:
+                    raise ValueError(
+                        "Physical and rest top self-energy expressions have "
+                        "different final-state raised status; "
+                        + self._top_self_energy_context(cycle[0], boundary)
+                    )
+
+                routed_rest = self.replace_energies(
+                    rest_emr,
+                    rest_cut_graph.graph,
+                )
+                routed_rest = self.route_integrand(
+                    routed_rest,
+                    rest_cut_graph.graph,
+                )
+                routed_rest = self._replace_edge_masses_with_particle_masses(
+                    routed_rest,
+                    rest_cut_graph.graph,
+                )
+                counterms.append(
+                    RoutedIntegrand(
+                        -routed_rest,
+                        rest_cut_graph,
+                        [],
+                        rest_emr,
+                        "os",
+                        "os",
+                    )
+                )
+
+                rest_uv_ct, rest_uv_routing = self.construct_counter_term(
+                    rest_cycle,
+                    cycle[1],
+                    emr_integrand=rest_emr,
+                    cut_graph=rest_cut_graph,
+                )
+                attach_uv_routing_metadata(
+                    rest_cut_graph.graph,
+                    rest_uv_routing,
+                    contracted=False,
+                )
+                rest_uv_cut_graph = deepcopy(rest_cut_graph)
+                attach_uv_routing_metadata(
+                    rest_uv_cut_graph.graph,
+                    rest_uv_routing,
+                    contracted=False,
+                )
+                counterms.append(
+                    RoutedIntegrand(
+                        -rest_uv_ct,
+                        rest_uv_cut_graph,
+                        [],
+                        rest_emr,
+                        "uv_os",
+                        "uv_os",
+                    )
+                )
+            if not self.disable_integrated_uv_cts:
+                if (
+                    is_selected
+                    and self.top_self_energy_renormalisation == "projected-os"
+                ):
+                    integrated_uv_ct = self.construct_integrated_counter_term(
+                        cycle[0],
+                        cycle[1],
+                        uv_routing,
+                        top_self_energy_renormalisation="projected-os",
+                    )
+                else:
+                    integrated_uv_ct = self.construct_integrated_counter_term(
+                        cycle[0],
+                        cycle[1],
+                        uv_routing,
+                        top_self_energy_os_subtraction=is_selected,
+                    )
                 if integrated_uv_ct is not None:
                     counterms.append(integrated_uv_ct)
+                elif is_selected:
+                    raise ValueError(
+                        "The selected top self-energy cycle did not produce "
+                        "the required integrated UV difference; "
+                        + self._top_self_energy_context(cycle[0], selected[2])
+                    )
 
         return counterms
 
@@ -4781,6 +5517,7 @@ class ThresholdSubtractor(object):
         numerator_factorisation=None,
         threshold_collinear_momentum=None,
         emr_state_name=None,
+        threshold_h_function=None,
     ):
         self.routed_cut_graph = routed_cut_graph
         self.emr_processor = EMRIntegrandConstructor(
@@ -4799,6 +5536,9 @@ class ThresholdSubtractor(object):
         self.theta_support = theta_support
         self.threshold_collinear_momentum = threshold_collinear_momentum
         self.name = name
+        self.threshold_h_function = resolve_threshold_h_function(
+            name, threshold_h_function
+        )
 
     # Here we can do something that is sort of process-specific...
     def filter_e_surfaces(self):
@@ -4989,9 +5729,12 @@ class ThresholdSubtractor(object):
             shifts.append(shift)
             masses.append(mass)
 
-        r = S("r", is_scalar=True)
-        rexp = S("rexp", is_scalar=True)
-        khat = S("khat")
+        # Use private construction symbols: Symbolica interns names globally,
+        # so a generic ``r`` created elsewhere without scalar attributes can
+        # otherwise make this constructor order-dependent.
+        r = S("__dy_threshold_r", is_scalar=True)
+        rexp = S("__dy_threshold_rexp", is_scalar=True)
+        khat = S("__dy_threshold_khat")
         patt = E("k(0)")
         rep = rexp * khat
 
@@ -5058,7 +5801,7 @@ class ThresholdSubtractor(object):
             / derivative
         )
 
-        inv_knorm = S("knorm", is_scalar=True)
+        inv_knorm = S("__dy_threshold_inv_knorm", is_scalar=True)
         threshold_integrand = (
             threshold_integrand
             .replace(rexp, r.exp())
@@ -5118,9 +5861,8 @@ class ThresholdSubtractor(object):
             theta1 = E("1")
             theta2 = E("1")
 
-        if self.name == "DY":
+        if self.threshold_h_function == "gaussian":
             hr = (
-                # (-((r - rstar) ** 2) - 1 / r**2 + 1 / rstar**2)
                 (-((r - rstar) ** 2))
                 .exp()
                 .replace(r, (self.sp3D(E("k(0)"), E("k(0)")) ** E("1/2")).log())
@@ -5132,7 +5874,6 @@ class ThresholdSubtractor(object):
             )
         else:
             hr = (
-                # (-((r - rstar) ** 2) - 1 / r**2 + 1 / rstar**2)
                 (-((r - rstar) ** 2) - 1 / r**2 + 1 / rstar**2)
                 .exp()
                 .replace(r, (self.sp3D(E("k(0)"), E("k(0)")) ** E("1/2")).log())
@@ -5317,6 +6058,9 @@ class LoopIntegrandConstructor(object):
         external_gluon_polarisation=False,
         emr_state_name=None,
         symmetrise_p1_p2=False,
+        top_self_energy_os_subtraction=None,
+        top_self_energy_renormalisation=None,
+        threshold_h_function=None,
     ):
         self.L = L
         self.params = params
@@ -5333,6 +6077,18 @@ class LoopIntegrandConstructor(object):
         self.external_gluon_polarisation = bool(external_gluon_polarisation)
         self.symmetrise_p1_p2 = bool(symmetrise_p1_p2)
         self.disable_integrated_uv_cts = bool(disable_integrated_uv_cts)
+        self.top_self_energy_renormalisation = (
+            resolve_top_self_energy_renormalisation(
+                top_self_energy_renormalisation,
+                top_self_energy_os_subtraction,
+            )
+        )
+        self.top_self_energy_os_subtraction = (
+            self.top_self_energy_renormalisation == "os"
+        )
+        self.threshold_h_function = resolve_threshold_h_function(
+            name, threshold_h_function
+        )
         self.emr_state_name = emr_state_name
 
     def _external_beam_edges(self, graph):
@@ -6492,6 +7248,15 @@ class LoopIntegrandConstructor(object):
                 deepcopy(bucket_orig_cut_graph),
                 integrated_numerator_factorisation=numerator_factorisation,
                 disable_integrated_uv_cts=self.disable_integrated_uv_cts,
+                raw_emr_integrand=bucket_expressions[bucket],
+                top_self_energy_os_subtraction=(
+                    None
+                    if self.top_self_energy_renormalisation == "projected-os"
+                    else self.top_self_energy_os_subtraction
+                ),
+                top_self_energy_renormalisation=(
+                    self.top_self_energy_renormalisation
+                ),
             )
             uv_ct = uv_approximator.construct_uv_counter_terms()
 
@@ -6745,7 +7510,6 @@ class LoopIntegrandConstructor(object):
                         "GL024",
                         "GL026",
                         "GL027",
-                        "GL029",
                         "GL035",
                         "GL039",
                         "GL041",
@@ -6772,6 +7536,7 @@ class LoopIntegrandConstructor(object):
                         "GL017",
                         "GL019",
                         "GL022",
+                        "GL029",
                         "GL031",
                         "GL033",
                         "GL043",
@@ -6918,6 +7683,15 @@ class LoopIntegrandConstructor(object):
             deepcopy(orig_cut_graph),
             integrated_numerator_factorisation=numerator_factorisation,
             disable_integrated_uv_cts=self.disable_integrated_uv_cts,
+            raw_emr_integrand=emr_integrand,
+            top_self_energy_os_subtraction=(
+                None
+                if self.top_self_energy_renormalisation == "projected-os"
+                else self.top_self_energy_os_subtraction
+            ),
+            top_self_energy_renormalisation=(
+                self.top_self_energy_renormalisation
+            ),
         )
         uv_ct = uv_approximator.construct_uv_counter_terms()
 
@@ -6932,6 +7706,9 @@ class LoopIntegrandConstructor(object):
                 numerator_factorisation=numerator_factorisation,
                 threshold_collinear_momentum=threshold_collinear_momentum,
                 emr_state_name=self.emr_state_name,
+                threshold_h_function=getattr(
+                    self, "threshold_h_function", None
+                ),
             )
             threshold_cts = threshold_approximator.construct_threshold_counter_terms()
         # print("this emr")

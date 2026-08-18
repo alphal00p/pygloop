@@ -13,6 +13,7 @@ import random
 import shutil
 import time
 import traceback
+from collections.abc import Mapping
 from copy import deepcopy
 from decimal import Decimal, localcontext
 from itertools import product  # noqa: F401
@@ -57,6 +58,10 @@ from processes.dy.dy_evaluators import (
     evaluate_integrand,
 )
 from processes.dy.dy_graph_utils import _strip_quotes
+from processes.dy.dy_ghosts import (
+    closed_ghost_loop_count,
+    ghost_particle_names_from_model_metadata,
+)
 from processes.dy.dy_infrared_test import (
     approach_point,
     # evaluate_integrand,
@@ -66,15 +71,23 @@ from processes.dy.dy_infrared_test import (
 from processes.dy.dy_integrand import (
     EMRIntegrandConstructor,
     LoopIntegrandConstructor,
+    resolve_threshold_h_function,
     routed_cut_graph,
 )
 from processes.dy.dy_pdf import (
     DY_INTEGRATED_LEPTONIC_PHASE_SPACE_FACTOR,
     DYPDFProvider,
+    DYRegularSchemeConvolution,
+    DYQQbarAuxiliaryResult,
     DYSchemeCountertermResult,
+    QG_SCHEME_COUNTERTERM_FACTOR,
     QQBAR_SCHEME_COUNTERTERM_FACTOR,
+    finite_g_to_q_scheme_kernel,
+    finite_q_to_g_scheme_kernel,
     integrate_gq_scheme_counterterm,
     integrate_qqbar_scheme_counterterm,
+    integrate_regular_born_scheme_counterterm,
+    integrate_ttbar_qqbar_auxiliary,
     integrate_ttbar_qqbar_scheme_counterterm,
     physical_beam_normalisation_factor,
     resolve_factorisation_scale_sq,
@@ -87,7 +100,12 @@ from processes.dy.dy_stability import (
     exact_rotation_from_xs,
     float_values_agree,
     mirror_loop_momenta_for_soft_edge,
+    parameterize_ttbar_beam_fractions,
     rotate_vector,
+)
+from processes.dy.dy_top_self_energy import (
+    projected_os_schema_for_mode,
+    resolve_top_self_energy_renormalisation,
 )
 from utils.utils import (
     CONFIGS_FOLDER,  # noqa: F401
@@ -117,6 +135,25 @@ DY_DEFAULT_LAMBDA_MUR_SQ: dict[int, tuple[float, float]] = {
     1: (2.0, 1.0),
     2: (50000.0, 50000.0),
 }
+
+
+def _dy_top_self_energy_mode(process: object) -> str:
+    """Resolve modern and legacy attributes on real and lightweight DY objects."""
+
+    mode = getattr(process, "dy_top_self_energy_renormalisation", None)
+    legacy = getattr(process, "dy_top_self_energy_os_subtraction", False)
+    return resolve_top_self_energy_renormalisation(
+        mode,
+        legacy,
+        legacy_is_explicit=mode is None,
+    )
+
+
+def _dy_top_self_energy_legacy_forwarding(process: object) -> bool | None:
+    """Forward the old flag except when it would mislabel projected-os."""
+
+    mode = _dy_top_self_energy_mode(process)
+    return None if mode == "projected-os" else mode == "os"
 
 
 def _dy_process_2l_graph_worker(task: dict[str, Any]) -> dict[str, Any]:
@@ -152,7 +189,18 @@ def _dy_process_2l_graph_worker(task: dict[str, Any]) -> dict[str, Any]:
                         "external_gluon_polarisation"
                     ],
                     disable_integrated_uv_cts=task["disable_integrated_uv_cts"],
+                    dy_top_self_energy_os_subtraction=task.get(
+                        "dy_top_self_energy_os_subtraction",
+                        None
+                        if task.get("dy_top_self_energy_renormalisation")
+                        is not None
+                        else False,
+                    ),
+                    dy_top_self_energy_renormalisation=task.get(
+                        "dy_top_self_energy_renormalisation"
+                    ),
                     dy_check_generation_limits=task["dy_check_generation_limits"],
+                    dy_threshold_h_function=task.get("dy_threshold_h_function"),
                     dy_fallback_precision=task["dy_fallback_precision"],
                     dy_lambda_sq=task["dy_lambda_sq"],
                     dy_mur_sq=task["dy_mur_sq"],
@@ -166,6 +214,9 @@ def _dy_process_2l_graph_worker(task: dict[str, Any]) -> dict[str, Any]:
                 )
                 worker.dy_graph_index_offset = int(task["graph_index"])
                 worker.dy_emr_state_name = worker_name
+                worker._dy_ghost_particle_names = frozenset(
+                    task.get("ghost_particle_names", ())
+                )
                 processed_graphs = worker.process_2L_generated_graphs(
                     DYDotGraphs(dot_str=task["graph_dot"])
                 )
@@ -225,7 +276,10 @@ class DY(object):
         dy_integrated_leptonic_phase_space: bool = False,
         external_gluon_polarisation: bool = False,
         disable_integrated_uv_cts: bool = True,
+        dy_top_self_energy_os_subtraction: bool | None = None,
+        dy_top_self_energy_renormalisation: str | None = None,
         dy_check_generation_limits: bool = False,
+        dy_threshold_h_function: str | None = None,
         dy_parallel_graphs: int = 1,
         dy_fallback_precision: int | None = None,
         dy_lambda_sq: float | None = None,
@@ -234,22 +288,39 @@ class DY(object):
         dy_pdf_member: int = 0,
         dy_muf_sq: float | None = None,
         dy_msbar_scheme_counterterm: bool = False,
+        dy_decoupling: bool = False,
         dy_scheme_counterterm_sobol_power: int = 15,
         dy_scheme_counterterm_replicas: int = 8,
         dy_scheme_counterterm_factor: float | None = None,
         dy_scheme_born_bundle: str | None = None,
+        dy_scheme_born_bundles: list[str] | tuple[str, ...] | None = None,
+        dy_scheme_alpha_s: float = 0.118,
         dy_scheme_counterterm_clip: float | None = None,
         dy_observable_muv: float | None = None,
+        dy_runtime_parameters: Mapping[str, Any] | None = None,
         skip_gl_worker_init: bool = False,
         load_compiled_bundle: bool = True,
         clean=True,
         logger_level: int | None = None,
         symmetrise_p1_p2: bool = False,
+        process_basename: str | None = None,
         **opts,
     ):
         start_logger_level = logger.getEffectiveLevel()
         if logger_level is not None:
             logger.setLevel(logger_level)
+
+        if process_basename is None:
+            self.name = type(self).name
+        else:
+            normalised_basename = str(process_basename).strip()
+            if not normalised_basename:
+                raise ValueError("DY process_basename cannot be empty.")
+            if os.path.basename(normalised_basename) != normalised_basename:
+                raise ValueError(
+                    "DY process_basename must be a basename, not a path."
+                )
+            self.name = normalised_basename
 
         self.m_top = m_top
         self.m_higgs = m_higgs
@@ -274,6 +345,22 @@ class DY(object):
                 "Unsupported DY channel "
                 f"{self.dy_channel}; supported channels are (0,0), (0,1), "
                 "(1,0), (1,-1), and (-1,1)."
+            )
+        self.dy_msbar_scheme_counterterm = bool(dy_msbar_scheme_counterterm)
+        self.dy_decoupling = bool(dy_decoupling)
+        self._dy_ttbar_qqbar_scheme_mode = (
+            self.process_name.lower() == "tt~"
+            and self.n_loops == 2
+            and self.dy_channel in {(1, -1), (-1, 1)}
+        )
+        if self.dy_decoupling and not self.dy_msbar_scheme_counterterm:
+            raise pygloopException(
+                "The ttbar decoupling contribution requires MSbar scheme conversion."
+            )
+        if self.dy_decoupling and not self._dy_ttbar_qqbar_scheme_mode:
+            raise pygloopException(
+                "The decoupling contribution supports ordered two-loop ttbar "
+                "qqbar only."
             )
         self.integrate_beams = bool(integrate_beams)
         self.dy_z_bin: tuple[float, float] | None = None
@@ -317,9 +404,13 @@ class DY(object):
         self.dy_physical_normalisation = bool(dy_physical_normalisation)
         self.dy_physical_normalisation_factor = 1.0
         if self.dy_physical_normalisation:
-            if not self.integrate_beams:
+            if not self.integrate_beams and not (
+                self.dy_msbar_scheme_counterterm
+                and self._dy_ttbar_qqbar_scheme_mode
+            ):
                 raise pygloopException(
-                    "DY physical normalisation requires --dy-integrate-beams."
+                    "DY physical normalisation requires --dy-integrate-beams, "
+                    "except for two-loop ttbar qqbar scheme conversion."
                 )
             if not dy_channel_was_explicit:
                 raise pygloopException(
@@ -359,7 +450,52 @@ class DY(object):
         self.skip_gl_worker_init = bool(skip_gl_worker_init)
         self.load_compiled_bundle = bool(load_compiled_bundle)
         self.disable_integrated_uv_cts = bool(disable_integrated_uv_cts)
+        try:
+            self.dy_top_self_energy_renormalisation = (
+                resolve_top_self_energy_renormalisation(
+                    dy_top_self_energy_renormalisation,
+                    dy_top_self_energy_os_subtraction,
+                )
+            )
+        except ValueError as error:
+            raise pygloopException(str(error)) from error
+        # This compatibility attribute deliberately denotes the historical
+        # ``os`` choice only.  In particular, it never aliases projected-os.
+        self.dy_top_self_energy_os_subtraction = (
+            self.dy_top_self_energy_renormalisation == "os"
+        )
+        if self.dy_top_self_energy_renormalisation != "no-os":
+            option = (
+                "--dy-top-self-energy-os-subtraction"
+                if dy_top_self_energy_renormalisation is None
+                else "--dy-top-self-energy-renormalisation"
+            )
+            if self.process_name.lower() != "tt~":
+                raise pygloopException(
+                    f"{option} requires "
+                    "process_name='tt~'."
+                )
+            if self.n_loops != 2:
+                raise pygloopException(
+                    f"{option} requires n_loops=2."
+                )
+            if self.disable_integrated_uv_cts:
+                raise pygloopException(
+                    f"{option} requires integrated "
+                    "UV counterterms to be enabled."
+                )
+            if self.dy_channel not in {(1, -1), (-1, 1), (0, 0)}:
+                raise pygloopException(
+                    f"{option} supports only channels "
+                    "(1,-1), (-1,1), and (0,0)."
+                )
         self.dy_check_generation_limits = bool(dy_check_generation_limits)
+        try:
+            self.dy_threshold_h_function = resolve_threshold_h_function(
+                self.process_name, dy_threshold_h_function
+            )
+        except ValueError as error:
+            raise pygloopException(str(error)) from error
         self.dy_parallel_graphs = max(1, int(dy_parallel_graphs))
         self.symmetrise_p1_p2 = bool(symmetrise_p1_p2)
         self.dy_graph_index_offset = 0
@@ -402,7 +538,6 @@ class DY(object):
                 ),
                 self.dy_mur_sq if self.dy_mur_sq is not None else default_mur_sq,
             )
-        self.dy_msbar_scheme_counterterm = bool(dy_msbar_scheme_counterterm)
         self.dy_scheme_counterterm_sobol_power = int(
             dy_scheme_counterterm_sobol_power
         )
@@ -414,21 +549,57 @@ class DY(object):
             if dy_scheme_born_bundle is not None
             else None
         )
+        configured_born_bundles = []
+        if self.dy_scheme_born_bundle:
+            configured_born_bundles.append(self.dy_scheme_born_bundle)
+        if dy_scheme_born_bundles is not None:
+            configured_born_bundles.extend(
+                str(bundle_name).strip()
+                for bundle_name in dy_scheme_born_bundles
+            )
+        if any(not bundle_name for bundle_name in configured_born_bundles):
+            raise pygloopException(
+                "DY scheme-counterterm Born bundle names cannot be empty."
+            )
+        self.dy_scheme_born_bundles = tuple(
+            dict.fromkeys(configured_born_bundles)
+        )
+        self.dy_scheme_alpha_s = float(dy_scheme_alpha_s)
         self.dy_scheme_counterterm_clip = (
             float(dy_scheme_counterterm_clip)
             if dy_scheme_counterterm_clip is not None
             else None
         )
         self._dy_scheme_born_compiled_bundle: DYCompiledBundle | None = None
+        self._dy_scheme_born_compiled_bundles: dict[
+            tuple[int, int],
+            tuple[DYCompiledBundle, bool],
+        ] = {}
+        self.dy_scheme_counterterm_factor_was_explicit = (
+            dy_scheme_counterterm_factor is not None
+        )
         if dy_scheme_counterterm_factor is None:
-            self.dy_scheme_counterterm_factor = (
-                QQBAR_SCHEME_COUNTERTERM_FACTOR
-                if self.dy_msbar_scheme_counterterm
+            if (
+                self.dy_msbar_scheme_counterterm
                 and self.process_name.lower() == "dy"
                 and self.n_loops == 1
                 and self.dy_channel in {(1, -1), (-1, 1)}
-                else 1.0
-            )
+            ):
+                self.dy_scheme_counterterm_factor = QQBAR_SCHEME_COUNTERTERM_FACTOR
+            elif (
+                self.dy_msbar_scheme_counterterm
+                and self.process_name.lower() == "tt~"
+                and self.n_loops == 2
+                and self.dy_channel in {(1, 0), (0, 1)}
+            ):
+                self.dy_scheme_counterterm_factor = QG_SCHEME_COUNTERTERM_FACTOR
+            elif (
+                self.dy_msbar_scheme_counterterm
+                and self._dy_ttbar_qqbar_scheme_mode
+            ):
+                self.dy_scheme_counterterm_factor = 0.5 * self.dy_scheme_alpha_s
+            else:
+                self.dy_scheme_counterterm_factor = 1.0
         else:
             self.dy_scheme_counterterm_factor = float(
                 dy_scheme_counterterm_factor
@@ -444,24 +615,34 @@ class DY(object):
                 and self.process_name.lower() == "tt~"
                 and self.n_loops == 2
             )
-            if not is_one_loop_dy and not is_two_loop_ttbar:
+            is_partonic_two_loop_ttbar_qqbar = (
+                not self.integrate_beams and self._dy_ttbar_qqbar_scheme_mode
+            )
+            if not (
+                is_one_loop_dy
+                or is_two_loop_ttbar
+                or is_partonic_two_loop_ttbar_qqbar
+            ):
                 raise pygloopException(
                     "The DY MSbar scheme counterterm supports beam-convoluted "
-                    "one-loop Drell-Yan and two-loop ttbar."
+                    "one-loop Drell-Yan and two-loop ttbar, plus partonic "
+                    "two-loop ttbar qqbar."
                 )
-            supported_channels = (
-                {(1, -1), (-1, 1)}
-                if is_two_loop_ttbar
-                else {(1, 0), (0, 1), (1, -1), (-1, 1)}
-            )
+            supported_channels = {(1, 0), (0, 1), (1, -1), (-1, 1)}
             if self.dy_channel not in supported_channels:
                 raise pygloopException(
                     "The DY MSbar scheme counterterm requires channel selection "
                     "compatible with the chosen quark process."
                 )
-            if self.dy_pdf_set is None or self.dy_muf_sq is None:
+            if self.integrate_beams:
+                if self.dy_pdf_set is None or self.dy_muf_sq is None:
+                    raise pygloopException(
+                        "Hadronic DY MSbar scheme conversion requires PDF weighting."
+                    )
+            elif self.dy_pdf_set is not None or self.dy_muf_sq is not None:
                 raise pygloopException(
-                    "The DY MSbar scheme counterterm requires PDF weighting."
+                    "Partonic two-loop ttbar qqbar scheme conversion does not "
+                    "accept PDFs."
                 )
             if not self.dy_physical_normalisation:
                 raise pygloopException(
@@ -474,11 +655,6 @@ class DY(object):
                 raise pygloopException(
                     "The DY MSbar scheme counterterm requires a positive "
                     "--dy-q-min."
-                )
-            if is_two_loop_ttbar and not self.dy_scheme_born_bundle:
-                raise pygloopException(
-                    "The two-loop ttbar MSbar scheme counterterm requires "
-                    "--dy-scheme-born-bundle naming a one-loop ttbar bundle."
                 )
             if not 1 <= self.dy_scheme_counterterm_sobol_power <= 30:
                 raise pygloopException(
@@ -493,6 +669,18 @@ class DY(object):
                 raise pygloopException(
                     "DY scheme-counterterm factor must be finite."
                 )
+            if (
+                self.process_name.lower() == "tt~"
+                and self.n_loops == 2
+                and (
+                not math.isfinite(self.dy_scheme_alpha_s)
+                or self.dy_scheme_alpha_s <= 0.0
+                )
+            ):
+                raise pygloopException(
+                    "The two-loop ttbar scheme conversion requires a "
+                    "finite, positive alpha_s."
+                )
             if self.dy_scheme_counterterm_clip is not None and (
                 not math.isfinite(self.dy_scheme_counterterm_clip)
                 or self.dy_scheme_counterterm_clip <= 0.0
@@ -504,6 +692,9 @@ class DY(object):
         self.dy_observable_muv = (
             float(dy_observable_muv) if dy_observable_muv is not None else None
         )
+        # Keep only the user-supplied overrides here. Each compiled bundle
+        # resolves omitted entries against its own recorded defaults.
+        self.dy_runtime_parameters = dict(dy_runtime_parameters or {})
 
         self.skip_ps_validation = bool(skip_ps_validation)
         if not self.skip_ps_validation:
@@ -579,6 +770,7 @@ class DY(object):
         self.runtime_toml_config_path = runtime_toml_config_path
 
         self.gl_worker = None
+        self._dy_ghost_particle_names: frozenset[str] | None = None
         self.clean = clean
         if not self.skip_gl_worker_init:
             gl_states_folder = pjoin(GAMMALOOP_STATES_FOLDER, self.name)
@@ -671,6 +863,34 @@ class DY(object):
                         f"Failed loading compiled DY bundle from {bundle_dir}: {e}"
                     )
 
+        if self.compiled_bundle is not None:
+            # Bundle defaults are the lowest-precedence runtime source.  Keep
+            # thresholds and PDF-scale bookkeeping aligned with the exact same
+            # resolved values used by the evaluator, even when an integration
+            # card carries different generation defaults.
+            resolved_runtime_parameters = (
+                self.compiled_bundle.resolve_runtime_parameters(
+                    self.dy_runtime_parameters
+                )
+            )
+            if resolved_runtime_parameters:
+                self.m_top = float(resolved_runtime_parameters["m_top"])
+                self.dy_observable_muv = float(
+                    resolved_runtime_parameters["muv"]
+                )
+                self.dy_lambda_sq = float(
+                    resolved_runtime_parameters["lambda_sq"]
+                )
+                self.dy_mur_sq = float(
+                    resolved_runtime_parameters["mur_sq"]
+                )
+                if self.dy_pdf_set is not None and dy_muf_sq is None:
+                    self.dy_muf_sq = resolve_factorisation_scale_sq(
+                        None,
+                        self.dy_lambda_sq,
+                        self.dy_mur_sq,
+                    )
+
         logger.setLevel(start_logger_level)
 
     def __deepcopy__(self, _memo) -> DY:
@@ -696,7 +916,15 @@ class DY(object):
             dy_integrated_leptonic_phase_space=(
                 self.dy_integrated_leptonic_phase_space
             ),
+            disable_integrated_uv_cts=self.disable_integrated_uv_cts,
+            dy_top_self_energy_os_subtraction=(
+                _dy_top_self_energy_legacy_forwarding(self)
+            ),
+            dy_top_self_energy_renormalisation=(
+                _dy_top_self_energy_mode(self)
+            ),
             dy_check_generation_limits=self.dy_check_generation_limits,
+            dy_threshold_h_function=self.dy_threshold_h_function,
             dy_parallel_graphs=self.dy_parallel_graphs,
             symmetrise_p1_p2=self.symmetrise_p1_p2,
             dy_fallback_precision=self.dy_fallback_precision,
@@ -706,16 +934,25 @@ class DY(object):
             dy_pdf_member=self.dy_pdf_member,
             dy_muf_sq=self.dy_muf_sq,
             dy_msbar_scheme_counterterm=self.dy_msbar_scheme_counterterm,
+            dy_decoupling=self.dy_decoupling,
             dy_scheme_counterterm_sobol_power=(
                 self.dy_scheme_counterterm_sobol_power
             ),
             dy_scheme_counterterm_replicas=self.dy_scheme_counterterm_replicas,
-            dy_scheme_counterterm_factor=self.dy_scheme_counterterm_factor,
+            dy_scheme_counterterm_factor=(
+                self.dy_scheme_counterterm_factor
+                if self.dy_scheme_counterterm_factor_was_explicit
+                else None
+            ),
             dy_scheme_born_bundle=self.dy_scheme_born_bundle,
+            dy_scheme_born_bundles=self.dy_scheme_born_bundles,
+            dy_scheme_alpha_s=self.dy_scheme_alpha_s,
             dy_scheme_counterterm_clip=self.dy_scheme_counterterm_clip,
             dy_observable_muv=self.dy_observable_muv,
+            dy_runtime_parameters=self.dy_runtime_parameters,
             skip_gl_worker_init=self.skip_gl_worker_init,
             load_compiled_bundle=self.load_compiled_bundle,
+            process_basename=self.name,
         )
         return copied_self
 
@@ -743,7 +980,14 @@ class DY(object):
             ),
             "external_gluon_polarisation": self.external_gluon_polarisation,
             "disable_integrated_uv_cts": self.disable_integrated_uv_cts,
+            "dy_top_self_energy_os_subtraction": (
+                _dy_top_self_energy_legacy_forwarding(self)
+            ),
+            "dy_top_self_energy_renormalisation": (
+                _dy_top_self_energy_mode(self)
+            ),
             "dy_check_generation_limits": self.dy_check_generation_limits,
+            "dy_threshold_h_function": self.dy_threshold_h_function,
             "dy_parallel_graphs": self.dy_parallel_graphs,
             "symmetrise_p1_p2": self.symmetrise_p1_p2,
             "dy_fallback_precision": self.dy_fallback_precision,
@@ -753,6 +997,7 @@ class DY(object):
             "dy_pdf_member": self.dy_pdf_member,
             "dy_muf_sq": self.dy_muf_sq,
             "dy_msbar_scheme_counterterm": self.dy_msbar_scheme_counterterm,
+            "dy_decoupling": self.dy_decoupling,
             "dy_scheme_counterterm_sobol_power": (
                 self.dy_scheme_counterterm_sobol_power
             ),
@@ -761,8 +1006,12 @@ class DY(object):
             ),
             "dy_scheme_counterterm_factor": self.dy_scheme_counterterm_factor,
             "dy_scheme_born_bundle": self.dy_scheme_born_bundle,
+            "dy_scheme_born_bundles": list(self.dy_scheme_born_bundles),
+            "dy_scheme_alpha_s": self.dy_scheme_alpha_s,
             "dy_scheme_counterterm_clip": self.dy_scheme_counterterm_clip,
             "dy_observable_muv": self.dy_observable_muv,
+            "dy_runtime_parameters": copy.deepcopy(self.dy_runtime_parameters),
+            "process_basename": self.name,
         }
 
     def process_uses_z(self) -> bool:
@@ -775,6 +1024,10 @@ class DY(object):
         default_mur_sq: float,
     ) -> dict[str, float]:
         return {
+            # A few lightweight graph-construction tests instantiate DY via
+            # ``__new__``. Keep their historical default while normal process
+            # instances always provide the configured mass.
+            "m_top": getattr(self, "m_top", 173.0),
             "zmin": 0.0,
             "zmax": 1.0,
             "Lambdasq": (
@@ -905,10 +1158,15 @@ class DY(object):
 
     @staticmethod
     def _symbolica_sample_weight(sample: Sample) -> float:
-        total_weight = 1.0
-        for sample_weight in sample.weights:
-            total_weight *= float(sample_weight)
-        return total_weight
+        # Symbolica stores cumulative weights for nested integrators.  For a
+        # discrete-of-continuous integrator, weights[0] already contains the
+        # complete inverse sampling density (including the selected discrete
+        # channel and its continuous child).  Later entries are child-layer
+        # cumulative weights, not independent factors; multiplying them would
+        # double-count the adapted continuous weight.
+        if not sample.weights:
+            raise pygloopException("Symbolica sample has no integration weight.")
+        return float(sample.weights[0])
 
     def _symbolica_graph_channel_batch_estimates(
         self,
@@ -1047,6 +1305,8 @@ class DY(object):
         return "\n".join(lines)
 
     def set_log_level(self, level) -> None:
+        if self.gl_worker is None:
+            return
         if level <= logging.DEBUG:
             lvl = "debug"
         elif level <= logging.INFO:
@@ -1103,6 +1363,18 @@ class DY(object):
         self.set_sample_point(self.ps_point, self.helicities, None, None)
         # print(dir(self.gl_worker))
         # self.gl_worker.run("save state -o")
+
+    def _resolve_dy_ghost_particle_names(self) -> frozenset[str]:
+        cached = getattr(self, "_dy_ghost_particle_names", None)
+        if cached is not None:
+            return cached
+        if self.gl_worker is None:
+            raise pygloopException(
+                "Generated DY graph terms require GammaLoop ghost-particle metadata."
+            )
+        names = ghost_particle_names_from_model_metadata(self.gl_worker.get_model())
+        self._dy_ghost_particle_names = names
+        return names
 
     def save_state(self) -> None:
         self.gl_worker.run("save state -o")
@@ -1189,6 +1461,13 @@ class DY(object):
             channel=channel,
             external_gluon_polarisation=self.external_gluon_polarisation,
             disable_integrated_uv_cts=self.disable_integrated_uv_cts,
+            top_self_energy_os_subtraction=(
+                _dy_top_self_energy_legacy_forwarding(self)
+            ),
+            top_self_energy_renormalisation=_dy_top_self_energy_mode(self),
+            threshold_h_function=getattr(
+                self, "dy_threshold_h_function", None
+            ),
             symmetrise_p1_p2=self.symmetrise_p1_p2,
         )
 
@@ -1234,6 +1513,14 @@ class DY(object):
                 # print(cut_graph.graph.get_name())
                 print(cut_graph.graph)
                 term_integrands = loop_processor.get_integrand(deepcopy(cut_graph))
+                graph_ghost_loop_count = (
+                    closed_ghost_loop_count(
+                        graph,
+                        self._resolve_dy_ghost_particle_names(),
+                    )
+                    if term_integrands
+                    else 0
+                )
 
                 if self.dy_check_generation_limits:
                     routed_integrands.extend(deepcopy(term_integrands))
@@ -1259,6 +1546,7 @@ class DY(object):
                     )
                     evaluator.source_graph_name = str(graph.dot.get_name()).strip('"')
                     evaluator.routed_graph_name = str(gg[3].get_name()).strip('"')
+                    evaluator.closed_ghost_loop_count = graph_ghost_loop_count
                     evaluator.approximation_type = getattr(
                         term_integrand,
                         "approximation_type",
@@ -1298,6 +1586,16 @@ class DY(object):
                 "z",
                 all_evaluators,
                 fallback_precision=self.dy_fallback_precision,
+                bundle_metadata={
+                    "dy_top_self_energy_renormalisation": (
+                        _dy_top_self_energy_mode(self)
+                    ),
+                    "dy_projected_os_construction_schema_version": (
+                        projected_os_schema_for_mode(
+                            _dy_top_self_energy_mode(self)
+                        )
+                    ),
+                },
             )
             my_compiler.save_compiled_integrand()
 
@@ -1349,6 +1647,13 @@ class DY(object):
             channel=channel,
             external_gluon_polarisation=self.external_gluon_polarisation,
             disable_integrated_uv_cts=self.disable_integrated_uv_cts,
+            top_self_energy_os_subtraction=(
+                _dy_top_self_energy_legacy_forwarding(self)
+            ),
+            top_self_energy_renormalisation=_dy_top_self_energy_mode(self),
+            threshold_h_function=getattr(
+                self, "dy_threshold_h_function", None
+            ),
             emr_state_name=self.dy_emr_state_name,
             symmetrise_p1_p2=self.symmetrise_p1_p2,
         )
@@ -1406,6 +1711,14 @@ class DY(object):
                 # print(cut_graph.graph.get_name())
                 # print(cut_graph.graph)
                 term_integrands = loop_processor.get_integrand(deepcopy(cut_graph))
+                graph_ghost_loop_count = (
+                    closed_ghost_loop_count(
+                        graph,
+                        self._resolve_dy_ghost_particle_names(),
+                    )
+                    if term_integrands
+                    else 0
+                )
 
                 if self.dy_check_generation_limits:
                     routed_integrands.extend(deepcopy(term_integrands))
@@ -1432,6 +1745,7 @@ class DY(object):
                     )
                     evaluator.source_graph_name = str(graph.dot.get_name()).strip('"')
                     evaluator.routed_graph_name = str(gg[3].get_name()).strip('"')
+                    evaluator.closed_ghost_loop_count = graph_ghost_loop_count
                     evaluator.approximation_type = getattr(
                         term_integrand,
                         "approximation_type",
@@ -1538,6 +1852,16 @@ class DY(object):
                 "z",
                 all_evaluators,
                 fallback_precision=self.dy_fallback_precision,
+                bundle_metadata={
+                    "dy_top_self_energy_renormalisation": (
+                        _dy_top_self_energy_mode(self)
+                    ),
+                    "dy_projected_os_construction_schema_version": (
+                        projected_os_schema_for_mode(
+                            _dy_top_self_energy_mode(self)
+                        )
+                    ),
+                },
             )
             my_compiler.save_compiled_integrand()
 
@@ -1562,6 +1886,7 @@ class DY(object):
         )
 
         tasks = []
+        ghost_particle_names = sorted(self._resolve_dy_ghost_particle_names())
         for graph_index, graph in enumerate(filtered_graphs):
             graph_name = _strip_quotes(str(graph.dot.get_name()))
             safe_graph_name = "".join(
@@ -1574,6 +1899,7 @@ class DY(object):
                 "graph_index": graph_index,
                 "graph_name": graph_name,
                 "graph_dot": graph.to_string(),
+                "ghost_particle_names": ghost_particle_names,
                 "worker_name": worker_name,
                 "log_path": pjoin(log_dir, f"{worker_name}.log"),
                 "m_top": self.m_top,
@@ -1588,7 +1914,14 @@ class DY(object):
                 "integrate_beams": self.integrate_beams,
                 "external_gluon_polarisation": self.external_gluon_polarisation,
                 "disable_integrated_uv_cts": self.disable_integrated_uv_cts,
+                "dy_top_self_energy_os_subtraction": (
+                    _dy_top_self_energy_legacy_forwarding(self)
+                ),
+                "dy_top_self_energy_renormalisation": (
+                    _dy_top_self_energy_mode(self)
+                ),
                 "dy_check_generation_limits": self.dy_check_generation_limits,
+                "dy_threshold_h_function": self.dy_threshold_h_function,
                 "symmetrise_p1_p2": self.symmetrise_p1_p2,
                 "dy_fallback_precision": self.dy_fallback_precision,
                 "dy_lambda_sq": self.dy_lambda_sq,
@@ -2018,37 +2351,200 @@ class DY(object):
             seed=seed,
         )
 
-    def _load_ttbar_scheme_born_bundle(self) -> DYCompiledBundle:
-        if self._dy_scheme_born_compiled_bundle is not None:
-            return self._dy_scheme_born_compiled_bundle
-        if self.dy_scheme_born_bundle is None:
-            raise pygloopException(
-                "The two-loop ttbar scheme counterterm has no configured "
-                "one-loop Born bundle."
-            )
-        bundle = DYCompiledBundle.load("tt~", self.dy_scheme_born_bundle)
+    @staticmethod
+    def _scheme_born_channels_from_metadata(
+        metadata: dict[str, Any],
+    ) -> set[tuple[int, int]]:
+        particle_ids = {"g": 0, "d": 1, "d~": -1}
+
+        def coefficient_is(value: Any, target: float) -> bool:
+            try:
+                return float(str(value)) == target
+            except (TypeError, ValueError):
+                return False
+
+        channels: set[tuple[int, int]] = set()
+        for term in metadata.get("terms", []):
+            first_particle = None
+            second_particle = None
+            for routing in (term.get("edge_routings") or {}).values():
+                loop_coefficients = routing.get("loop_coefficients", [])
+                if not all(
+                    coefficient_is(coefficient, 0.0)
+                    for coefficient in loop_coefficients
+                ):
+                    continue
+                p1_coefficient = routing.get("p1_coefficient")
+                p2_coefficient = routing.get("p2_coefficient")
+                if coefficient_is(p1_coefficient, 1.0) and coefficient_is(
+                    p2_coefficient, 0.0
+                ):
+                    first_particle = routing.get("particle")
+                elif coefficient_is(p1_coefficient, 0.0) and coefficient_is(
+                    p2_coefficient, 1.0
+                ):
+                    second_particle = routing.get("particle")
+            if (
+                first_particle in particle_ids
+                and second_particle in particle_ids
+            ):
+                channels.add(
+                    (
+                        particle_ids[first_particle],
+                        particle_ids[second_particle],
+                    )
+                )
+        return channels
+
+    @staticmethod
+    def _scheme_born_channel_match(
+        available_channels: set[tuple[int, int]],
+        required_channel: tuple[int, int],
+    ) -> bool | None:
+        if required_channel in available_channels:
+            return False
+        reversed_channel = (required_channel[1], required_channel[0])
+        if reversed_channel in available_channels:
+            return True
+        return None
+
+    def _load_scheme_born_bundle(self, bundle_name: str) -> DYCompiledBundle:
+        bundle = DYCompiledBundle.load(self.process_name, bundle_name)
         if bundle.n_loops != 1:
             raise pygloopException(
-                "The ttbar scheme-counterterm Born bundle must contain a "
-                f"one-loop integrand, got L={bundle.n_loops}."
+                "A scheme-counterterm Born bundle must contain a one-loop "
+                f"integrand, got L={bundle.n_loops} for {bundle_name!r}."
             )
         bundle.require_fallback_supported(self.dy_fallback_precision)
-        self._dy_scheme_born_compiled_bundle = bundle
         return bundle
 
-    def _integrate_ttbar_msbar_scheme_counterterm(
+    def _discover_scheme_born_bundle_candidates(
         self,
-        seed: int,
+        required_channel: tuple[int, int],
+    ) -> list[tuple[str, bool]]:
+        process_directory = pjoin(EVALUATORS_FOLDER, self.process_name)
+        if not os.path.isdir(process_directory):
+            return []
+        candidates: list[tuple[str, bool]] = []
+        for bundle_name in sorted(os.listdir(process_directory)):
+            metadata_path = DYCompiledBundle.metadata_path(
+                self.process_name,
+                bundle_name,
+            )
+            if not os.path.isfile(metadata_path):
+                continue
+            try:
+                with open(metadata_path, "r", encoding="utf-8") as handle:
+                    metadata = json.load(handle)
+            except (OSError, UnicodeError, json.JSONDecodeError):
+                continue
+            if int(metadata.get("n_loops", -1)) != 1:
+                continue
+            available_channels = self._scheme_born_channels_from_metadata(
+                metadata
+            )
+            swap_beams = self._scheme_born_channel_match(
+                available_channels,
+                required_channel,
+            )
+            if swap_beams is not None:
+                candidates.append((bundle_name, swap_beams))
+        return candidates
+
+    def _resolve_scheme_born_bundles(
+        self,
+        required_channels: tuple[tuple[int, int], ...],
+    ) -> dict[tuple[int, int], tuple[DYCompiledBundle, bool]]:
+        unresolved = [
+            channel
+            for channel in required_channels
+            if channel not in self._dy_scheme_born_compiled_bundles
+        ]
+        if not unresolved:
+            return {
+                channel: self._dy_scheme_born_compiled_bundles[channel]
+                for channel in required_channels
+            }
+
+        if (
+            len(required_channels) == 1
+            and self._dy_scheme_born_compiled_bundle is not None
+        ):
+            self._dy_scheme_born_compiled_bundles[required_channels[0]] = (
+                self._dy_scheme_born_compiled_bundle,
+                False,
+            )
+            return {
+                required_channels[0]: self._dy_scheme_born_compiled_bundles[
+                    required_channels[0]
+                ]
+            }
+
+        for bundle_name in self.dy_scheme_born_bundles:
+            bundle = self._load_scheme_born_bundle(bundle_name)
+            available_channels = self._scheme_born_channels_from_metadata(
+                bundle.metadata
+            )
+            matched_channel = None
+            matched_swap = None
+            for required_channel in unresolved:
+                swap_beams = self._scheme_born_channel_match(
+                    available_channels,
+                    required_channel,
+                )
+                if swap_beams is None:
+                    continue
+                if matched_channel is not None:
+                    raise pygloopException(
+                        f"Born bundle {bundle_name!r} ambiguously matches more "
+                        "than one requested initial-state channel."
+                    )
+                matched_channel = required_channel
+                matched_swap = swap_beams
+            if matched_channel is None:
+                raise pygloopException(
+                    f"Born bundle {bundle_name!r} has inferred channels "
+                    f"{sorted(available_channels)}, none of which are required "
+                    f"for scheme channels {required_channels}."
+                )
+            self._dy_scheme_born_compiled_bundles[matched_channel] = (
+                bundle,
+                bool(matched_swap),
+            )
+            unresolved.remove(matched_channel)
+
+        for required_channel in unresolved:
+            candidates = self._discover_scheme_born_bundle_candidates(
+                required_channel
+            )
+            if len(candidates) != 1:
+                candidate_names = ", ".join(
+                    name for name, _swap_beams in candidates
+                ) or "none"
+                raise pygloopException(
+                    "Could not uniquely resolve the one-loop Born bundle for "
+                    f"channel {required_channel}; candidates: {candidate_names}. "
+                    "Configure integrate.beams.scheme_counterterm.born_bundles "
+                    "explicitly."
+                )
+            bundle_name, swap_beams = candidates[0]
+            self._dy_scheme_born_compiled_bundles[required_channel] = (
+                self._load_scheme_born_bundle(bundle_name),
+                swap_beams,
+            )
+
+        return {
+            channel: self._dy_scheme_born_compiled_bundles[channel]
+            for channel in required_channels
+        }
+
+    def _scheme_born_integrand(
+        self,
+        bundle: DYCompiledBundle,
+        swap_beams: bool,
         parameterisation: str,
         phase: str,
-    ) -> DYSchemeCountertermResult:
-        if self._dy_pdf_provider is None or self.dy_muf_sq is None:
-            raise pygloopException(
-                "The ttbar MSbar scheme counterterm was requested without "
-                "PDF setup."
-            )
-        born_bundle = self._load_ttbar_scheme_born_bundle()
-
+    ) -> Callable[[float, tuple[float, float, float], bool], float]:
         def born_integrand(
             partonic_scale_sq: float,
             loop_coordinates: tuple[float, float, float],
@@ -2061,26 +2557,157 @@ class DY(object):
             beam_energy = math.sqrt(partonic_scale_sq) / 2.0
             p1 = Vector(0.0, 0.0, beam_energy)
             p2 = Vector(0.0, 0.0, -beam_energy)
+            if swap_beams:
+                p1, p2 = p2, p1
             if use_fallback:
-                value, _term_values = born_bundle.evaluate_arb_terms(
+                value, _term_values = bundle.evaluate_arb_terms(
                     [loop_momentum],
                     p1,
                     p2,
                     1.0,
-                    1.0,
+                    None,
                     decimal_digit_precision=self.dy_fallback_precision,
                     precision_preserving=True,
+                    runtime_parameters=self.dy_runtime_parameters,
                 )
             else:
-                value = born_bundle.evaluate(
+                value = bundle.evaluate(
                     [loop_momentum],
                     p1,
                     p2,
                     1.0,
-                    1.0,
+                    None,
+                    runtime_parameters=self.dy_runtime_parameters,
                 )
             return self._phase_value(complex(value), phase) * jacobian
 
+        return born_integrand
+
+    @staticmethod
+    def _scheme_born_cross_section_factor(bundle: DYCompiledBundle) -> float:
+        """Convert a one-loop forward bundle into one physical Born cut.
+
+        The forward representation carries the usual factor two of the
+        discontinuity.  If generation retained both routed orientations of a
+        cut, their identical contributions must additionally be averaged.
+        """
+
+        cut_multiplicities: dict[str, int] = {}
+        for term in bundle.terms:
+            if term.approximation_type not in {None, "PM"}:
+                continue
+            group_name = term.graph_group_name or term.source_graph_name
+            if group_name is None:
+                raise pygloopException(
+                    "A scheme-counterterm Born term is missing graph-group "
+                    "metadata. Regenerate its compiled bundle."
+                )
+            cut_multiplicities[group_name] = (
+                cut_multiplicities.get(group_name, 0) + 1
+            )
+        multiplicities = set(cut_multiplicities.values())
+        if len(multiplicities) != 1:
+            raise pygloopException(
+                "A scheme-counterterm Born bundle has inconsistent routed-cut "
+                f"multiplicities: {sorted(multiplicities)}."
+            )
+        if not multiplicities:
+            raise pygloopException(
+                "A scheme-counterterm Born bundle contains no physical terms."
+            )
+        return 0.5 / float(multiplicities.pop())
+
+    def _integrate_ttbar_msbar_scheme_counterterm(
+        self,
+        seed: int,
+        parameterisation: str,
+        phase: str,
+    ) -> DYSchemeCountertermResult:
+        if self._dy_pdf_provider is None or self.dy_muf_sq is None:
+            raise pygloopException(
+                "The ttbar MSbar scheme counterterm was requested without "
+                "PDF setup."
+            )
+        if self.dy_channel in {(1, 0), (0, 1)}:
+            qqbar_born_channel = (
+                (1, -1) if self.dy_channel == (1, 0) else (-1, 1)
+            )
+            required_channels = (qqbar_born_channel, (0, 0))
+            born_bundles = self._resolve_scheme_born_bundles(
+                required_channels
+            )
+            lambda_sq, mu_sq = DY_DEFAULT_LAMBDA_MUR_SQ[self.n_loops]
+            if self.dy_lambda_sq is not None:
+                lambda_sq = self.dy_lambda_sq
+            if self.dy_mur_sq is not None:
+                mu_sq = self.dy_mur_sq
+
+            qqbar_bundle, qqbar_swap = born_bundles[qqbar_born_channel]
+            gg_bundle, gg_swap = born_bundles[(0, 0)]
+            qqbar_born_factor = self._scheme_born_cross_section_factor(
+                qqbar_bundle
+            )
+            gg_born_factor = self._scheme_born_cross_section_factor(gg_bundle)
+            convolutions = (
+                DYRegularSchemeConvolution(
+                    label="D_gq_x_qqbar",
+                    born_channel=qqbar_born_channel,
+                    physical_normalisation=(
+                        qqbar_born_factor
+                        * physical_beam_normalisation_factor(
+                            qqbar_born_channel,
+                            1,
+                        )
+                    ),
+                    kernel=lambda xi: finite_g_to_q_scheme_kernel(
+                        xi,
+                        lambda_sq,
+                        mu_sq,
+                        self.dy_scheme_alpha_s,
+                    ),
+                    born_integrand=self._scheme_born_integrand(
+                        qqbar_bundle,
+                        qqbar_swap,
+                        parameterisation,
+                        phase,
+                    ),
+                ),
+                DYRegularSchemeConvolution(
+                    label="D_qg_x_gg",
+                    born_channel=(0, 0),
+                    physical_normalisation=(
+                        gg_born_factor
+                        * physical_beam_normalisation_factor((0, 0), 1)
+                    ),
+                    kernel=lambda xi: finite_q_to_g_scheme_kernel(
+                        xi,
+                        lambda_sq,
+                        mu_sq,
+                        self.dy_scheme_alpha_s,
+                    ),
+                    born_integrand=self._scheme_born_integrand(
+                        gg_bundle,
+                        gg_swap,
+                        parameterisation,
+                        phase,
+                    ),
+                ),
+            )
+            return integrate_regular_born_scheme_counterterm(
+                provider=self._dy_pdf_provider,
+                channel=self.dy_channel,
+                muf_sq=float(self.dy_muf_sq),
+                e_cm_sq=self.e_cm**2,
+                threshold_sq=4.0 * self.m_top**2,
+                convolutions=convolutions,
+                sobol_power=self.dy_scheme_counterterm_sobol_power,
+                replicas=self.dy_scheme_counterterm_replicas,
+                seed=seed,
+                clip_threshold=self.dy_scheme_counterterm_clip,
+            )
+
+        born_bundles = self._resolve_scheme_born_bundles((self.dy_channel,))
+        born_bundle, swap_beams = born_bundles[self.dy_channel]
         return integrate_ttbar_qqbar_scheme_counterterm(
             provider=self._dy_pdf_provider,
             channel=self.dy_channel,
@@ -2091,12 +2718,268 @@ class DY(object):
                 self.dy_channel,
                 1,
             ),
-            born_integrand=born_integrand,
+            born_integrand=self._scheme_born_integrand(
+                born_bundle,
+                swap_beams,
+                parameterisation,
+                phase,
+            ),
             sobol_power=self.dy_scheme_counterterm_sobol_power,
             replicas=self.dy_scheme_counterterm_replicas,
             seed=seed,
             clip_threshold=self.dy_scheme_counterterm_clip,
         )
+
+    def _ttbar_qqbar_decoupling_coefficient(self) -> float:
+        if not self.dy_decoupling:
+            return 0.0
+        _lambda_sq, default_mur_sq = DY_DEFAULT_LAMBDA_MUR_SQ[self.n_loops]
+        mur_sq = self.dy_mur_sq if self.dy_mur_sq is not None else default_mur_sq
+        if not math.isfinite(mur_sq) or mur_sq <= 0.0:
+            raise pygloopException(
+                "The ttbar decoupling contribution requires finite positive mursq."
+            )
+        if not math.isfinite(self.m_top) or self.m_top <= 0.0:
+            raise pygloopException(
+                "The ttbar decoupling contribution requires a finite positive top mass."
+            )
+        return (
+            self.dy_scheme_alpha_s
+            / (3.0 * math.pi)
+            * math.log(mur_sq / self.m_top**2)
+        )
+
+    def _integrate_ttbar_qqbar_auxiliary(
+        self,
+        seed: int,
+        parameterisation: str,
+        phase: str,
+    ) -> DYQQbarAuxiliaryResult:
+        if not self._dy_ttbar_qqbar_scheme_mode:
+            raise pygloopException(
+                "The correlated qqbar auxiliary path requires two-loop ttbar qqbar."
+            )
+
+        provider: DYPDFProvider | None = None
+        muf_sq: float | None = None
+        if self.integrate_beams:
+            if self.dy_pdf_set is None or self.dy_muf_sq is None:
+                raise pygloopException(
+                    "Hadronic ttbar qqbar scheme conversion requires PDF setup."
+                )
+            if self._dy_pdf_provider is None:
+                self._dy_pdf_provider = DYPDFProvider(
+                    self.dy_pdf_set,
+                    self.dy_pdf_member,
+                )
+            provider = self._dy_pdf_provider
+            muf_sq = float(self.dy_muf_sq)
+
+        # Resolve exactly one generated one-loop Born bundle and reuse the same
+        # callable for D_qq and the decoupling Born contribution.
+        born_bundle, swap_beams = self._resolve_scheme_born_bundles(
+            (self.dy_channel,)
+        )[self.dy_channel]
+        born_integrand = self._scheme_born_integrand(
+            born_bundle,
+            swap_beams,
+            parameterisation,
+            phase,
+        )
+        raw_two_leg_normalisation = physical_beam_normalisation_factor(
+            self.dy_channel,
+            1,
+        )
+        physical_born_normalisation = (
+            self._scheme_born_cross_section_factor(born_bundle)
+            * raw_two_leg_normalisation
+        )
+        return integrate_ttbar_qqbar_auxiliary(
+            provider=provider,
+            channel=self.dy_channel,
+            muf_sq=muf_sq,
+            e_cm_sq=self.e_cm**2,
+            m_top=self.m_top,
+            dqq_normalisation=raw_two_leg_normalisation,
+            born_normalisation=physical_born_normalisation,
+            born_integrand=born_integrand,
+            sobol_power=self.dy_scheme_counterterm_sobol_power,
+            replicas=self.dy_scheme_counterterm_replicas,
+            seed=seed,
+            dqq_coefficient=self.dy_scheme_counterterm_factor,
+            born_coefficient=self._ttbar_qqbar_decoupling_coefficient(),
+            integrate_beams=self.integrate_beams,
+            clip_threshold=self.dy_scheme_counterterm_clip,
+        )
+
+    def _apply_ttbar_qqbar_scheme_and_decoupling(
+        self,
+        hard_result: IntegrationResult,
+        seed: int,
+        parameterisation: str,
+        phase: str,
+    ) -> IntegrationResult:
+        auxiliary = self._integrate_ttbar_qqbar_auxiliary(
+            seed,
+            parameterisation,
+            phase,
+        )
+        hard_factor = -0.5
+        dqq_factor = self.dy_scheme_counterterm_factor
+        decoupling_factor = self._ttbar_qqbar_decoupling_coefficient()
+
+        raw_hard_central = hard_result.central_value
+        raw_hard_error = hard_result.error
+        applied_hard_central = hard_factor * raw_hard_central
+        applied_hard_error = abs(hard_factor) * raw_hard_error
+        applied_dqq_central = dqq_factor * auxiliary.dqq_central_value
+        applied_dqq_error = abs(dqq_factor) * auxiliary.dqq_error
+        applied_born_central = decoupling_factor * auxiliary.born_central_value
+        applied_born_error = abs(decoupling_factor) * auxiliary.born_error
+
+        hard_result.dy_scheme_conversion_enabled = True
+        hard_result.dy_decoupling_enabled = self.dy_decoupling
+        hard_result.dy_scheme_alpha_s = self.dy_scheme_alpha_s
+        hard_result.dy_hard_factor = hard_factor
+        hard_result.dy_hard_unscaled_central_value = raw_hard_central
+        hard_result.dy_hard_unscaled_error = raw_hard_error
+        hard_result.dy_hard_central_value = applied_hard_central
+        hard_result.dy_hard_error = applied_hard_error
+
+        hard_result.dy_scheme_counterterm_factor = dqq_factor
+        hard_result.dy_scheme_counterterm_factor_was_explicit = (
+            self.dy_scheme_counterterm_factor_was_explicit
+        )
+        hard_result.dy_scheme_counterterm_unscaled_central_value = (
+            auxiliary.dqq_central_value
+        )
+        hard_result.dy_scheme_counterterm_unscaled_error = auxiliary.dqq_error
+        hard_result.dy_scheme_counterterm_central_value = applied_dqq_central
+        hard_result.dy_scheme_counterterm_error = applied_dqq_error
+        hard_result.dy_scheme_counterterm_unscaled_replica_values = (
+            auxiliary.dqq_replica_values
+        )
+        hard_result.dy_scheme_counterterm_replica_values = tuple(
+            dqq_factor * value for value in auxiliary.dqq_replica_values
+        )
+
+        hard_result.dy_decoupling_coefficient = decoupling_factor
+        hard_result.dy_decoupling_born_unscaled_central_value = (
+            auxiliary.born_central_value
+        )
+        hard_result.dy_decoupling_born_unscaled_error = auxiliary.born_error
+        hard_result.dy_decoupling_born_central_value = applied_born_central
+        hard_result.dy_decoupling_born_error = applied_born_error
+        hard_result.dy_decoupling_born_unscaled_replica_values = (
+            auxiliary.born_replica_values
+        )
+        hard_result.dy_decoupling_born_replica_values = tuple(
+            decoupling_factor * value for value in auxiliary.born_replica_values
+        )
+
+        hard_result.dy_auxiliary_central_value = auxiliary.combined_central_value
+        hard_result.dy_auxiliary_error = auxiliary.combined_error
+        hard_result.dy_auxiliary_replica_values = auxiliary.combined_replica_values
+        hard_result.dy_auxiliary_n_samples = auxiliary.n_samples
+        hard_result.dy_auxiliary_elapsed_time = auxiliary.elapsed_time
+        hard_result.dy_auxiliary_fallback_count = auxiliary.fallback_count
+        hard_result.dy_auxiliary_nonfinite_count = auxiliary.nonfinite_count
+        hard_result.dy_auxiliary_clipped_count = auxiliary.clipped_count
+        hard_result.dy_auxiliary_fallback_fraction = (
+            auxiliary.fallback_count / auxiliary.n_samples
+            if auxiliary.n_samples
+            else 0.0
+        )
+        hard_result.dy_auxiliary_nonfinite_fraction = (
+            auxiliary.nonfinite_count / auxiliary.n_samples
+            if auxiliary.n_samples
+            else 0.0
+        )
+        hard_result.dy_auxiliary_clipped_fraction = (
+            auxiliary.clipped_count / auxiliary.n_samples
+            if auxiliary.n_samples
+            else 0.0
+        )
+        # Keep the established diagnostic names available to downstream tools.
+        hard_result.dy_scheme_counterterm_n_samples = auxiliary.n_samples
+        hard_result.dy_scheme_counterterm_elapsed_time = auxiliary.elapsed_time
+        hard_result.dy_scheme_counterterm_fallback_count = auxiliary.fallback_count
+        hard_result.dy_scheme_counterterm_nonfinite_count = auxiliary.nonfinite_count
+        hard_result.dy_scheme_counterterm_clipped_count = auxiliary.clipped_count
+        hard_result.dy_scheme_counterterm_clipped_fraction = (
+            hard_result.dy_auxiliary_clipped_fraction
+        )
+        hard_result.dy_scheme_counterterm_components = {
+            component.label: {
+                "unscaled_central_value": component.central_value,
+                "unscaled_error": component.error,
+                "central_value": dqq_factor * component.central_value,
+                "error": abs(dqq_factor) * component.error,
+                "unscaled_replica_values": component.replica_values,
+                "replica_values": tuple(
+                    dqq_factor * value for value in component.replica_values
+                ),
+            }
+            for component in auxiliary.components
+        }
+
+        hard_result.central_value = (
+            applied_hard_central + auxiliary.combined_central_value
+        )
+        hard_result.error = math.hypot(applied_hard_error, auxiliary.combined_error)
+
+        logger.info(
+            "ttbar qqbar scheme/decoupling flags: scheme=%s decoupling=%s; "
+            "coefficients hard=%+.16e Dqq=%+.16e Born=%+.16e",
+            True,
+            self.dy_decoupling,
+            hard_factor,
+            dqq_factor,
+            decoupling_factor,
+        )
+        logger.info(
+            "ttbar qqbar components: hard=%+.16e +/- %.4e; "
+            "Dqq=%+.16e +/- %.4e (raw %+.16e +/- %.4e); "
+            "Born=%+.16e +/- %.4e (raw %+.16e +/- %.4e); "
+            "auxiliary=%+.16e +/- %.4e; total=%+.16e +/- %.4e",
+            applied_hard_central,
+            applied_hard_error,
+            applied_dqq_central,
+            applied_dqq_error,
+            auxiliary.dqq_central_value,
+            auxiliary.dqq_error,
+            applied_born_central,
+            applied_born_error,
+            auxiliary.born_central_value,
+            auxiliary.born_error,
+            auxiliary.combined_central_value,
+            auxiliary.combined_error,
+            hard_result.central_value,
+            hard_result.error,
+        )
+        logger.info(
+            "ttbar qqbar auxiliary diagnostics: samples=%d elapsed=%.2fs "
+            "fallback/nonfinite/clipped=%d/%d/%d; fractions=%.3e/%.3e/%.3e",
+            auxiliary.n_samples,
+            auxiliary.elapsed_time,
+            auxiliary.fallback_count,
+            auxiliary.nonfinite_count,
+            auxiliary.clipped_count,
+            hard_result.dy_auxiliary_fallback_fraction,
+            hard_result.dy_auxiliary_nonfinite_fraction,
+            hard_result.dy_auxiliary_clipped_fraction,
+        )
+        for label, component in hard_result.dy_scheme_counterterm_components.items():
+            logger.info(
+                "ttbar qqbar Dqq component %s: %+.16e +/- %.4e "
+                "(raw %+.16e +/- %.4e)",
+                label,
+                component["central_value"],
+                component["error"],
+                component["unscaled_central_value"],
+                component["unscaled_error"],
+            )
+        return hard_result
 
     def _add_dy_msbar_scheme_counterterm(
         self,
@@ -2143,6 +3026,20 @@ class DY(object):
             scheme_result.replica_values
         )
         hard_result.dy_scheme_counterterm_replica_values = applied_replica_values
+        hard_result.dy_scheme_counterterm_components = {
+            component.label: {
+                "unscaled_central_value": component.central_value,
+                "unscaled_error": component.error,
+                "central_value": scheme_factor * component.central_value,
+                "error": abs(scheme_factor) * component.error,
+                "unscaled_replica_values": component.replica_values,
+                "replica_values": tuple(
+                    scheme_factor * value
+                    for value in component.replica_values
+                ),
+            }
+            for component in scheme_result.components
+        }
         hard_result.central_value += applied_central_value
         hard_result.error = math.hypot(hard_result.error, applied_error)
         channel_label = (
@@ -2172,6 +3069,15 @@ class DY(object):
             hard_result.central_value,
             hard_result.error,
         )
+        for label, component in hard_result.dy_scheme_counterterm_components.items():
+            logger.info(
+                "%s MSbar %s component %s: %+.16e +/- %.4e",
+                process_label,
+                channel_label,
+                label,
+                component["central_value"],
+                component["error"],
+            )
         return hard_result
 
     @staticmethod
@@ -2249,11 +3155,37 @@ class DY(object):
             else None,
         )
 
-    def ttbar_beam_threshold_passes(self, x1: float, x2: float) -> bool:
+    def ttbar_beam_threshold_passes(
+        self,
+        x1: float,
+        x2: float,
+        m_top: float | Decimal | None = None,
+    ) -> bool:
         if not self.enforce_ttbar_beam_threshold:
             return True
-        mt = 173.0
+        mt = float(self.m_top if m_top is None else m_top)
         return float(x1) * float(x2) * (self.e_cm**2) >= 4.0 * (mt**2)
+
+    def _effective_ttbar_beam_mass(
+        self,
+        integrand_implementation: Mapping[str, Any],
+        decimal_digit_precision: int | None = None,
+    ) -> float | Decimal:
+        # Normal integration setup already resolves the native value once in
+        # the constructor. Avoid registry/cache work on every sampled point.
+        if decimal_digit_precision is None:
+            return float(self.m_top)
+        runtime_parameters = integrand_implementation.get(
+            "dy_runtime_parameters", self.dy_runtime_parameters
+        )
+        if self.compiled_bundle is not None:
+            resolved = self.compiled_bundle.resolve_runtime_parameters(
+                runtime_parameters,
+                decimal_digit_precision=decimal_digit_precision,
+            )
+            if "m_top" in resolved:
+                return resolved["m_top"]
+        return decimal_from_input(self.m_top)
 
     def dy_physical_z_interval(
         self, x1: float, x2: float
@@ -2466,8 +3398,13 @@ class DY(object):
                 soft_mirror_routing is not None
                 and soft_mirror_routing.has_external_offset
             ):
-                precise_m_uv = decimal_from_input(
-                    integrand_implementation.get("mUV", 1.0)
+                precise_m_uv = (
+                    decimal_from_input(integrand_implementation["mUV"])
+                    if "mUV" in integrand_implementation
+                    else None
+                )
+                runtime_parameters = integrand_implementation.get(
+                    "dy_runtime_parameters"
                 )
 
                 def resolve_soft_center(loop_momenta, p1, p2, z):
@@ -2481,6 +3418,7 @@ class DY(object):
                         soft_mirror_routing,
                         channel_selector,
                         decimal_digit_precision=decimal_digit_precision,
+                        runtime_parameters=runtime_parameters,
                     )
 
                 soft_center_resolver = resolve_soft_center
@@ -2494,6 +3432,22 @@ class DY(object):
                 expects_beam_fractions=expects_beam_fractions,
                 rescaling=RESCALING,
                 decimal_digit_precision=decimal_digit_precision,
+                beam_parameterisation=str(
+                    integrand_implementation.get(
+                        "dy_beam_parameterisation", "x1_x2"
+                    )
+                ),
+                beam_threshold_mass=(
+                    self._effective_ttbar_beam_mass(
+                        integrand_implementation,
+                        decimal_digit_precision,
+                    )
+                    if integrand_implementation.get(
+                        "dy_beam_parameterisation", "x1_x2"
+                    )
+                    == "beta_y"
+                    else None
+                ),
                 soft_mirror_routing=soft_mirror_routing,
                 soft_center_resolver=soft_center_resolver,
             )
@@ -2513,7 +3467,8 @@ class DY(object):
             hp_impl["dy_fallback_precision"] = decimal_digit_precision
             hp_impl["dy_rotation_check_arb_digits"] = decimal_digit_precision
             hp_impl["z"] = sample.z
-            hp_impl["mUV"] = decimal_from_input(hp_impl.get("mUV", 1.0))
+            if "mUV" in hp_impl:
+                hp_impl["mUV"] = decimal_from_input(hp_impl["mUV"])
 
             first_total, _first_terms = self._zenos_arb_terms_with_externals(
                 list(sample.loop_momenta),
@@ -3000,11 +3955,36 @@ class DY(object):
             )
             expects_z = self.sampled_uses_z(impl)
             expects_beam_fractions = self.sampled_uses_beam_fractions(impl)
+            beam_parameterisation = str(
+                impl.get("dy_beam_parameterisation", "x1_x2")
+            )
+            if beam_parameterisation not in {"x1_x2", "beta_y"}:
+                raise pygloopException(
+                    f"Unsupported DY beam parameterisation {beam_parameterisation!r}."
+                )
+            if beam_parameterisation == "beta_y":
+                if not expects_beam_fractions:
+                    raise pygloopException(
+                        "The beta-Y beam parameterisation requires zenos "
+                        "beam-fraction sampling."
+                    )
+                if self.process_name.lower() != "tt~":
+                    raise pygloopException(
+                        "The beta-Y beam parameterisation currently supports "
+                        "ttbar production only."
+                    )
             if self.dy_pdf_set is not None and not expects_beam_fractions:
                 raise pygloopException(
                     "DY PDF weighting requires zenos beam-fraction sampling."
                 )
-            if self.dy_physical_normalisation and not expects_beam_fractions:
+            if (
+                self.dy_physical_normalisation
+                and not expects_beam_fractions
+                and not (
+                    self.dy_msbar_scheme_counterterm
+                    and self._dy_ttbar_qqbar_scheme_mode
+                )
+            ):
                 raise pygloopException(
                     "DY physical normalisation requires zenos beam-fraction sampling."
                 )
@@ -3049,11 +4029,28 @@ class DY(object):
             p1 = self.ps_point[0].spatial()
             p2 = self.ps_point[1].spatial()
             pdf_luminosity: float | None = None
+            beam_jacobian = 1.0
             if expects_beam_fractions:
                 beam_offset = n_k_vars + int(expects_z)
-                x1 = xs[beam_offset]
-                x2 = xs[beam_offset + 1]
-                if not self.ttbar_beam_threshold_passes(x1, x2):
+                beam_threshold_mass = self._effective_ttbar_beam_mass(impl)
+                if beam_parameterisation == "beta_y":
+                    x1, x2, beam_jacobian = parameterize_ttbar_beam_fractions(
+                        xs[beam_offset],
+                        xs[beam_offset + 1],
+                        m_top=beam_threshold_mass,
+                        e_cm=self.e_cm,
+                    )
+                    x1 = float(x1)
+                    x2 = float(x2)
+                    beam_jacobian = float(beam_jacobian)
+                    if beam_jacobian == 0.0:
+                        return 0.0
+                else:
+                    x1 = xs[beam_offset]
+                    x2 = xs[beam_offset + 1]
+                if not self.ttbar_beam_threshold_passes(
+                    x1, x2, beam_threshold_mass
+                ):
                     return 0.0
                 if (
                     self.dy_z_bin is not None
@@ -3109,9 +4106,10 @@ class DY(object):
                     p1,
                     p2,
                     impl["z"],
-                    impl.get("mUV", 1.0),
+                    impl.get("mUV"),
                     shifted_routing,
                     channel_selector,
+                    runtime_parameters=impl.get("dy_runtime_parameters"),
                 )
                 pivot_loop, pivot_jacobian = self.parameterize(
                     k_xs[3 * pivot : 3 * (pivot + 1)],
@@ -3121,7 +4119,7 @@ class DY(object):
                 loop_momenta[pivot] = pivot_loop
                 jac_k *= pivot_jacobian
 
-            total_jacobian = jac_k * jac_z * k_rescaling
+            total_jacobian = jac_k * jac_z * k_rescaling * beam_jacobian
             momentum_point = f"k = [{'; '.join('[' + ', '.join(f'{ki:.16e}' for ki in km.to_list()) + ']' for km in loop_momenta)}]"
             if z_sample is not None:
                 momentum_point += f", z = {z_sample:.16e}"
@@ -3364,6 +4362,40 @@ class DY(object):
             raise pygloopException("DY ttbar pT lower cut must be non-negative.")
         return pt_min
 
+    def _dy_graph_channel_weight(
+        self,
+        integrand_implementation: Mapping[str, Any] | None,
+        channel_selector: int | None,
+    ) -> float:
+        weights = (
+            integrand_implementation.get("dy_graph_weights")
+            if integrand_implementation is not None
+            else None
+        )
+        if weights is None:
+            return 1.0
+        if self.compiled_bundle is None:
+            raise pygloopException("DY graph weights require a compiled bundle.")
+        expected = self.compiled_bundle.graph_channel_count()
+        if len(weights) != expected:
+            raise pygloopException(
+                f"Expected {expected} DY graph weights in bundle channel order, "
+                f"got {len(weights)}."
+            )
+        if channel_selector is None:
+            raise pygloopException(
+                "DY graph weights require graph multi-channeling."
+            )
+        if channel_selector < 0 or channel_selector >= expected:
+            raise pygloopException(
+                f"DY graph channel {channel_selector} is out of range for "
+                f"{expected} graph weights."
+            )
+        weight = float(weights[channel_selector])
+        if not math.isfinite(weight):
+            raise pygloopException("DY graph weights must be finite.")
+        return weight
+
     def zenos_integrand_with_externals(
         self,
         loop_momentum: list[Vector],
@@ -3378,9 +4410,13 @@ class DY(object):
             )
 
         z: float | Decimal = 1.0
-        m_uv: float | Decimal = 1.0
+        m_uv: float | Decimal | None = None
+        runtime_parameters: Mapping[str, Any] | None = None
         if integrand_implementation is not None:
-            m_uv = integrand_implementation.get("mUV", m_uv)
+            m_uv = integrand_implementation.get("mUV")
+            runtime_parameters = integrand_implementation.get(
+                "dy_runtime_parameters"
+            )
             if self.process_uses_z():
                 z = integrand_implementation.get("z", z)
         evaluation_mode = "compiled"
@@ -3434,13 +4470,17 @@ class DY(object):
                     "dy_physical_z_max"
                 ]
 
-        return self.compiled_bundle.evaluate(
+        value = self.compiled_bundle.evaluate(
             loop_momentum,
             p1,
             p2,
             z,
             m_uv,
+            runtime_parameters=runtime_parameters,
             **evaluate_kwargs,
+        )
+        return value * self._dy_graph_channel_weight(
+            integrand_implementation, channel_selector
         )
 
     def _zenos_arb_terms_with_externals(
@@ -3458,9 +4498,13 @@ class DY(object):
             )
 
         z: float | Decimal = 1.0
-        m_uv: float | Decimal = 1.0
+        m_uv: float | Decimal | None = None
+        runtime_parameters: Mapping[str, Any] | None = None
         if integrand_implementation is not None:
-            m_uv = integrand_implementation.get("mUV", m_uv)
+            m_uv = integrand_implementation.get("mUV")
+            runtime_parameters = integrand_implementation.get(
+                "dy_runtime_parameters"
+            )
             if self.process_uses_z():
                 z = integrand_implementation.get("z", z)
 
@@ -3499,13 +4543,23 @@ class DY(object):
                     integrand_implementation["dy_physical_z_max"]
                 )
 
-        return self.compiled_bundle.evaluate_arb_terms(
+        total, terms = self.compiled_bundle.evaluate_arb_terms(
             loop_momentum,
             p1,
             p2,
             z,
             m_uv,
+            runtime_parameters=runtime_parameters,
             **evaluate_kwargs,
+        )
+        graph_weight = decimal_from_input(
+            self._dy_graph_channel_weight(
+                integrand_implementation, channel_selector
+            )
+        )
+        return (
+            +(total * graph_weight),
+            [(name, +(value * graph_weight)) for name, value in terms],
         )
 
     def _zenos_arb_total_with_externals(
@@ -3718,6 +4772,13 @@ class DY(object):
             case _:
                 raise pygloopException(f"Integrator {integrator} not implemented.")
         if self.dy_msbar_scheme_counterterm:
+            if self._dy_ttbar_qqbar_scheme_mode:
+                return self._apply_ttbar_qqbar_scheme_and_decoupling(
+                    integration_result,
+                    int(opts.get("seed", 1337)),
+                    parameterisation,
+                    str(opts.get("phase", "real")),
+                )
             return self._add_dy_msbar_scheme_counterterm(
                 integration_result,
                 int(opts.get("seed", 1337)),
@@ -4279,6 +5340,21 @@ class DY(object):
 
         n_dim = self.integration_dimension(integrand_implementation)
 
+        graph_weights = integrand_implementation.get("dy_graph_weights")
+        if graph_weights is not None:
+            if not opts["multi_channeling"]:
+                raise pygloopException(
+                    "DY graph weights require graph multi-channeling."
+                )
+            if self.compiled_bundle is None:
+                raise pygloopException("DY graph weights require a compiled bundle.")
+            expected_graph_weights = self.compiled_bundle.graph_channel_count()
+            if len(graph_weights) != expected_graph_weights:
+                raise pygloopException(
+                    f"Expected {expected_graph_weights} DY graph weights in bundle "
+                    f"channel order, got {len(graph_weights)}."
+                )
+
         requested_graphs = opts.get("dy_integration_graphs")
         if requested_graphs is not None and not opts["multi_channeling"]:
             raise pygloopException(
@@ -4307,6 +5383,29 @@ class DY(object):
                 ", ".join(graph_channel_names),
                 ", ".join(str(index) for index in graph_channel_indices),
             )
+            assert self.compiled_bundle is not None
+            ghost_counts = self.compiled_bundle.graph_channel_closed_ghost_loop_counts()
+            automatic_factors = self.compiled_bundle.graph_channel_automatic_factors()
+            for graph_name, graph_index in zip(
+                graph_channel_names,
+                graph_channel_indices,
+                strict=True,
+            ):
+                explicit_factor = (
+                    float(graph_weights[graph_index])
+                    if graph_weights is not None
+                    else 1.0
+                )
+                automatic_factor = automatic_factors[graph_index]
+                logger.info(
+                    "DY graph factor %s: closed_ghost_loops=%d automatic=%+d "
+                    "explicit=%+.16e combined=%+.16e",
+                    graph_name,
+                    ghost_counts[graph_index],
+                    automatic_factor,
+                    explicit_factor,
+                    automatic_factor * explicit_factor,
+                )
             integrator = self._build_symbolica_discrete_integrator(
                 n_dim, len(graph_channel_names)
             )

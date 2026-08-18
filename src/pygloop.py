@@ -4,38 +4,22 @@ from __future__ import annotations
 
 import argparse
 import ast
+import json
 import logging
 import multiprocessing
+import os
 import random
 import re
 import sys
 import time
+from collections.abc import Iterator
+from pathlib import Path
 from pprint import pformat
 
 DY = None
 GGHHH = None
 ScalarGravity = None
 TemplateProcess = None
-
-try:
-    from processes.dy.dy import DY
-except Exception as exc:
-    print(f"Warning: DY process not available ({exc}).", file=sys.stderr)
-
-try:
-    from processes.gghhh.gghhh import GGHHH
-except Exception as exc:
-    print(f"Warning: GGHHH process not available ({exc}).", file=sys.stderr)
-
-try:
-    from processes.scalar_gravity.scalar_gravity import ScalarGravity
-except Exception as exc:
-    print(f"Warning: ScalarGravity process not available ({exc}).", file=sys.stderr)
-
-try:
-    from processes.template_process import TemplateProcess
-except Exception as exc:
-    print(f"Warning: TemplateProcess not available ({exc}).", file=sys.stderr)
 
 from utils.utils import (
     SRC_DIR,
@@ -49,6 +33,66 @@ from utils.vectors import LorentzVector, Vector
 
 if SRC_DIR not in sys.path:
     sys.path.insert(0, SRC_DIR)
+
+from processes.dy.dy_card import (  # noqa: E402
+    DYCardError,
+    EffectiveDYCard,
+    compatibility_diff,
+    format_compatibility_diff,
+    generation_settings_fingerprint,
+    load_dy_card,
+    normalise_generation_compatibility_settings,
+)
+from processes.dy.dy_runtime_parameters import (  # noqa: E402
+    DYRuntimeParameterError,
+    merge_runtime_parameter_overrides,
+    parse_runtime_parameter_assignments,
+)
+from processes.dy.dy_top_self_energy import (  # noqa: E402
+    TOP_SELF_ENERGY_RENORMALISATION_MODES,
+    resolve_top_self_energy_renormalisation,
+)
+
+
+def _load_process_class(process_name: str) -> None:
+    """Import only the heavyweight process implementation execution selected."""
+    global DY, GGHHH, ScalarGravity, TemplateProcess
+
+    if process_name == "dy" and DY is None:
+        try:
+            from processes.dy.dy import DY as loaded_dy
+
+            DY = loaded_dy
+        except Exception as exc:
+            print(f"Warning: DY process not available ({exc}).", file=sys.stderr)
+    elif process_name == "gghhh" and GGHHH is None:
+        try:
+            from processes.gghhh.gghhh import GGHHH as loaded_gghhh
+
+            GGHHH = loaded_gghhh
+        except Exception as exc:
+            print(f"Warning: GGHHH process not available ({exc}).", file=sys.stderr)
+    elif process_name == "scalar_gravity" and ScalarGravity is None:
+        try:
+            from processes.scalar_gravity.scalar_gravity import (
+                ScalarGravity as loaded_scalar_gravity,
+            )
+
+            ScalarGravity = loaded_scalar_gravity
+        except Exception as exc:
+            print(
+                f"Warning: ScalarGravity process not available ({exc}).",
+                file=sys.stderr,
+            )
+    elif process_name == "template_process" and TemplateProcess is None:
+        try:
+            from processes.template_process import TemplateProcess as loaded_template
+
+            TemplateProcess = loaded_template
+        except Exception as exc:
+            print(
+                f"Warning: TemplateProcess not available ({exc}).", file=sys.stderr
+            )
 
 
 def _require_process_class(process_name: str, process_class: type | None) -> type:
@@ -69,6 +113,240 @@ def _parse_bool_flag(value: str) -> bool:
     raise argparse.ArgumentTypeError(f"Expected True or False, got '{value}'.")
 
 
+def _iter_parser_actions(
+    parser: argparse.ArgumentParser,
+) -> Iterator[argparse.Action]:
+    """Yield actions from a parser and all of its subparsers."""
+    for action in parser._actions:
+        yield action
+        if isinstance(action, argparse._SubParsersAction):
+            for subparser in action.choices.values():
+                yield from _iter_parser_actions(subparser)
+
+
+def _explicit_cli_destinations(
+    parser: argparse.ArgumentParser, argv: list[str]
+) -> set[str]:
+    """Return argparse destinations explicitly named on the command line.
+
+    Card merging must distinguish a parser default from an option explicitly
+    supplied with that same value.  A second parse with defaults suppressed
+    also handles aliases, attached short values, and list/append actions while
+    keeping card list replacement semantics.
+    """
+    actions = list(_iter_parser_actions(parser))
+    saved_defaults = [(action, action.default) for action in actions]
+    try:
+        for action in actions:
+            action.default = argparse.SUPPRESS
+        explicit_namespace = parser.parse_args(argv)
+    finally:
+        for action, default in saved_defaults:
+            action.default = default
+    return set(vars(explicit_namespace)).difference({"command"})
+
+
+def _runtime_arguments(args: argparse.Namespace) -> dict[str, object]:
+    """Exclude card control-plane flags from existing process call namespaces."""
+    values = vars(args).copy()
+    for destination in (
+        "dy_card",
+        "dy_card_check",
+        "dy_dump_effective_card",
+        "dy_allow_unverified_bundle",
+        "dy_runtime_parameter_overrides",
+        "dy_runtime_parameters",
+    ):
+        values.pop(destination, None)
+    return values
+
+
+def _verify_card_bundle_compatibility(
+    process: object,
+    effective_card: EffectiveDYCard,
+    *,
+    allow_unverified: bool,
+) -> None:
+    """Fail before sampling when a card does not match the loaded DY bundle."""
+    compiled_bundle = getattr(process, "compiled_bundle", None)
+    if compiled_bundle is None:
+        raise pygloopException(
+            "Card-driven DY integration could not load a compiled bundle to verify."
+        )
+    metadata = compiled_bundle.bundle_metadata
+    generated_settings = metadata.get("dy_generation_settings")
+    stored_fingerprint = metadata.get("dy_generation_settings_fingerprint")
+    if generated_settings is None or stored_fingerprint is None:
+        if not allow_unverified:
+            raise pygloopException(
+                "The selected DY bundle has no generation-card provenance. "
+                "Regenerate it with --dy-card or explicitly pass "
+                "--dy-allow-unverified-bundle."
+            )
+        logger.warning(
+            "Integrating legacy DY bundle %s without generation-settings "
+            "verification because --dy-allow-unverified-bundle was supplied.",
+            compiled_bundle.integrand_name,
+        )
+        return
+    if not isinstance(generated_settings, dict) or not isinstance(
+        stored_fingerprint, str
+    ):
+        raise pygloopException(
+            "The selected DY bundle contains malformed generation provenance."
+        )
+    recalculated_fingerprint = generation_settings_fingerprint(generated_settings)
+    if recalculated_fingerprint != stored_fingerprint:
+        raise pygloopException(
+            "The selected DY bundle contains inconsistent generation provenance: "
+            "its stored settings do not match its stored fingerprint."
+        )
+
+    requested_settings = effective_card.bundle_metadata()["dy_generation_settings"]
+    canonical_generated = normalise_generation_compatibility_settings(
+        generated_settings
+    )
+    canonical_requested = normalise_generation_compatibility_settings(
+        requested_settings
+    )
+    if canonical_generated != canonical_requested:
+        differences = compatibility_diff(
+            canonical_generated,
+            canonical_requested,
+        )
+        if not differences:
+            raise pygloopException(
+                "The selected DY bundle generation fingerprint is inconsistent "
+                "with the requested normalized settings."
+            )
+        raise pygloopException(
+            format_compatibility_diff(compiled_bundle.integrand_name, differences)
+        )
+
+    generated_source_hashes = metadata.get("dy_source_hashes")
+    if isinstance(generated_source_hashes, dict):
+        current_source_hashes = dict(effective_card.source_hashes)
+        changed_sources = sorted(
+            path
+            for path in set(generated_source_hashes) | set(current_source_hashes)
+            if generated_source_hashes.get(path) != current_source_hashes.get(path)
+        )
+        if changed_sources:
+            logger.warning(
+                "DY bundle source provenance differs from the current checkout "
+                "for: %s. Physics settings match, so integration will continue.",
+                ", ".join(changed_sources),
+            )
+
+
+def _stamp_generated_dy_bundle(
+    process: object, effective_card: EffectiveDYCard
+) -> dict[str, object]:
+    """Atomically stamp the final serial or merged DY bundle."""
+    from processes.dy.dy_evaluators import DYCompiledBundle
+
+    process_name = str(getattr(process, "process_name"))
+    integrand_name = str(process.get_integrand_name())
+    updates = effective_card.bundle_metadata()
+    DYCompiledBundle.augment_metadata(
+        process_name,
+        integrand_name,
+        updates,
+    )
+    return updates
+
+
+def _preflight_card_generation(
+    process: object,
+    effective_card: EffectiveDYCard,
+    *,
+    clean: bool,
+) -> bool:
+    """Validate an existing final bundle before a clean-false generation.
+
+    Returns true when matching provenance already exists.  The caller can then
+    preserve it if generation recycles the bundle unchanged, avoiding a false
+    update of source/card provenance.
+    """
+    if clean:
+        return False
+    from processes.dy.dy_evaluators import DYCompiledBundle
+
+    process_name = str(getattr(process, "process_name"))
+    integrand_name = str(process.get_integrand_name())
+    metadata_path = DYCompiledBundle.metadata_path(process_name, integrand_name)
+    if not os.path.isfile(metadata_path):
+        return False
+    try:
+        with open(metadata_path, "r", encoding="utf-8") as handle:
+            metadata = json.load(handle)
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise pygloopException(
+            f"Could not inspect existing DY bundle metadata '{metadata_path}': {exc}"
+        ) from exc
+    generated_settings = metadata.get("dy_generation_settings")
+    stored_fingerprint = metadata.get("dy_generation_settings_fingerprint")
+    if not isinstance(generated_settings, dict) or not isinstance(
+        stored_fingerprint, str
+    ):
+        raise pygloopException(
+            f"Existing bundle {integrand_name} has no verified generation "
+            "settings. Use --clean to regenerate it before stamping card provenance."
+        )
+    if generation_settings_fingerprint(generated_settings) != stored_fingerprint:
+        raise pygloopException(
+            f"Existing bundle {integrand_name} has corrupt generation provenance. "
+            "Use --clean to regenerate it."
+        )
+    requested_settings = effective_card.bundle_metadata()["dy_generation_settings"]
+    canonical_generated = normalise_generation_compatibility_settings(
+        generated_settings
+    )
+    canonical_requested = normalise_generation_compatibility_settings(
+        requested_settings
+    )
+    if canonical_generated != canonical_requested:
+        differences = compatibility_diff(
+            canonical_generated,
+            canonical_requested,
+        )
+        detail = format_compatibility_diff(integrand_name, differences)
+        raise pygloopException(
+            f"{detail}\nUse --clean to regenerate instead of recycling this bundle."
+        )
+    return True
+
+
+def _finalize_card_generation_metadata(
+    process: object,
+    effective_card: EffectiveDYCard,
+    *,
+    matching_provenance_existed: bool,
+) -> dict[str, object]:
+    """Stamp a new bundle, or preserve truthful provenance on exact reuse."""
+    if matching_provenance_existed:
+        from processes.dy.dy_evaluators import DYCompiledBundle
+
+        metadata_path = DYCompiledBundle.metadata_path(
+            str(getattr(process, "process_name")), str(process.get_integrand_name())
+        )
+        try:
+            with open(metadata_path, "r", encoding="utf-8") as handle:
+                current_metadata = json.load(handle)
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            current_metadata = {}
+        if (
+            current_metadata.get("dy_generation_settings_fingerprint")
+            == effective_card.generation_fingerprint
+        ):
+            return {
+                key: value
+                for key, value in current_metadata.items()
+                if key.startswith("dy_")
+            }
+    return _stamp_generated_dy_bundle(process, effective_card)
+
+
 def main(argv: list[str] | None = None) -> dict[str, object] | int:
     # create the top-level parser
     class FloatArgParser(argparse.ArgumentParser):
@@ -79,6 +357,33 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
             )  # type: ignore
 
     parser = FloatArgParser(prog="pygloop")
+
+    parser.add_argument(
+        "--dy-card",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help="Load shared DY generation/integration settings from a TOML card.",
+    )
+    card_exit_group = parser.add_mutually_exclusive_group()
+    card_exit_group.add_argument(
+        "--dy-card-check",
+        action="store_true",
+        default=False,
+        help="Validate and normalize the selected DY card command, then exit.",
+    )
+    card_exit_group.add_argument(
+        "--dy-dump-effective-card",
+        action="store_true",
+        default=False,
+        help="Print the fully merged effective DY card as canonical TOML, then exit.",
+    )
+    parser.add_argument(
+        "--dy-allow-unverified-bundle",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Allow card-driven integration of a legacy bundle without DY provenance.",
+    )
 
     parser.add_argument("--process", "-p", type=str, choices=["gghhh", "template_process", "dy", "scalar_gravity"], default="gghhh",
         help="Process to consider. Default = %(default)s",
@@ -105,7 +410,7 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
     )  # fmt: off
     parser.add_argument(
         "--dy-skip-ps-validation",
-        action="store_true",
+        action=argparse.BooleanOptionalAction,
         default=False,
         help="DY only: skip phase-space momentum-conservation validation.",
     )
@@ -119,7 +424,7 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
         "--dy-rotation-check-eps",
         type=float,
         default=1e-15,
-        help="DY only: floor used in relative-difference denominator for rotation check.",
+        help="DY only: absolute tolerance for original/rotated sample agreement.",
     )
     parser.add_argument(
         "--dy-rotation-check-arb-digits",
@@ -134,10 +439,46 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
         type=int,
         default=None,
         help=(
-            "DY only: higher-precision fallback digits. A value of 32 uses "
-            "Symbolica DoubleFloat evaluator bundles; any other positive value "
-            "uses arbitrary-precision expression data. Defaults to "
-            "--dy-rotation-check-arb-digits."
+            "DY only: select the integration-time higher-precision backend. "
+            "A value of 32 uses Symbolica DoubleFloat; any other positive value "
+            "uses Arb at that many decimal digits. New bundles store both "
+            "backends. Defaults to --dy-rotation-check-arb-digits."
+        ),
+    )
+    parser.add_argument(
+        "--dy-stability-backend",
+        choices=["double-float", "arb"],
+        default=None,
+        help=(
+            "DY only: integration-time higher-precision backend. 'double-float' "
+            "selects 32 digits; 'arb' selects --dy-stability-arb-digits."
+        ),
+    )
+    parser.add_argument(
+        "--dy-stability-arb-digits",
+        type=int,
+        default=None,
+        help=(
+            "DY only: decimal digits for --dy-stability-backend arb "
+            "(default: --dy-rotation-check-arb-digits)."
+        ),
+    )
+    parser.add_argument(
+        "--dy-stability-rtol",
+        type=float,
+        default=None,
+        help=(
+            "DY only: direct relative tolerance for original/rotated final "
+            "sample agreement (default: 10^-N from --dy-rotation-check-digits)."
+        ),
+    )
+    parser.add_argument(
+        "--dy-stability-atol",
+        type=float,
+        default=None,
+        help=(
+            "DY only: direct absolute tolerance for original/rotated final "
+            "sample agreement (default: --dy-rotation-check-eps)."
         ),
     )
     parser.add_argument(
@@ -147,16 +488,53 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
         help="DY only: theta support tolerance used in compiled and arbitrary-precision DY evaluation.",
     )
     parser.add_argument(
+        "--dy-large-weight-precision",
+        type=float,
+        default=None,
+        help=(
+            "DY only: skip the float rotation and validate both original and "
+            "rotated samples in higher precision when |final sample| exceeds this."
+        ),
+    )
+    parser.add_argument(
+        "--dy-large-weight-clip",
+        type=float,
+        default=None,
+        help=(
+            "DY only: set a higher-precision-validated final sample to zero when "
+            "its absolute value exceeds this threshold."
+        ),
+    )
+    parser.add_argument(
+        "--dy-soft-mirror-edge",
+        action="append",
+        default=None,
+        metavar="[GRAPH:]EDGE",
+        help=(
+            "DY only: pair samples around the selected soft edge. Shifted edges "
+            "use conditional soft-centred spherical coordinates and an antipodal "
+            "pair; origin-centred edges retain the beam-equatorial pair. Repeat "
+            "GRAPH:EDGE for multi-graph bundles; a bare EDGE is accepted only "
+            "for a single-graph bundle."
+        ),
+    )
+    parser.add_argument(
         "--dy-large-weight-threshold",
         type=float,
         default=None,
-        help="DY only: if |final weighted sample| exceeds this threshold, re-evaluate the point in arbitrary precision.",
+        help=(
+            "DY only: compatibility alias for --dy-large-weight-precision. "
+            "With --dy-zero-large-weight-samples it also supplies the clip threshold."
+        ),
     )
     parser.add_argument(
         "--dy-zero-large-weight-samples",
         action="store_true",
         default=False,
-        help="DY only: set final weighted samples above --dy-large-weight-threshold to zero.",
+        help=(
+            "DY only: compatibility mode that uses --dy-large-weight-threshold "
+            "as --dy-large-weight-clip."
+        ),
     )
     parser.add_argument(
         "--dy-integrated-uv-ct-filter",
@@ -172,7 +550,10 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
         "--dy-accept-all-arb-retries",
         action="store_true",
         default=False,
-        help="DY only: accept the unrotated arbitrary-precision retry result without applying the rotated arb re-check.",
+        help=(
+            "Deprecated no-op: higher-precision retries always require agreement "
+            "between the original and rotated samples."
+        ),
     )
     parser.add_argument(
         "--dy-final-state",
@@ -193,7 +574,7 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
         nargs=2,
         default=None,
         metavar=("IN1", "IN2"),
-        help="DY two-loop generation only: partonic channel to generate/process, e.g. --dy-channel 0 0 for gg, 0 1 for qg, or 1 -1 for qq~.",
+        help="DY only: partonic channel to generate/process at one or two loops, e.g. --dy-channel 0 0 for gg, 0 1 for qg, or 1 -1 for qq~.",
     )
     parser.add_argument(
         "--external_gluon_polarisation",
@@ -203,6 +584,15 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
         help="DY generation only: replace cut external p1/p2 gluon metric sums by the axial physical-polarisation projector.",
     )
     parser.add_argument(
+        "--dy-symmetrise-p1-p2",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help=(
+            "DY generation/evaluation only: use the p1<->p2-symmetrised "
+            "initial-state graph construction."
+        ),
+    )
+    parser.add_argument(
         "--dy-parallel-graphs",
         type=int,
         default=1,
@@ -210,9 +600,176 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
     )
     parser.add_argument(
         "--dy-integrate-beams",
-        action="store_true",
+        action=argparse.BooleanOptionalAction,
         default=False,
-        help="DY only: sample beam fractions x1 and x2 in [0,1] and use p1=(0,0,e_cm*x1), p2=(0,0,-e_cm*x2) at runtime for the zenos integrand.",
+        help="DY only: sample beam fractions x1 and x2 in [0,1] and evaluate the hard process in the partonic centre-of-mass frame at shat=x1*x2*e_cm^2.",
+    )
+    parser.add_argument(
+        "--dy-beam-parameterisation",
+        choices=["x1_x2", "beta_y"],
+        default="x1_x2",
+        help=(
+            "DY ttbar beam convolution only: sample the beam fractions directly "
+            "(x1_x2, default) or through threshold-adapted beta and rapidity "
+            "coordinates (beta_y)."
+        ),
+    )
+    parser.add_argument(
+        "--dy-z-bin",
+        type=float,
+        nargs=2,
+        default=None,
+        metavar=("ZMIN", "ZMAX"),
+        help=(
+            "DY beam convolution only: integrate directly over one physical "
+            "z bin ZMIN <= z <= ZMAX, including the bin-width Jacobian."
+        ),
+    )
+    parser.add_argument(
+        "--dy-q-min",
+        type=float,
+        default=None,
+        help=(
+            "DY beam convolution only: minimum virtual-photon mass Q in GeV, "
+            "with Q^2=z*x1*x2*e_cm^2."
+        ),
+    )
+    parser.add_argument(
+        "--dy-q-max",
+        type=float,
+        default=None,
+        help=(
+            "DY beam convolution only: maximum virtual-photon mass Q in GeV, "
+            "with Q^2=z*x1*x2*e_cm^2."
+        ),
+    )
+    parser.add_argument(
+        "--dy-physical-normalisation",
+        "--dy-physical-normalization",
+        dest="dy_physical_normalisation",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help=(
+            "DY beam convolution only: multiply by per-beam spin and colour "
+            "averages and by 1/(2*pi)^(3*L-1)."
+        ),
+    )
+    parser.add_argument(
+        "--dy-integrated-leptonic-phase-space",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help=(
+            "One-loop beam-convoluted DY only: multiply the hard contribution "
+            "and scheme counterterm by the coupling-stripped integrated "
+            "leptonic phase-space factor 1/(24*pi^2)."
+        ),
+    )
+    parser.add_argument(
+        "--dy-pdf-set",
+        type=str,
+        default=None,
+        help="DY beam convolution only: LHAPDF set name to use for PDF weighting.",
+    )
+    parser.add_argument(
+        "--dy-pdf-member",
+        type=int,
+        default=0,
+        help="DY beam convolution only: LHAPDF member index (default: 0).",
+    )
+    parser.add_argument(
+        "--dy-muf-sq",
+        type=float,
+        default=None,
+        help=(
+            "DY beam convolution only: factorisation scale squared. If omitted, "
+            "equal --dy-lambda-sq and --dy-mur-sq values are used."
+        ),
+    )
+    parser.add_argument(
+        "--dy-msbar-scheme-counterterm",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help=(
+            "Beam-convoluted one-loop DY or two-loop ttbar: add the selected "
+            "channel's finite scheme counterterm. The gq kernel includes its "
+            "1/(2-2*eps) polarisation factor; qqbar uses the two-leg D_qq "
+            "kernel at Lambdasq=1."
+        ),
+    )
+    parser.add_argument(
+        "--dy-decoupling",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help=(
+            "Ordered two-loop qqbar -> ttbar only: add the heavy-flavour "
+            "decoupling Born term. This requires scheme conversion."
+        ),
+    )
+    parser.add_argument(
+        "--dy-scheme-counterterm-sobol-power",
+        type=int,
+        default=15,
+        help=(
+            "DY scheme counterterm only: use 2^POWER points per scrambled "
+            "Sobol replica (default: 15)."
+        ),
+    )
+    parser.add_argument(
+        "--dy-scheme-counterterm-replicas",
+        type=int,
+        default=8,
+        help=(
+            "DY scheme counterterm only: number of independent scrambled "
+            "Sobol replicas used for its uncertainty (default: 8)."
+        ),
+    )
+    parser.add_argument(
+        "--dy-scheme-counterterm-factor",
+        type=float,
+        default=None,
+        help=(
+            "DY scheme counterterm only: override the channel's finite "
+            "counterterm factor (default: -2 for one-loop DY qqbar, 4*pi "
+            "for two-loop ttbar qg, and alpha_s/2 for two-loop ttbar qqbar)."
+        ),
+    )
+    parser.add_argument(
+        "--dy-scheme-born-bundle",
+        type=str,
+        default=None,
+        help=(
+            "Two-loop ttbar scheme counterterm only: one-loop ttbar compiled "
+            "bundle name used for the Born convolution."
+        ),
+    )
+    parser.add_argument(
+        "--dy-scheme-born-bundles",
+        nargs="+",
+        default=None,
+        help=(
+            "Two-loop scheme counterterm only: optional one-loop compiled "
+            "Born bundle names. Their initial-state channels are inferred "
+            "from bundle metadata."
+        ),
+    )
+    parser.add_argument(
+        "--dy-scheme-alpha-s",
+        type=float,
+        default=0.118,
+        help=(
+            "Two-loop ttbar scheme conversion: separately supplied alpha_s "
+            "entering qg kernels or the qqbar D_qq coefficient (default: 0.118)."
+        ),
+    )
+    parser.add_argument(
+        "--dy-scheme-counterterm-clip",
+        type=float,
+        default=None,
+        help=(
+            "Two-loop ttbar scheme counterterm only: after 32-digit fallback, "
+            "zero samples whose absolute fully weighted value exceeds this "
+            "threshold."
+        ),
     )
     parser.add_argument(
         "--dy-ttbar-pt-min",
@@ -229,16 +786,33 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
         help="DY only: UV mass parameter passed to the zenos runtime evaluator.",
     )
     parser.add_argument(
+        "--dy-runtime-parameter",
+        dest="dy_runtime_parameter_overrides",
+        action="append",
+        default=None,
+        metavar="NAME=DECIMAL",
+        help=(
+            "DY zenos integration only: override a versioned bundle runtime "
+            "parameter. Repeat for multiple values; decimal text is preserved."
+        ),
+    )
+    parser.add_argument(
         "--dy-lambda-sq",
         type=float,
         default=None,
-        help="DY only: generation-time Lambdasq value used in generated DY evaluators.",
+        help=(
+            "DY only: Lambdasq default recorded during generation; when "
+            "explicitly supplied for integration, override it at runtime."
+        ),
     )
     parser.add_argument(
         "--dy-mur-sq",
         type=float,
         default=None,
-        help="DY only: generation-time mursq value used in generated DY evaluators.",
+        help=(
+            "DY only: mursq default recorded during generation; when "
+            "explicitly supplied for integration, override it at runtime."
+        ),
     )
 
     parser.add_argument("--gammaloop-configuration", "-f", default=None,
@@ -278,7 +852,7 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
     parser.add_argument("--n_loops", type=int, choices=[1, 2, 3, 4], default=1,
         help="Number of loops in the process. Default = %(default)s",
     )  # fmt: off
-    parser.add_argument("--clean", "-c", action="store_true", default=False,
+    parser.add_argument("--clean", "-c", action=argparse.BooleanOptionalAction, default=False,
         help="Clean existing generated states before generating new ones. Default = %(default)s",
     )  # fmt: off
 
@@ -291,14 +865,14 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
     parser.add_argument(
         "--multi_channeling",
         "-mc",
-        action="store_true",
+        action=argparse.BooleanOptionalAction,
         default=False,
         help="Consider a multi-channeled integrand.",
     )
 
     # Add subcommands and their options
     subparsers = parser.add_subparsers(
-        title="commands", dest="command", help="Various commands available"
+        title="commands", dest="command", required=True, help="Various commands available"
     )
 
     # create the parser for the "generate" command
@@ -322,15 +896,43 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
     )  # fmt: off
     parser_generate.add_argument(
         "--dy-enable-integrated-uv-cts",
-        action="store_true",
+        action=argparse.BooleanOptionalAction,
         default=False,
         help="DY generation only: enable integrated UV counterterms. Disabled by default.",
     )
     parser_generate.add_argument(
+        "--dy-top-self-energy-os-subtraction",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help=(
+            "DY generation only: enable on-shell subtraction for eligible "
+            "two-loop ttbar top self-energy insertions. Disabled by default."
+        ),
+    )
+    parser_generate.add_argument(
+        "--dy-top-self-energy-renormalisation",
+        choices=TOP_SELF_ENERGY_RENORMALISATION_MODES,
+        default=None,
+        help=(
+            "DY generation only: select top-self-energy renormalisation. "
+            "The default is no-os; the legacy boolean selects os."
+        ),
+    )
+    parser_generate.add_argument(
         "--dy-check-generation-limits",
-        action="store_true",
+        action=argparse.BooleanOptionalAction,
         default=False,
         help="DY generation only: construct limit-check evaluators and approach a test limit. Disabled by default.",
+    )
+    parser_generate.add_argument(
+        "--dy-threshold-h-function",
+        choices=["gaussian", "inverse_square_damped"],
+        default=None,
+        help=(
+            "DY generation only: select the threshold-counterterm h function. "
+            "When omitted, preserve the process default (gaussian for DY and "
+            "inverse_square_damped for ttbar)."
+        ),
     )
 
     # create the parser for the "inspect" command
@@ -373,7 +975,7 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
     parser_integrate.add_argument("--seed", "-s", type=int, default=1337,
         help="Specify random seed. Default = %(default)s",
     )  # fmt: off
-    parser_integrate.add_argument("--restart", "-r", action="store_true", default=False,
+    parser_integrate.add_argument("--restart", "-r", action=argparse.BooleanOptionalAction, default=False,
         help="Restart the integration from previous results. Default = %(default)s",
     )  # fmt: off
     parser_integrate.add_argument("--run-workspace-name", "-rn", type=str, default=None,
@@ -387,6 +989,31 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
             "DY zenos integration only: select integrated UV counterterm terms. "
             "'all' integrates every term, 'only' integrates only integrated UV "
             "counterterms, and 'exclude' integrates everything except them."
+        ),
+    )
+    parser_integrate.add_argument(
+        "--dy-integration-graphs",
+        nargs="+",
+        default=None,
+        metavar="GRAPH",
+        help=(
+            "DY Symbolica multi-channel integration only: integrate a subset "
+            "of compiled graph channels without regenerating the bundle. "
+            "Accepts native channel names such as graph_3, zero-based channel "
+            "indices, or source graph names such as GL035 when the matching "
+            "ordered --diagrams list is supplied."
+        ),
+    )
+    parser_integrate.add_argument(
+        "--dy-graph-weights",
+        nargs="+",
+        type=float,
+        default=None,
+        metavar="WEIGHT",
+        help=(
+            "DY Symbolica multi-channel integration only: multiply each full "
+            "compiled graph channel by the corresponding integration-time "
+            "weight, in bundle graph-channel order."
         ),
     )
 
@@ -424,8 +1051,149 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
     parser_bench.add_argument("--repeat", "-r", type=int, default=5,
         help="Number of repeats for the timing profile. Default = %(default)s",
     )  # fmt: off
-    args = parser.parse_args(argv)
+    cli_argv = list(sys.argv[1:] if argv is None else argv)
+    args = parser.parse_args(cli_argv)
+    explicit_cli_destinations = _explicit_cli_destinations(parser, cli_argv)
+
+    if args.dy_card is None and (
+        args.dy_card_check or args.dy_dump_effective_card
+    ):
+        parser.error("--dy-card-check/--dy-dump-effective-card require --dy-card")
+
+    effective_dy_card: EffectiveDYCard | None = None
+    loaded_dy_card = None
+    if args.dy_card is not None:
+        try:
+            loaded_dy_card = load_dy_card(args.dy_card)
+            effective_dy_card = loaded_dy_card.merge(
+                args.command,
+                args,
+                explicit_destinations=explicit_cli_destinations,
+            )
+        except DYCardError as exc:
+            parser.error(str(exc))
+        for destination, value in effective_dy_card.argparse_values.items():
+            setattr(args, destination, value)
+
+    top_self_energy_mode_explicit = (
+        "dy_top_self_energy_renormalisation" in explicit_cli_destinations
+        or loaded_dy_card is not None
+        and "generate.top_self_energy_renormalisation"
+        in loaded_dy_card.supplied_paths
+    )
+    top_self_energy_legacy_explicit = (
+        "dy_top_self_energy_os_subtraction" in explicit_cli_destinations
+        or loaded_dy_card is not None
+        and "generate.top_self_energy_os_subtraction"
+        in loaded_dy_card.supplied_paths
+    )
+    if args.process == "dy" and args.command == "generate":
+        try:
+            resolve_top_self_energy_renormalisation(
+                getattr(args, "dy_top_self_energy_renormalisation", None)
+                if top_self_energy_mode_explicit
+                else None,
+                getattr(args, "dy_top_self_energy_os_subtraction", None)
+                if top_self_energy_legacy_explicit
+                else None,
+                legacy_is_explicit=top_self_energy_legacy_explicit,
+            )
+        except ValueError as exc:
+            parser.error(str(exc))
+
+    try:
+        cli_runtime_overrides = parse_runtime_parameter_assignments(
+            args.dy_runtime_parameter_overrides
+        )
+        runtime_parameter_overrides = merge_runtime_parameter_overrides(
+            getattr(args, "dy_runtime_parameters", None),
+            cli_runtime_overrides,
+        )
+    except DYRuntimeParameterError as exc:
+        parser.error(str(exc))
+    # Existing scalar flags remain convenient integration-time aliases.  Only
+    # explicitly supplied CLI options become overrides; common card values are
+    # generation defaults recorded in the bundle metadata.
+    if (
+        args.command == "integrate"
+        and args.process == "dy"
+        and args.integrand_implementation == "zenos"
+    ):
+        scalar_runtime_aliases = {
+            "m_top": "m_top",
+            "dy_muv": "muv",
+            "dy_lambda_sq": "lambda_sq",
+            "dy_mur_sq": "mur_sq",
+        }
+        for destination, parameter_name in scalar_runtime_aliases.items():
+            if destination in explicit_cli_destinations:
+                runtime_parameter_overrides[parameter_name] = repr(
+                    float(getattr(args, destination))
+                )
+        # The dedicated precision-preserving syntax is the authoritative CLI
+        # form when a legacy scalar alias is also present.
+        runtime_parameter_overrides.update(cli_runtime_overrides)
+    elif args.command != "integrate" and runtime_parameter_overrides:
+        parser.error("DY runtime parameter overrides are integration-time settings.")
+    if runtime_parameter_overrides and args.process != "dy":
+        parser.error("DY runtime parameter overrides require --process dy.")
+    if (
+        runtime_parameter_overrides
+        and args.integrand_implementation != "zenos"
+    ):
+        parser.error(
+            "DY runtime parameter overrides require --integrand_implementation zenos."
+        )
+    args.dy_runtime_parameters = runtime_parameter_overrides
+    if effective_dy_card is not None and args.command == "integrate":
+        effective_dy_card = effective_dy_card.with_runtime_parameters(
+            runtime_parameter_overrides
+        )
+
+    # Keep non-evaluator integration logic (thresholds and PDF scale defaults)
+    # aligned with the same resolved user-facing parameters.
+    if args.command == "integrate":
+        if "m_top" in runtime_parameter_overrides:
+            args.m_top = float(runtime_parameter_overrides["m_top"])
+        if "lambda_sq" in runtime_parameter_overrides:
+            args.dy_lambda_sq = float(runtime_parameter_overrides["lambda_sq"])
+        if "mur_sq" in runtime_parameter_overrides:
+            args.dy_mur_sq = float(runtime_parameter_overrides["mur_sq"])
+
     setup_logging()
+
+    apply_stability_cli = (
+        effective_dy_card is None or args.command == "integrate"
+    )
+    if apply_stability_cli and args.dy_stability_backend is not None:
+        if args.dy_stability_backend == "double-float":
+            selected_fallback_precision = 32
+        else:
+            selected_fallback_precision = (
+                args.dy_stability_arb_digits
+                if args.dy_stability_arb_digits is not None
+                else args.dy_rotation_check_arb_digits
+            )
+            if selected_fallback_precision == 32:
+                parser.error(
+                    "--dy-stability-backend arb cannot use 32 digits because 32 "
+                    "selects the DoubleFloat backend."
+                )
+        if selected_fallback_precision < 2:
+            parser.error("DY stability precision must be at least two digits.")
+        if (
+            effective_dy_card is None
+            and args.dy_fallback_precision is not None
+            and args.dy_fallback_precision != selected_fallback_precision
+        ):
+            parser.error(
+                "--dy-fallback-precision conflicts with --dy-stability-backend."
+            )
+        args.dy_fallback_precision = selected_fallback_precision
+    elif apply_stability_cli and args.dy_stability_arb_digits is not None:
+        parser.error(
+            "--dy-stability-arb-digits requires --dy-stability-backend arb."
+        )
 
     match args.verbosity:
         case "debug":
@@ -434,6 +1202,38 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
             logger.setLevel(logging.INFO)
         case "critical":
             logger.setLevel(logging.CRITICAL)
+
+    if effective_dy_card is not None and (
+        args.dy_card_check or args.dy_dump_effective_card
+    ):
+        result: dict[str, object] = {
+            "command": args.command,
+            "process": args.process,
+            "exit_code": 0,
+            "status": "card_valid",
+            "dy_card_path": effective_dy_card.card_path,
+            "dy_source_card_sha256": effective_dy_card.source_card_sha256,
+            "dy_effective_settings": effective_dy_card.as_dict(),
+            "dy_generation_settings_fingerprint": (
+                effective_dy_card.generation_fingerprint
+            ),
+            "dy_configuration_hashes": dict(
+                effective_dy_card.configuration_hashes
+            ),
+        }
+        if args.dy_dump_effective_card:
+            print(effective_dy_card.to_toml(), end="")
+            result["status"] = "card_dumped"
+        else:
+            logger.info(
+                "Validated DY card %s for command %s (generation fingerprint %s).",
+                effective_dy_card.card_path,
+                args.command,
+                effective_dy_card.generation_fingerprint,
+            )
+        return result
+
+    _load_process_class(args.process)
 
     ps_point_is_default = (
         args.pg1 is None
@@ -555,6 +1355,24 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
         "process": args.process,
         "exit_code": 0,
     }
+    if effective_dy_card is not None:
+        result.update({
+            "dy_card_path": effective_dy_card.card_path,
+            "dy_source_card_sha256": effective_dy_card.source_card_sha256,
+            "dy_effective_settings": effective_dy_card.as_dict(),
+            "dy_generation_settings_fingerprint": (
+                effective_dy_card.generation_fingerprint
+            ),
+            "dy_configuration_hashes": dict(
+                effective_dy_card.configuration_hashes
+            ),
+        })
+        logger.info(
+            "Using DY card %s (source SHA256 %s, generation fingerprint %s).",
+            effective_dy_card.card_path,
+            effective_dy_card.source_card_sha256,
+            effective_dy_card.generation_fingerprint,
+        )
 
     if args.overwrite_process_basename is not None:
         process_class.name = args.overwrite_process_basename  # type: ignore
@@ -634,12 +1452,31 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
                 dy_channel=args.dy_channel,
                 skip_ps_validation=args.dy_skip_ps_validation,
                 integrate_beams=args.dy_integrate_beams,
+                dy_z_bin=args.dy_z_bin,
+                dy_q_min=args.dy_q_min,
+                dy_q_max=args.dy_q_max,
+                dy_physical_normalisation=args.dy_physical_normalisation,
+                dy_integrated_leptonic_phase_space=(
+                    args.dy_integrated_leptonic_phase_space
+                ),
                 external_gluon_polarisation=args.external_gluon_polarisation,
+                symmetrise_p1_p2=args.dy_symmetrise_p1_p2,
                 disable_integrated_uv_cts=not getattr(
                     args, "dy_enable_integrated_uv_cts", False
                 ),
+                dy_top_self_energy_os_subtraction=getattr(
+                    args, "dy_top_self_energy_os_subtraction", False
+                )
+                if not top_self_energy_mode_explicit
+                else None,
+                dy_top_self_energy_renormalisation=getattr(
+                    args, "dy_top_self_energy_renormalisation", None
+                ),
                 dy_check_generation_limits=getattr(
                     args, "dy_check_generation_limits", False
+                ),
+                dy_threshold_h_function=getattr(
+                    args, "dy_threshold_h_function", None
                 ),
                 dy_parallel_graphs=args.dy_parallel_graphs,
                 dy_fallback_precision=(
@@ -649,11 +1486,52 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
                 ),
                 dy_lambda_sq=args.dy_lambda_sq,
                 dy_mur_sq=args.dy_mur_sq,
+                dy_pdf_set=args.dy_pdf_set,
+                dy_pdf_member=args.dy_pdf_member,
+                dy_muf_sq=args.dy_muf_sq,
+                dy_msbar_scheme_counterterm=args.dy_msbar_scheme_counterterm,
+                dy_decoupling=args.dy_decoupling,
+                dy_scheme_counterterm_sobol_power=(
+                    args.dy_scheme_counterterm_sobol_power
+                ),
+                dy_scheme_counterterm_replicas=(
+                    args.dy_scheme_counterterm_replicas
+                ),
+                dy_scheme_counterterm_factor=(
+                    args.dy_scheme_counterterm_factor
+                ),
+                dy_scheme_born_bundle=args.dy_scheme_born_bundle,
+                dy_scheme_born_bundles=args.dy_scheme_born_bundles,
+                dy_scheme_alpha_s=args.dy_scheme_alpha_s,
+                dy_scheme_counterterm_clip=args.dy_scheme_counterterm_clip,
                 dy_observable_muv=args.dy_muv,
+                dy_runtime_parameters=args.dy_runtime_parameters,
+                skip_gl_worker_init=(
+                    args.command == "integrate"
+                    and args.integrand_implementation == "zenos"
+                ),
                 load_compiled_bundle=args.command != "generate",
             )
         case _:
             raise pygloopException(f"Process {args.process} not implemented.")
+
+    if effective_dy_card is not None and args.command == "integrate":
+        _verify_card_bundle_compatibility(
+            process,
+            effective_dy_card,
+            allow_unverified=args.dy_allow_unverified_bundle,
+        )
+    if (
+        args.process == "dy"
+        and args.command == "integrate"
+        and args.dy_runtime_parameters
+    ):
+        compiled_bundle = getattr(process, "compiled_bundle", None)
+        if compiled_bundle is None:
+            raise pygloopException(
+                "DY runtime parameter overrides require a compiled zenos bundle."
+            )
+        compiled_bundle.resolve_runtime_parameters(args.dy_runtime_parameters)
 
     integrand_implementation = {
         "integrand_type": args.integrand_implementation,
@@ -673,6 +1551,16 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
             else args.dy_rotation_check_arb_digits
         )
         integrand_implementation["dy_theta_tol"] = args.dy_theta_tol
+        integrand_implementation["dy_stability_rtol"] = args.dy_stability_rtol
+        integrand_implementation["dy_stability_atol"] = args.dy_stability_atol
+        integrand_implementation["dy_large_weight_precision"] = (
+            args.dy_large_weight_precision
+        )
+        integrand_implementation["dy_large_weight_clip"] = args.dy_large_weight_clip
+        integrand_implementation["dy_beam_parameterisation"] = (
+            args.dy_beam_parameterisation
+        )
+        integrand_implementation["dy_soft_mirror_edges"] = args.dy_soft_mirror_edge
         integrand_implementation["dy_large_weight_threshold"] = (
             args.dy_large_weight_threshold
         )
@@ -685,10 +1573,21 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
         integrand_implementation["dy_accept_all_arb_retries"] = (
             args.dy_accept_all_arb_retries
         )
+        integrand_implementation["dy_runtime_parameters"] = dict(
+            args.dy_runtime_parameters
+        )
+        integrand_implementation["dy_graph_weights"] = getattr(
+            args, "dy_graph_weights", None
+        )
         if args.dy_ttbar_pt_min is not None:
             integrand_implementation["dy_ttbar_pt_min"] = args.dy_ttbar_pt_min
-        if args.dy_muv is not None:
-            integrand_implementation["mUV"] = args.dy_muv
+    matching_generation_provenance_existed = False
+    if effective_dy_card is not None and args.command == "generate":
+        matching_generation_provenance_existed = _preflight_card_generation(
+            process,
+            effective_dy_card,
+            clean=args.clean,
+        )
     t_start = time.time()
     match args.command:
         case "generate":
@@ -707,6 +1606,15 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
                     n_cpe_iterations=args.n_iterations_cpe,
                 )
                 logger.info("Spenso code generation completed.")
+            if effective_dy_card is not None:
+                stamped_metadata = _finalize_card_generation_metadata(
+                    process,
+                    effective_dy_card,
+                    matching_provenance_existed=(
+                        matching_generation_provenance_existed
+                    ),
+                )
+                result["dy_bundle_metadata"] = stamped_metadata
             result["status"] = "generated"
 
         case "inspect":
@@ -776,7 +1684,7 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
                     args.target = direct_target
 
             t_start = time.time()
-            run_opts = vars(args).copy()
+            run_opts = _runtime_arguments(args)
             run_opts["integrand_implementation"] = integrand_implementation
             res = process.integrate(**run_opts)  # type: ignore
             integration_time = time.time() - t_start
@@ -793,7 +1701,7 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
             result["integration_time_s"] = integration_time
 
         case "plot":
-            process.plot(**vars(args))
+            process.plot(**_runtime_arguments(args))
             result["status"] = "plotted"
 
         case "bench":

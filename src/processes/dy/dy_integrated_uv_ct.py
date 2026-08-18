@@ -16,6 +16,10 @@ from symbolica.community.idenso import (  # pyright: ignore
 
 from processes.dy.dy_graph_utils import _base_node, _strip_quotes, change_routing
 from processes.dy.dy_symbolica_utils import fold_momentum_components_into_gamma
+from processes.dy.dy_top_self_energy import (
+    PROJECTED_OS_SPATIAL_PROBE_ID,
+    resolve_top_self_energy_renormalisation,
+)
 
 pjoin = os.path.join
 
@@ -401,10 +405,8 @@ def _finite_uv_integrated_expression(expr: Expression) -> Expression:
         if "ε" not in str(term):
             finite += term
 
-    return (
-        ((finite / E("𝑖")).expand())
-        .replace(E("muvsq"), E("mUV") ** 2)
-        .replace(E("𝜋"), E("3.141592653589793238462643383279502884"))
+    return ((finite / E("𝑖")).expand()).replace(
+        E("muvsq"), E("mUV") ** 2
     )
 
 
@@ -456,9 +458,138 @@ def _compact_integrated_expression(expr: str) -> Expression:
     expr = expr.replace("**", "^")
     expr = expr.replace("Log", "log")
     expr = re.sub(r"Power\(([^(),]+),([^(),]+)\)", r"(\1^\2)", expr)
-    expr = expr.replace("Pi", "3.141592653589793238462643383279502884")
+    expr = expr.replace("Pi", "𝜋")
     parsed = Eu(expr)
     return parsed.replace(Eu("muvsq"), Eu("mUV") ** 2)
+
+
+def _compact_top_self_energy_os_difference(
+    finite_counterterm: Expression,
+    counterterm_entry: dict[str, object],
+    external_mappings=None,
+) -> Expression:
+    """Return the compact massive-top self-energy difference."""
+    external_particles = counterterm_entry.get("external_particles", [])
+    internal_particles = counterterm_entry.get(
+        "internal_particles_multiset",
+        counterterm_entry.get("internal_particles", []),
+    )
+    if (
+        counterterm_entry.get("process") != "t > t"
+        or _uv_particle_multiset(
+            external_particles,
+            _normalise_uv_external_particle,
+        )
+        != ("t", "t")
+        or _uv_particle_multiset(
+            internal_particles,
+            _normalise_uv_particle,
+        )
+        != ("g", "t")
+    ):
+        raise ValueError(
+            "on-shell integrated UV subtraction requires the compact "
+            "t > t counterterm with internal particles {t, g}"
+        )
+
+    on_shell_momentum_sign = (
+        _compact_top_self_energy_os_momentum_sign(external_mappings)
+        if external_mappings is not None
+        else 1
+    )
+    on_shell_counterterm = finite_counterterm
+    compact_momenta = list(finite_counterterm.match(Eu("p(component_)")))
+    if not compact_momenta:
+        raise ValueError(
+            "compact t > t counterterm contains no external p(component)"
+        )
+    for momentum_match in compact_momenta:
+        component = momentum_match[S("component_")]
+        on_shell_counterterm = on_shell_counterterm.replace(
+            Eu(f"p({component.to_canonical_string()})"),
+            Eu(
+                f"({on_shell_momentum_sign})*MT*Q(1000,mink(4,"
+                f"{component.to_canonical_string()}))"
+            ),
+            repeat=True,
+        )
+    if list(on_shell_counterterm.match(Eu("p(component_)"))):
+        raise ValueError(
+            "failed to put every compact external momentum component on shell"
+        )
+    return (finite_counterterm - on_shell_counterterm).expand()
+
+
+def _compact_top_self_energy_projected_difference(
+    finite_counterterm: Expression,
+    counterterm_entry: dict[str, object],
+    external_mappings=None,
+    *,
+    basis: str | None = None,
+) -> Expression:
+    """Return the open two-branch projected massive-top difference.
+
+    The compact table tensor is kept open in its two spinor indices.  The
+    closed form below is the exact result of
+
+    ``C(p) - P+ C(+p_os) - P- C(-p_os)``.
+
+    ``identity`` and ``spatial`` are private host-embedding probes used by the
+    local projected tensor.  They are not integrated counterterms on their
+    own and never reach a generated bundle.
+    """
+
+    external_particles = counterterm_entry.get("external_particles", [])
+    internal_particles = counterterm_entry.get(
+        "internal_particles_multiset",
+        counterterm_entry.get("internal_particles", []),
+    )
+    if (
+        counterterm_entry.get("process") != "t > t"
+        or _uv_particle_multiset(
+            external_particles,
+            _normalise_uv_external_particle,
+        )
+        != ("t", "t")
+        or _uv_particle_multiset(
+            internal_particles,
+            _normalise_uv_particle,
+        )
+        != ("g", "t")
+    ):
+        raise ValueError(
+            "projected-os integrated UV subtraction requires the compact "
+            "t > t counterterm with internal particles {t, g}"
+        )
+
+    if basis == "identity":
+        return E("-8/3*𝜋*GC_10^2*MT*delta(i,j)*g(i1,j1)")
+    if basis == "spatial":
+        return E(
+            "-8/3*𝜋*GC_10^2*"
+            "gamma(i,nu,j)*"
+            f"Q({PROJECTED_OS_SPATIAL_PROBE_ID},mink(4,nu))*g(i1,j1)"
+        )
+    if basis is not None:
+        raise ValueError(
+            "projected-os compact basis must be 'identity', 'spatial', or None"
+        )
+
+    logarithm = E("log(mUV^2/mursq)")
+    projected = (
+        E("-8/3*𝜋*GC_10^2")
+        * (E("1") + logarithm)
+        * (
+            E("gamma(i,nu,j)*p(nu)")
+            - E("MT*delta(i,j)")
+        )
+        * E("g(i1,j1)")
+    ).expand()
+    if external_mappings is not None:
+        # Resolve the orientation eagerly.  The remapper below uses the same
+        # mappings to transpose the open spinor tensor when required.
+        _compact_top_self_energy_projector_side(external_mappings)
+    return projected
 
 
 def _counterterm_from_generated_entry(entry: dict) -> dict[str, object]:
@@ -1747,6 +1878,48 @@ def _transpose_compact_top_spinors(external_mappings) -> bool:
     )
 
 
+def _compact_top_self_energy_os_momentum_sign(external_mappings) -> int:
+    """Orient the rest momentum along the mapped top-fermion flow."""
+    external_particles = tuple(
+        _normalise_uv_external_particle(mapping["reference"].get("particle", ""))
+        for mapping in external_mappings
+    )
+    if external_particles != ("t", "t"):
+        raise ValueError(
+            "on-shell top self-energy momentum orientation requires two "
+            "mapped top boundary legs"
+        )
+
+    first_is_source = _actual_port_is_source(external_mappings[0])
+    first_is_destination = _actual_port_is_destination(external_mappings[0])
+    second_is_source = _actual_port_is_source(external_mappings[1])
+    second_is_destination = _actual_port_is_destination(external_mappings[1])
+    if first_is_destination and second_is_source:
+        return 1
+    if first_is_source and second_is_destination:
+        return -1
+    raise ValueError(
+        "mapped top self-energy boundary legs do not define opposite "
+        "fermion-flow endpoints"
+    )
+
+
+def _compact_top_self_energy_projector_side(external_mappings) -> str:
+    """Return the serialized side implementing logical left projection.
+
+    A reversed graph embedding transposes the compact open tensor, turning
+    ``P_sigma Sigma`` into ``Sigma.T P_sigma.T``.  This structural mapping is
+    shared by the projected integrated tensor and the local host bases.
+    """
+
+    _compact_top_self_energy_os_momentum_sign(external_mappings)
+    return (
+        "right"
+        if _transpose_compact_top_spinors(external_mappings)
+        else "left"
+    )
+
+
 def _transpose_compact_photon_spinors(external_mappings) -> bool:
     external_particles = tuple(
         _normalise_uv_external_particle(mapping["reference"].get("particle", ""))
@@ -1961,7 +2134,19 @@ def construct_integrated_counter_term(
     raised_energy_cleanup,
     uv_routing: UVSubgraphRouting | None = None,
     external_numerator_factorisation=None,
+    top_self_energy_os_subtraction: bool = False,
+    top_self_energy_renormalisation: str | None = None,
+    projected_os_basis: str | None = None,
 ):
+    top_self_energy_mode = resolve_top_self_energy_renormalisation(
+        top_self_energy_renormalisation,
+        top_self_energy_os_subtraction,
+        legacy_is_explicit=top_self_energy_renormalisation is None,
+    )
+    if projected_os_basis is not None and top_self_energy_mode != "projected-os":
+        raise ValueError(
+            "projected_os_basis is private to projected-os construction"
+        )
     if subtraction.emr_processor is None or subtraction.L not in {1, 2}:
         return None
 
@@ -2092,6 +2277,19 @@ def construct_integrated_counter_term(
         return None
 
     if candidates[0].get("source") == "compact":
+        if top_self_energy_mode == "os":
+            finite_counterterm = _compact_top_self_energy_os_difference(
+                finite_counterterm,
+                counterterm_entry,
+                external_mappings,
+            )
+        elif top_self_energy_mode == "projected-os":
+            finite_counterterm = _compact_top_self_energy_projected_difference(
+                finite_counterterm,
+                counterterm_entry,
+                external_mappings,
+                basis=projected_os_basis,
+            )
         remapped_tensor_numerator = _remap_compact_uv_integrated_expression(
             finite_counterterm,
             external_mappings,
@@ -2263,6 +2461,17 @@ def construct_integrated_counter_term(
     contracted_emr = _normalise_integrated_uv_imaginary_phase(
         contracted_emr
     )
+    if top_self_energy_mode != "no-os" and list(
+        contracted_emr.match(E("Q(1000,top_os_slot_)"))
+    ):
+        graph_name = (
+            contracted_graph.get("base_graph_name")
+            or contracted_graph.get_name()
+        )
+        raise ValueError(
+            "On-shell integrated top self-energy numerator for "
+            f"{graph_name} still contains Q(1000) after host contraction"
+        )
     open_lorentz_momenta = _open_lorentz_momenta(contracted_emr)
     if open_lorentz_momenta:
         graph_name = contracted_graph.get("base_graph_name") or contracted_graph.get_name()
@@ -2284,7 +2493,7 @@ def construct_integrated_counter_term(
             mass = E(f"m({e_particle})")
         routed_integrand = routed_integrand.replace(E(f"m({e_atts['id']})"), mass)
 
-    normalisation=E("mUV")/(3.141592653589793238462643383279502884197169399375105820974944592)**2
+    normalisation = E("mUV") / E("𝜋") ** 2
 
     tadpole_loop_index = (
         uv_routing.uv_loop_index
