@@ -24,7 +24,14 @@ except ImportError:
         from gammaloop import __version__ as git_version  # isort: skip # type: ignore # noqa: F401
     except ImportError:
         git_version = "unknown"
-from symbolica import AtomType, E, Expression, Replacement, S  # pyright: ignore
+from symbolica import (  # pyright: ignore
+    AtomType,
+    E,
+    Expression,
+    Replacement,
+    S,
+    __version__ as _SYMBOLICA_VERSION,
+)
 from symbolica.community.idenso import (  # pyright: ignore
     simplify_color,
     simplify_gamma,
@@ -75,6 +82,11 @@ debug = False
 
 
 _LAURENT_CHUNK_SIZE = 128
+_SYMBOLICA_RELEASE = tuple(
+    int(component)
+    for component in re.match(r"^(\d+)\.(\d+)", _SYMBOLICA_VERSION).groups()
+)
+_DY_NEEDS_SYMBOLICA_22_TENSOR_COMPAT = _SYMBOLICA_RELEASE >= (2, 2)
 _DY_COLLINEAR_X = S(
     "dy_collinear_x",
     is_scalar=True,
@@ -1460,7 +1472,83 @@ def _simplify_labelled_momentum_metrics(expr: Expression) -> Expression:
     return expr
 
 
-def to_dots_dy(expr: Expression) -> Expression:
+def _has_dy_lorentz_metric(expr: Expression) -> bool:
+    metric = S("spenso::g")
+    mink = S("spenso::mink")
+    dim_ = S("dy_closed_metric_dim_")
+    left_ = S("dy_closed_metric_left_")
+    right_ = S("dy_closed_metric_right_")
+    return any(expr.match(metric(mink(dim_, left_), mink(dim_, right_))))
+
+
+def _is_dy_pure_lorentz_metric_factor(expr: Expression) -> bool:
+    if not _has_dy_lorentz_metric(expr):
+        return False
+    return all(
+        symbol.get_name().rsplit("::", 1)[-1] in {"g", "mink", "hedge"}
+        for symbol in expr.get_all_symbols()
+    )
+
+
+def _simplify_closed_dy_lorentz_metric_networks(expr: Expression) -> Expression:
+    """Distribute only small, demonstrably closed metric networks.
+
+    Idenso does not distribute a factorised sum before contracting its
+    Lorentz metrics.  Symbolica 2.1 often exposed such sums while closing the
+    surrounding gamma trace, whereas 2.2 can retain the factorisation.  Work
+    term by term, isolate factors made only from Lorentz metrics and hedge
+    labels, and accept the local expansion only when all metrics disappear.
+    This leaves open external-polarisation tensors unchanged.
+    """
+
+    # The established 2.1 path normally has no Lorentz metrics left here.
+    # Avoid a factor-by-factor pattern scan in that overwhelmingly common case.
+    if not _has_dy_lorentz_metric(expr):
+        return expr
+
+    def simplify_term(term: Expression) -> Expression:
+        metric_factors = []
+        other_factors = []
+        for factor in _mul_factors(term):
+            if _is_dy_pure_lorentz_metric_factor(factor):
+                metric_factors.append(factor)
+            else:
+                other_factors.append(factor)
+        if not metric_factors:
+            return term
+
+        network = E("1")
+        for factor in metric_factors:
+            network *= factor
+        if (
+            _additive_expansion_fanout(network, _DY_DOT_TERM_FANOUT_BUDGET)
+            > _DY_DOT_TERM_FANOUT_BUDGET
+        ):
+            return term
+
+        contracted = simplify_metrics(network.expand())
+        if _has_dy_lorentz_metric(contracted):
+            return term
+
+        result = contracted
+        for factor in other_factors:
+            result *= factor
+        return result
+
+    if not bool(expr.is_type(AtomType.Add)):
+        return simplify_term(expr)
+
+    result = E("0")
+    for term in expr:
+        result += simplify_term(term)
+    return result
+
+
+def to_dots_dy(
+    expr: Expression,
+    *,
+    close_factorised_metric_networks: bool = True,
+) -> Expression:
     """Close DY Q/Qp Lorentz components as explicit Spenso dot products.
 
     DY momenta carry an edge label before their Lorentz index, so Idenso's
@@ -1473,6 +1561,8 @@ def to_dots_dy(expr: Expression) -> Expression:
     # gamma expressions.  Explicit metric rules below remain a fallback for
     # Q/Qp heads that Idenso intentionally treats as opaque.
     expr = _simplify_labelled_momentum_metrics(expr)
+    if close_factorised_metric_networks:
+        expr = _simplify_closed_dy_lorentz_metric_networks(expr)
 
     heads = _dy_momentum_heads(expr)
     mink = S("spenso::mink")
@@ -1601,11 +1691,19 @@ def to_dots_dy(expr: Expression) -> Expression:
             expanded = E("0")
             for index, term in enumerate(terms):
                 expanded += term.expand() if index in hidden_terms else term
-            return to_dots_dy(expanded)
+            return to_dots_dy(
+                expanded,
+                close_factorised_metric_networks=(
+                    close_factorised_metric_networks
+                ),
+            )
     elif _has_hidden_additive_momentum_factor(
         expr, expression_expansion_is_bounded=True
     ):
-        return to_dots_dy(expr.expand())
+        return to_dots_dy(
+            expr.expand(),
+            close_factorised_metric_networks=close_factorised_metric_networks,
+        )
 
     unresolved = [
         label
@@ -1619,6 +1717,114 @@ def to_dots_dy(expr: Expression) -> Expression:
             f"conversion ({sorted(set(unresolved))}): {preview}"
         )
     return expr
+
+
+def _simplify_dy_gamma_fixed_point(expr: Expression) -> Expression:
+    """Finish gamma closure across Symbolica Community release boundaries.
+
+    Symbolica 2.2 can use its first pass to assemble connected products into
+    ``chain`` objects and only reduce those chains on the following pass.
+    Earlier releases usually complete both operations at once.  Iterating the
+    same algebraic simplifier to a fixed point preserves that legacy result
+    without introducing version-specific tensor rewrites.
+    """
+    for _ in range(4):
+        previous = expr.to_canonical_string()
+        expr = simplify_gamma(expr)
+        if expr.to_canonical_string() == previous:
+            return expr
+    raise ValueError("DY gamma simplification did not converge after four passes.")
+
+
+def _dy_lorentz_momentum_component_count(expr: Expression) -> int:
+    """Count temporary Q/Qp heads that still carry a Lorentz component."""
+    mink = S("spenso::mink")
+    edge_ = S("dy_open_edge_")
+    dim_ = S("dy_open_dim_")
+    slot_ = S("dy_open_slot_")
+    return sum(
+        len(list(expr.match(head(edge_, mink(dim_, slot_)))))
+        for heads in _dy_momentum_heads(expr).values()
+        for head in heads
+    )
+
+
+def _has_dy_gamma_heads(expr: Expression) -> bool:
+    return any(
+        symbol.get_name().rsplit("::", 1)[-1] in {"chain", "gamma"}
+        for symbol in expr.get_all_symbols()
+    )
+
+
+_DY_GAMMA_DOT_SHORTCUT_COMPONENT_THRESHOLD = 1024
+
+
+def _dy_kinematic_closure_defect_count(expr: Expression) -> int:
+    open_components = _dy_lorentz_momentum_component_count(expr)
+    return open_components + int(_has_dy_gamma_heads(expr))
+
+
+def _close_dy_kinematic_numerator(expr: Expression) -> Expression:
+    """Close gamma chains and labelled momenta across Idenso releases.
+
+    Keep the established closure path as the primary result.  Symbolica 2.2
+    can occasionally expand a closed fermion trace into a large metric
+    network before recognising its contracted Q/Qp components.  Only when
+    that primary path leaves open components, continue gamma simplification
+    to a fixed point and expand the residual factorised network once.  The
+    fallback is therefore inert for the Symbolica 2.1 regression baseline.
+    """
+    # Preserve the exact, established Symbolica 2.1 path first.  Extra gamma
+    # passes are a compatibility fallback, not a new default simplification.
+    legacy_gamma = simplify_gamma(expr)
+    if (
+        _DY_NEEDS_SYMBOLICA_22_TENSOR_COMPAT
+        and _has_dy_gamma_heads(legacy_gamma)
+        and _dy_lorentz_momentum_component_count(legacy_gamma)
+        >= _DY_GAMMA_DOT_SHORTCUT_COMPONENT_THRESHOLD
+    ):
+        # The profiled large Symbolica-2.2 tensor networks retain thousands of
+        # Q/Qp components behind a residual gamma/chain head, so their first
+        # dot-contraction pass cannot close and is prohibitively expensive.
+        # Small networks still take the established path below: metric
+        # contraction can annihilate them before another gamma pass, which is
+        # an important one-loop compatibility case.
+        gamma_closed = _simplify_dy_gamma_fixed_point(legacy_gamma)
+        primary = to_dots_dy(gamma_closed)
+        primary_open = _dy_kinematic_closure_defect_count(primary)
+        if primary_open == 0:
+            return primary
+        fallback = to_dots_dy(gamma_closed.expand())
+        fallback_open = _dy_kinematic_closure_defect_count(fallback)
+        if fallback_open <= primary_open:
+            return fallback
+        return primary
+
+    legacy = to_dots_dy(
+        legacy_gamma,
+        close_factorised_metric_networks=(
+            _DY_NEEDS_SYMBOLICA_22_TENSOR_COMPAT
+        ),
+    )
+    if not _DY_NEEDS_SYMBOLICA_22_TENSOR_COMPAT:
+        return legacy
+    if _dy_kinematic_closure_defect_count(legacy) == 0:
+        return legacy
+
+    gamma_closed = _simplify_dy_gamma_fixed_point(legacy_gamma)
+    primary = to_dots_dy(gamma_closed)
+    primary_open = _dy_kinematic_closure_defect_count(primary)
+    if primary_open == 0:
+        return primary
+
+    # Symbolica 2.1 distributed these residual tensor products as part of its
+    # gamma pass.  Reproduce that established result only for the uncommon
+    # 2.2 form that demonstrably remained open above.
+    fallback = to_dots_dy(gamma_closed.expand())
+    fallback_open = _dy_kinematic_closure_defect_count(fallback)
+    if fallback_open <= primary_open:
+        return fallback
+    return primary
 
 
 def _numerator_factor_kind(factor: Expression) -> str:
@@ -1675,6 +1881,24 @@ def _basis_edge_id(edge_id):
         return int(edge_id)
     except ValueError:
         return edge_id
+
+
+def _threshold_lmb_ids(threshold_ids, final_cut) -> list:
+    """Choose a deterministic threshold loop-momentum basis.
+
+    GammaLoop does not guarantee the order of the edges in ``final_cut``.
+    Older releases happened to expose decreasing numerical edge IDs here,
+    while newer releases can expose the same edges in the opposite order.
+    The threshold construction must therefore not use list position as
+    physical input.  Canonicalising in the established decreasing-ID order
+    retains the previous basis and makes generation release-independent.
+    """
+    final_cut_ids = sorted(
+        (edge.get_attributes()["id"] for edge in final_cut),
+        key=_id_sort_key,
+        reverse=True,
+    )
+    return list(threshold_ids[:-1]) + final_cut_ids[:-1]
 
 
 def _graph_loop_count(graph) -> int:
@@ -1812,7 +2036,13 @@ _THRESHOLD_CT_DISABLED_GRAPH_CHANNELS = frozenset(
     {
         ("GL17", (1, -1)),
         ("GL17", (-1, 1)),
+        ("GL008", (0, 0)),
+        ("GL029", (0, 0)),
+        ("GL031", (0, 0)),
+        ("GL035", (0, 0)),
+        ("GL055", (0, 0)),
         ("GL093", (0, 0)),
+        ("GL096", (0, 0)),
     }
 )
 
@@ -2324,7 +2554,7 @@ def _factorised_graph_numerator_branches(
 
 
 def _normalise_dy_colour_invariants(expr: Expression) -> Expression:
-    """Translate Symbolica 2.1 QCD invariants to the legacy DY basis.
+    """Translate Symbolica 2.1/2.2 QCD invariants to the legacy DY basis.
 
     Symbolica 2.1 can leave quadratic Casimirs as ``ca``, ``cf``, ``CA``,
     ``CF``, or ``Nc``.  DY uses the fixed SU(3) model, so close those symbols
@@ -2340,6 +2570,11 @@ def _normalise_dy_colour_invariants(expr: Expression) -> Expression:
     Keeping the explicit ``TR`` normalization reproduces the Symbolica 1.5
     result and lets the existing evaluator perform its usual substitution.
     """
+    has_function_invariants = any(
+        symbol.get_name().rsplit("::", 1)[-1] in {"cas", "idx"}
+        for symbol in expr.get_all_symbols()
+    )
+
     for prefix in ("", "spenso::"):
         for adjoint_casimir in ("ca", "CA", "Nc"):
             expr = expr.replace(
@@ -2349,6 +2584,22 @@ def _normalise_dy_colour_invariants(expr: Expression) -> Expression:
             expr = expr.replace(
                 E(f"{prefix}{fundamental_casimir}"), E("4/3"), repeat=True
             )
+
+        # Symbolica Community 2.2 keeps fixed-representation quadratic
+        # invariants as scalar function calls rather than the legacy ca/cf/TR
+        # symbols.  Close only the exact SU(3) representations used by DY.
+        if has_function_invariants:
+            for head, representation, value in (
+                ("cas", "coad(8)", "3"),
+                ("cas", "cof(3)", "4/3"),
+                ("idx", "coad(8)", "3"),
+                ("idx", "cof(3)", "1/2"),
+            ):
+                expr = expr.replace(
+                    E(f"{prefix}{head}(2,{prefix}{representation})"),
+                    E(value),
+                    repeat=True,
+                )
 
     for prefix in ("", "spenso::"):
         expr = expr.replace(
@@ -3418,7 +3669,7 @@ class EMRIntegrandConstructor(object):
             colour = _normalise_dy_colour_invariants(
                 simplify_color(_prepare_dy_colour_for_simplification(colour))
             )
-            kinematic = to_dots_dy(simplify_gamma(kinematic))
+            kinematic = _close_dy_kinematic_numerator(kinematic)
             kinematic = _dots_to_dy_scalar_products(kinematic)
             kinematic = _normalise_routed_numerator_on_shell(
                 kinematic,
@@ -5321,6 +5572,7 @@ class UltraVioletSubtraction(object):
             external_numerator_factorisation=(
                 self.integrated_numerator_factorisation
             ),
+            colour_invariant_normalisation=_normalise_dy_colour_invariants,
             top_self_energy_os_subtraction=(
                 top_self_energy_os_subtraction
             ),
@@ -5685,9 +5937,7 @@ class ThresholdSubtractor(object):
 
         # for ttbar: careful of k0 sign
 
-        lmb_ids = threshold_ids[:-1] + [
-            e.get_attributes()["id"] for e in threshold_graph.final_cut[:-1]
-        ]
+        lmb_ids = _threshold_lmb_ids(threshold_ids, threshold_graph.final_cut)
 
         threshold_graph_routed = change_routing(
             deepcopy(threshold_graph.graph), lmb_ids

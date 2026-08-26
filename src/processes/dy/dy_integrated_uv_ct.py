@@ -1,6 +1,7 @@
 import json
 import os
 import re
+from collections.abc import Callable
 from copy import deepcopy
 from dataclasses import asdict, dataclass
 from fractions import Fraction
@@ -1101,12 +1102,15 @@ def _close_uv_int_tensor_numerator(expr: Expression) -> Expression:
 
 def _close_factorised_uv_int_tensor_numerator(
     branches: list[tuple[Expression, Expression, Expression]],
+    colour_invariant_normalisation: Callable[[Expression], Expression] | None = None,
 ) -> Expression:
     """Close integrated-UV branches with colour and kinematics separated."""
 
     colour_simplified = E("0")
     for scalar, colour, kinematic in branches:
         closed_colour = _close_uv_int_colour_numerator(colour)
+        if colour_invariant_normalisation is not None:
+            closed_colour = colour_invariant_normalisation(closed_colour)
         colour_simplified += scalar * closed_colour * kinematic
 
     # Recombine before Lorentz/gamma closure. Those transformations are
@@ -1134,6 +1138,7 @@ def _uv_int_numerator_factorisation(
     graph,
     upstream_factorisation=None,
     numerator_branch_factorisation=None,
+    colour_invariant_normalisation=None,
 ):
     numerator_graph = graph
     post_momentum_rewrite_factor = E("1")
@@ -1175,7 +1180,10 @@ def _uv_int_numerator_factorisation(
             numerator_graph,
             post_momentum_rewrite_factor,
         )
-        closed_numerator = _close_factorised_uv_int_tensor_numerator(branches)
+        closed_numerator = _close_factorised_uv_int_tensor_numerator(
+            branches,
+            colour_invariant_normalisation=colour_invariant_normalisation,
+        )
     graph_without_numerators = _graph_without_numerators(numerator_graph)
     if protected_energy_ids:
         return (
@@ -2134,6 +2142,7 @@ def construct_integrated_counter_term(
     raised_energy_cleanup,
     uv_routing: UVSubgraphRouting | None = None,
     external_numerator_factorisation=None,
+    colour_invariant_normalisation=None,
     top_self_energy_os_subtraction: bool = False,
     top_self_energy_renormalisation: str | None = None,
     projected_os_basis: str | None = None,
@@ -2448,6 +2457,7 @@ def construct_integrated_counter_term(
             numerator_branch_factorisation=(
                 subtraction.emr_processor.factorised_numerator_branches
             ),
+            colour_invariant_normalisation=colour_invariant_normalisation,
         )
 
     contracted_emr = subtraction.emr_processor.get_integrand(

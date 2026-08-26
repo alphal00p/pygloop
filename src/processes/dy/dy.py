@@ -76,6 +76,7 @@ from processes.dy.dy_integrand import (
 )
 from processes.dy.dy_pdf import (
     DY_INTEGRATED_LEPTONIC_PHASE_SPACE_FACTOR,
+    DYGGAuxiliaryResult,
     DYPDFProvider,
     DYRegularSchemeConvolution,
     DYQQbarAuxiliaryResult,
@@ -87,6 +88,7 @@ from processes.dy.dy_pdf import (
     integrate_gq_scheme_counterterm,
     integrate_qqbar_scheme_counterterm,
     integrate_regular_born_scheme_counterterm,
+    integrate_ttbar_gg_auxiliary,
     integrate_ttbar_qqbar_auxiliary,
     integrate_ttbar_qqbar_scheme_counterterm,
     physical_beam_normalisation_factor,
@@ -353,6 +355,15 @@ class DY(object):
             and self.n_loops == 2
             and self.dy_channel in {(1, -1), (-1, 1)}
         )
+        self._dy_ttbar_gg_scheme_mode = (
+            self.process_name.lower() == "tt~"
+            and self.n_loops == 2
+            and self.dy_channel == (0, 0)
+        )
+        self._dy_ttbar_partonic_scheme_mode = (
+            self._dy_ttbar_qqbar_scheme_mode
+            or self._dy_ttbar_gg_scheme_mode
+        )
         if self.dy_decoupling and not self.dy_msbar_scheme_counterterm:
             raise pygloopException(
                 "The ttbar decoupling contribution requires MSbar scheme conversion."
@@ -406,11 +417,11 @@ class DY(object):
         if self.dy_physical_normalisation:
             if not self.integrate_beams and not (
                 self.dy_msbar_scheme_counterterm
-                and self._dy_ttbar_qqbar_scheme_mode
+                and self._dy_ttbar_partonic_scheme_mode
             ):
                 raise pygloopException(
                     "DY physical normalisation requires --dy-integrate-beams, "
-                    "except for two-loop ttbar qqbar scheme conversion."
+                    "except for two-loop partonic ttbar scheme conversion."
                 )
             if not dy_channel_was_explicit:
                 raise pygloopException(
@@ -618,21 +629,32 @@ class DY(object):
             is_partonic_two_loop_ttbar_qqbar = (
                 not self.integrate_beams and self._dy_ttbar_qqbar_scheme_mode
             )
+            is_partonic_two_loop_ttbar_gg = (
+                not self.integrate_beams and self._dy_ttbar_gg_scheme_mode
+            )
             if not (
                 is_one_loop_dy
                 or is_two_loop_ttbar
                 or is_partonic_two_loop_ttbar_qqbar
+                or is_partonic_two_loop_ttbar_gg
             ):
                 raise pygloopException(
                     "The DY MSbar scheme counterterm supports beam-convoluted "
                     "one-loop Drell-Yan and two-loop ttbar, plus partonic "
-                    "two-loop ttbar qqbar."
+                    "two-loop ttbar qqbar and gg."
                 )
             supported_channels = {(1, 0), (0, 1), (1, -1), (-1, 1)}
+            if self._dy_ttbar_gg_scheme_mode:
+                supported_channels.add((0, 0))
             if self.dy_channel not in supported_channels:
                 raise pygloopException(
                     "The DY MSbar scheme counterterm requires channel selection "
-                    "compatible with the chosen quark process."
+                    "compatible with the chosen process."
+                )
+            if self.integrate_beams and self._dy_ttbar_gg_scheme_mode:
+                raise pygloopException(
+                    "The ttbar gg scheme conversion currently supports "
+                    "partonic integration only."
                 )
             if self.integrate_beams:
                 if self.dy_pdf_set is None or self.dy_muf_sq is None:
@@ -641,7 +663,7 @@ class DY(object):
                     )
             elif self.dy_pdf_set is not None or self.dy_muf_sq is not None:
                 raise pygloopException(
-                    "Partonic two-loop ttbar qqbar scheme conversion does not "
+                    "Partonic two-loop ttbar scheme conversion does not "
                     "accept PDFs."
                 )
             if not self.dy_physical_normalisation:
@@ -673,8 +695,8 @@ class DY(object):
                 self.process_name.lower() == "tt~"
                 and self.n_loops == 2
                 and (
-                not math.isfinite(self.dy_scheme_alpha_s)
-                or self.dy_scheme_alpha_s <= 0.0
+                    not math.isfinite(self.dy_scheme_alpha_s)
+                    or self.dy_scheme_alpha_s <= 0.0
                 )
             ):
                 raise pygloopException(
@@ -2730,6 +2752,227 @@ class DY(object):
             clip_threshold=self.dy_scheme_counterterm_clip,
         )
 
+    def _integrate_ttbar_gg_auxiliary(
+        self,
+        seed: int,
+        parameterisation: str,
+        phase: str,
+    ) -> DYGGAuxiliaryResult:
+        if not self._dy_ttbar_gg_scheme_mode or self.integrate_beams:
+            raise pygloopException(
+                "The correlated gg auxiliary path requires partonic "
+                "two-loop ttbar with channel (0,0)."
+            )
+
+        born_bundle, swap_beams = self._resolve_scheme_born_bundles(((0, 0),))[
+            (0, 0)
+        ]
+        born_integrand = self._scheme_born_integrand(
+            born_bundle,
+            swap_beams,
+            parameterisation,
+            phase,
+        )
+        physical_born_normalisation = (
+            self._scheme_born_cross_section_factor(born_bundle)
+            * physical_beam_normalisation_factor((0, 0), 1)
+        )
+        default_lambda_sq, default_mur_sq = DY_DEFAULT_LAMBDA_MUR_SQ[
+            self.n_loops
+        ]
+        lambda_sq = (
+            self.dy_lambda_sq
+            if self.dy_lambda_sq is not None
+            else default_lambda_sq
+        )
+        mur_sq = (
+            self.dy_mur_sq if self.dy_mur_sq is not None else default_mur_sq
+        )
+        return integrate_ttbar_gg_auxiliary(
+            channel=self.dy_channel,
+            e_cm_sq=self.e_cm**2,
+            m_top=self.m_top,
+            physical_normalisation=physical_born_normalisation,
+            born_integrand=born_integrand,
+            lambda_sq=lambda_sq,
+            mur_sq=mur_sq,
+            alpha_s=self.dy_scheme_alpha_s,
+            sobol_power=self.dy_scheme_counterterm_sobol_power,
+            replicas=self.dy_scheme_counterterm_replicas,
+            seed=seed,
+            clip_threshold=self.dy_scheme_counterterm_clip,
+        )
+
+    def _apply_ttbar_gg_scheme(
+        self,
+        hard_result: IntegrationResult,
+        seed: int,
+        parameterisation: str,
+        phase: str,
+    ) -> IntegrationResult:
+        auxiliary = self._integrate_ttbar_gg_auxiliary(
+            seed,
+            parameterisation,
+            phase,
+        )
+        hard_factor = -0.5
+        scheme_factor = self.dy_scheme_counterterm_factor
+
+        raw_hard_central = hard_result.central_value
+        raw_hard_error = hard_result.error
+        applied_hard_central = hard_factor * raw_hard_central
+        applied_hard_error = abs(hard_factor) * raw_hard_error
+        applied_dgg_minus_lsz = (
+            scheme_factor * auxiliary.dgg_minus_lsz_central_value
+        )
+        applied_dgg_minus_lsz_error = (
+            abs(scheme_factor) * auxiliary.dgg_minus_lsz_error
+        )
+        applied_top_lsz = scheme_factor * auxiliary.top_lsz_central_value
+        applied_top_lsz_error = (
+            abs(scheme_factor) * auxiliary.top_lsz_error
+        )
+        applied_auxiliary_central = (
+            scheme_factor * auxiliary.combined_central_value
+        )
+        applied_auxiliary_error = abs(scheme_factor) * auxiliary.combined_error
+        applied_auxiliary_replicas = tuple(
+            scheme_factor * value for value in auxiliary.combined_replica_values
+        )
+
+        hard_result.dy_scheme_conversion_enabled = True
+        hard_result.dy_scheme_conversion_channel = "gg"
+        hard_result.dy_decoupling_enabled = False
+        hard_result.dy_scheme_alpha_s = self.dy_scheme_alpha_s
+        hard_result.dy_hard_factor = hard_factor
+        hard_result.dy_hard_unscaled_central_value = raw_hard_central
+        hard_result.dy_hard_unscaled_error = raw_hard_error
+        hard_result.dy_hard_central_value = applied_hard_central
+        hard_result.dy_hard_error = applied_hard_error
+
+        hard_result.dy_scheme_counterterm_factor = scheme_factor
+        hard_result.dy_scheme_counterterm_factor_was_explicit = (
+            self.dy_scheme_counterterm_factor_was_explicit
+        )
+        hard_result.dy_scheme_counterterm_unscaled_central_value = (
+            auxiliary.combined_central_value
+        )
+        hard_result.dy_scheme_counterterm_unscaled_error = auxiliary.combined_error
+        hard_result.dy_scheme_counterterm_central_value = applied_auxiliary_central
+        hard_result.dy_scheme_counterterm_error = applied_auxiliary_error
+        hard_result.dy_scheme_counterterm_unscaled_replica_values = (
+            auxiliary.combined_replica_values
+        )
+        hard_result.dy_scheme_counterterm_replica_values = (
+            applied_auxiliary_replicas
+        )
+
+        hard_result.dy_dgg_minus_lsz_unscaled_central_value = (
+            auxiliary.dgg_minus_lsz_central_value
+        )
+        hard_result.dy_dgg_minus_lsz_unscaled_error = (
+            auxiliary.dgg_minus_lsz_error
+        )
+        hard_result.dy_dgg_minus_lsz_central_value = applied_dgg_minus_lsz
+        hard_result.dy_dgg_minus_lsz_error = applied_dgg_minus_lsz_error
+        hard_result.dy_top_lsz_unscaled_central_value = (
+            auxiliary.top_lsz_central_value
+        )
+        hard_result.dy_top_lsz_unscaled_error = auxiliary.top_lsz_error
+        hard_result.dy_top_lsz_central_value = applied_top_lsz
+        hard_result.dy_top_lsz_error = applied_top_lsz_error
+        hard_result.dy_scheme_born_central_value = auxiliary.born_central_value
+        hard_result.dy_scheme_born_error = auxiliary.born_error
+        hard_result.dy_scheme_born_replica_values = auxiliary.born_replica_values
+
+        hard_result.dy_auxiliary_central_value = applied_auxiliary_central
+        hard_result.dy_auxiliary_error = applied_auxiliary_error
+        hard_result.dy_auxiliary_replica_values = applied_auxiliary_replicas
+        hard_result.dy_auxiliary_n_samples = auxiliary.n_samples
+        hard_result.dy_auxiliary_elapsed_time = auxiliary.elapsed_time
+        hard_result.dy_auxiliary_fallback_count = auxiliary.fallback_count
+        hard_result.dy_auxiliary_nonfinite_count = auxiliary.nonfinite_count
+        hard_result.dy_auxiliary_clipped_count = auxiliary.clipped_count
+        hard_result.dy_auxiliary_fallback_fraction = (
+            auxiliary.fallback_count / auxiliary.n_samples
+            if auxiliary.n_samples
+            else 0.0
+        )
+        hard_result.dy_auxiliary_nonfinite_fraction = (
+            auxiliary.nonfinite_count / auxiliary.n_samples
+            if auxiliary.n_samples
+            else 0.0
+        )
+        hard_result.dy_auxiliary_clipped_fraction = (
+            auxiliary.clipped_count / auxiliary.n_samples
+            if auxiliary.n_samples
+            else 0.0
+        )
+        hard_result.dy_scheme_counterterm_n_samples = auxiliary.n_samples
+        hard_result.dy_scheme_counterterm_elapsed_time = auxiliary.elapsed_time
+        hard_result.dy_scheme_counterterm_fallback_count = auxiliary.fallback_count
+        hard_result.dy_scheme_counterterm_nonfinite_count = auxiliary.nonfinite_count
+        hard_result.dy_scheme_counterterm_clipped_count = auxiliary.clipped_count
+        hard_result.dy_scheme_counterterm_clipped_fraction = (
+            hard_result.dy_auxiliary_clipped_fraction
+        )
+        hard_result.dy_scheme_counterterm_components = {
+            component.label: {
+                "unscaled_central_value": component.central_value,
+                "unscaled_error": component.error,
+                "central_value": scheme_factor * component.central_value,
+                "error": abs(scheme_factor) * component.error,
+                "unscaled_replica_values": component.replica_values,
+                "replica_values": tuple(
+                    scheme_factor * value for value in component.replica_values
+                ),
+            }
+            for component in auxiliary.components
+        }
+
+        hard_result.central_value = (
+            applied_hard_central + applied_auxiliary_central
+        )
+        hard_result.error = math.hypot(
+            applied_hard_error,
+            applied_auxiliary_error,
+        )
+
+        logger.info(
+            "ttbar gg scheme coefficients: hard=%+.16e scheme=%+.16e; "
+            "physical convention=-1/2*Hraw+(Dgg-LSZ)+top-LSZ",
+            hard_factor,
+            scheme_factor,
+        )
+        logger.info(
+            "ttbar gg components: hard=%+.16e +/- %.4e; "
+            "Dgg-LSZ=%+.16e +/- %.4e; top-LSZ=%+.16e +/- %.4e; "
+            "auxiliary=%+.16e +/- %.4e; total=%+.16e +/- %.4e",
+            applied_hard_central,
+            applied_hard_error,
+            applied_dgg_minus_lsz,
+            applied_dgg_minus_lsz_error,
+            applied_top_lsz,
+            applied_top_lsz_error,
+            applied_auxiliary_central,
+            applied_auxiliary_error,
+            hard_result.central_value,
+            hard_result.error,
+        )
+        logger.info(
+            "ttbar gg auxiliary diagnostics: samples=%d elapsed=%.2fs "
+            "fallback/nonfinite/clipped=%d/%d/%d; fractions=%.3e/%.3e/%.3e",
+            auxiliary.n_samples,
+            auxiliary.elapsed_time,
+            auxiliary.fallback_count,
+            auxiliary.nonfinite_count,
+            auxiliary.clipped_count,
+            hard_result.dy_auxiliary_fallback_fraction,
+            hard_result.dy_auxiliary_nonfinite_fraction,
+            hard_result.dy_auxiliary_clipped_fraction,
+        )
+        return hard_result
+
     def _ttbar_qqbar_decoupling_coefficient(self) -> float:
         if not self.dy_decoupling:
             return 0.0
@@ -3982,7 +4225,7 @@ class DY(object):
                 and not expects_beam_fractions
                 and not (
                     self.dy_msbar_scheme_counterterm
-                    and self._dy_ttbar_qqbar_scheme_mode
+                    and self._dy_ttbar_partonic_scheme_mode
                 )
             ):
                 raise pygloopException(
@@ -4772,6 +5015,13 @@ class DY(object):
             case _:
                 raise pygloopException(f"Integrator {integrator} not implemented.")
         if self.dy_msbar_scheme_counterterm:
+            if self._dy_ttbar_gg_scheme_mode:
+                return self._apply_ttbar_gg_scheme(
+                    integration_result,
+                    int(opts.get("seed", 1337)),
+                    parameterisation,
+                    str(opts.get("phase", "real")),
+                )
             if self._dy_ttbar_qqbar_scheme_mode:
                 return self._apply_ttbar_qqbar_scheme_and_decoupling(
                     integration_result,

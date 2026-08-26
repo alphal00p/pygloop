@@ -74,6 +74,39 @@ class DYQQbarAuxiliaryResult:
 
 
 @dataclass(frozen=True)
+class DYGGEndpointCoefficients:
+    """Endpoint coefficients for the corrected physical gg conversion."""
+
+    dgg_delta: float
+    minus_lsz: float
+    top_lsz_total: float
+
+
+@dataclass(frozen=True)
+class DYGGAuxiliaryResult:
+    """Correlated physical ``D_gg-LSZ`` and massive-top LSZ estimates."""
+
+    dgg_minus_lsz_central_value: float
+    dgg_minus_lsz_error: float
+    top_lsz_central_value: float
+    top_lsz_error: float
+    born_central_value: float
+    born_error: float
+    combined_central_value: float
+    combined_error: float
+    n_samples: int
+    elapsed_time: float
+    dgg_minus_lsz_replica_values: tuple[float, ...]
+    top_lsz_replica_values: tuple[float, ...]
+    born_replica_values: tuple[float, ...]
+    combined_replica_values: tuple[float, ...]
+    components: tuple[DYSchemeCountertermComponentResult, ...]
+    fallback_count: int = 0
+    clipped_count: int = 0
+    nonfinite_count: int = 0
+
+
+@dataclass(frozen=True)
 class DYRegularSchemeConvolution:
     """One regular finite kernel convolved with a DY-generated Born bundle."""
 
@@ -175,6 +208,10 @@ QQBAR_SCHEME_DELTA_COEFFICIENT: float = (4.0 * math.pi**2 - 48.0) / (
     18.0 * math.pi
 )
 QQBAR_SCHEME_COUNTERTERM_FACTOR: float = -2.0
+
+GG_SCHEME_CA: float = 3.0
+GG_SCHEME_TF: float = 0.5
+GG_SCHEME_ACTIVE_FLAVOURS: int = 2
 
 
 def finite_qqbar_scheme_continuous_components(
@@ -322,6 +359,143 @@ def _positive_finite_scale(value: float, option_name: str) -> float:
     if not math.isfinite(scale) or scale <= 0.0:
         raise pygloopException(f"{option_name} must be finite and strictly positive.")
     return scale
+
+
+def gg_scheme_endpoint_coefficients(
+    lambda_sq: float,
+    mur_sq: float,
+    alpha_s: float,
+    m_top: float,
+    *,
+    active_flavours: int = GG_SCHEME_ACTIVE_FLAVOURS,
+) -> DYGGEndpointCoefficients:
+    """Return the endpoint coefficients of the corrected physical gg kernel.
+
+    ``dgg_delta`` is the finite Altarelli--Parisi delta coefficient after the
+    missing one-half in the cut normalisation is restored.  ``minus_lsz`` uses
+    the full ``(2*pi)^(d-1)`` LSZ measure.  Consequently their flavour terms
+    cancel at ``L=log(LambdaSq/murSq)=0``.  ``top_lsz_total`` is the massive-top
+    external-gluon LSZ correction after summing both gluon legs and interfering
+    with the Born amplitude.  It is therefore a cross-section coefficient and
+    must multiply the endpoint Born only once.
+    """
+
+    lambda_value = _positive_finite_scale(lambda_sq, "Lambdasq")
+    mur_value = _positive_finite_scale(mur_sq, "mursq")
+    alpha_value = _positive_finite_scale(alpha_s, "scheme alpha_s")
+    top_mass = _positive_finite_scale(m_top, "top mass")
+    flavour_count = int(active_flavours)
+    if flavour_count < 0 or flavour_count != active_flavours:
+        raise pygloopException(
+            "The gg scheme active-flavour count must be a non-negative integer."
+        )
+
+    logarithm = math.log(lambda_value / mur_value)
+    ca = GG_SCHEME_CA
+    tf_nf = GG_SCHEME_TF * flavour_count
+    dgg_delta = alpha_value / (36.0 * math.pi) * (
+        ca * (-67.0 + 6.0 * math.pi**2)
+        + 20.0 * tf_nf
+        + 3.0 * (11.0 * ca - 4.0 * tf_nf) * logarithm
+    )
+    transverse_0 = (5.0 * ca - 4.0 * tf_nf) / 3.0
+    transverse_1 = (ca + 4.0 * tf_nf) / 9.0
+    minus_lsz = alpha_value / (4.0 * math.pi) * (
+        transverse_1 + transverse_0 * (2.0 - logarithm)
+    )
+    top_lsz_total = (
+        alpha_value
+        / (2.0 * math.pi)
+        * (-4.0 * GG_SCHEME_TF / 3.0)
+        * math.log(mur_value / top_mass**2)
+    )
+    return DYGGEndpointCoefficients(
+        dgg_delta=dgg_delta,
+        minus_lsz=minus_lsz,
+        top_lsz_total=top_lsz_total,
+    )
+
+
+def finite_gg_scheme_continuous_components(
+    xi: float,
+    born_at_xi: float,
+    born_at_endpoint: float,
+    lambda_sq: float,
+    mur_sq: float,
+    alpha_s: float,
+) -> tuple[float, float, float]:
+    """Return one-leg regular, D0 and D1 pieces of physical ``D_gg``."""
+
+    value = float(xi)
+    born = float(born_at_xi)
+    endpoint = float(born_at_endpoint)
+    if not math.isfinite(value) or not 0.0 < value < 1.0:
+        raise pygloopException(
+            f"The g->g scheme variable xi must be finite and in (0, 1), got {value}."
+        )
+    if not math.isfinite(born) or not math.isfinite(endpoint):
+        raise pygloopException("The g->g Born test function must be finite.")
+    lambda_value = _positive_finite_scale(lambda_sq, "Lambdasq")
+    mur_value = _positive_finite_scale(mur_sq, "mursq")
+    alpha_value = _positive_finite_scale(alpha_s, "scheme alpha_s")
+
+    scale_ratio = lambda_value / mur_value
+    scale_logarithm = math.log(scale_ratio)
+    one_minus_xi = 1.0 - value
+    normalisation = alpha_value * GG_SCHEME_CA / math.pi
+    regular_kernel = one_minus_xi / value + value * one_minus_xi
+    regular = (
+        normalisation
+        * regular_kernel
+        * math.log(scale_ratio * value * one_minus_xi)
+        * born
+    )
+    d0 = normalisation * (
+        value * math.log(scale_ratio * value) * born
+        - scale_logarithm * endpoint
+    ) / one_minus_xi
+    d1 = (
+        normalisation
+        * math.log1p(-value)
+        * (value * born - endpoint)
+        / one_minus_xi
+    )
+    return regular, d0, d1
+
+
+def finite_gg_scheme_lower_limit_remainder(
+    xi_min: float,
+    born_at_endpoint: float,
+    lambda_sq: float,
+    mur_sq: float,
+    alpha_s: float,
+) -> float:
+    """Return the one-leg D0/D1 plus-distribution remainder below ``xi_min``."""
+
+    lower = float(xi_min)
+    endpoint = float(born_at_endpoint)
+    if not math.isfinite(lower) or not 0.0 <= lower < 1.0:
+        raise pygloopException(
+            "The g->g scheme lower limit must be finite and in [0, 1)."
+        )
+    if not math.isfinite(endpoint):
+        raise pygloopException("The g->g Born endpoint must be finite.")
+    lambda_value = _positive_finite_scale(lambda_sq, "Lambdasq")
+    mur_value = _positive_finite_scale(mur_sq, "mursq")
+    alpha_value = _positive_finite_scale(alpha_s, "scheme alpha_s")
+    if lower == 0.0 or endpoint == 0.0:
+        return 0.0
+    endpoint_logarithm = math.log1p(-lower)
+    return (
+        alpha_value
+        * GG_SCHEME_CA
+        / math.pi
+        * endpoint
+        * (
+            math.log(lambda_value / mur_value) * endpoint_logarithm
+            + 0.5 * endpoint_logarithm**2
+        )
+    )
 
 
 def resolve_factorisation_scale_sq(
@@ -1429,6 +1603,351 @@ def integrate_ttbar_qqbar_auxiliary(
         n_samples=sample_count,
         elapsed_time=time.monotonic() - start,
         dqq_replica_values=tuple(dqq_replica_values),
+        born_replica_values=tuple(born_replica_values),
+        combined_replica_values=tuple(combined_replica_values),
+        components=tuple(components),
+        fallback_count=fallback_count,
+        clipped_count=clipped_count,
+        nonfinite_count=nonfinite_count,
+    )
+
+
+def integrate_ttbar_gg_auxiliary(
+    channel: tuple[int, int],
+    e_cm_sq: float,
+    m_top: float,
+    physical_normalisation: float,
+    born_integrand: Callable[[float, tuple[float, float, float], bool], float],
+    lambda_sq: float,
+    mur_sq: float,
+    alpha_s: float,
+    sobol_power: int,
+    replicas: int,
+    seed: int,
+    clip_threshold: float | None = None,
+    *,
+    active_flavours: int = GG_SCHEME_ACTIVE_FLAVOURS,
+) -> DYGGAuxiliaryResult:
+    """Integrate the physical partonic ``Dgg-LSZ+top-LSZ`` conversion.
+
+    The generated one-loop forward integrand is converted to a physical Born
+    cut before the kernel acts on it.  All distribution pieces, the massless
+    LSZ subtraction, the single two-beam massive-top LSZ endpoint and the Born
+    diagnostic use identical scrambled Sobol samples, preserving their replica
+    covariance.
+    """
+
+    if tuple(channel) != (0, 0):
+        raise pygloopException(
+            "The finite ttbar gg auxiliary integration requires channel (0,0)."
+        )
+    centre_of_mass_sq = _positive_finite_scale(e_cm_sq, "e_cm^2")
+    top_mass = _positive_finite_scale(m_top, "top mass")
+    normalisation = float(physical_normalisation)
+    if not math.isfinite(normalisation):
+        raise pygloopException("The physical gg Born normalisation must be finite.")
+    lambda_value = _positive_finite_scale(lambda_sq, "Lambdasq")
+    mur_value = _positive_finite_scale(mur_sq, "mursq")
+    alpha_value = _positive_finite_scale(alpha_s, "scheme alpha_s")
+    endpoint_coefficients = gg_scheme_endpoint_coefficients(
+        lambda_value,
+        mur_value,
+        alpha_value,
+        top_mass,
+        active_flavours=active_flavours,
+    )
+
+    power = int(sobol_power)
+    replica_count = int(replicas)
+    if not 1 <= power <= 30:
+        raise pygloopException(
+            "DY scheme-counterterm Sobol power must be between 1 and 30."
+        )
+    if replica_count < 2:
+        raise pygloopException(
+            "DY scheme-counterterm integration requires at least two replicas."
+        )
+    if clip_threshold is not None:
+        clip_threshold = _positive_finite_scale(
+            clip_threshold,
+            "DY scheme-counterterm clipping threshold",
+        )
+
+    component_labels = (
+        "Dgg_regular",
+        "Dgg_log_z_plus",
+        "Dgg_log_one_minus_z_plus",
+        "Dgg_lower_limit_remainder",
+        "Dgg_delta",
+        "minus_LSZ",
+        "top_LSZ",
+    )
+    sample_count = replica_count * 2**power
+    threshold_sq = 4.0 * top_mass**2
+    xi_min = threshold_sq / centre_of_mass_sq
+
+    def empty_result() -> DYGGAuxiliaryResult:
+        zeros = tuple(0.0 for _ in range(replica_count))
+        return DYGGAuxiliaryResult(
+            dgg_minus_lsz_central_value=0.0,
+            dgg_minus_lsz_error=0.0,
+            top_lsz_central_value=0.0,
+            top_lsz_error=0.0,
+            born_central_value=0.0,
+            born_error=0.0,
+            combined_central_value=0.0,
+            combined_error=0.0,
+            n_samples=sample_count,
+            elapsed_time=0.0,
+            dgg_minus_lsz_replica_values=zeros,
+            top_lsz_replica_values=zeros,
+            born_replica_values=zeros,
+            combined_replica_values=zeros,
+            components=tuple(
+                DYSchemeCountertermComponentResult(label, 0.0, 0.0, zeros)
+                for label in component_labels
+            ),
+        )
+
+    if xi_min >= 1.0:
+        return empty_result()
+
+    try:
+        from scipy.stats import qmc
+    except ImportError as exc:
+        raise pygloopException(
+            "DY scheme-counterterm integration requires scipy.stats.qmc."
+        ) from exc
+
+    xi_width = 1.0 - xi_min
+    dgg_minus_lsz_replica_values: list[float] = []
+    top_lsz_replica_values: list[float] = []
+    born_replica_values: list[float] = []
+    combined_replica_values: list[float] = []
+    component_replica_values: dict[str, list[float]] = {
+        label: [] for label in component_labels
+    }
+    fallback_count = 0
+    clipped_count = 0
+    nonfinite_count = 0
+    start = time.monotonic()
+
+    for replica in range(replica_count):
+        samples = qmc.Sobol(
+            d=4,
+            scramble=True,
+            seed=int(seed) + replica,
+        ).random_base2(power)
+        dgg_minus_lsz_accumulated = 0.0
+        top_lsz_accumulated = 0.0
+        born_accumulated = 0.0
+        combined_accumulated = 0.0
+        component_accumulated = {label: 0.0 for label in component_labels}
+
+        for uxi, uk1, uk2, uk3 in samples:
+            xi = xi_min + xi_width * float(uxi)
+            xi = min(
+                math.nextafter(1.0, 0.0),
+                max(math.nextafter(xi_min, 1.0), xi),
+            )
+            loop_coordinates = (float(uk1), float(uk2), float(uk3))
+
+            def paired_sample(
+                use_fallback: bool,
+            ) -> tuple[tuple[float, ...], float, float, float, float]:
+                born_at_endpoint = normalisation * born_integrand(
+                    centre_of_mass_sq,
+                    loop_coordinates,
+                    use_fallback,
+                )
+                born_at_xi = normalisation * born_integrand(
+                    xi * centre_of_mass_sq,
+                    loop_coordinates,
+                    use_fallback,
+                )
+                continuous = finite_gg_scheme_continuous_components(
+                    xi,
+                    born_at_xi,
+                    born_at_endpoint,
+                    lambda_value,
+                    mur_value,
+                    alpha_value,
+                )
+                component_weights = (
+                    2.0 * xi_width * continuous[0],
+                    2.0 * xi_width * continuous[1],
+                    2.0 * xi_width * continuous[2],
+                    2.0
+                    * finite_gg_scheme_lower_limit_remainder(
+                        xi_min,
+                        born_at_endpoint,
+                        lambda_value,
+                        mur_value,
+                        alpha_value,
+                    ),
+                    2.0
+                    * endpoint_coefficients.dgg_delta
+                    * born_at_endpoint,
+                    2.0
+                    * endpoint_coefficients.minus_lsz
+                    * born_at_endpoint,
+                    endpoint_coefficients.top_lsz_total
+                    * born_at_endpoint,
+                )
+                dgg_minus_lsz_weight = math.fsum(component_weights[:-1])
+                top_lsz_weight = component_weights[-1]
+                combined_weight = dgg_minus_lsz_weight + top_lsz_weight
+                return (
+                    component_weights,
+                    dgg_minus_lsz_weight,
+                    top_lsz_weight,
+                    born_at_endpoint,
+                    combined_weight,
+                )
+
+            try:
+                (
+                    component_weights,
+                    dgg_minus_lsz_weight,
+                    top_lsz_weight,
+                    born_weight,
+                    combined_weight,
+                ) = paired_sample(False)
+            except Exception:
+                component_weights = tuple(math.nan for _ in component_labels)
+                dgg_minus_lsz_weight = math.nan
+                top_lsz_weight = math.nan
+                born_weight = math.nan
+                combined_weight = math.nan
+            sample_values = (
+                *component_weights,
+                dgg_minus_lsz_weight,
+                top_lsz_weight,
+                born_weight,
+                combined_weight,
+            )
+            needs_fallback = any(not math.isfinite(value) for value in sample_values)
+            if clip_threshold is not None and not needs_fallback:
+                needs_fallback = max(
+                    abs(dgg_minus_lsz_weight),
+                    abs(top_lsz_weight),
+                    abs(born_weight),
+                    abs(combined_weight),
+                ) > clip_threshold
+            if needs_fallback:
+                fallback_count += 1
+                try:
+                    (
+                        component_weights,
+                        dgg_minus_lsz_weight,
+                        top_lsz_weight,
+                        born_weight,
+                        combined_weight,
+                    ) = paired_sample(True)
+                except Exception:
+                    component_weights = tuple(math.nan for _ in component_labels)
+                    dgg_minus_lsz_weight = math.nan
+                    top_lsz_weight = math.nan
+                    born_weight = math.nan
+                    combined_weight = math.nan
+
+            sample_values = (
+                *component_weights,
+                dgg_minus_lsz_weight,
+                top_lsz_weight,
+                born_weight,
+                combined_weight,
+            )
+            if any(not math.isfinite(value) for value in sample_values):
+                nonfinite_count += 1
+                component_weights = tuple(0.0 for _ in component_labels)
+                dgg_minus_lsz_weight = 0.0
+                top_lsz_weight = 0.0
+                born_weight = 0.0
+                combined_weight = 0.0
+            elif clip_threshold is not None and max(
+                abs(dgg_minus_lsz_weight),
+                abs(top_lsz_weight),
+                abs(born_weight),
+                abs(combined_weight),
+            ) > clip_threshold:
+                clipped_count += 1
+                component_weights = tuple(0.0 for _ in component_labels)
+                dgg_minus_lsz_weight = 0.0
+                top_lsz_weight = 0.0
+                born_weight = 0.0
+                combined_weight = 0.0
+
+            dgg_minus_lsz_accumulated += dgg_minus_lsz_weight
+            top_lsz_accumulated += top_lsz_weight
+            born_accumulated += born_weight
+            combined_accumulated += combined_weight
+            for label, value in zip(
+                component_labels,
+                component_weights,
+                strict=True,
+            ):
+                component_accumulated[label] += value
+
+        sample_normalisation = float(len(samples))
+        dgg_minus_lsz_replica_values.append(
+            dgg_minus_lsz_accumulated / sample_normalisation
+        )
+        top_lsz_replica_values.append(
+            top_lsz_accumulated / sample_normalisation
+        )
+        born_replica_values.append(born_accumulated / sample_normalisation)
+        combined_replica_values.append(combined_accumulated / sample_normalisation)
+        for label in component_labels:
+            component_replica_values[label].append(
+                component_accumulated[label] / sample_normalisation
+            )
+
+    if nonfinite_count == sample_count:
+        raise pygloopException(
+            "Every ttbar gg auxiliary sample remained non-finite after "
+            "higher-precision fallback."
+        )
+
+    def summarise(values: list[float]) -> tuple[float, float]:
+        central = math.fsum(values) / replica_count
+        variance = math.fsum(
+            (value - central) ** 2 for value in values
+        ) / (replica_count - 1)
+        return central, math.sqrt(variance / replica_count)
+
+    dgg_minus_lsz_central, dgg_minus_lsz_error = summarise(
+        dgg_minus_lsz_replica_values
+    )
+    top_lsz_central, top_lsz_error = summarise(top_lsz_replica_values)
+    born_central, born_error = summarise(born_replica_values)
+    combined_central, combined_error = summarise(combined_replica_values)
+    components = []
+    for label in component_labels:
+        values = component_replica_values[label]
+        central, error = summarise(values)
+        components.append(
+            DYSchemeCountertermComponentResult(
+                label=label,
+                central_value=central,
+                error=error,
+                replica_values=tuple(values),
+            )
+        )
+
+    return DYGGAuxiliaryResult(
+        dgg_minus_lsz_central_value=dgg_minus_lsz_central,
+        dgg_minus_lsz_error=dgg_minus_lsz_error,
+        top_lsz_central_value=top_lsz_central,
+        top_lsz_error=top_lsz_error,
+        born_central_value=born_central,
+        born_error=born_error,
+        combined_central_value=combined_central,
+        combined_error=combined_error,
+        n_samples=sample_count,
+        elapsed_time=time.monotonic() - start,
+        dgg_minus_lsz_replica_values=tuple(dgg_minus_lsz_replica_values),
+        top_lsz_replica_values=tuple(top_lsz_replica_values),
         born_replica_values=tuple(born_replica_values),
         combined_replica_values=tuple(combined_replica_values),
         components=tuple(components),

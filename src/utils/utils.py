@@ -1320,28 +1320,51 @@ class IntegrationResult(object):
                 )
 
         if hasattr(self, "dy_scheme_conversion_enabled"):
-            report.append(
-                "DY qqbar scheme/decoupling: "
-                f"scheme={getattr(self, 'dy_scheme_conversion_enabled')}, "
-                f"decoupling={getattr(self, 'dy_decoupling_enabled')}; "
-                f"coefficients hard/Dqq/Born="
-                f"{getattr(self, 'dy_hard_factor'):+.8e}/"
-                f"{getattr(self, 'dy_scheme_counterterm_factor'):+.8e}/"
-                f"{getattr(self, 'dy_decoupling_coefficient'):+.8e}"
+            scheme_channel = getattr(
+                self,
+                "dy_scheme_conversion_channel",
+                "qqbar",
             )
+            if scheme_channel == "gg":
+                report.append(
+                    "DY gg scheme Dgg-LSZ+top-LSZ: "
+                    f"hard factor={getattr(self, 'dy_hard_factor'):+.8e}; "
+                    f"scheme factor={getattr(self, 'dy_scheme_counterterm_factor'):+.8e}"
+                )
+                report.append(
+                    "DY gg applied hard/Dgg-LSZ/top-LSZ/auxiliary: "
+                    f"{getattr(self, 'dy_hard_central_value'):+.16e} +/- "
+                    f"{getattr(self, 'dy_hard_error'):.4e}; "
+                    f"{getattr(self, 'dy_dgg_minus_lsz_central_value'):+.16e} +/- "
+                    f"{getattr(self, 'dy_dgg_minus_lsz_error'):.4e}; "
+                    f"{getattr(self, 'dy_top_lsz_central_value'):+.16e} +/- "
+                    f"{getattr(self, 'dy_top_lsz_error'):.4e}; "
+                    f"{getattr(self, 'dy_auxiliary_central_value'):+.16e} +/- "
+                    f"{getattr(self, 'dy_auxiliary_error'):.4e}"
+                )
+            else:
+                report.append(
+                    "DY qqbar scheme/decoupling: "
+                    f"scheme={getattr(self, 'dy_scheme_conversion_enabled')}, "
+                    f"decoupling={getattr(self, 'dy_decoupling_enabled')}; "
+                    f"coefficients hard/Dqq/Born="
+                    f"{getattr(self, 'dy_hard_factor'):+.8e}/"
+                    f"{getattr(self, 'dy_scheme_counterterm_factor'):+.8e}/"
+                    f"{getattr(self, 'dy_decoupling_coefficient'):+.8e}"
+                )
+                report.append(
+                    "DY qqbar applied hard/Dqq/Born/auxiliary: "
+                    f"{getattr(self, 'dy_hard_central_value'):+.16e} +/- "
+                    f"{getattr(self, 'dy_hard_error'):.4e}; "
+                    f"{getattr(self, 'dy_scheme_counterterm_central_value'):+.16e} +/- "
+                    f"{getattr(self, 'dy_scheme_counterterm_error'):.4e}; "
+                    f"{getattr(self, 'dy_decoupling_born_central_value'):+.16e} +/- "
+                    f"{getattr(self, 'dy_decoupling_born_error'):.4e}; "
+                    f"{getattr(self, 'dy_auxiliary_central_value'):+.16e} +/- "
+                    f"{getattr(self, 'dy_auxiliary_error'):.4e}"
+                )
             report.append(
-                "DY qqbar applied hard/Dqq/Born/auxiliary: "
-                f"{getattr(self, 'dy_hard_central_value'):+.16e} +/- "
-                f"{getattr(self, 'dy_hard_error'):.4e}; "
-                f"{getattr(self, 'dy_scheme_counterterm_central_value'):+.16e} +/- "
-                f"{getattr(self, 'dy_scheme_counterterm_error'):.4e}; "
-                f"{getattr(self, 'dy_decoupling_born_central_value'):+.16e} +/- "
-                f"{getattr(self, 'dy_decoupling_born_error'):.4e}; "
-                f"{getattr(self, 'dy_auxiliary_central_value'):+.16e} +/- "
-                f"{getattr(self, 'dy_auxiliary_error'):.4e}"
-            )
-            report.append(
-                "DY qqbar auxiliary samples/fallback/nonfinite/clipped: "
+                f"DY {scheme_channel} auxiliary samples/fallback/nonfinite/clipped: "
                 f"{getattr(self, 'dy_auxiliary_n_samples')}/"
                 f"{getattr(self, 'dy_auxiliary_fallback_count')}/"
                 f"{getattr(self, 'dy_auxiliary_nonfinite_count')}/"
