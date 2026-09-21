@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import os
 import struct
 from dataclasses import dataclass
 from decimal import Decimal, localcontext
@@ -12,9 +13,81 @@ from utils.vectors import LorentzVector, Vector
 
 
 RealInput = float | Decimal | int | str
+RotationScalar = float | Decimal | int
 RotationMatrix = tuple[
-    tuple[int, int, int], tuple[int, int, int], tuple[int, int, int]
+    tuple[RotationScalar, RotationScalar, RotationScalar],
+    tuple[RotationScalar, RotationScalar, RotationScalar],
+    tuple[RotationScalar, RotationScalar, RotationScalar],
 ]
+
+
+@dataclass(frozen=True)
+class RotationDescriptor:
+    """Precision-independent Euler-angle fractions for one SO(3) rotation."""
+
+    unit_numerators: tuple[int, int, int]
+
+
+_ROTATION_UNIT_DENOMINATOR = 1 << 53
+_UINT64_MASK = (1 << 64) - 1
+_SPLITMIX64_INCREMENT = 0x9E3779B97F4A7C15
+
+
+def diagnostic_soft_radial_map(
+    coordinates: Sequence[float | Decimal],
+) -> tuple[list[float | Decimal], float | Decimal] | None:
+    """Apply an opt-in power map to a soft-centred radial coordinate."""
+    raw_power = os.environ.get("PYGLOOP_DIAGNOSTIC_SOFT_RADIAL_POWER")
+    if raw_power is None:
+        return None
+    power = int(raw_power)
+    if power < 1 or str(power) != raw_power.strip():
+        raise ValueError("The diagnostic soft-radial power must be an integer >= 1.")
+    mapped = list(coordinates)
+    radial = mapped[0]
+    mapped[0] = radial**power
+    jacobian = power * radial ** (power - 1)
+    return mapped, jacobian
+
+
+def diagnostic_soft_equator_map(
+    coordinates: Sequence[float | Decimal],
+) -> tuple[list[float | Decimal], float] | None:
+    """Apply the opt-in soft-equator importance map used by campaign diagnostics."""
+    raw_scale = os.environ.get("PYGLOOP_DIAGNOSTIC_SOFT_EQUATOR_SCALE")
+    if raw_scale is None:
+        return None
+    scale = float(raw_scale)
+    uniform_fraction = float(
+        os.environ.get("PYGLOOP_DIAGNOSTIC_SOFT_EQUATOR_UNIFORM_FRACTION", "0")
+    )
+    if scale <= 0.0 or not 0.0 <= uniform_fraction < 1.0:
+        raise ValueError("Invalid diagnostic soft-equator map settings.")
+
+    mapped = list(coordinates)
+    radial = float(mapped[0])
+    angular = float(mapped[2])
+    width = min(1.0, math.pi * scale * radial)
+    if width == 0.0:
+        mapped[2] = 0.5
+        return mapped, 0.0
+    if angular < uniform_fraction:
+        mapped_angular = angular / uniform_fraction
+    else:
+        correlated_angular = (
+            angular - uniform_fraction
+        ) / (1.0 - uniform_fraction)
+        tangent = math.tan(math.pi * (correlated_angular - 0.5))
+        mapped_angular = 0.5 + math.atan(width * tangent) / math.pi
+    mapped[2] = mapped_angular
+    mapped_tangent = math.tan(math.pi * (mapped_angular - 0.5))
+    correlated_density = width * (
+        1.0 + mapped_tangent * mapped_tangent
+    ) / (width * width + mapped_tangent * mapped_tangent)
+    mixture_density = uniform_fraction + (
+        1.0 - uniform_fraction
+    ) * correlated_density
+    return mapped, 1.0 / mixture_density
 
 
 _KNOWN_MASSIVE_SOFT_EDGE_PARTICLES = {
@@ -473,10 +546,9 @@ def decimal_sin_cos(
         return +sin_value, +cos_value
 
 
-# Every entry is an exact, non-identity SO(3) rotation. These are signed
-# three-cycles: no coordinate axis remains fixed, including for fully collinear
-# samples. Signed permutations avoid all trigonometric rounding and remain
-# exact for both float and Decimal.
+# Retained for compatibility with diagnostic scripts that explicitly request an
+# exact signed permutation. Production stability checks use the general Euler
+# rotations constructed below.
 _EXACT_ROTATIONS: tuple[RotationMatrix, ...] = (
     ((0, 1, 0), (0, 0, 1), (1, 0, 0)),
     ((0, 1, 0), (0, 0, -1), (-1, 0, 0)),
@@ -489,36 +561,146 @@ _EXACT_ROTATIONS: tuple[RotationMatrix, ...] = (
 )
 
 
-def exact_rotation_from_xs(xs: Sequence[float]) -> RotationMatrix:
-    """Select a stable rotation deterministically from the sample bit pattern."""
+def _sample_bit_hash(xs: Sequence[float]) -> int:
     state = 0xCBF29CE484222325
     for value in xs:
         bits = struct.unpack("!Q", struct.pack("!d", float(value)))[0]
         state ^= bits
-        state = (state * 0x100000001B3) & 0xFFFFFFFFFFFFFFFF
+        state = (state * 0x100000001B3) & _UINT64_MASK
+    return state
+
+
+def _splitmix64(value: int) -> int:
+    value = (value + _SPLITMIX64_INCREMENT) & _UINT64_MASK
+    value = (
+        (value ^ (value >> 30)) * 0xBF58476D1CE4E5B9
+    ) & _UINT64_MASK
+    value = (
+        (value ^ (value >> 27)) * 0x94D049BB133111EB
+    ) & _UINT64_MASK
+    return (value ^ (value >> 31)) & _UINT64_MASK
+
+
+def exact_rotation_from_xs(xs: Sequence[float]) -> RotationMatrix:
+    """Select a diagnostic signed permutation from the sample bit pattern."""
+    state = _sample_bit_hash(xs)
     return _EXACT_ROTATIONS[state % len(_EXACT_ROTATIONS)]
+
+
+def rotation_descriptors_from_xs(
+    xs: Sequence[float], count: int
+) -> tuple[RotationDescriptor, ...]:
+    """Derive deterministic, precision-independent rotations from a sample."""
+    if isinstance(count, bool) or not isinstance(count, int) or count < 1:
+        raise ValueError("The rotation-check count must be a positive integer.")
+    seed = _sample_bit_hash(xs)
+    descriptors: list[RotationDescriptor] = []
+    for rotation_index in range(count):
+        numerators = []
+        for angle_index in range(3):
+            stream_index = 3 * rotation_index + angle_index + 1
+            word = _splitmix64(
+                seed ^ ((_SPLITMIX64_INCREMENT * stream_index) & _UINT64_MASK)
+            )
+            # The open interval avoids both boundary angles exactly. Keeping the
+            # integer numerator is what lets HP reconstruct the angle without
+            # promoting an f64 value.
+            numerators.append(
+                1 + word % (_ROTATION_UNIT_DENOMINATOR - 1)
+            )
+        descriptors.append(RotationDescriptor(tuple(numerators)))
+    return tuple(descriptors)
+
+
+def rotation_matrix_from_descriptor(
+    descriptor: RotationDescriptor,
+    *,
+    decimal_digit_precision: int | None = None,
+) -> RotationMatrix:
+    """Build Rz Ry Rx with every Euler angle strictly between pi/6 and pi/3."""
+    numerators = descriptor.unit_numerators
+    if len(numerators) != 3 or any(
+        numerator <= 0 or numerator >= _ROTATION_UNIT_DENOMINATOR
+        for numerator in numerators
+    ):
+        raise ValueError(f"Invalid rotation descriptor {descriptor!r}.")
+
+    def compose(sx, cx, sy, cy, sz, cz) -> RotationMatrix:
+        # Rz(gamma) Ry(beta) Rx(alpha).
+        return (
+            (
+                cz * cy,
+                cz * sy * sx - sz * cx,
+                cz * sy * cx + sz * sx,
+            ),
+            (
+                sz * cy,
+                sz * sy * sx + cz * cx,
+                sz * sy * cx - cz * sx,
+            ),
+            (-sy, cy * sx, cy * cx),
+        )
+
+    if decimal_digit_precision is None:
+        angles = tuple(
+            math.pi
+            * (1.0 + numerator / _ROTATION_UNIT_DENOMINATOR)
+            / 6.0
+            for numerator in numerators
+        )
+        (sx, cx), (sy, cy), (sz, cz) = (
+            (math.sin(angle), math.cos(angle)) for angle in angles
+        )
+        return compose(sx, cx, sy, cy, sz, cz)
+    else:
+        if decimal_digit_precision < 2:
+            raise ValueError("Decimal precision must be at least two digits.")
+        with localcontext() as context:
+            context.prec = decimal_digit_precision + 12
+            pi = decimal_pi(context.prec)
+            denominator = Decimal(_ROTATION_UNIT_DENOMINATOR)
+            angles = tuple(
+                pi * (Decimal(1) + Decimal(numerator) / denominator) / Decimal(6)
+                for numerator in numerators
+            )
+            (sx, cx), (sy, cy), (sz, cz) = tuple(
+                decimal_sin_cos(angle, context.prec) for angle in angles
+            )
+            return compose(sx, cx, sy, cy, sz, cz)
 
 
 def rotate_vector(value: Vector, rotation: RotationMatrix) -> Vector:
     components = value.to_list()
-
-    def component(row: tuple[int, int, int]):
-        nonzero = [
-            (index, coefficient)
-            for index, coefficient in enumerate(row)
-            if coefficient
-        ]
-        if len(nonzero) != 1:
-            raise ValueError(f"Rotation row is not a signed permutation: {row!r}.")
-        index, coefficient = nonzero[0]
-        selected = components[index]
-        if coefficient == 1:
-            return selected
-        if coefficient != -1:
-            raise ValueError(f"Unexpected signed-permutation entry {coefficient!r}.")
-        return selected.copy_negate() if isinstance(selected, Decimal) else -selected
-
-    return Vector(*(component(row) for row in rotation))
+    decimal_vector = any(isinstance(component, Decimal) for component in components)
+    matrix_has_float = any(
+        isinstance(coefficient, float)
+        for row in rotation
+        for coefficient in row
+    )
+    matrix_has_decimal = any(
+        isinstance(coefficient, Decimal)
+        for row in rotation
+        for coefficient in row
+    )
+    if decimal_vector and matrix_has_float:
+        raise TypeError("A Decimal vector cannot be rotated by an f64 matrix.")
+    if not decimal_vector and matrix_has_decimal:
+        raise TypeError("An f64 vector cannot be rotated by a Decimal matrix.")
+    zero: float | Decimal = Decimal(0) if decimal_vector else 0.0
+    return Vector(
+        *(
+            sum(
+                (
+                    coefficient * component
+                    for coefficient, component in zip(
+                        row, components, strict=True
+                    )
+                ),
+                zero,
+            )
+            for row in rotation
+        )
+    )
 
 
 def float_values_agree(
@@ -582,6 +764,23 @@ def _parameterize_decimal(
         raise ValueError(
             "A loop-momentum parameterisation requires three coordinates."
         )
+    diagnostic_jacobian = Decimal(1)
+    if parameterization in {"spherical", "log_spherical"}:
+        if origin is not None:
+            radial_map = diagnostic_soft_radial_map(coordinates)
+            if radial_map is not None:
+                mapped_coordinates, map_jacobian = radial_map
+                coordinates = tuple(
+                    decimal_from_input(value) for value in mapped_coordinates
+                )
+                diagnostic_jacobian *= decimal_from_input(map_jacobian)
+        diagnostic_map = diagnostic_soft_equator_map(coordinates)
+        if diagnostic_map is not None:
+            mapped_coordinates, map_jacobian = diagnostic_map
+            coordinates = tuple(
+                decimal_from_input(value) for value in mapped_coordinates
+            )
+            diagnostic_jacobian *= decimal_from_input(map_jacobian)
     x, y, z = coordinates
     one = Decimal(1)
     pi = decimal_pi(decimal_digit_precision + 12)
@@ -598,7 +797,7 @@ def _parameterize_decimal(
         momentum = Vector(*values)
         if origin is not None:
             momentum += origin
-        return momentum, jacobian
+        return momentum, jacobian * diagnostic_jacobian
 
     radius = x / (one - x) * e_cm
     theta = Decimal(2) * pi * y
@@ -623,7 +822,7 @@ def _parameterize_decimal(
             * e_cm
             / ((one - x) * (one - x))
         )
-        return momentum, jacobian
+        return momentum, jacobian * diagnostic_jacobian
     if parameterization == "log_spherical":
         jacobian = (
             radius
@@ -635,7 +834,7 @@ def _parameterize_decimal(
             * pi
             * (one / x + one / (one - x))
         )
-        return momentum, jacobian
+        return momentum, jacobian * diagnostic_jacobian
     raise ValueError(f"Parameterisation {parameterization!r} is not implemented.")
 
 
@@ -650,21 +849,24 @@ class HighPrecisionSample:
     soft_center: Vector | None = None
 
     def rotated(self, rotation: RotationMatrix) -> HighPrecisionSample:
-        return HighPrecisionSample(
-            loop_momenta=tuple(
-                rotate_vector(momentum, rotation) for momentum in self.loop_momenta
-            ),
-            p1=rotate_vector(self.p1, rotation),
-            p2=rotate_vector(self.p2, rotation),
-            z=self.z,
-            jacobian=self.jacobian,
-            decimal_digit_precision=self.decimal_digit_precision,
-            soft_center=(
-                rotate_vector(self.soft_center, rotation)
-                if self.soft_center is not None
-                else None
-            ),
-        )
+        with localcontext() as context:
+            context.prec = self.decimal_digit_precision + 12
+            return HighPrecisionSample(
+                loop_momenta=tuple(
+                    rotate_vector(momentum, rotation)
+                    for momentum in self.loop_momenta
+                ),
+                p1=rotate_vector(self.p1, rotation),
+                p2=rotate_vector(self.p2, rotation),
+                z=self.z,
+                jacobian=self.jacobian,
+                decimal_digit_precision=self.decimal_digit_precision,
+                soft_center=(
+                    rotate_vector(self.soft_center, rotation)
+                    if self.soft_center is not None
+                    else None
+                ),
+            )
 
     def soft_mirrored(self, routing: SoftEdgeRouting) -> HighPrecisionSample:
         with localcontext() as context:

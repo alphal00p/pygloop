@@ -6,13 +6,14 @@ import argparse
 import ast
 import json
 import logging
+import math
 import multiprocessing
 import os
 import random
 import re
 import sys
 import time
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from pathlib import Path
 from pprint import pformat
 
@@ -113,6 +114,32 @@ def _parse_bool_flag(value: str) -> bool:
     raise argparse.ArgumentTypeError(f"Expected True or False, got '{value}'.")
 
 
+def _parse_physical_channel_card(value: str) -> tuple[str, str]:
+    label, separator, path = value.partition("=")
+    label = label.strip().lower()
+    path = path.strip()
+    if not separator or label not in {"qqbar", "qg", "gg"} or not path:
+        raise argparse.ArgumentTypeError(
+            "Expected LABEL=PATH with LABEL equal to qqbar, qg, or gg."
+        )
+    return label, path
+
+
+def _physical_channel_card_mapping(
+    entries: list[tuple[str, str]] | None,
+) -> dict[str, str] | None:
+    if entries is None:
+        return None
+    mapping: dict[str, str] = {}
+    for label, path in entries:
+        if label in mapping:
+            raise argparse.ArgumentTypeError(
+                f"Physical-channel card {label!r} was supplied more than once."
+            )
+        mapping[label] = path
+    return mapping
+
+
 def _iter_parser_actions(
     parser: argparse.ArgumentParser,
 ) -> Iterator[argparse.Action]:
@@ -149,6 +176,9 @@ def _explicit_cli_destinations(
 def _runtime_arguments(args: argparse.Namespace) -> dict[str, object]:
     """Exclude card control-plane flags from existing process call namespaces."""
     values = vars(args).copy()
+    for destination in tuple(values):
+        if destination.startswith("dy_paired_"):
+            values.pop(destination)
     for destination in (
         "dy_card",
         "dy_card_check",
@@ -156,9 +186,154 @@ def _runtime_arguments(args: argparse.Namespace) -> dict[str, object]:
         "dy_allow_unverified_bundle",
         "dy_runtime_parameter_overrides",
         "dy_runtime_parameters",
+        "physical_channel_multi_channeling",
+        "dy_physical_channel_cards",
+        "dy_physical_channel_backend",
+        "dy_physical_channel_batch_size",
+        "dy_physical_channel_warmup_iterations",
+        "dy_physical_channel_min_fraction",
+        "dy_physical_channel_target_relative_precision",
+        "dy_physical_channel_live_diagnostics",
+        "dy_q_bins",
     ):
         values.pop(destination, None)
     return values
+
+
+def _validate_physical_channel_arguments(
+    args: argparse.Namespace,
+) -> None:
+    """Validate CLI-only physical-channel settings before loading bundles."""
+    enabled = bool(getattr(args, "physical_channel_multi_channeling", False))
+    if getattr(args, "integrator", None) == "dy-paired-sobol" and not enabled:
+        raise pygloopException("dy-paired-sobol requires --physical-channel-multi-channeling")
+    cards = getattr(args, "dy_physical_channel_cards", None)
+    q_bins = getattr(args, "dy_q_bins", None)
+    warmup_iterations = int(
+        getattr(args, "dy_physical_channel_warmup_iterations", 0)
+    )
+    batch_size = int(getattr(args, "dy_physical_channel_batch_size", 0))
+    min_fraction = float(
+        getattr(args, "dy_physical_channel_min_fraction", 0.0)
+    )
+    target_relative_precision = getattr(
+        args, "dy_physical_channel_target_relative_precision", None
+    )
+    live_diagnostics = bool(
+        getattr(args, "dy_physical_channel_live_diagnostics", False)
+    )
+
+    if not enabled:
+        if cards is not None:
+            raise pygloopException(
+                "--dy-physical-channel-card requires "
+                "--physical-channel-multi-channeling."
+            )
+        if q_bins is not None:
+            raise pygloopException(
+                "--dy-q-bins requires --physical-channel-multi-channeling."
+            )
+        if warmup_iterations:
+            raise pygloopException(
+                "--dy-physical-channel-warmup-iterations requires "
+                "--physical-channel-multi-channeling."
+            )
+        if min_fraction:
+            raise pygloopException(
+                "--dy-physical-channel-min-fraction requires "
+                "--physical-channel-multi-channeling."
+            )
+        if target_relative_precision is not None:
+            raise pygloopException(
+                "--dy-physical-channel-target-relative-precision requires "
+                "--physical-channel-multi-channeling."
+            )
+        if live_diagnostics:
+            raise pygloopException(
+                "--dy-physical-channel-live-diagnostics requires "
+                "--physical-channel-multi-channeling."
+            )
+        return
+
+    if args.process != "dy":
+        raise pygloopException(
+            "Physical-channel multi-channeling is supported only for the DY "
+            "process implementation."
+        )
+    if args.command != "integrate":
+        raise pygloopException(
+            "Physical-channel multi-channeling is an integration-only option."
+        )
+    if args.integrator not in {"symbolica", "dy-paired-sobol"}:
+        raise pygloopException(
+            "Physical-channel multi-channeling requires --integrator symbolica or dy-paired-sobol."
+        )
+    if args.integrand_implementation != "zenos":
+        raise pygloopException(
+            "Physical-channel multi-channeling requires "
+            "--integrand-implementation zenos."
+        )
+    if args.multi_channeling is not True:
+        raise pygloopException(
+            "Physical-channel multi-channeling requires graph "
+            "--multi_channeling."
+        )
+    if not isinstance(cards, Mapping) or len(cards) < 2:
+        raise pygloopException(
+            "Physical-channel multi-channeling requires at least two "
+            "--dy-physical-channel-card LABEL=PATH entries."
+        )
+    if len(set(cards.values())) != len(cards):
+        raise pygloopException(
+            "Physical-channel cards must reference distinct card paths."
+        )
+    if batch_size < 1:
+        raise pygloopException(
+            "Physical-channel batch size must be positive."
+        )
+    if warmup_iterations < 0:
+        raise pygloopException(
+            "Physical-channel warmup iterations must be nonnegative."
+        )
+    if not math.isfinite(min_fraction) or min_fraction < 0.0:
+        raise pygloopException(
+            "Physical-channel minimum fraction must be finite and nonnegative."
+        )
+    if min_fraction * len(cards) > 1.0 + 1.0e-15:
+        raise pygloopException(
+            "Physical-channel minimum fraction cannot exceed 1 / number of "
+            "physical channels."
+        )
+    if target_relative_precision is not None and (
+        not math.isfinite(target_relative_precision)
+        or target_relative_precision <= 0.0
+    ):
+        raise pygloopException(
+            "Physical-channel target relative precision must be finite and "
+            "positive."
+        )
+    if q_bins is not None:
+        if len(q_bins) < 2 or any(
+            not (math.isfinite(float(lower)) and math.isfinite(float(upper)))
+            or float(lower) < 0.0
+            or float(lower) >= float(upper)
+            for lower, upper in zip(q_bins, q_bins[1:])
+        ):
+            raise pygloopException(
+                "DY Q bins require at least two strictly increasing finite "
+                "nonnegative edges."
+            )
+        if len(q_bins) - 1 > batch_size:
+            raise pygloopException(
+                "The number of DY Q bins cannot exceed the physical-channel "
+                "matrix batch size."
+            )
+    n_cores = int(args.n_cores)
+    if n_cores != 1 and n_cores < len(cards):
+        raise pygloopException(
+            "Physical-channel persistent workers require either one core or "
+            "at least one core per physical channel."
+        )
 
 
 def _verify_card_bundle_compatibility(
@@ -237,6 +412,250 @@ def _verify_card_bundle_compatibility(
                 "for: %s. Physics settings match, so integration will continue.",
                 ", ".join(changed_sources),
             )
+
+
+def _dy_integrand_implementation_from_values(
+    values: Mapping[str, object],
+) -> dict[str, object]:
+    implementation: dict[str, object] = {
+        "integrand_type": values.get("integrand_implementation", "gammaloop"),
+        "evaluator_compiler": values.get(
+            "integrand_evaluator_compiler", "symbolica_only"
+        ),
+        "dy_rotation_check_digits": values.get("dy_rotation_check_digits"),
+        "dy_rotation_check_count": values.get("dy_rotation_check_count", 1),
+        "dy_rotation_check_eps": values.get("dy_rotation_check_eps", 1.0e-15),
+        "dy_precision_ladder": values.get("dy_precision_ladder"),
+        "dy_rotation_check_arb_digits": values.get(
+            "dy_rotation_check_arb_digits", 80
+        ),
+        "dy_fallback_precision": (
+            values.get("dy_fallback_precision")
+            if values.get("dy_fallback_precision") is not None
+            else values.get("dy_rotation_check_arb_digits", 80)
+        ),
+        "dy_theta_tol": values.get("dy_theta_tol", 0.0),
+        "dy_stability_rtol": values.get("dy_stability_rtol"),
+        "dy_stability_atol": values.get("dy_stability_atol"),
+        "dy_large_weight_precision": values.get("dy_large_weight_precision"),
+        "dy_large_weight_clip": values.get("dy_large_weight_clip"),
+        "dy_beam_parameterisation": values.get(
+            "dy_beam_parameterisation", "x1_x2"
+        ),
+        "dy_soft_mirror_edges": values.get("dy_soft_mirror_edge"),
+        "dy_grouped_soft_pair": values.get("dy_grouped_soft_pair"),
+        "dy_grouped_soft_pair_transform": values.get(
+            "dy_grouped_soft_pair_transform"
+        ),
+        "dy_large_weight_threshold": values.get("dy_large_weight_threshold"),
+        "dy_zero_large_weight_samples": values.get(
+            "dy_zero_large_weight_samples", False
+        ),
+        "dy_integrated_uv_ct_filter": values.get(
+            "dy_integrated_uv_ct_filter", "all"
+        ),
+        "dy_accept_all_arb_retries": values.get(
+            "dy_accept_all_arb_retries", False
+        ),
+        "dy_runtime_parameters": dict(
+            values.get("dy_runtime_parameters") or {}  # type: ignore[arg-type]
+        ),
+        "dy_graph_weights": values.get("dy_graph_weights"),
+    }
+    if values.get("dy_ttbar_pt_min") is not None:
+        implementation["dy_ttbar_pt_min"] = values["dy_ttbar_pt_min"]
+    return implementation
+
+
+def _dy_process_from_effective_card(
+    process_class: type,
+    effective_card: EffectiveDYCard,
+) -> object:
+    values = effective_card.argparse_values
+    generation = effective_card.generation_settings
+    momenta = [
+        LorentzVector(*values[name])  # type: ignore[arg-type]
+        for name in ("pg1", "pg2", "ph1", "ph2", "ph3")
+    ]
+    return process_class(
+        values["m_top"],
+        values["m_higgs"],
+        momenta,
+        values["helicities"],
+        values["n_loops"],
+        toml_config_path=values["gammaloop_configuration"],
+        runtime_toml_config_path=values["runtime_configuration"],
+        clean=False,
+        gammaloop_settings=values["gammaloop_settings"],
+        final_state=values["dy_final_state"],
+        process_name=values["dy_process_name"],
+        diagrams=values["diagrams"],
+        dy_channel=values["dy_channel"],
+        skip_ps_validation=values["dy_skip_ps_validation"],
+        integrate_beams=values["dy_integrate_beams"],
+        dy_z_bin=values["dy_z_bin"],
+        dy_q_min=values["dy_q_min"],
+        dy_q_max=values["dy_q_max"],
+        dy_physical_normalisation=values["dy_physical_normalisation"],
+        dy_integrated_leptonic_phase_space=(
+            values["dy_integrated_leptonic_phase_space"]
+        ),
+        external_gluon_polarisation=values["external_gluon_polarisation"],
+        symmetrise_p1_p2=values["dy_symmetrise_p1_p2"],
+        disable_integrated_uv_cts=not bool(
+            generation.get("generate.enable_integrated_uv_counterterms", False)
+        ),
+        dy_top_self_energy_os_subtraction=None,
+        dy_top_self_energy_renormalisation=generation.get(
+            "generate.top_self_energy_renormalisation", "no-os"
+        ),
+        dy_check_generation_limits=bool(
+            generation.get("generate.check_generation_limits", False)
+        ),
+        dy_threshold_h_function=generation.get(
+            "generate.threshold_h_function"
+        ),
+        dy_parallel_graphs=int(generation.get("generate.parallel_graphs", 1)),
+        dy_fallback_precision=values["dy_fallback_precision"],
+        dy_lambda_sq=values["dy_lambda_sq"],
+        dy_mur_sq=values["dy_mur_sq"],
+        dy_pdf_set=values["dy_pdf_set"],
+        dy_pdf_member=values["dy_pdf_member"],
+        dy_muf_sq=values["dy_muf_sq"],
+        dy_msbar_scheme_counterterm=values["dy_msbar_scheme_counterterm"],
+        dy_decoupling=values["dy_decoupling"],
+        dy_scheme_counterterm_sobol_power=(
+            values["dy_scheme_counterterm_sobol_power"]
+        ),
+        dy_scheme_counterterm_replicas=(
+            values["dy_scheme_counterterm_replicas"]
+        ),
+        dy_scheme_counterterm_factor=values["dy_scheme_counterterm_factor"],
+        dy_scheme_born_bundle=values["dy_scheme_born_bundle"],
+        dy_scheme_born_bundles=values["dy_scheme_born_bundles"],
+        dy_scheme_alpha_s=values["dy_scheme_alpha_s"],
+        dy_scheme_counterterm_clip=values["dy_scheme_counterterm_clip"],
+        dy_observable_muv=values["dy_muv"],
+        dy_runtime_parameters=values["dy_runtime_parameters"],
+        skip_gl_worker_init=True,
+        load_compiled_bundle=True,
+        process_basename=values["overwrite_process_basename"],
+    )
+
+
+def _load_dy_physical_channels(
+    process_class: type,
+    parent_args: argparse.Namespace,
+) -> tuple[list[object], dict[str, object]]:
+    from processes.dy.dy_physical_channels import DYPhysicalChannel
+
+    card_paths = getattr(parent_args, "dy_physical_channel_cards", None)
+    if not isinstance(card_paths, Mapping) or len(card_paths) < 2:
+        raise pygloopException(
+            "--physical-channel-multi-channeling requires at least two "
+            "--dy-physical-channel-card entries or an equivalent "
+            "integrate.physical_channel_cards table."
+        )
+
+    channels: list[object] = []
+    provenance: dict[str, object] = {}
+    bundle_owners: dict[tuple[str, str], str] = {}
+    parent_runtime_parameters = dict(parent_args.dy_runtime_parameters or {})
+    for label, card_path in card_paths.items():
+        try:
+            child_card = load_dy_card(card_path)
+            parent_ladder = getattr(parent_args, "dy_precision_ladder", None)
+            if (parent_ladder is not None
+                and "integrate.stability.precision_ladder" in child_card.supplied_paths
+                and tuple(child_card.values["integrate.stability.precision_ladder"]) != tuple(parent_ladder)):
+                raise DYCardError("Child precision_ladder conflicts with the parent production policy")
+            child_effective = child_card.merge(
+                "integrate", {"dy_precision_ladder": parent_ladder},
+                explicit_destinations=("dy_precision_ladder",) if parent_ladder is not None else ())
+            if parent_runtime_parameters:
+                child_effective = child_effective.with_runtime_parameters(
+                    parent_runtime_parameters
+                )
+        except DYCardError as exc:
+            raise pygloopException(
+                f"Cannot load physical channel {label!r} from {card_path}: {exc}"
+            ) from exc
+        child_values = child_effective.argparse_values
+        if child_values["physical_channel_multi_channeling"]:
+            raise pygloopException(
+                f"Physical-channel card {label!r} recursively enables outer "
+                "physical-channel multi-channeling."
+            )
+        if not (
+            child_values["integrand_implementation"] == "zenos"
+            and child_values["integrator"] == "symbolica"
+            and child_values["multi_channeling"] is True
+        ):
+            raise pygloopException(
+                f"Physical-channel card {label!r} must select ZenoS, the "
+                "Symbolica integrator, and graph multi-channeling."
+            )
+
+        process = _dy_process_from_effective_card(process_class, child_effective)
+        _verify_card_bundle_compatibility(
+            process,
+            child_effective,
+            allow_unverified=bool(parent_args.dy_allow_unverified_bundle),
+        )
+        implementation = _dy_integrand_implementation_from_values(child_values)
+        validate_precision = getattr(process.compiled_bundle, "require_fallback_supported", None)
+        if callable(validate_precision):
+            for digits in child_values["dy_precision_ladder"][1:]:
+                validate_precision(digits)
+        runtime_parameters = implementation.get("dy_runtime_parameters") or {}
+        if runtime_parameters:
+            process.compiled_bundle.resolve_runtime_parameters(runtime_parameters)
+        bundle_identity = (
+            str(getattr(process, "name", "DY")),
+            str(process.compiled_bundle.integrand_name),
+        )
+        if bundle_identity in bundle_owners:
+            raise pygloopException(
+                f"Physical channels {bundle_owners[bundle_identity]!r} and "
+                f"{label!r} resolve to the same compiled bundle "
+                f"{bundle_identity[1]!r}."
+            )
+        bundle_owners[bundle_identity] = str(label)
+        graph_indices = process._integration_graph_channel_indices(
+            implementation,
+            child_values["dy_integration_graphs"],
+        )
+        physical_channel = DYPhysicalChannel(
+            str(label),
+            process,
+            implementation,
+            graph_channel_indices=graph_indices,
+            source_card=child_effective.card_path,
+        )
+        channels.append(physical_channel)
+        grouped_pair = process._grouped_soft_pair(implementation)
+        provenance[str(label)] = {
+            "card_path": child_effective.card_path,
+            "source_card_sha256": child_effective.source_card_sha256,
+            "generation_fingerprint": child_effective.generation_fingerprint,
+            "bundle": process.compiled_bundle.integrand_name,
+            "integration_graph_channels": list(
+                physical_channel.graph_channel_names
+            ),
+            "grouped_soft_pair": (
+                None
+                if grouped_pair is None
+                else {
+                    "graphs": list(implementation["dy_grouped_soft_pair"]),
+                    "bundle_indices": [grouped_pair[0], grouped_pair[1]],
+                    "transform": grouped_pair[2],
+                }
+            ),
+            "pdf_luminosity_family": getattr(
+                process, "dy_pdf_luminosity_family", None
+            ),
+        }
+    return channels, provenance
 
 
 def _stamp_generated_dy_bundle(
@@ -421,6 +840,15 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
         help="DY only: enable rotational-invariance veto with N relative-accuracy digits (disabled by default).",
     )
     parser.add_argument(
+        "--dy-rotation-check-count",
+        type=int,
+        default=1,
+        help=(
+            "DY only: number of deterministic general SO(3) rotations checked "
+            "for each stability orbit (default: 1)."
+        ),
+    )
+    parser.add_argument(
         "--dy-rotation-check-eps",
         type=float,
         default=1e-15,
@@ -444,6 +872,10 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
             "uses Arb at that many decimal digits. New bundles store both "
             "backends. Defaults to --dy-rotation-check-arb-digits."
         ),
+    )
+    parser.add_argument(
+        "--dy-precision-ladder", type=int, nargs="+", default=None,
+        help="DY stability levels in decimal digits, e.g. 16 32 60; exhausted numerical retries zero the sample.",
     )
     parser.add_argument(
         "--dy-stability-backend",
@@ -516,6 +948,26 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
             "pair; origin-centred edges retain the beam-equatorial pair. Repeat "
             "GRAPH:EDGE for multi-graph bundles; a bare EDGE is accepted only "
             "for a single-graph bundle."
+        ),
+    )
+    parser.add_argument(
+        "--dy-grouped-soft-pair",
+        nargs=2,
+        default=None,
+        metavar=("GRAPH_A", "GRAPH_B"),
+        help=(
+            "DY only: expose two soft-mirrored graph channels as one "
+            "correlated discrete channel. The first graph uses the sampled "
+            "coordinates and the second uses --dy-grouped-soft-pair-transform."
+        ),
+    )
+    parser.add_argument(
+        "--dy-grouped-soft-pair-transform",
+        choices=["invert"],
+        default=None,
+        help=(
+            "DY only: coordinate map for the second grouped soft graph. "
+            "'invert' applies the validated soft-centred spherical inversion."
         ),
     )
     parser.add_argument(
@@ -701,8 +1153,8 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
         action=argparse.BooleanOptionalAction,
         default=False,
         help=(
-            "Ordered two-loop qqbar -> ttbar only: add the heavy-flavour "
-            "decoupling Born term. This requires scheme conversion."
+            "Two-loop qqbar/gg -> ttbar: add the heavy-flavour decoupling "
+            "Born term. This requires scheme conversion."
         ),
     )
     parser.add_argument(
@@ -959,12 +1411,106 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
     parser_integrate.add_argument("--points_per_iteration", "-ppi", type=int, default=1000,
         help="Number of points per iteration. Default = %(default)s",
     )  # fmt: off
-    parser_integrate.add_argument("--integrator", "-it", type=str, default="gammaloop", choices=["naive", "symbolica", "vegas", "gammaloop"],
+    parser_integrate.add_argument("--integrator", "-it", type=str, default="gammaloop", choices=["naive", "symbolica", "vegas", "gammaloop", "dy-paired-sobol"],
         help="Integrator selected. Default = %(default)s",
     )  # fmt: off
     parser_integrate.add_argument("--n_cores", "-nc", type=int, default=1,
         help="Number of cores to run with. Default = %(default)s",
     )  # fmt: off
+    from processes.dy.dy_paired_settings import PairedSobolSettings
+    for name, field in PairedSobolSettings.__dataclass_fields__.items():
+        kwargs = {"default": field.default, "dest": "dy_paired_" + name}
+        if name == "learning_points":
+            kwargs.update(type=int, nargs="+")
+        elif name == "z_histogram_edges":
+            kwargs.update(type=float, nargs="+")
+        elif name == "output_directory":
+            kwargs["type"] = str
+        else:
+            kwargs["type"] = type(field.default)
+        parser_integrate.add_argument("--dy-paired-" + name.replace("_", "-"), **kwargs)
+    parser_integrate.add_argument(
+        "--physical-channel-multi-channeling",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help=(
+            "DY only: add an outer Symbolica discrete layer over physical "
+            "incoming channels. Disabled by default."
+        ),
+    )
+    parser_integrate.add_argument(
+        "--dy-q-bins",
+        type=float,
+        nargs="+",
+        default=None,
+        metavar="QEDGE",
+        help=(
+            "DY physical-channel integration only: ordered Q-bin edges. All "
+            "bins are evaluated at common samples and their sum is trained."
+        ),
+    )
+    parser_integrate.add_argument(
+        "--dy-physical-channel-card",
+        dest="dy_physical_channel_cards",
+        action="append",
+        type=_parse_physical_channel_card,
+        default=None,
+        metavar="LABEL=PATH",
+        help=(
+            "DY physical-channel integration: card describing one qqbar, qg, "
+            "or gg evaluator. Repeat once per physical channel."
+        ),
+    )
+    parser_integrate.add_argument(
+        "--dy-physical-channel-backend",
+        choices=("compiled", "saved-jit"),
+        default="saved-jit",
+        help="Matrix-evaluation backend for physical-channel batches.",
+    )
+    parser_integrate.add_argument(
+        "--dy-physical-channel-batch-size",
+        type=int,
+        default=256,
+        help="Maximum homogeneous physical/graph-channel matrix batch size.",
+    )
+    parser_integrate.add_argument(
+        "--dy-physical-channel-warmup-iterations",
+        type=int,
+        default=0,
+        help=(
+            "Adaptive iterations excluded from the final physical-channel "
+            "estimate; production then runs on the frozen trained grid."
+        ),
+    )
+    parser_integrate.add_argument(
+        "--dy-physical-channel-min-fraction",
+        type=float,
+        default=0.0,
+        help=(
+            "Minimum sampling fraction reserved for every DY physical channel; "
+            "the remaining probability is adapted by Symbolica."
+        ),
+    )
+    parser_integrate.add_argument(
+        "--dy-physical-channel-target-relative-precision",
+        type=float,
+        default=None,
+        help=(
+            "Stop cumulative DY physical-channel production once the fully "
+            "corrected PP uncertainty divided by its absolute central value "
+            "is no larger than this target. The requested iteration count is "
+            "then an upper bound."
+        ),
+    )
+    parser_integrate.add_argument(
+        "--dy-physical-channel-live-diagnostics",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help=(
+            "Emit a structured corrected result and cumulative stability "
+            "diagnostics after every physical-channel iteration."
+        ),
+    )
 
     parser_integrate.add_argument("--target", "-t", type=complex, default=None,
         help="Target value for the integration. Default = %(default)s",
@@ -1054,6 +1600,12 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
     cli_argv = list(sys.argv[1:] if argv is None else argv)
     args = parser.parse_args(cli_argv)
     explicit_cli_destinations = _explicit_cli_destinations(parser, cli_argv)
+    try:
+        args.dy_physical_channel_cards = _physical_channel_card_mapping(
+            getattr(args, "dy_physical_channel_cards", None)
+        )
+    except argparse.ArgumentTypeError as exc:
+        parser.error(str(exc))
 
     if args.dy_card is None and (
         args.dy_card_check or args.dy_dump_effective_card
@@ -1150,6 +1702,8 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
             runtime_parameter_overrides
         )
 
+    _validate_physical_channel_arguments(args)
+
     # Keep non-evaluator integration logic (thresholds and PDF scale defaults)
     # aligned with the same resolved user-facing parameters.
     if args.command == "integrate":
@@ -1194,6 +1748,18 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
         parser.error(
             "--dy-stability-arb-digits requires --dy-stability-backend arb."
         )
+    if apply_stability_cli:
+        from processes.dy.dy_precision import validate_precision_ladder
+        try:
+            if args.dy_precision_ladder is None:
+                args.dy_precision_ladder = [16, args.dy_fallback_precision or 32]
+            args.dy_precision_ladder = list(validate_precision_ladder(args.dy_precision_ladder))
+            if (args.dy_fallback_precision is not None
+                and args.dy_fallback_precision != (args.dy_precision_ladder[1] if len(args.dy_precision_ladder) > 1 else 16)):
+                raise ValueError("precision_ladder conflicts with fallback/backend settings")
+            args.dy_fallback_precision = args.dy_precision_ladder[1] if len(args.dy_precision_ladder) > 1 else 16
+        except ValueError as exc:
+            parser.error(str(exc))
 
     match args.verbosity:
         case "debug":
@@ -1510,12 +2076,21 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
                     args.command == "integrate"
                     and args.integrand_implementation == "zenos"
                 ),
-                load_compiled_bundle=args.command != "generate",
+                load_compiled_bundle=(
+                    args.command != "generate"
+                    and not getattr(
+                        args, "physical_channel_multi_channeling", False
+                    )
+                ),
             )
         case _:
             raise pygloopException(f"Process {args.process} not implemented.")
 
-    if effective_dy_card is not None and args.command == "integrate":
+    if (
+        effective_dy_card is not None
+        and args.command == "integrate"
+        and not getattr(args, "physical_channel_multi_channeling", False)
+    ):
         _verify_card_bundle_compatibility(
             process,
             effective_dy_card,
@@ -1525,6 +2100,7 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
         args.process == "dy"
         and args.command == "integrate"
         and args.dy_runtime_parameters
+        and not getattr(args, "physical_channel_multi_channeling", False)
     ):
         compiled_bundle = getattr(process, "compiled_bundle", None)
         if compiled_bundle is None:
@@ -1533,54 +2109,15 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
             )
         compiled_bundle.resolve_runtime_parameters(args.dy_runtime_parameters)
 
-    integrand_implementation = {
-        "integrand_type": args.integrand_implementation,
-        "evaluator_compiler": args.integrand_evaluator_compiler,
-    }
     if args.process == "dy":
-        integrand_implementation["dy_rotation_check_digits"] = (
-            args.dy_rotation_check_digits
+        integrand_implementation = _dy_integrand_implementation_from_values(
+            vars(args)
         )
-        integrand_implementation["dy_rotation_check_eps"] = args.dy_rotation_check_eps
-        integrand_implementation["dy_rotation_check_arb_digits"] = (
-            args.dy_rotation_check_arb_digits
-        )
-        integrand_implementation["dy_fallback_precision"] = (
-            args.dy_fallback_precision
-            if args.dy_fallback_precision is not None
-            else args.dy_rotation_check_arb_digits
-        )
-        integrand_implementation["dy_theta_tol"] = args.dy_theta_tol
-        integrand_implementation["dy_stability_rtol"] = args.dy_stability_rtol
-        integrand_implementation["dy_stability_atol"] = args.dy_stability_atol
-        integrand_implementation["dy_large_weight_precision"] = (
-            args.dy_large_weight_precision
-        )
-        integrand_implementation["dy_large_weight_clip"] = args.dy_large_weight_clip
-        integrand_implementation["dy_beam_parameterisation"] = (
-            args.dy_beam_parameterisation
-        )
-        integrand_implementation["dy_soft_mirror_edges"] = args.dy_soft_mirror_edge
-        integrand_implementation["dy_large_weight_threshold"] = (
-            args.dy_large_weight_threshold
-        )
-        integrand_implementation["dy_zero_large_weight_samples"] = (
-            args.dy_zero_large_weight_samples
-        )
-        integrand_implementation["dy_integrated_uv_ct_filter"] = (
-            args.dy_integrated_uv_ct_filter
-        )
-        integrand_implementation["dy_accept_all_arb_retries"] = (
-            args.dy_accept_all_arb_retries
-        )
-        integrand_implementation["dy_runtime_parameters"] = dict(
-            args.dy_runtime_parameters
-        )
-        integrand_implementation["dy_graph_weights"] = getattr(
-            args, "dy_graph_weights", None
-        )
-        if args.dy_ttbar_pt_min is not None:
-            integrand_implementation["dy_ttbar_pt_min"] = args.dy_ttbar_pt_min
+    else:
+        integrand_implementation = {
+            "integrand_type": args.integrand_implementation,
+            "evaluator_compiler": args.integrand_evaluator_compiler,
+        }
     matching_generation_provenance_existed = False
     if effective_dy_card is not None and args.command == "generate":
         matching_generation_provenance_existed = _preflight_card_generation(
@@ -1686,7 +2223,57 @@ def main(argv: list[str] | None = None) -> dict[str, object] | int:
             t_start = time.time()
             run_opts = _runtime_arguments(args)
             run_opts["integrand_implementation"] = integrand_implementation
-            res = process.integrate(**run_opts)  # type: ignore
+            if getattr(args, "physical_channel_multi_channeling", False):
+                from processes.dy.dy_physical_channels import (
+                    DYPhysicalChannelIntegrator,
+                )
+
+                physical_channels, physical_provenance = (
+                    _load_dy_physical_channels(process_class, args)
+                )
+                if args.integrator == "dy-paired-sobol":
+                    from processes.dy.dy_paired_sobol import DYPairedSobolIntegrator
+                    settings = PairedSobolSettings.from_arguments(args)
+                    if args.dy_q_bins or args.restart or args.dy_physical_channel_warmup_iterations:
+                        raise pygloopException("paired mode uses its own learning schedule; Q-bin observers/restart are unsupported")
+                    combined_integrator = DYPairedSobolIntegrator(
+                        physical_channels, settings=settings, n_cores=args.n_cores,
+                        parameterisation=args.parameterisation, phase=args.phase)
+                    combined_integrator.state["provenance"] = physical_provenance
+                    if effective_dy_card is not None:
+                        combined_integrator.effective_card_text = effective_dy_card.to_toml()
+                    res = combined_integrator.integrate(seed=args.seed)
+                else:
+                    combined_integrator = DYPhysicalChannelIntegrator(
+                        physical_channels,  # type: ignore[arg-type]
+                        parameterisation=args.parameterisation,
+                        phase=args.phase,
+                        n_cores=args.n_cores,
+                        evaluation_backend=args.dy_physical_channel_backend,
+                        batch_size=args.dy_physical_channel_batch_size,
+                        q_bins=args.dy_q_bins,
+                        min_channel_fraction=(
+                            args.dy_physical_channel_min_fraction
+                        ),
+                        live_iteration_diagnostics=(
+                            args.dy_physical_channel_live_diagnostics
+                        ),
+                    )
+                    res = combined_integrator.integrate(
+                        n_iterations=args.n_iterations,
+                        points_per_iteration=args.points_per_iteration,
+                        seed=args.seed,
+                        target=direct_target,
+                        warmup_iterations=(
+                            args.dy_physical_channel_warmup_iterations
+                        ),
+                        target_relative_precision=(
+                            args.dy_physical_channel_target_relative_precision
+                        ),
+                    )
+                result["dy_physical_channels"] = physical_provenance
+            else:
+                res = process.integrate(**run_opts)  # type: ignore
             integration_time = time.time() - t_start
             # tabs = "\t" * 5
             new_line = "\n"

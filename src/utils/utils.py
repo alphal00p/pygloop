@@ -874,6 +874,16 @@ class IntegrationResult(object):
         max_preclip_wgt: float | None = None,
         max_preclip_wgt_point: list[float] | None = None,
         max_preclip_wgt_momentum_point: str | None = None,
+        t_solver_float_failure_sample_count: int = 0,
+        t_solver_float_failed_term_count: int = 0,
+        t_solver_float_failed_surface_count: int = 0,
+        t_solver_hp_retry_count: int = 0,
+        t_solver_hp_salvaged_count: int = 0,
+        t_solver_hp_unresolved_count: int = 0,
+        t_solver_failure_surfaces: dict[str, int] | None = None,
+        t_solver_failure_terms: dict[str, int] | None = None,
+        stability_hp_escalation_count: int = 0,
+        stability_hp_escalation_accepted_count: int = 0,
     ):
         self.n_samples = n_samples
         self.central_value = central_value
@@ -930,6 +940,10 @@ class IntegrationResult(object):
         )
         self.stability_hp_retry_count = stability_hp_retry_count
         self.stability_hp_accepted_count = stability_hp_accepted_count
+        self.stability_hp_escalation_count = stability_hp_escalation_count
+        self.stability_hp_escalation_accepted_count = (
+            stability_hp_escalation_accepted_count
+        )
         self.stability_hp_disagreement_count = stability_hp_disagreement_count
         self.stability_hp_nonfinite_count = stability_hp_nonfinite_count
         self.stability_hp_error_count = stability_hp_error_count
@@ -962,9 +976,24 @@ class IntegrationResult(object):
         self.max_preclip_wgt = max_preclip_wgt
         self.max_preclip_wgt_point = max_preclip_wgt_point
         self.max_preclip_wgt_momentum_point = max_preclip_wgt_momentum_point
+        self.t_solver_float_failure_sample_count = (
+            t_solver_float_failure_sample_count
+        )
+        self.t_solver_float_failed_term_count = t_solver_float_failed_term_count
+        self.t_solver_float_failed_surface_count = (
+            t_solver_float_failed_surface_count
+        )
+        self.t_solver_hp_retry_count = t_solver_hp_retry_count
+        self.t_solver_hp_salvaged_count = t_solver_hp_salvaged_count
+        self.t_solver_hp_unresolved_count = t_solver_hp_unresolved_count
+        self.t_solver_failure_surfaces = dict(t_solver_failure_surfaces or {})
+        self.t_solver_failure_terms = dict(t_solver_failure_terms or {})
 
     def combine_with(self, other):
         """Combine self statistics with all those of another IntegrationResult object."""
+        for name, value in vars(other).items():
+            if name.startswith("stability_precision_") and name.endswith("_count"):
+                setattr(self, name, getattr(self, name, 0) + value)
         self.n_samples += other.n_samples
         self.elapsed_time += other.elapsed_time
         self.central_value += other.central_value
@@ -994,9 +1023,17 @@ class IntegrationResult(object):
             "stability_float_nonfinite_retry_count",
             "stability_hp_retry_count",
             "stability_hp_accepted_count",
+            "stability_hp_escalation_count",
+            "stability_hp_escalation_accepted_count",
             "stability_hp_disagreement_count",
             "stability_hp_nonfinite_count",
             "stability_hp_error_count",
+            "t_solver_float_failure_sample_count",
+            "t_solver_float_failed_term_count",
+            "t_solver_float_failed_surface_count",
+            "t_solver_hp_retry_count",
+            "t_solver_hp_salvaged_count",
+            "t_solver_hp_unresolved_count",
             "soft_mirror_pair_count",
             "soft_mirror_large_trigger_count",
             "soft_mirror_hp_orbit_retry_count",
@@ -1008,6 +1045,14 @@ class IntegrationResult(object):
                 counter_name,
                 getattr(self, counter_name, 0) + getattr(other, counter_name, 0),
             )
+        for histogram_name in (
+            "t_solver_failure_surfaces",
+            "t_solver_failure_terms",
+        ):
+            histogram = getattr(self, histogram_name, {})
+            for label, count in getattr(other, histogram_name, {}).items():
+                histogram[label] = histogram.get(label, 0) + int(count)
+            setattr(self, histogram_name, histogram)
         if self.unstable_retry_example is None:
             self.unstable_retry_example = getattr(other, "unstable_retry_example", None)
             self.unstable_retry_example_momentum_point = getattr(
@@ -1190,6 +1235,33 @@ class IntegrationResult(object):
             f"float mismatch = {self.stability_float_mismatch_retry_count}, "
             f"float non-finite/error = {self.stability_float_nonfinite_retry_count}"
         )
+        if self.stability_hp_escalation_count:
+            report.append(
+                "HP precision escalations: attempted/accepted = "
+                f"{self.stability_hp_escalation_count}/"
+                f"{self.stability_hp_escalation_accepted_count}"
+            )
+        if self.t_solver_float_failure_sample_count:
+            report.append(
+                "E-surface root recovery: "
+                f"affected samples = {self.t_solver_float_failure_sample_count}, "
+                f"failed terms/surfaces = {self.t_solver_float_failed_term_count}/"
+                f"{self.t_solver_float_failed_surface_count}, "
+                "HP attempted/salvaged/unresolved = "
+                f"{self.t_solver_hp_retry_count}/"
+                f"{self.t_solver_hp_salvaged_count}/"
+                f"{self.t_solver_hp_unresolved_count}"
+            )
+            ranked_surfaces = sorted(
+                self.t_solver_failure_surfaces.items(),
+                key=lambda item: (-item[1], item[0]),
+            )
+            for surface, count in ranked_surfaces[:10]:
+                report.append(f"  root failures = {count}: {surface}")
+            if len(ranked_surfaces) > 10:
+                report.append(
+                    f"  ... {len(ranked_surfaces) - 10} additional surfaces"
+                )
         report.append(
             "Higher-precision rejections: "
             f"disagreement = {self.stability_hp_disagreement_count}, "
@@ -1339,6 +1411,27 @@ class IntegrationResult(object):
                     f"{getattr(self, 'dy_dgg_minus_lsz_error'):.4e}; "
                     f"{getattr(self, 'dy_top_lsz_central_value'):+.16e} +/- "
                     f"{getattr(self, 'dy_top_lsz_error'):.4e}; "
+                    f"{getattr(self, 'dy_auxiliary_central_value'):+.16e} +/- "
+                    f"{getattr(self, 'dy_auxiliary_error'):.4e}"
+                )
+            elif scheme_channel == "qg":
+                report.append(
+                    "DY qg scheme/decoupling: "
+                    f"scheme={getattr(self, 'dy_scheme_conversion_enabled')}, "
+                    f"decoupling={getattr(self, 'dy_decoupling_enabled')}; "
+                    f"coefficients hard/Dqg/Born="
+                    f"{getattr(self, 'dy_hard_factor'):+.8e}/"
+                    f"{getattr(self, 'dy_scheme_counterterm_factor'):+.8e}/"
+                    f"{getattr(self, 'dy_decoupling_coefficient'):+.8e}"
+                )
+                report.append(
+                    "DY qg applied hard/Dqg/Born/auxiliary: "
+                    f"{getattr(self, 'dy_hard_central_value'):+.16e} +/- "
+                    f"{getattr(self, 'dy_hard_error'):.4e}; "
+                    f"{getattr(self, 'dy_scheme_counterterm_central_value'):+.16e} +/- "
+                    f"{getattr(self, 'dy_scheme_counterterm_error'):.4e}; "
+                    f"{getattr(self, 'dy_decoupling_born_central_value'):+.16e} +/- "
+                    f"{getattr(self, 'dy_decoupling_born_error'):.4e}; "
                     f"{getattr(self, 'dy_auxiliary_central_value'):+.16e} +/- "
                     f"{getattr(self, 'dy_auxiliary_error'):.4e}"
                 )

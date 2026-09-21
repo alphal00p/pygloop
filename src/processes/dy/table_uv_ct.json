@@ -64,7 +64,7 @@
             ["a", ["mu","q"]]
         ],
         "internal_particles": ["g", "d", "d"],
-        "integrated_ct": "8*(GC_10**2*GC_1*Pi*(gamma(i,mu,j)*delta(i1,j1)*(2 + log(muvsq))))/3"
+        "integrated_ct": "8*(GC_10**2*GC_1*Pi*(gamma(i,mu,j)*delta(i1,j1)*(2 + log(muvsq/mursq))))/3"
     },
     {
         "external_particles": [

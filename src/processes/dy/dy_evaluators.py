@@ -9,15 +9,16 @@ import pickle
 import shutil
 import tempfile
 import time
-from collections.abc import Mapping
+from collections.abc import Hashable, Mapping, Sequence
 from copy import deepcopy
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation, localcontext
 from fractions import Fraction
 from functools import lru_cache
 from itertools import product
 from typing import Any, Callable
 
+import numpy as np
 from symbolica import AtomType, E, Evaluator, Expression, Replacement, S
 
 from utils.utils import (
@@ -107,11 +108,33 @@ def _evaluate_symbolica_evaluator_with_prec(
     # significant digits without introducing the binary approximation of a
     # float conversion.
     prepared_inputs = [
+        _prepare_symbolica_input_with_prec(value, decimal_digit_precision)
+        for value in inputs
+    ]
+    return _evaluate_prepared_symbolica_evaluator_with_prec(
+        evaluator, prepared_inputs, decimal_digit_precision
+    )
+
+
+def _prepare_symbolica_input_with_prec(
+    value: Decimal, decimal_digit_precision: int
+) -> Decimal:
+    """Pad one precise evaluator input to the requested significant digits."""
+    return (
         Decimal(format(value, f".{decimal_digit_precision - 1}e"))
         if value.is_finite()
         else value
-        for value in inputs
-    ]
+    )
+
+
+def _evaluate_prepared_symbolica_evaluator_with_prec(
+    evaluator: Evaluator,
+    prepared_inputs: list[Decimal],
+    decimal_digit_precision: int,
+):
+    """Evaluate inputs already padded for the requested precision."""
+    if decimal_digit_precision <= 0:
+        raise ValueError("decimal_digit_precision must be positive.")
     outputs = evaluator.evaluate_with_prec(
         prepared_inputs, decimal_digit_precision
     )
@@ -120,6 +143,7 @@ def _evaluate_symbolica_evaluator_with_prec(
             f"Expected one Symbolica evaluator output, got {len(outputs)}."
         )
     return _real_symbolica_value(outputs[0])
+
 
 from processes.dy.dy_graph_utils import (
     _strip_quotes,
@@ -141,6 +165,36 @@ from processes.dy.dy_runtime_parameters import (
 # MT = 0.346  # s=1000
 # MT = 0.173  # s=2000
 MT = 173
+TTBAR_CM_E_SURFACE_SCHEMA = "p2_eq_minus_p1_v1"
+DY_CM_EVALUATOR_SCHEMA = "p2_eq_minus_p1_all_expressions_v1"
+
+
+class DYNumericalEvaluationError(pygloopException):
+    """An unresolved numerical value, eligible for a higher-precision retry."""
+
+
+# Integral_0^infinity exp(-t^2-t^-2) dt = sqrt(pi)*exp(-2)/2.
+# The exact 2*exp(2)/sqrt(pi) is computed at the requested runtime precision.
+# Keeping a shared input avoids generation-time float folding and this
+# Symbolica release's large-negative-rational serialization defect.
+H_FUNCTION_NORMALISATION = E(EVALUATOR_SYMBOLS["h_normalisation"])
+
+
+def exponential_h_function(t: Expression) -> Expression:
+    """The exponential importance map with a precision-aware normalization."""
+    return (-(t ** 2) - 1 / (t ** 2)).exp() * H_FUNCTION_NORMALISATION
+
+
+def _checked_saved_evaluator_bytes(evaluator: Evaluator) -> bytes:
+    """Fail generation if persistence changes exact constants or instructions."""
+    payload = evaluator.save()
+    restored = Evaluator.load(payload)
+    if repr(evaluator.get_instructions()) != repr(restored.get_instructions()):
+        raise pygloopException(
+            "Saved evaluator integrity failure: signed constants or instructions "
+            "changed during Symbolica save/load. Do not integrate this bundle."
+        )
+    return payload
 
 
 def heaviside_theta(x):
@@ -206,6 +260,12 @@ def _sm_ttbar_couplings() -> dict[str, Expression]:
 
 
 def substitute_process_couplings(expr: Expression, process: str, L: int) -> Expression:
+    """Set graph-level couplings; public DY weights restore their fixed factor.
+
+    Keeping DY evaluator bundles coupling-stripped preserves the reusable
+    graph algebra. ``DY._apply_dy_beam_weights`` applies the process-wide
+    ``-e^4 Q_d^2 g_s^2`` factor exactly once at integration time.
+    """
     if _is_ttbar_process(process):
         couplings = _sm_ttbar_couplings()
         for coupling_name, coupling_value in couplings.items():
@@ -302,6 +362,31 @@ class evaluate_integrand:
     def impose_rest_frame(self, integrand):
         return integrand.replace(E("p(x_,1)"), E("0")).replace(E("p(x_,2)"), E("0"))
 
+    @staticmethod
+    def _ttbar_cm_reduce_momentum(
+        loop_momentum: Expression,
+        p1_coefficient: Expression,
+        p2_coefficient: Expression,
+    ) -> Expression:
+        """Apply the exact ttbar CM identity p2=-p1 before squaring."""
+        return loop_momentum + (p1_coefficient - p2_coefficient) * E("p(1)")
+
+    @staticmethod
+    def _spatial_components(momentum: Expression) -> tuple[Expression, ...]:
+        """Keep a self-dot product as a manifest sum of component squares."""
+        return tuple(
+            momentum.replace(E("x_(y_)"), E(f"x_(y_,{component})"))
+            for component in range(1, 4)
+        )
+
+    @staticmethod
+    def _ttbar_cm_reduce_components(expression: Expression) -> Expression:
+        """Eliminate independent p2 components from a ttbar CM expression."""
+        return expression.replace_multiple([
+            Replacement(E(f"p(2,{component})"), -E(f"p(1,{component})"))
+            for component in range(1, 4)
+        ])
+
     def concretise_scalar_products(self, integrand):
 
         if self.process == "DY":
@@ -395,9 +480,13 @@ class evaluate_integrand:
     ) -> Expression:
         """Concretise scalar products, then prepare an evaluator in one pass."""
         expr = self.concretise_scalar_products(expr)
-        return expr.replace_multiple(
+        expr = expr.replace_multiple(
             self._evaluator_preparation_replacements(observable_params)
         )
+        if self.process == "DY":
+            expr = self._ttbar_cm_reduce_components(expr)
+            expr = self.drop_exact_zero_sqrts(expr)
+        return expr
 
     @staticmethod
     def _is_theta_function(expr: Expression) -> bool:
@@ -480,16 +569,35 @@ class evaluate_integrand:
                         if particle_type in ["d", "d~", "g", "ghG", "ghG~"]
                         else E(f"m({particle_type})")
                     )
-                    final_mom = (
-                        sum(loop_coeff[i] * E(f"k({i})") for i in range(self.L))
-                        + E(e_atts["routing_p1"]) * E("p(1)")
-                        + E(e_atts["routing_p2"]) * E("p(2)")
+                    loop_momentum = sum(
+                        loop_coeff[i] * E(f"k({i})") for i in range(self.L)
                     )
+                    p1_coefficient = E(e_atts["routing_p1"])
+                    p2_coefficient = E(e_atts["routing_p2"])
+                    if self.process in {"DY", "tt~"}:
+                        final_mom = self._ttbar_cm_reduce_momentum(
+                            loop_momentum,
+                            p1_coefficient,
+                            p2_coefficient,
+                        )
+                    else:
+                        final_mom = (
+                            loop_momentum
+                            + p1_coefficient * E("p(1)")
+                            + p2_coefficient * E("p(2)")
+                        )
                     final_moms.append([
                         final_mom,
                         mass,
                     ])
-                    e_surface += (self.sp3D(final_mom, final_mom) + mass**2) ** E("1/2")
+                    if self.process in {"DY", "tt~"}:
+                        components = self._spatial_components(final_mom)
+                        norm_squared = sum(
+                            component**2 for component in components
+                        )
+                    else:
+                        norm_squared = self.sp3D(final_mom, final_mom)
+                    e_surface += (norm_squared + mass**2) ** E("1/2")
 
         e_surface = self.concretise_scalar_products(e_surface)
         if len(self.routed_integrand.replacements) > 0:
@@ -510,6 +618,11 @@ class evaluate_integrand:
             repl_comps = [
                 repl.replace(E("x_(y_)"), E(f"x_(y_,{i})")) for i in range(1, 4)
             ]
+            if self.process in {"DY", "tt~"}:
+                repl_comps = [
+                    self._ttbar_cm_reduce_components(component)
+                    for component in repl_comps
+                ]
 
             for i in range(3):
                 e_surface = e_surface.replace(patt_comps[i], tmp_keys[i])
@@ -517,6 +630,8 @@ class evaluate_integrand:
                 e_surface = e_surface.replace(tmp_keys[i], repl_comps[i])
 
         e_surface = self.concretise_scalar_products(e_surface)
+        if self.process in {"DY", "tt~"}:
+            e_surface = self._ttbar_cm_reduce_components(e_surface)
         # e_surface = self.impose_rest_frame(e_surface)
 
         rescaled_e_surface = e_surface
@@ -542,8 +657,17 @@ class evaluate_integrand:
         use_exponential_importance_map: bool = True,
     ):
         self.L = L
-        self.process = process
+        process_key = str(process).lower()
+        if process_key == "dy":
+            self.process = "DY"
+        elif process_key == "tt~":
+            self.process = "tt~"
+        else:
+            raise ValueError(f"Unsupported DY evaluator process {process!r}.")
         self.routed_integrand = routed_integrand
+        self.dy_cm_evaluator_schema = (
+            DY_CM_EVALUATOR_SCHEMA if self.process == "DY" else None
+        )
         self.use_exponential_importance_map = use_exponential_importance_map
 
         self.symbols = []
@@ -589,6 +713,8 @@ class evaluate_integrand:
 
         self.theta_expressions: list[Expression] = []
         self._theta_val: list[Evaluator] | None = None
+        self.physical_z_min_theta_index: int | None = None
+        self.physical_z_max_theta_index: int | None = None
 
         supplied_theta_expressions = getattr(
             self.routed_integrand, "theta_expressions", None
@@ -618,10 +744,12 @@ class evaluate_integrand:
 
         if len(self.routed_integrand.cut_graph.final_cut) > 1 and self.process == "DY":
             theta_zmin_expr = E("t^2*z") - E(EVALUATOR_SYMBOLS["zmin"])
+            self.physical_z_min_theta_index = len(self.theta_expressions)
             self.theta_expressions.append(theta_zmin_expr)
 
         if len(self.routed_integrand.cut_graph.final_cut) > 1 and self.process == "DY":
             theta_zmax_expr = E(EVALUATOR_SYMBOLS["zmax"]) - E("t^2*z")
+            self.physical_z_max_theta_index = len(self.theta_expressions)
             self.theta_expressions.append(theta_zmax_expr)
 
         self.sp3D = S("sp3D", is_linear=True, is_symmetric=True)
@@ -629,14 +757,7 @@ class evaluate_integrand:
         self.e_surface = self.set_e_surface()
         self.ttbar_pt_sq_expression = self._build_ttbar_pt_sq_expression()
 
-        ht_prefactor = 2.0 / math.sqrt(math.pi)
-        ht = (-(E("t") ** 2)).exp() * E(f"{ht_prefactor:.16e}")
-
-        ## NEW: H FUNCTION
-        ht_prefactor = (
-            1.0 / 0.1199377719680614473680365016367935162194504519102290907562408570
-        )
-        ht = (-(E("t") ** 2) - 1 / (E("t") ** 2)).exp() * E(f"{ht_prefactor:.16e}")
+        ht = exponential_h_function(E("t"))
         if self.process == "DY":
             jacobian = E("t") ** 5 / self.e_surface.derivative(E("t"))
         if self.process == "tt~":
@@ -672,6 +793,10 @@ class evaluate_integrand:
         else:
             self.routed_integrand.integrand = self.routed_integrand.integrand * jacobian
 
+        if self.process == "DY":
+            self.routed_integrand.integrand = self.drop_exact_zero_sqrts(
+                self._ttbar_cm_reduce_components(self.routed_integrand.integrand)
+            )
         self.integrand_expression = self.routed_integrand.integrand
         ## ADD THETA OF t^2 z
 
@@ -827,10 +952,7 @@ class evaluate_integrand:
                 E("MT"), E(EVALUATOR_SYMBOLS["m_top"])
             )
 
-        ht_prefactor = (
-            1.0 / 0.1199377719680614473680365016367935162194504519102290907562408570
-        )
-        ht = (-(E("t") ** 2) - 1 / (E("t") ** 2)).exp() * E(f"{ht_prefactor:.16e}")
+        ht = exponential_h_function(E("t"))
         jacobian = self.e_surface.derivative(E("t"))
 
         for i in range(1, 4):
@@ -923,6 +1045,14 @@ class evaluate_integrand:
                 symbol: repr(_coerce_numeric_param(value))
                 for symbol, value in zip(self.symbols, param_list, strict=True)
             }
+            precise_runtime = resolve_runtime_parameter_values(
+                self.runtime_parameter_registry, {},
+                decimal_digit_precision=decimal_digit_precision,
+            )
+            string_values.update({
+                E(EVALUATOR_SYMBOLS[name]): str(precise_runtime[name])
+                for name in EVALUATOR_PARAMETER_ORDER
+            })
 
             for theta_expr in self.theta_expressions:
                 th_value = self._evaluate_expression_arb(
@@ -975,11 +1105,88 @@ class DYCompiledTerm:
     routed_graph_name: str | None = None
     edge_routings: dict[str, dict[str, Any]] | None = None
     closed_ghost_loop_count: int | None = None
+    physical_z_min_theta_index: int | None = None
+    physical_z_max_theta_index: int | None = None
+
+
+@dataclass
+class DYCompiledBatchRequest:
+    """One row for :meth:`DYCompiledBundle.evaluate_batch`.
+
+    ``root_share_key`` is deliberately explicit.  Equal keys permit E-surface
+    roots to be shared between rows with identical kinematics (for example the
+    three mUV branches of one common Monte-Carlo sample).  Orbit variants must
+    use different keys.
+    """
+
+    loop_momenta: Sequence[Vector]
+    p1: Vector
+    p2: Vector
+    z: float
+    m_uv: float | Decimal | None = None
+    theta_tolerance: float = 0.0
+    channel_selector: int | None = None
+    ttbar_pt_min: float | None = None
+    integrated_uv_ct_filter: str | None = "all"
+    physical_z_min: float | None = None
+    physical_z_max: float | None = None
+    runtime_parameters: Mapping[str, Any] | None = None
+    root_share_key: Hashable | None = None
+    term_observer: Any = None
+
+
+@dataclass
+class DYCompiledEvaluationDiagnostics:
+    """Structured double-precision failures for one bundle evaluation."""
+
+    failed_terms: set[str] = field(default_factory=set)
+    failed_surfaces: set[str] = field(default_factory=set)
+
+    @property
+    def has_t_solver_failure(self) -> bool:
+        return bool(self.failed_surfaces)
+
+    def record_t_solver_failure(
+        self,
+        term: DYCompiledTerm,
+        surface_group: int | None,
+    ) -> None:
+        graph_name = (
+            term.source_graph_name
+            or term.routed_graph_name
+            or term.graph_group_name
+            or "unknown-graph"
+        )
+        approximation = term.approximation_type or "full"
+        self.failed_terms.add(
+            f"{graph_name}/{approximation}/{term.evaluator_name}"
+        )
+        surface_suffix = (
+            f"surface-group-{surface_group}"
+            if surface_group is not None
+            else f"surface-{term.evaluator_name}"
+        )
+        self.failed_surfaces.add(
+            f"{graph_name}/{approximation}/{surface_suffix}"
+        )
+
+
+class DYDoubleRootFailure(pygloopException):
+    """A compiled DY evaluation for which a float E-surface root was lost."""
+
+    def __init__(self, diagnostics: DYCompiledEvaluationDiagnostics):
+        self.diagnostics = diagnostics
+        surfaces = ", ".join(sorted(diagnostics.failed_surfaces))
+        super().__init__(
+            "Double-precision DY t solver failed for "
+            f"{surfaces or 'an unknown E-surface'}."
+        )
 
 
 class DYCompiledBundle:
     METADATA_FILE = "bundle_metadata.json"
-    BUNDLE_FORMAT_VERSION = 9
+    BUNDLE_FORMAT_VERSION = 10
+    PHYSICAL_Z_BOUNDARY_ULPS = 32
     DOUBLE_FLOAT_PRECISION = 32
     CORE_METADATA_KEYS = frozenset(
         {
@@ -1012,6 +1219,14 @@ class DYCompiledBundle:
         self.terms = terms
         self.evaluators = evaluators
         self._metadata = deepcopy(dict(metadata)) if metadata is not None else {}
+        self._ttbar_cm_e_surface = (
+            self._metadata.get("ttbar_cm_e_surface_schema")
+            == TTBAR_CM_E_SURFACE_SCHEMA
+        )
+        self._dy_cm_reduced = (
+            self._metadata.get("dy_cm_evaluator_schema")
+            == DY_CM_EVALUATOR_SCHEMA
+        )
         raw_runtime_registry = self._metadata.get(RUNTIME_PARAMETER_REGISTRY_KEY)
         try:
             self._runtime_parameter_registry = (
@@ -1031,6 +1246,8 @@ class DYCompiledBundle:
         self.t_symbol = E("t")
         self._t_key = self.t_symbol
         self._z_key = E("z")
+        self._zmin_key = E(EVALUATOR_SYMBOLS["zmin"])
+        self._zmax_key = E(EVALUATOR_SYMBOLS["zmax"])
         self._muv_key = E("mUV")
         self._p11 = E("p(1,1)")
         self._p12 = E("p(1,2)")
@@ -1048,6 +1265,10 @@ class DYCompiledBundle:
             self._fallback_param_order = self._fallback_params_for_n_loops(
                 n_loops, self._runtime_parameter_registry
             )
+        try:
+            self._fallback_t_index = self._fallback_param_order.index(self._t_key)
+        except ValueError:
+            self._fallback_t_index = None
 
         self._value_key_by_name: dict[str, Expression] = {
             self._normalize_symbol_key(self._p11.to_canonical_string()): self._p11,
@@ -1095,9 +1316,24 @@ class DYCompiledBundle:
             self._input_plans[evaluator_name] = plan
             self._input_index_plans[evaluator_name] = index_plan
 
+        self._fallback_value_keys = self._value_keys_for_parameter_order(
+            self._fallback_param_order
+        )
+        self._integrand_value_keys: dict[str, list[Expression] | None] = {
+            term.evaluator_name: (
+                self._value_keys_for_parameter_order(
+                    term.integrand_evaluator_parameter_order
+                )
+                if term.integrand_evaluator_parameter_order is not None
+                else None
+            )
+            for term in self.terms
+        }
+
         self._t_guess_by_term = {
             t.evaluator_name: float(t.t_initial_guess) for t in self.terms
         }
+        self._e_surface_group_ids = self._build_e_surface_group_ids(self.terms)
         graph_group_terms: dict[str, list[DYCompiledTerm]] = {}
         for term in self.terms:
             group_name = term.graph_group_name or self._graph_group_name_from_term(term)
@@ -1146,6 +1382,54 @@ class DYCompiledBundle:
         self._soft_center_term_cache: dict[
             tuple[SoftEdgeRouting, int], DYCompiledTerm
         ] = {}
+
+    def _value_keys_for_parameter_order(
+        self, parameter_order: Sequence[Expression]
+    ) -> list[Expression]:
+        value_keys: list[Expression] = []
+        for parameter in parameter_order:
+            key = self._normalize_symbol_key(parameter.to_canonical_string())
+            value_key = self._value_key_by_name.get(key)
+            if value_key is None:
+                raise pygloopException(
+                    "Missing runtime key mapping for saved evaluator symbol "
+                    f"'{parameter.to_canonical_string()}'."
+                )
+            value_keys.append(value_key)
+        return value_keys
+
+    @staticmethod
+    def _e_surface_equivalence_key(
+        term: DYCompiledTerm,
+    ) -> tuple[str, str | bytes] | None:
+        """Return a conservative, exact key for reusable E-surface roots."""
+        if term.e_surface is not None:
+            return ("expression", term.e_surface.to_canonical_string())
+        if term.e_surface_evaluator is None:
+            return None
+        try:
+            payload = term.e_surface_evaluator.save()
+        except BaseException as exc:
+            if isinstance(exc, (KeyboardInterrupt, SystemExit)):
+                raise
+            # Serialisation is only needed for this optional optimisation.  A
+            # non-serialisable evaluator remains valid and simply gets no key.
+            return None
+        return ("saved_evaluator", bytes(payload))
+
+    @classmethod
+    def _build_e_surface_group_ids(
+        cls, terms: list[DYCompiledTerm]
+    ) -> dict[str, int]:
+        """Group byte-identical E-surfaces without retaining their payloads."""
+        groups: dict[tuple[str, str | bytes], int] = {}
+        group_ids: dict[str, int] = {}
+        for term in terms:
+            key = cls._e_surface_equivalence_key(term)
+            if key is None:
+                continue
+            group_ids[term.evaluator_name] = groups.setdefault(key, len(groups))
+        return group_ids
 
     @staticmethod
     def _bundle_dir(process: str, integrand_name: str) -> str:
@@ -1559,8 +1843,9 @@ class DYCompiledBundle:
         path = pjoin(out_dir, relpath)
         os.makedirs(os.path.dirname(path), exist_ok=True)
         evaluator = _build_symbolica_evaluator(expr, fallback_params)
+        payload = _checked_saved_evaluator_bytes(evaluator)
         with open(path, "wb") as handle:
-            handle.write(evaluator.save())
+            handle.write(payload)
 
     @staticmethod
     def _write_existing_evaluator(
@@ -1570,8 +1855,9 @@ class DYCompiledBundle:
     ) -> None:
         path = pjoin(out_dir, relpath)
         os.makedirs(os.path.dirname(path), exist_ok=True)
+        payload = _checked_saved_evaluator_bytes(evaluator)
         with open(path, "wb") as handle:
-            handle.write(evaluator.save())
+            handle.write(payload)
 
     @staticmethod
     def _load_saved_evaluator(out_dir: str, relpath: str | None) -> Evaluator | None:
@@ -2169,6 +2455,22 @@ class DYCompiledBundle:
                 raise pygloopException(
                     f"Duplicate compiled evaluator name '{evaluator_name}'."
                 )
+            theta_expressions = list(getattr(ev, "theta_expressions", []))
+            physical_z_theta_indices: dict[str, int | None] = {}
+            for boundary in ("min", "max"):
+                attribute = f"physical_z_{boundary}_theta_index"
+                theta_index = getattr(ev, attribute, None)
+                if theta_index is not None and (
+                    isinstance(theta_index, bool)
+                    or not isinstance(theta_index, int)
+                    or not 0 <= theta_index < len(theta_expressions)
+                ):
+                    raise pygloopException(
+                        f"Generated DY evaluator '{evaluator_name}' has invalid "
+                        f"{attribute}={theta_index!r} for "
+                        f"{len(theta_expressions)} theta expressions."
+                    )
+                physical_z_theta_indices[attribute] = theta_index
             pb = cls._build_param_builder(ev.symbols)
             graph_group_name = cls._graph_group_name_from_evaluator_name(evaluator_name)
             additional_data = {
@@ -2179,6 +2481,9 @@ class DYCompiledBundle:
             }
             if graph_group_name is not None:
                 additional_data["graph_group_name"] = graph_group_name
+            for attribute, theta_index in physical_z_theta_indices.items():
+                if theta_index is not None:
+                    additional_data[attribute] = theta_index
             source_graph_name = getattr(ev, "source_graph_name", None)
             if source_graph_name is not None:
                 source_graph_name = str(source_graph_name)
@@ -2234,7 +2539,6 @@ class DYCompiledBundle:
             )
 
             e_surface = ev.e_surface
-            theta_expressions = getattr(ev, "theta_expressions", [])
             integrand_expression = getattr(ev, "integrand_expression", None)
             ttbar_pt_sq_expression = getattr(ev, "ttbar_pt_sq_expression", None)
             e_surface_evaluator_path = None
@@ -2313,6 +2617,12 @@ class DYCompiledBundle:
                     routed_graph_name=routed_graph_name,
                     edge_routings=edge_routings,
                     closed_ghost_loop_count=closed_ghost_loop_count,
+                    physical_z_min_theta_index=physical_z_theta_indices[
+                        "physical_z_min_theta_index"
+                    ],
+                    physical_z_max_theta_index=physical_z_theta_indices[
+                        "physical_z_max_theta_index"
+                    ],
                 )
             )
 
@@ -2363,6 +2673,12 @@ class DYCompiledBundle:
                     "routed_graph_name": t.routed_graph_name,
                     "edge_routings": t.edge_routings,
                     "closed_ghost_loop_count": t.closed_ghost_loop_count,
+                    "physical_z_min_theta_index": (
+                        t.physical_z_min_theta_index
+                    ),
+                    "physical_z_max_theta_index": (
+                        t.physical_z_max_theta_index
+                    ),
                 }
                 for i, t in enumerate(terms)
             ],
@@ -2378,6 +2694,12 @@ class DYCompiledBundle:
                     + ", ".join(reserved)
                 )
             metadata.update(detached_metadata)
+        cm_schemas = {getattr(ev, "dy_cm_evaluator_schema", None) for ev in evaluators}
+        if len(cm_schemas) != 1:
+            raise pygloopException("Cannot mix rest-frame and unreduced evaluators.")
+        cm_schema = cm_schemas.pop()
+        if cm_schema is not None:
+            metadata["dy_cm_evaluator_schema"] = cm_schema
         with open(pjoin(out_dir, cls.METADATA_FILE), "w", encoding="utf-8") as f:
             json.dump(metadata, f, indent=2)
 
@@ -2434,6 +2756,25 @@ class DYCompiledBundle:
                 )
             e_surface_raw = t.get("e_surface")
             theta_raw = t.get("theta_expressions", [])
+            theta_evaluator_raw = t.get("theta_evaluators", [])
+            physical_z_theta_indices: dict[str, int | None] = {}
+            theta_count = max(len(theta_raw), len(theta_evaluator_raw))
+            for boundary in ("min", "max"):
+                attribute = f"physical_z_{boundary}_theta_index"
+                theta_index = t.get(attribute)
+                if theta_index is None:
+                    theta_index = evaluators[name].additional_data.get(attribute)
+                if theta_index is not None and (
+                    isinstance(theta_index, bool)
+                    or not isinstance(theta_index, int)
+                    or not 0 <= theta_index < theta_count
+                ):
+                    raise pygloopException(
+                        f"DY bundle term '{name}' has invalid "
+                        f"{attribute}={theta_index!r} for {theta_count} theta "
+                        "expressions. Regenerate the bundle."
+                    )
+                physical_z_theta_indices[attribute] = theta_index
             integrand_raw = t.get("integrand_expression")
             integrand_evaluator_parameter_order_raw = t.get(
                 "integrand_evaluator_parameter_order"
@@ -2455,7 +2796,7 @@ class DYCompiledBundle:
                     ),
                     theta_evaluators=[
                         cls._load_saved_evaluator(out_dir, relpath)
-                        for relpath in t.get("theta_evaluators", [])
+                        for relpath in theta_evaluator_raw
                     ],
                     integrand_evaluator=cls._load_saved_evaluator(
                         out_dir, t.get("integrand_evaluator")
@@ -2497,6 +2838,12 @@ class DYCompiledBundle:
                         else None
                     ),
                     closed_ghost_loop_count=closed_ghost_loop_count,
+                    physical_z_min_theta_index=physical_z_theta_indices[
+                        "physical_z_min_theta_index"
+                    ],
+                    physical_z_max_theta_index=physical_z_theta_indices[
+                        "physical_z_max_theta_index"
+                    ],
                 )
             )
 
@@ -2597,6 +2944,8 @@ class DYCompiledBundle:
         expr: Expression | None,
         evaluator: Evaluator | None,
         values: dict[Expression, float],
+        *,
+        packed_input_values: list[float] | None = None,
     ) -> float:
         if expr is not None:
             return float(_evaluate_symbolica_expression(expr, values))
@@ -2606,7 +2955,11 @@ class DYCompiledBundle:
                 "Regenerate the bundle with --dy-fallback-precision 32."
             )
         value = self._single_evaluator_output(
-            evaluator.evaluate(self._fallback_input_values(values))
+            evaluator.evaluate(
+                self._fallback_input_values(values)
+                if packed_input_values is None
+                else packed_input_values
+            )
         )
         return float(value)
 
@@ -2617,34 +2970,36 @@ class DYCompiledBundle:
         values: dict[Expression, Decimal],
         decimal_digit_precision: int,
         evaluator_parameter_order: list[Expression] | None = None,
+        prepared_input_values: list[Decimal] | None = None,
     ) -> Decimal | None:
         if evaluator is not None:
-            input_values = (
-                self._fallback_input_values_for_order(
-                    values, evaluator_parameter_order
+            if prepared_input_values is None:
+                input_values = (
+                    self._fallback_input_values_for_order(
+                        values, evaluator_parameter_order
+                    )
+                    if evaluator_parameter_order is not None
+                    else self._fallback_input_values(values)
                 )
-                if evaluator_parameter_order is not None
-                else self._fallback_input_values(values)
-            )
+                prepared_inputs = [
+                    _prepare_symbolica_input_with_prec(
+                        self._decimal_from_number(value),
+                        decimal_digit_precision,
+                    )
+                    for value in input_values
+                ]
+            else:
+                prepared_inputs = prepared_input_values
             try:
-                value = _evaluate_symbolica_evaluator_with_prec(
+                value = _evaluate_prepared_symbolica_evaluator_with_prec(
                     evaluator,
-                    [self._decimal_from_number(value) for value in input_values],
+                    prepared_inputs,
                     decimal_digit_precision,
                 )
             except BaseException as exc:
                 if isinstance(exc, (KeyboardInterrupt, SystemExit)):
                     raise
                 try:
-                    prepared_inputs = [
-                        Decimal(
-                            format(
-                                self._decimal_from_number(value),
-                                f".{decimal_digit_precision - 1}e",
-                            )
-                        )
-                        for value in input_values
-                    ]
                     complex_outputs = evaluator.evaluate_complex_with_prec(
                         [(value, Decimal(0)) for value in prepared_inputs],
                         decimal_digit_precision,
@@ -2848,17 +3203,72 @@ class DYCompiledBundle:
         pt_min = Decimal(str(ttbar_pt_min))
         return pt_sq >= pt_min * pt_min
 
-    @staticmethod
+    @classmethod
+    def _physical_z_boundary_close(cls, physical_z, boundary) -> bool:
+        try:
+            physical_z_float = float(physical_z)
+            boundary_float = float(boundary)
+        except (TypeError, ValueError, OverflowError):
+            return False
+        if not (
+            math.isfinite(physical_z_float) and math.isfinite(boundary_float)
+        ):
+            return False
+        scale = max(abs(physical_z_float), abs(boundary_float), 1.0)
+        tolerance = cls.PHYSICAL_Z_BOUNDARY_ULPS * math.ulp(scale)
+        return abs(physical_z_float - boundary_float) <= tolerance
+
+    @classmethod
     def _physical_z_cut_passes(
+        cls,
         physical_z,
         physical_z_min,
         physical_z_max,
     ) -> bool:
-        if physical_z_min is not None and physical_z < physical_z_min:
+        if (
+            physical_z_min is not None
+            and physical_z < physical_z_min
+            and not cls._physical_z_boundary_close(physical_z, physical_z_min)
+        ):
             return False
-        if physical_z_max is not None and physical_z > physical_z_max:
+        if (
+            physical_z_max is not None
+            and physical_z > physical_z_max
+            and not cls._physical_z_boundary_close(physical_z, physical_z_max)
+        ):
             return False
         return True
+
+    def _theta_cut_passes(
+        self,
+        term: DYCompiledTerm,
+        theta_index: int,
+        theta_value,
+        theta_tolerance,
+        physical_z,
+        values: Mapping[Expression, Any],
+    ) -> bool:
+        if theta_value is None:
+            if self._dy_cm_reduced:
+                raise DYNumericalEvaluationError(
+                    f"Nonfinite cut constraint {theta_index} for {term.evaluator_name}."
+                )
+            return False
+        if theta_value >= -theta_tolerance:
+            return True
+
+        boundary_key: Expression | None = None
+        if theta_index == term.physical_z_min_theta_index:
+            boundary_key = self._zmin_key
+        elif theta_index == term.physical_z_max_theta_index:
+            boundary_key = self._zmax_key
+        if boundary_key is None:
+            return False
+
+        boundary = values.get(boundary_key)
+        return boundary is not None and self._physical_z_boundary_close(
+            physical_z, boundary
+        )
 
     def supports_arb(self) -> bool:
         return all(self._term_supports_fallback(term) for term in self.terms)
@@ -2958,6 +3368,48 @@ class DYCompiledBundle:
             ]
         }
 
+    def _validate_ttbar_cm_momenta(
+        self,
+        p1: Vector,
+        p2: Vector,
+        *,
+        decimal_digit_precision: int | None = None,
+    ) -> None:
+        """Guard the CM identity assumed by reduced ttbar E-surfaces."""
+        if not (self._ttbar_cm_e_surface or self._dy_cm_reduced):
+            return
+
+        if decimal_digit_precision is None:
+            p1_values = tuple(float(value) for value in p1.to_list())
+            p2_values = tuple(float(value) for value in p2.to_list())
+            scale = max(1.0, *(abs(value) for value in (*p1_values, *p2_values)))
+            tolerance = 64.0 * math.ulp(scale)
+        else:
+            p1_values = tuple(
+                self._decimal_from_number(value) for value in p1.to_list()
+            )
+            p2_values = tuple(
+                self._decimal_from_number(value) for value in p2.to_list()
+            )
+            scale = max(
+                Decimal(1),
+                *(abs(value) for value in (*p1_values, *p2_values)),
+            )
+            tolerance = scale * Decimal(10) ** (
+                -max(decimal_digit_precision - 8, 12)
+            )
+
+        residual = max(
+            abs(first + second)
+            for first, second in zip(p1_values, p2_values, strict=True)
+        )
+        if residual > tolerance:
+            raise pygloopException(
+                "The compiled evaluator assumes partonic CM kinematics "
+                f"p2=-p1, but the spatial residual is {residual!s} "
+                f"(tolerance {tolerance!s})."
+            )
+
     def _build_runtime_values(
         self,
         loop_momenta: list[Vector],
@@ -2969,6 +3421,7 @@ class DYCompiledBundle:
     ) -> tuple[
         dict[Expression, float], tuple[float, float, float, float, float, float]
     ]:
+        self._validate_ttbar_cm_momenta(p1, p2)
         vals: dict[Expression, float] = {}
         for i, k in enumerate(loop_momenta):
             kx, ky, kz = k.to_list()
@@ -3010,6 +3463,11 @@ class DYCompiledBundle:
         tuple[Decimal, Decimal, Decimal, Decimal, Decimal, Decimal],
     ]:
         """Build fallback inputs without crossing a binary-float boundary."""
+        self._validate_ttbar_cm_momenta(
+            p1,
+            p2,
+            decimal_digit_precision=decimal_digit_precision,
+        )
         vals: dict[Expression, Decimal] = {}
         for i, k in enumerate(loop_momenta):
             kx, ky, kz = k.to_list()
@@ -3171,16 +3629,36 @@ class DYCompiledBundle:
                 "The minimum E-surface t must be finite and non-negative."
             )
 
+        fallback_t_index = self._fallback_t_index
+        reuse_packed_inputs = (
+            term_e_surface is None
+            and term_e_surface_evaluator is not None
+            and eval_map is vals
+            and update_values_for_t is None
+            and t_key == self._t_key
+            and fallback_t_index is not None
+        )
+        packed_inputs: list[float] | None = None
+
         def f(t: float) -> float | None:
+            nonlocal packed_inputs
             if not math.isfinite(t) or t < minimum_t:
                 return None
             eval_map[t_key] = t
             if update_values_for_t is not None:
                 update_values_for_t(t, eval_map)
+            if reuse_packed_inputs:
+                if packed_inputs is None:
+                    packed_inputs = self._fallback_input_values(eval_map)
+                else:
+                    packed_inputs[fallback_t_index] = t
             try:
                 y = float(
                     self._evaluate_float_expression(
-                        term_e_surface, term_e_surface_evaluator, eval_map
+                        term_e_surface,
+                        term_e_surface_evaluator,
+                        eval_map,
+                        packed_input_values=packed_inputs,
                     )
                 )
             except BaseException as exc:
@@ -3408,12 +3886,48 @@ class DYCompiledBundle:
                 "The minimum precise E-surface t must be finite and non-negative."
             )
 
+        fallback_t_index = self._fallback_t_index
+        reuse_prepared_inputs = (
+            precision_preserving
+            and term_e_surface is None
+            and term_e_surface_evaluator is not None
+            and eval_map is vals
+            and update_values_for_t is None
+            and t_key == self._t_key
+            and fallback_t_index is not None
+        )
+        prepared_inputs: list[Decimal] | None = None
+
         def f(t: Decimal) -> Decimal | None:
+            nonlocal prepared_inputs
             if t.is_nan() or t < minimum:
                 return None
             eval_map[t_key] = t
             if update_values_for_t is not None:
                 update_values_for_t(t, eval_map)
+            if reuse_prepared_inputs:
+                if prepared_inputs is None:
+                    prepared_inputs = [
+                        _prepare_symbolica_input_with_prec(
+                            self._decimal_from_number(value),
+                            decimal_digit_precision,
+                        )
+                        for value in self._fallback_input_values(eval_map)
+                    ]
+                else:
+                    prepared_inputs[fallback_t_index] = (
+                        _prepare_symbolica_input_with_prec(
+                            self._decimal_from_number(t),
+                            decimal_digit_precision,
+                        )
+                    )
+                return self._evaluate_expression_with_prec(
+                    term_e_surface,
+                    term_e_surface_evaluator,
+                    eval_map,
+                    decimal_digit_precision,
+                    prepared_input_values=prepared_inputs,
+                )
             return evaluate_expression(
                 term_e_surface,
                 term_e_surface_evaluator,
@@ -3575,8 +4089,9 @@ class DYCompiledBundle:
                 )
 
             dec_vals[self._t_key] = t_sol
+            physical_z = t_sol * t_sol * dec_vals[self._z_key]
             if not self._physical_z_cut_passes(
-                t_sol * t_sol * dec_vals[self._z_key], z_min, z_max
+                physical_z, z_min, z_max
             ):
                 term_values.append((term.evaluator_name, Decimal(0)))
                 term_support.append((term.evaluator_name, False))
@@ -3601,8 +4116,8 @@ class DYCompiledBundle:
             theta_evaluators.extend(
                 [None] * (theta_count - len(theta_evaluators))
             )
-            for theta_expression, theta_evaluator in zip(
-                theta_expressions, theta_evaluators
+            for theta_index, (theta_expression, theta_evaluator) in enumerate(
+                zip(theta_expressions, theta_evaluators)
             ):
                 theta_value = self._evaluate_expression_with_prec_legacy(
                     theta_expression,
@@ -3610,7 +4125,14 @@ class DYCompiledBundle:
                     dec_vals,
                     decimal_digit_precision,
                 )
-                if theta_value is None or theta_value < -theta_tol:
+                if not self._theta_cut_passes(
+                    term,
+                    theta_index,
+                    theta_value,
+                    theta_tol,
+                    physical_z,
+                    dec_vals,
+                ):
                     theta_passes = False
                     break
             if not theta_passes:
@@ -3690,6 +4212,7 @@ class DYCompiledBundle:
         physical_z_max: float | Decimal | None = None,
         return_support: bool = False,
         runtime_parameters: Mapping[str, Any] | None = None,
+        term_observer: Any = None,
     ) -> (
         tuple[Decimal, list[tuple[str, Decimal]]]
         | tuple[
@@ -3711,6 +4234,8 @@ class DYCompiledBundle:
                 "Higher-precision DY evaluation requires a positive precision."
             )
 
+        if term_observer is not None and not precision_preserving:
+            raise ValueError("Cut observers require precision-preserving HP evaluation")
         if not precision_preserving:
             return self._evaluate_arb_terms_legacy(
                 loop_momenta,
@@ -3781,14 +4306,15 @@ class DYCompiledBundle:
                     eval_map=dec_vals,
                 )
                 if t_sol is None:
-                    raise pygloopException(
+                    raise DYNumericalEvaluationError(
                         "Failed to solve t in higher precision for DY term "
                         f"'{term.evaluator_name}'."
                     )
 
                 dec_vals[self._t_key] = t_sol
+                physical_z = t_sol * t_sol * dec_vals[self._z_key]
                 if not self._physical_z_cut_passes(
-                    t_sol * t_sol * dec_vals[self._z_key], z_min, z_max
+                    physical_z, z_min, z_max
                 ):
                     term_values.append((term.evaluator_name, Decimal(0)))
                     term_support.append((term.evaluator_name, False))
@@ -3813,14 +4339,23 @@ class DYCompiledBundle:
                 theta_evaluators.extend(
                     [None] * (theta_count - len(theta_evaluators))
                 )
-                for th, th_evaluator in zip(theta_expressions, theta_evaluators):
+                for theta_index, (th, th_evaluator) in enumerate(
+                    zip(theta_expressions, theta_evaluators)
+                ):
                     th_val = self._evaluate_expression_with_prec(
                         th,
                         th_evaluator,
                         dec_vals,
                         decimal_digit_precision,
                     )
-                    if th_val is None or th_val < -theta_tol:
+                    if not self._theta_cut_passes(
+                        term,
+                        theta_index,
+                        th_val,
+                        theta_tol,
+                        physical_z,
+                        dec_vals,
+                    ):
                         theta_passes = False
                         break
                 if not theta_passes:
@@ -3836,12 +4371,14 @@ class DYCompiledBundle:
                     term.integrand_evaluator_parameter_order,
                 )
                 if term_value is None:
-                    raise pygloopException(
+                    raise DYNumericalEvaluationError(
                         f"Failed to evaluate DY term '{term.evaluator_name}' "
                         "in higher precision."
                     )
                 term_value = self._apply_automatic_graph_factor(term, term_value)
                 total += term_value
+                if term_observer is not None:
+                    term_observer(physical_z, term_value)
                 term_values.append((term.evaluator_name, term_value))
                 term_support.append((term.evaluator_name, True))
 
@@ -3853,6 +4390,608 @@ class DYCompiledBundle:
         if return_support:
             return precise_total, precise_terms, term_support
         return precise_total, precise_terms
+
+    @staticmethod
+    def _coerce_saved_real_outputs(
+        outputs: Any, expected_rows: int
+    ) -> list[float]:
+        array = np.asarray(outputs)
+        if array.size != expected_rows:
+            raise pygloopException(
+                "Saved DY evaluator returned "
+                f"{array.size} values for {expected_rows} input rows."
+            )
+        flat = array.reshape(-1)
+        if np.iscomplexobj(flat):
+            if np.any(flat.imag != 0.0):
+                raise pygloopException(
+                    "A saved real DY evaluator returned a complex value."
+                )
+            flat = flat.real
+        return [float(value) for value in flat]
+
+    def _evaluate_saved_real_rows(
+        self,
+        evaluator: Evaluator,
+        rows: Sequence[Sequence[float]],
+        *,
+        errors_as_none: bool = False,
+    ) -> list[float | None]:
+        if len(rows) == 0:
+            return []
+        try:
+            return self._coerce_saved_real_outputs(
+                evaluator.evaluate(np.asarray(rows, dtype=float)), len(rows)
+            )
+        except BaseException as batch_exc:
+            if isinstance(batch_exc, (KeyboardInterrupt, SystemExit)):
+                raise
+
+        values: list[float | None] = []
+        for row in rows:
+            try:
+                value = self._single_evaluator_output(evaluator.evaluate(list(row)))
+                if isinstance(value, complex):
+                    if value.imag != 0.0:
+                        raise pygloopException(
+                            "A saved real DY evaluator returned a complex value."
+                        )
+                    value = value.real
+                values.append(float(value))
+            except BaseException as exc:
+                if isinstance(exc, (KeyboardInterrupt, SystemExit)):
+                    raise
+                if not errors_as_none:
+                    raise
+                values.append(None)
+        return values
+
+    def _evaluate_float_rows(
+        self,
+        expression: Expression | None,
+        evaluator: Evaluator | None,
+        values: Sequence[dict[Expression, float]],
+        *,
+        errors_as_none: bool = False,
+    ) -> list[float | None]:
+        if expression is not None:
+            outputs: list[float | None] = []
+            for row in values:
+                try:
+                    outputs.append(float(_evaluate_symbolica_expression(expression, row)))
+                except BaseException as exc:
+                    if isinstance(exc, (KeyboardInterrupt, SystemExit)):
+                        raise
+                    if not errors_as_none:
+                        raise
+                    outputs.append(None)
+            return outputs
+        if evaluator is None:
+            raise pygloopException(
+                "No float or DoubleFloat evaluator data is present in this DY bundle. "
+                "Regenerate the bundle with --dy-fallback-precision 32."
+            )
+        packed = [
+            [float(row[value_key]) for value_key in self._fallback_value_keys]
+            for row in values
+        ]
+        return self._evaluate_saved_real_rows(
+            evaluator, packed, errors_as_none=errors_as_none
+        )
+
+    def _evaluate_surface_rows(
+        self,
+        term: DYCompiledTerm,
+        values: Sequence[dict[Expression, float]],
+        ts: Sequence[float],
+    ) -> list[float | None]:
+        if len(values) != len(ts):
+            raise pygloopException("DY E-surface batch inputs no longer align.")
+        for row, t_value in zip(values, ts, strict=True):
+            row[self._t_key] = t_value
+        outputs = self._evaluate_float_rows(
+            term.e_surface,
+            term.e_surface_evaluator,
+            values,
+            errors_as_none=True,
+        )
+        return [
+            value if value is not None and math.isfinite(value) else None
+            for value in outputs
+        ]
+
+    def _initial_t_guesses_batch(
+        self,
+        term: DYCompiledTerm,
+        values: Sequence[dict[Expression, float]],
+        p1_values: Sequence[tuple[float, float, float]],
+    ) -> list[float]:
+        surfaces = self._evaluate_surface_rows(
+            term, values, [1.0] * len(values)
+        )
+        guesses: list[float] = []
+        for surface, (p1x, p1y, p1z) in zip(
+            surfaces, p1_values, strict=True
+        ):
+            p_norm = math.sqrt(p1x**2 + p1y**2 + p1z**2)
+            if p_norm == 0.0 or surface is None:
+                guesses.append(1.0)
+                continue
+            denominator = surface + 2.0 * p_norm
+            if denominator == 0.0 or not math.isfinite(denominator):
+                guesses.append(1.0)
+                continue
+            guess = abs(2.0 * p_norm / denominator)
+            guesses.append(
+                guess if math.isfinite(guess) and guess > 0.0 else 1.0
+            )
+        return guesses
+
+    def _solve_t_newton_bisect_batch(
+        self,
+        term: DYCompiledTerm,
+        values: Sequence[dict[Expression, float]],
+        t0s: Sequence[float],
+        *,
+        tol_f: float = 1.0e-12,
+        tol_x: float = 1.0e-12,
+        max_iter: int = 32,
+        max_bracket_expands: int = 64,
+    ) -> list[float | None]:
+        """Lockstep form of ``solve_t_newton_bisect`` for independent rows."""
+        if len(values) != len(t0s):
+            raise pygloopException("DY root-solver batch inputs no longer align.")
+        count = len(values)
+        if count == 0:
+            return []
+
+        fallback_t_index = self._fallback_t_index
+        reuse_packed_inputs = (
+            term.e_surface is None
+            and term.e_surface_evaluator is not None
+            and fallback_t_index is not None
+        )
+        packed_inputs: np.ndarray | None = None
+        if reuse_packed_inputs:
+            packed_inputs = np.asarray(
+                [
+                    [
+                        float(t0)
+                        if value_key == self._t_key
+                        else float(row[value_key])
+                        for value_key in self._fallback_value_keys
+                    ]
+                    for row, t0 in zip(values, t0s, strict=True)
+                ],
+                dtype=float,
+            )
+
+        def evaluate_surfaces(
+            indices: Sequence[int], ts: Sequence[float]
+        ) -> list[float | None]:
+            if len(indices) != len(ts):
+                raise pygloopException("DY E-surface batch inputs no longer align.")
+            selected_values = [values[index] for index in indices]
+            for row, t_value in zip(selected_values, ts, strict=True):
+                row[self._t_key] = t_value
+            if packed_inputs is None:
+                return self._evaluate_surface_rows(term, selected_values, ts)
+            if not indices:
+                return []
+            if len(indices) == count and all(
+                index == position for position, index in enumerate(indices)
+            ):
+                selected_inputs = packed_inputs
+            else:
+                selected_inputs = packed_inputs[np.asarray(indices, dtype=np.intp)]
+            selected_inputs[:, fallback_t_index] = ts
+            assert term.e_surface_evaluator is not None
+            outputs = self._evaluate_saved_real_rows(
+                term.e_surface_evaluator,
+                selected_inputs,
+                errors_as_none=True,
+            )
+            return [
+                value if value is not None and math.isfinite(value) else None
+                for value in outputs
+            ]
+
+        roots: list[float | None] = [None] * count
+        x0 = [max(0.0, float(value)) for value in t0s]
+        x0 = [value if math.isfinite(value) else 1.0 for value in x0]
+        f0 = evaluate_surfaces(range(count), x0)
+        unresolved: set[int] = set()
+        residual_scale = [
+            max(1.0, abs(value) if value is not None else 1.0) for value in f0
+        ]
+        spans = [max(1.0, abs(value)) for value in x0]
+        brackets: list[tuple[float, float, float, float] | None] = [None] * count
+        for index, value in enumerate(f0):
+            if value is not None and abs(value) <= tol_f:
+                roots[index] = x0[index]
+            else:
+                unresolved.add(index)
+
+        for _ in range(max_bracket_expands + 1):
+            if not unresolved:
+                break
+            indices = sorted(unresolved)
+            left = [max(0.0, x0[index] - spans[index]) for index in indices]
+            right = [
+                max(
+                    a + max(1.0e-14, abs(a) * 1.0e-15),
+                    x0[index] + spans[index],
+                )
+                for index, a in zip(indices, left, strict=True)
+            ]
+            fa_values = evaluate_surfaces(indices, left)
+            fb_values = evaluate_surfaces(indices, right)
+            for index, a, b, fa, fb in zip(
+                indices, left, right, fa_values, fb_values, strict=True
+            ):
+                if fa is not None:
+                    residual_scale[index] = max(residual_scale[index], abs(fa))
+                    if abs(fa) <= tol_f:
+                        roots[index] = a
+                        unresolved.remove(index)
+                        continue
+                if fb is not None:
+                    residual_scale[index] = max(residual_scale[index], abs(fb))
+                    if abs(fb) <= tol_f:
+                        roots[index] = b
+                        unresolved.remove(index)
+                        continue
+                if fa is not None and fb is not None and fa * fb <= 0.0:
+                    brackets[index] = (a, b, fa, fb)
+                    unresolved.remove(index)
+                else:
+                    spans[index] *= 2.0
+
+        active = {index for index, bracket in enumerate(brackets) if bracket is not None}
+        best_x = [0.0] * count
+        best_f = [math.inf] * count
+        for index in active:
+            a, b, fa, fb = brackets[index]  # type: ignore[misc]
+            if abs(fa) <= abs(fb):
+                best_x[index], best_f[index] = a, fa
+            else:
+                best_x[index], best_f[index] = b, fb
+
+        for _ in range(max(max_iter, 64)):
+            if not active:
+                break
+            indices = sorted(active)
+            next_x: list[float] = []
+            for index in indices:
+                a, b, fa, fb = brackets[index]  # type: ignore[misc]
+                candidate = (
+                    b - fb * (b - a) / (fb - fa)
+                    if fb != fa
+                    else 0.5 * (a + b)
+                )
+                guard = 0.05 * (b - a)
+                if (
+                    not math.isfinite(candidate)
+                    or candidate <= a + guard
+                    or candidate >= b - guard
+                ):
+                    candidate = 0.5 * (a + b)
+                next_x.append(candidate)
+            next_f = evaluate_surfaces(indices, next_x)
+
+            failed_positions = [
+                position for position, value in enumerate(next_f) if value is None
+            ]
+            if failed_positions:
+                midpoint_x = []
+                midpoint_indices = []
+                for position in failed_positions:
+                    index = indices[position]
+                    a, b, _fa, _fb = brackets[index]  # type: ignore[misc]
+                    midpoint_x.append(0.5 * (a + b))
+                    midpoint_indices.append(index)
+                midpoint_f = evaluate_surfaces(midpoint_indices, midpoint_x)
+                for position, candidate, value in zip(
+                    failed_positions, midpoint_x, midpoint_f, strict=True
+                ):
+                    next_x[position] = candidate
+                    next_f[position] = value
+
+            for position, index in enumerate(indices):
+                candidate = next_x[position]
+                value = next_f[position]
+                if value is None:
+                    active.remove(index)
+                    continue
+                a, b, fa, fb = brackets[index]  # type: ignore[misc]
+                if abs(value) < abs(best_f[index]):
+                    best_x[index], best_f[index] = candidate, value
+                if abs(value) <= tol_f:
+                    roots[index] = candidate
+                    active.remove(index)
+                    continue
+                if fa * value <= 0.0:
+                    b, fb = candidate, value
+                else:
+                    a, fa = candidate, value
+                brackets[index] = (a, b, fa, fb)
+                if abs(b - a) <= tol_x * max(1.0, abs(best_x[index])):
+                    residual_limit = max(tol_f, 1.0e-10 * residual_scale[index])
+                    roots[index] = (
+                        best_x[index]
+                        if abs(best_f[index]) <= residual_limit
+                        else None
+                    )
+                    active.remove(index)
+
+        for index in active:
+            residual_limit = max(tol_f, 1.0e-10 * residual_scale[index])
+            roots[index] = (
+                best_x[index] if abs(best_f[index]) <= residual_limit else None
+            )
+        return roots
+
+    def _batch_request_root_signature(
+        self,
+        request: DYCompiledBatchRequest,
+        values: Mapping[Expression, float],
+    ) -> tuple[float, ...]:
+        kinematics = tuple(
+            float(component)
+            for vector in (*request.loop_momenta, request.p1, request.p2)
+            for component in vector.to_list()
+        ) + (float(request.z),)
+        # mUV is the one runtime input known not to enter an E-surface.  All
+        # other resolved parameters are part of the signature so an explicit
+        # share key cannot accidentally reuse a root across, for example,
+        # different top masses.
+        root_runtime = tuple(
+            float(value)
+            for key, value in values.items()
+            if key not in {self._muv_key, self._t_key}
+        )
+        return kinematics + root_runtime
+
+    def _compiled_integrand_rows(
+        self,
+        term: DYCompiledTerm,
+        values: Sequence[dict[Expression, float]],
+    ) -> list[complex]:
+        pe = self.evaluators[term.evaluator_name]
+        inputs = np.tile(pe.param_builder.np, (len(values), 1))
+        for index, value_key in self._input_index_plans[term.evaluator_name]:
+            inputs[:, index] = [row[value_key] for row in values]
+        if pe.complexified:
+            pairwise = np.zeros((len(values), inputs.shape[1] * 2), dtype=float)
+            pairwise[:, 0::2] = inputs.real
+            pairwise[:, 1::2] = inputs.imag
+            inputs = pairwise
+        outputs = pe.get_compiled_evaluator().evaluate(inputs)
+        converted = pe._pairwise_to_complex(outputs, pe.output_length)
+        converted = np.asarray(converted).reshape(len(values), pe.output_length)
+        return [complex(row[0]) for row in converted]
+
+    def _saved_jit_integrand_rows(
+        self,
+        term: DYCompiledTerm,
+        values: Sequence[dict[Expression, float]],
+    ) -> list[complex]:
+        evaluator = term.integrand_evaluator
+        value_keys = self._integrand_value_keys[term.evaluator_name]
+        if evaluator is None or value_keys is None:
+            return self._compiled_integrand_rows(term, values)
+        packed = [
+            [float(row[value_key]) for value_key in value_keys] for row in values
+        ]
+        outputs = self._evaluate_saved_real_rows(evaluator, packed)
+        return [complex(float(value), 0.0) for value in outputs]
+
+    def evaluate_batch(
+        self,
+        requests: Sequence[DYCompiledBatchRequest],
+        *,
+        integrand_backend: str = "compiled",
+    ) -> list[complex]:
+        totals, _diagnostics = self.evaluate_batch_with_diagnostics(
+            requests, integrand_backend=integrand_backend
+        )
+        return totals
+
+    def evaluate_batch_with_diagnostics(
+        self,
+        requests: Sequence[DYCompiledBatchRequest],
+        *,
+        integrand_backend: str = "compiled",
+    ) -> tuple[list[complex], list[DYCompiledEvaluationDiagnostics]]:
+        """Evaluate channel-grouped rows with batched roots and integrands.
+
+        The legacy scalar API remains unchanged.  ``saved-jit`` selects the
+        bundle's saved real Symbolica evaluators; it intentionally uses the
+        standard JIT path and never enables direct translation.
+        """
+        if integrand_backend not in {"compiled", "saved-jit"}:
+            raise pygloopException(
+                f"Unsupported DY batch integrand backend '{integrand_backend}'."
+            )
+        request_rows = list(requests)
+        if not request_rows:
+            return [], []
+
+        runtime_rows = [
+            self._build_runtime_values(
+                list(request.loop_momenta),
+                request.p1,
+                request.p2,
+                request.z,
+                request.m_uv,
+                request.runtime_parameters,
+            )
+            for request in request_rows
+        ]
+        values = [row[0] for row in runtime_rows]
+        external_values = [row[1] for row in runtime_rows]
+        totals = [0.0 + 0.0j for _ in request_rows]
+        diagnostics = [
+            DYCompiledEvaluationDiagnostics() for _request in request_rows
+        ]
+        grouped: dict[tuple[int | None, str | None], list[int]] = {}
+        for index, request in enumerate(request_rows):
+            grouped.setdefault(
+                (request.channel_selector, request.integrated_uv_ct_filter), []
+            ).append(index)
+
+        for (channel_selector, integrated_filter), indices in grouped.items():
+            terms = self.terms_for_channel(channel_selector, integrated_filter)
+            surface_roots: dict[int, list[float | None]] = {}
+            share_representatives: list[int] = []
+            aliases: dict[int, list[int]] = {}
+            seen_share_keys: dict[Hashable, int] = {}
+            signatures: dict[Hashable, tuple[float, ...]] = {}
+            for local_index, request_index in enumerate(indices):
+                request = request_rows[request_index]
+                share_key = request.root_share_key
+                if share_key is None:
+                    share_representatives.append(local_index)
+                    aliases[local_index] = [local_index]
+                    continue
+                signature = self._batch_request_root_signature(
+                    request, values[request_index]
+                )
+                if share_key in seen_share_keys:
+                    representative = seen_share_keys[share_key]
+                    if signatures[share_key] != signature:
+                        raise pygloopException(
+                            "DY rows with the same root_share_key do not have "
+                            "identical kinematics."
+                        )
+                    aliases[representative].append(local_index)
+                else:
+                    seen_share_keys[share_key] = local_index
+                    signatures[share_key] = signature
+                    share_representatives.append(local_index)
+                    aliases[local_index] = [local_index]
+
+            representative_values = [
+                values[indices[local_index]] for local_index in share_representatives
+            ]
+            representative_p1 = [
+                external_values[indices[local_index]][:3]
+                for local_index in share_representatives
+            ]
+
+            for term in terms:
+                surface_group = self._e_surface_group_ids.get(term.evaluator_name)
+                roots = (
+                    surface_roots.get(surface_group)
+                    if surface_group is not None
+                    else None
+                )
+                if roots is None:
+                    guesses = self._initial_t_guesses_batch(
+                        term, representative_values, representative_p1
+                    )
+                    representative_roots = self._solve_t_newton_bisect_batch(
+                        term, representative_values, guesses
+                    )
+                    roots = [None] * len(indices)
+                    for representative_position, representative in enumerate(
+                        share_representatives
+                    ):
+                        for local_index in aliases[representative]:
+                            roots[local_index] = representative_roots[
+                                representative_position
+                            ]
+                    if surface_group is not None:
+                        surface_roots[surface_group] = roots
+
+                active_local: list[int] = []
+                for local_index, root in enumerate(roots):
+                    if root is None:
+                        diagnostics[indices[local_index]].record_t_solver_failure(
+                            term, surface_group
+                        )
+                        continue
+                    request_index = indices[local_index]
+                    request = request_rows[request_index]
+                    row = values[request_index]
+                    row[self._t_key] = root
+                    if not self._physical_z_cut_passes(
+                        root * root * row[self._z_key],
+                        request.physical_z_min,
+                        request.physical_z_max,
+                    ):
+                        continue
+                    if not self._ttbar_pt_cut_passes(
+                        term, row, request.ttbar_pt_min
+                    ):
+                        continue
+                    active_local.append(local_index)
+
+                theta_expressions = list(term.theta_expressions)
+                theta_evaluators = list(term.theta_evaluators or [])
+                theta_count = max(len(theta_expressions), len(theta_evaluators))
+                theta_expressions.extend(
+                    [None] * (theta_count - len(theta_expressions))
+                )
+                theta_evaluators.extend(
+                    [None] * (theta_count - len(theta_evaluators))
+                )
+                for theta_index, (theta_expression, theta_evaluator) in enumerate(
+                    zip(theta_expressions, theta_evaluators, strict=True)
+                ):
+                    if not active_local:
+                        break
+                    theta_rows = [values[indices[index]] for index in active_local]
+                    theta_values = self._evaluate_float_rows(
+                        theta_expression, theta_evaluator, theta_rows
+                    )
+                    active_local = [
+                        local_index
+                        for local_index, theta_value in zip(
+                            active_local, theta_values, strict=True
+                        )
+                        if self._theta_cut_passes(
+                            term,
+                            theta_index,
+                            theta_value,
+                            float(
+                                request_rows[indices[local_index]].theta_tolerance
+                            ),
+                            values[indices[local_index]][self._t_key]
+                            * values[indices[local_index]][self._t_key]
+                            * values[indices[local_index]][self._z_key],
+                            values[indices[local_index]],
+                        )
+                    ]
+                if not active_local:
+                    continue
+
+                integrand_rows = [values[indices[index]] for index in active_local]
+                term_values = (
+                    self._compiled_integrand_rows(term, integrand_rows)
+                    if integrand_backend == "compiled"
+                    else self._saved_jit_integrand_rows(term, integrand_rows)
+                )
+                for local_index, term_value in zip(
+                    active_local, term_values, strict=True
+                ):
+                    request_index = indices[local_index]
+                    term_value = self._apply_automatic_graph_factor(term, term_value)
+                    totals[request_index] += term_value
+                    observer = request_rows[request_index].term_observer
+                    if observer is not None:
+                        row = values[request_index]
+                        observer(row[self._t_key]**2 * row[self._z_key], term_value)
+        return totals, diagnostics
+
+    def prewarm_batch_backend(
+        self,
+        requests: Sequence[DYCompiledBatchRequest],
+        *,
+        integrand_backend: str = "saved-jit",
+    ) -> None:
+        """Warm a batch backend once inside the current worker process."""
+        self.evaluate_batch(requests, integrand_backend=integrand_backend)
 
     def evaluate(
         self,
@@ -3870,6 +5009,7 @@ class DYCompiledBundle:
         physical_z_min: float | None = None,
         physical_z_max: float | None = None,
         runtime_parameters: Mapping[str, Any] | None = None,
+        raise_on_t_solver_failure: bool = False,
     ) -> complex:
         if mode == "arb":
             if decimal_digit_precision is None:
@@ -3903,19 +5043,34 @@ class DYCompiledBundle:
 
         total = 0.0 + 0.0j
         theta_tol = float(theta_tolerance)
+        # Deliberately call-local: scale branches, rotations, and soft mirrors
+        # enter through separate evaluate calls and must never share roots.
+        root_cache: dict[tuple[int, float], float | None] = {}
 
         # Sum over all cut graphs
         for term in self.terms_for_channel(channel_selector, integrated_uv_ct_filter):
             my_t0 = self._initial_t_guess(term, vals, p1x, p1y, p1z)
-
-            t_sol = self.solve_t_newton_bisect(
-                term.e_surface,
-                term.e_surface_evaluator,
-                vals,
-                self._t_key,
-                t0=my_t0,  # fixed per-term start for benchmark-stable branch
-                eval_map=vals,
+            surface_group_id = self._e_surface_group_ids.get(term.evaluator_name)
+            root_cache_key = (
+                (surface_group_id, my_t0)
+                if surface_group_id is not None
+                else None
             )
+            root_was_cached = (
+                root_cache_key is not None and root_cache_key in root_cache
+            )
+            t_sol = root_cache[root_cache_key] if root_was_cached else None
+            if not root_was_cached:
+                t_sol = self.solve_t_newton_bisect(
+                    term.e_surface,
+                    term.e_surface_evaluator,
+                    vals,
+                    self._t_key,
+                    t0=my_t0,  # fixed per-term start for benchmark-stable branch
+                    eval_map=vals,
+                )
+                if root_cache_key is not None:
+                    root_cache[root_cache_key] = t_sol
 
             # t_sol = self.solve_t_convex_bisect(
             #     term.e_surface,
@@ -3926,14 +5081,16 @@ class DYCompiledBundle:
             # )
 
             if t_sol is None:
-                print("t solving problem")
-                print(t_sol)
-                print(vals)
+                if raise_on_t_solver_failure:
+                    diagnostics = DYCompiledEvaluationDiagnostics()
+                    diagnostics.record_t_solver_failure(term, surface_group_id)
+                    raise DYDoubleRootFailure(diagnostics)
                 continue
 
             vals[self._t_key] = t_sol
+            physical_z = t_sol * t_sol * vals[self._z_key]
             if not self._physical_z_cut_passes(
-                t_sol * t_sol * vals[self._z_key],
+                physical_z,
                 physical_z_min,
                 physical_z_max,
             ):
@@ -3948,14 +5105,23 @@ class DYCompiledBundle:
             theta_count = max(len(theta_expressions), len(theta_evaluators))
             theta_expressions.extend([None] * (theta_count - len(theta_expressions)))
             theta_evaluators.extend([None] * (theta_count - len(theta_evaluators)))
-            for th, th_evaluator in zip(theta_expressions, theta_evaluators):
+            for theta_index, (th, th_evaluator) in enumerate(
+                zip(theta_expressions, theta_evaluators)
+            ):
                 th_val = self._evaluate_float_expression(th, th_evaluator, vals)
                 # if th_val > 0:
                 #    print("-->", 1)
                 # else:
                 #    print("-->", 0)
 
-                if th_val < -theta_tol:
+                if not self._theta_cut_passes(
+                    term,
+                    theta_index,
+                    th_val,
+                    theta_tol,
+                    physical_z,
+                    vals,
+                ):
                     theta = 0
                     break
             if theta == 0:

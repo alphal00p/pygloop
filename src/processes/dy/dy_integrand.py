@@ -6311,6 +6311,7 @@ class LoopIntegrandConstructor(object):
         top_self_energy_os_subtraction=None,
         top_self_energy_renormalisation=None,
         threshold_h_function=None,
+        include_disabled_threshold_counterterms=False,
     ):
         self.L = L
         self.params = params
@@ -6338,6 +6339,9 @@ class LoopIntegrandConstructor(object):
         )
         self.threshold_h_function = resolve_threshold_h_function(
             name, threshold_h_function
+        )
+        self.include_disabled_threshold_counterterms = bool(
+            include_disabled_threshold_counterterms
         )
         self.emr_state_name = emr_state_name
 
@@ -6914,6 +6918,14 @@ class LoopIntegrandConstructor(object):
                 soft_collinear_integrand2 = -soft_collinear_integrand2
                 soft_integrand = -soft_integrand
 
+            # The leading DY soft residue is odd under reversal of the local
+            # soft momentum.  Some routed cuts identify that momentum with
+            # ``-k`` rather than ``+k``.  Carry the routing orientation into
+            # every member of the soft inclusion-exclusion family so that the
+            # counterterm cancels the corresponding PM/collinear limit
+            # independently of the selected loop routing.
+            soft_routing_orientation = k_id[1] if self.name == "DY" else 1
+
             # integrand = (
             #    soft_integrand + soft_collinear_integrand1 + soft_collinear_integrand2
             # )  # * E(f"Θ({repl_x})") * E(f"Θ(1-{repl_x})")
@@ -6933,7 +6945,7 @@ class LoopIntegrandConstructor(object):
             thetaSoft = E(f"Θ(Lambdasq-{propsoft1})") * E(f"Θ(Lambdasq-{propsoft2})")  #
 
             routed_integrand_soft = RoutedIntegrand(
-                -factor * soft_integrand * thetaSoft,
+                -factor * soft_routing_orientation * soft_integrand * thetaSoft,
                 cut_graph,
                 [
                     E(f"k({k_id[0]})"),
@@ -6964,7 +6976,10 @@ class LoopIntegrandConstructor(object):
             )
 
             routed_integrand_collinear1 = RoutedIntegrand(
-                factor * soft_collinear_integrand1 * thetacollinear1,
+                factor
+                * soft_routing_orientation
+                * soft_collinear_integrand1
+                * thetacollinear1,
                 cut_graph,
                 [
                     E(f"k({k_id[0]})"),
@@ -6996,7 +7011,10 @@ class LoopIntegrandConstructor(object):
             )
 
             routed_integrand_collinear2 = RoutedIntegrand(
-                factor * soft_collinear_integrand2 * thetacollinear2,
+                factor
+                * soft_routing_orientation
+                * soft_collinear_integrand2
+                * thetacollinear2,
                 cut_graph,
                 [
                     E(f"k({k_id[0]})"),
@@ -7606,6 +7624,12 @@ class LoopIntegrandConstructor(object):
     # Derive cff, set the lmb so that the loop momentum coincides with the photon (for DY), and
     # derive the approximated representation.
 
+    def _skip_threshold_counterterms(self, graph) -> bool:
+        return (
+            not self.include_disabled_threshold_counterterms
+            and _threshold_counterterms_disabled(graph, self.channel)
+        )
+
     def get_integrand(self, cut_graph):
 
         if self.channel == (0, 0) and _is_gl085_physical_25_cut(cut_graph):
@@ -7615,9 +7639,7 @@ class LoopIntegrandConstructor(object):
 
         # FIX: cut graph logic and overwriting
         orig_cut_graph = deepcopy(cut_graph)
-        skip_threshold_cts = _threshold_counterterms_disabled(
-            cut_graph.graph, self.channel
-        )
+        skip_threshold_cts = self._skip_threshold_counterterms(cut_graph.graph)
         threshold_collinear_momentum = None
         gluonic_t_channel = True
 

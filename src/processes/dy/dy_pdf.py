@@ -2,19 +2,187 @@ from __future__ import annotations
 
 import importlib
 import math
+import multiprocessing
+import os
 import time
 from dataclasses import dataclass
 from typing import Any, Callable
 
+from processes.dy.dy_analytic import (
+    qqbar_log_z_bin_integral,
+    weighted_d1_bin_integral,
+)
 from utils.utils import pygloopException
+
+
+@dataclass(frozen=True)
+class _SobolChunkTask:
+    replica: int
+    start: int
+    stop: int
+
+
+@dataclass(frozen=True)
+class _SobolChunkResult:
+    replica: int
+    start: int
+    count: int
+    sums: tuple[float, ...]
+    fallback_count: int
+    clipped_count: int
+    nonfinite_count: int
+
+
+_SOBOL_CHUNK_SAMPLES: tuple[Any, ...] | None = None
+_SOBOL_CHUNK_EVALUATOR: Callable[
+    [Any], tuple[tuple[float, ...], int, int, int]
+] | None = None
+
+
+def _evaluate_sobol_chunk(task: _SobolChunkTask) -> _SobolChunkResult:
+    if _SOBOL_CHUNK_SAMPLES is None or _SOBOL_CHUNK_EVALUATOR is None:
+        raise RuntimeError("DY Sobol auxiliary worker was not initialised.")
+    accumulated: list[float] | None = None
+    fallback_count = 0
+    clipped_count = 0
+    nonfinite_count = 0
+    samples = _SOBOL_CHUNK_SAMPLES[task.replica]
+    for sample in samples[task.start : task.stop]:
+        values, fallback, clipped, nonfinite = _SOBOL_CHUNK_EVALUATOR(sample)
+        if accumulated is None:
+            accumulated = [0.0 for _value in values]
+        elif len(values) != len(accumulated):
+            raise RuntimeError("DY Sobol auxiliary changed its output width.")
+        for index, value in enumerate(values):
+            accumulated[index] += float(value)
+        fallback_count += int(fallback)
+        clipped_count += int(clipped)
+        nonfinite_count += int(nonfinite)
+    if accumulated is None:
+        raise RuntimeError("DY Sobol auxiliary received an empty chunk.")
+    return _SobolChunkResult(
+        replica=task.replica,
+        start=task.start,
+        count=task.stop - task.start,
+        sums=tuple(accumulated),
+        fallback_count=fallback_count,
+        clipped_count=clipped_count,
+        nonfinite_count=nonfinite_count,
+    )
+
+
+def _integrate_sobol_chunks(
+    *,
+    dimensions: int,
+    power: int,
+    replicas: int,
+    seed: int,
+    output_width: int,
+    evaluator: Callable[[Any], tuple[tuple[float, ...], int, int, int]],
+    workers: int,
+) -> tuple[list[tuple[float, ...]], int, int, int]:
+    """Evaluate fixed scrambled Sobol replicas in fork-shared chunks."""
+
+    try:
+        from scipy.stats import qmc
+    except ImportError as exc:
+        raise pygloopException(
+            "DY scheme-counterterm integration requires scipy.stats.qmc."
+        ) from exc
+
+    requested_workers = int(workers)
+    if requested_workers < 1:
+        raise pygloopException("DY auxiliary workers must be positive.")
+    try:
+        affinity_workers = len(os.sched_getaffinity(0))
+    except AttributeError:
+        affinity_workers = os.cpu_count() or 1
+    worker_count = min(requested_workers, affinity_workers)
+    samples_per_replica = 2**power
+    target_chunks = max(1, math.ceil(worker_count / replicas))
+    chunks_per_replica = min(
+        samples_per_replica,
+        1 << (target_chunks - 1).bit_length(),
+    )
+    samples_per_chunk = samples_per_replica // chunks_per_replica
+    tasks = tuple(
+        _SobolChunkTask(
+            replica=replica,
+            start=chunk * samples_per_chunk,
+            stop=(chunk + 1) * samples_per_chunk,
+        )
+        for replica in range(replicas)
+        for chunk in range(chunks_per_replica)
+    )
+    worker_count = min(worker_count, len(tasks))
+
+    samples = tuple(
+        qmc.Sobol(
+            d=dimensions,
+            scramble=True,
+            seed=int(seed) + replica,
+        ).random_base2(power)
+        for replica in range(replicas)
+    )
+    global _SOBOL_CHUNK_SAMPLES
+    global _SOBOL_CHUNK_EVALUATOR
+    _SOBOL_CHUNK_SAMPLES = samples
+    _SOBOL_CHUNK_EVALUATOR = evaluator
+    try:
+        if worker_count == 1:
+            chunk_results = [_evaluate_sobol_chunk(task) for task in tasks]
+        else:
+            if "fork" not in multiprocessing.get_all_start_methods():
+                raise pygloopException(
+                    "Parallel DY auxiliary integration requires multiprocessing fork."
+                )
+            context = multiprocessing.get_context("fork")
+            with context.Pool(processes=worker_count) as pool:
+                chunk_results = list(
+                    pool.imap_unordered(_evaluate_sobol_chunk, tasks, chunksize=1)
+                )
+    finally:
+        _SOBOL_CHUNK_EVALUATOR = None
+        _SOBOL_CHUNK_SAMPLES = None
+
+    ordered = sorted(chunk_results, key=lambda row: (row.replica, row.start))
+    replica_sums: list[tuple[float, ...]] = []
+    for replica in range(replicas):
+        rows = [row for row in ordered if row.replica == replica]
+        if sum(row.count for row in rows) != samples_per_replica:
+            raise RuntimeError(
+                f"DY Sobol replica {replica} returned the wrong sample count."
+            )
+        replica_sums.append(
+            tuple(
+                math.fsum(row.sums[index] for row in rows)
+                for index in range(output_width)
+            )
+        )
+    return (
+        replica_sums,
+        sum(row.fallback_count for row in ordered),
+        sum(row.clipped_count for row in ordered),
+        sum(row.nonfinite_count for row in ordered),
+    )
 
 
 DY_CHANNEL_PDG_IDS: dict[tuple[int, int], tuple[int, int]] = {
     (0, 0): (21, 21),
     (0, 1): (21, 1),
+    (0, -1): (21, -1),
     (1, 0): (1, 21),
+    (-1, 0): (-1, 21),
     (1, -1): (1, -1),
     (-1, 1): (-1, 1),
+}
+
+DY_PDF_LUMINOSITY_FAMILIES: dict[
+    str, tuple[tuple[int, int], ...]
+] = {
+    "qqbar": ((1, -1), (-1, 1)),
+    "qg": ((1, 0), (0, 1), (-1, 0), (0, -1)),
+    "gg": ((0, 0),),
 }
 
 DY_INTEGRATED_LEPTONIC_PHASE_SPACE_FACTOR: float = 1.0 / (
@@ -33,6 +201,8 @@ class DYSchemeCountertermResult:
     clipped_count: int = 0
     nonfinite_count: int = 0
     components: tuple[DYSchemeCountertermComponentResult, ...] = ()
+    method: str | None = None
+    integration_dimension: int | None = None
 
 
 @dataclass(frozen=True)
@@ -142,7 +312,7 @@ def finite_gq_scheme_kernel(xi: float) -> float:
     )
 
 
-QG_SCHEME_COUNTERTERM_FACTOR: float = 4.0 * math.pi
+QG_SCHEME_COUNTERTERM_FACTOR: float = 2.0 * math.pi
 
 
 def finite_g_to_q_scheme_kernel(
@@ -154,8 +324,9 @@ def finite_g_to_q_scheme_kernel(
     """Finite ``g -> q`` kernel in the two-loop Born-convolution convention.
 
     This is the finite part of the dimensionally regulated expression supplied
-    for the qg ttbar scheme change, including ``T_F=1/2``.  In this convention
-    the common qg scheme factor ``4*pi`` is applied after integration.
+    for the qg ttbar scheme change, including ``T_F=1/2``.  The common
+    ``2*pi`` factor applied after integration converts this to the standard
+    ``alpha_s/(2*pi) * T_F`` normalisation.
     """
 
     value = float(xi)
@@ -183,8 +354,8 @@ def finite_q_to_g_scheme_kernel(
 ) -> float:
     """Finite ``q -> g`` kernel in the two-loop Born-convolution convention.
 
-    The expression includes ``C_F=4/3`` and leaves the common qg scheme factor
-    ``4*pi`` to be applied after integration.
+    The expression includes ``C_F=4/3`` and leaves the common ``2*pi`` factor
+    to be applied after integration, giving ``alpha_s/(2*pi) * C_F``.
     """
 
     value = float(xi)
@@ -204,10 +375,24 @@ def finite_q_to_g_scheme_kernel(
     )
 
 
-QQBAR_SCHEME_DELTA_COEFFICIENT: float = (4.0 * math.pi**2 - 48.0) / (
+QQBAR_SCHEME_DELTA_PI_SQUARED_COEFFICIENT: float = (
+    4.0 * math.pi**2 / (18.0 * math.pi)
+)
+QQBAR_SCHEME_DELTA_RATIONAL_COEFFICIENT: float = -48.0 / (
     18.0 * math.pi
 )
-QQBAR_SCHEME_COUNTERTERM_FACTOR: float = -2.0
+QQBAR_SCHEME_DELTA_COEFFICIENT: float = (
+    QQBAR_SCHEME_DELTA_PI_SQUARED_COEFFICIENT
+    + QQBAR_SCHEME_DELTA_RATIONAL_COEFFICIENT
+)
+# ``integrate_qqbar_scheme_counterterm`` explicitly sums the two incoming-leg
+# actions of the supplied D_qq kernel, which already contains C_F/(2*pi).
+# For the z-weighted DY observable, the Born coefficient after stripping
+# g_s^2 = 4*pi*alpha_s is 1/(144*pi^2*s_hat).  The common forward-measure
+# normalisation used below is 1/(54*pi^3*s_hat), so its exact conversion is
+# 3*pi/8.  The minus sign is the source-to-MSbar direction in the forward-cut
+# convention.
+QQBAR_SCHEME_COUNTERTERM_FACTOR: float = -3.0 * math.pi / 8.0
 
 GG_SCHEME_CA: float = 3.0
 GG_SCHEME_TF: float = 0.5
@@ -288,6 +473,77 @@ def finite_qqbar_scheme_continuous_weight(
         + components.log_x_plus
         + components.log_one_minus_x_plus
     ) / (18.0 * math.pi)
+
+
+def finite_qqbar_scheme_weight_components(
+    xi: float,
+    born_at_xi: float,
+    born_at_endpoint: float,
+) -> tuple[float, float, float, float, float]:
+    """Return separately normalised regular, plus, and endpoint pieces."""
+
+    continuous = finite_qqbar_scheme_continuous_components(
+        xi,
+        born_at_xi,
+        born_at_endpoint,
+    )
+    normalisation = 18.0 * math.pi
+    return (
+        continuous.regular / normalisation,
+        continuous.log_x_plus / normalisation,
+        continuous.log_one_minus_x_plus / normalisation,
+        QQBAR_SCHEME_DELTA_PI_SQUARED_COEFFICIENT * born_at_endpoint,
+        QQBAR_SCHEME_DELTA_RATIONAL_COEFFICIENT * born_at_endpoint,
+    )
+
+
+DY_QQBAR_AUXILIARY_METHOD = "analytic_xi_sobol_2d_threshold_square_v1"
+
+
+def finite_qqbar_scheme_bin_components(
+    xi_min: float,
+    xi_max: float,
+    *,
+    endpoint_width: float | None = None,
+) -> tuple[float, float, float, float, float]:
+    """Integrate one D_qq kernel against a constant Born factor on a bin.
+
+    The distributional endpoint and the subtraction below xi_min are included.
+    A separately computed endpoint width preserves very narrow threshold bins
+    even when subtracting that width from one would round back to one.
+    """
+    low, high = float(xi_min), float(xi_max)
+    if not (math.isfinite(low) and math.isfinite(high) and 0 <= low <= high <= 1):
+        raise pygloopException("The integrated q->q kernel requires 0 <= low <= high <= 1.")
+    if high == 1.0:
+        width = 1.0 - low if endpoint_width is None else float(endpoint_width)
+        if not math.isfinite(width) or not 0.0 < width <= 1.0:
+            raise pygloopException("The integrated endpoint kernel requires a positive width.")
+        regular = 0.5 * width**2
+        # Integral of (1+xi^2)*log(xi)/(1-xi), expanded at xi=1.
+        log_x = (
+            width * (-2.0 + width * (0.5 + width * (-2.0/9.0 + width * (-1.0/12.0 - 7.0*width/150.0))))
+            if width < 1.0e-4 else qqbar_log_z_bin_integral(low, high)
+        )
+        logarithm = math.log(width)
+        log_one_minus = (
+            logarithm**2 - (2.0*width - 0.5*width**2)*logarithm
+            + 2.0*width - 0.25*width**2
+        )
+    elif low == high:
+        return (0.0,) * 5
+    else:
+        regular = (high-low) * (1.0 - 0.5*(high+low))
+        log_x = qqbar_log_z_bin_integral(low, high)
+        log_one_minus = weighted_d1_bin_integral(low, high)
+    factor = 12.0 / (18.0 * math.pi)
+    return (
+        factor * regular,
+        factor * log_x,
+        factor * log_one_minus,
+        QQBAR_SCHEME_DELTA_PI_SQUARED_COEFFICIENT if high == 1.0 else 0.0,
+        QQBAR_SCHEME_DELTA_RATIONAL_COEFFICIENT if high == 1.0 else 0.0,
+    )
 
 
 def finite_qqbar_scheme_lower_limit_remainder(
@@ -532,14 +788,36 @@ def resolve_factorisation_scale_sq(
 class DYPDFProvider:
     """Lazy LHAPDF adapter for one selected set member."""
 
-    def __init__(self, set_name: str, member: int = 0):
+    def __init__(
+        self,
+        set_name: str,
+        member: int = 0,
+        luminosity_family: str | None = None,
+    ):
         self.set_name = str(set_name).strip()
         if not self.set_name:
             raise pygloopException("The DY PDF set name cannot be empty.")
         self.member = int(member)
         if self.member < 0:
             raise pygloopException("The DY PDF member must be non-negative.")
+        self.luminosity_family = self.normalise_luminosity_family(
+            luminosity_family
+        )
         self._pdf: Any | None = None
+
+    @staticmethod
+    def normalise_luminosity_family(
+        luminosity_family: str | None,
+    ) -> str | None:
+        if luminosity_family is None:
+            return None
+        family = str(luminosity_family).strip().lower()
+        if family not in DY_PDF_LUMINOSITY_FAMILIES:
+            known = ", ".join(sorted(DY_PDF_LUMINOSITY_FAMILIES))
+            raise pygloopException(
+                f"Unknown DY PDF luminosity family {family!r}; expected {known}."
+            )
+        return family
 
     def _load_pdf(self) -> Any:
         if self._pdf is not None:
@@ -607,13 +885,23 @@ class DYPDFProvider:
         x2: float,
         muf_sq: float,
     ) -> float:
-        parton1, parton2 = pdf_partons_for_channel(channel)
-        luminosity = self.density(parton1, x1, muf_sq, "x1") * self.density(
-            parton2, x2, muf_sq, "x2"
+        channels = (
+            DY_PDF_LUMINOSITY_FAMILIES[self.luminosity_family]
+            if self.luminosity_family is not None
+            else (tuple(channel),)
+        )
+        luminosity = math.fsum(
+            self.density(parton1, x1, muf_sq, "x1")
+            * self.density(parton2, x2, muf_sq, "x2")
+            for parton1, parton2 in (
+                pdf_partons_for_channel(selected_channel)
+                for selected_channel in channels
+            )
         )
         if not math.isfinite(luminosity):
             raise pygloopException(
-                f"Non-finite PDF luminosity for DY channel {channel}."
+                "Non-finite PDF luminosity for DY channel "
+                f"{channel} (family={self.luminosity_family!r})."
             )
         return luminosity
 
@@ -701,7 +989,8 @@ def integrate_gq_scheme_counterterm(
 
             log_tau_min = math.log(tau_min)
             x1 = math.exp((1.0 - float(u1)) * log_tau_min)
-            log_x2_min = math.log(tau_min / x1)
+            # log(tau_min/x1) = u1*log(tau_min), exactly zero at u1=0.
+            log_x2_min = float(u1) * log_tau_min
             x2 = math.exp((1.0 - float(u2)) * log_x2_min)
             q_sq = xi * x1 * x2 * centre_of_mass_sq
             if q_max_sq is not None and q_sq > q_max_sq:
@@ -745,7 +1034,12 @@ def integrate_qqbar_scheme_counterterm(
     replicas: int,
     seed: int,
 ) -> DYSchemeCountertermResult:
-    """Integrate the two-leg finite qqbar scheme term at Lambdasq=1."""
+    """Integrate D_qq analytically in xi, with a two-dimensional PDF integral.
+
+    For this z-weighted DY Born observable at fixed mu_F, the luminosity is
+    independent of xi. The Q and z cuts become limits of the exact kernel
+    integral. Both incoming legs and the original normalisation are retained.
+    """
 
     if tuple(channel) not in {(1, -1), (-1, 1)}:
         raise pygloopException(
@@ -787,15 +1081,29 @@ def integrate_qqbar_scheme_counterterm(
             "DY scheme-counterterm z bounds require 0 <= ZMIN < ZMAX <= 1."
         )
 
+    component_labels = (
+        "regular",
+        "log_x_plus",
+        "log_one_minus_x_plus",
+        "delta_pi_squared",
+        "delta_rational",
+    )
     sample_count = replica_count * 2**power
-    endpoint_tau = minimum_q**2 / centre_of_mass_sq
+    endpoint_tau = minimum_q**2 / (requested_z_max * centre_of_mass_sq)
     if endpoint_tau >= 1.0:
+        zeros = tuple(0.0 for _ in range(replica_count))
         return DYSchemeCountertermResult(
             central_value=0.0,
             error=0.0,
-            n_samples=sample_count,
+            n_samples=0,
             elapsed_time=0.0,
-            replica_values=tuple(0.0 for _ in range(replica_count)),
+            replica_values=zeros,
+            components=tuple(
+                DYSchemeCountertermComponentResult(label, 0.0, 0.0, zeros)
+                for label in component_labels
+            ),
+            method=DY_QQBAR_AUXILIARY_METHOD,
+            integration_dimension=2,
         )
 
     try:
@@ -809,79 +1117,186 @@ def integrate_qqbar_scheme_counterterm(
     maximum_q_sq = maximum_q**2 if maximum_q is not None else None
     log_endpoint_tau = math.log(endpoint_tau)
     replica_values: list[float] = []
+    component_replica_values: dict[str, list[float]] = {
+        label: [] for label in component_labels
+    }
     start = time.monotonic()
     for replica in range(replica_count):
         samples = qmc.Sobol(
-            d=3,
+            d=2,
             scramble=True,
             seed=int(seed) + replica,
         ).random_base2(power)
-        accumulated = 0.0
-        for u1, u2, uz in samples:
+        component_accumulated = [0.0 for _label in component_labels]
+        for u1, u2 in samples:
+            u1, u2 = float(u1), float(u2)
+            # At u2=0 the xi-integrated kernel grows as log(u2)^2. The
+            # quadratic threshold map supplies 2*u2, giving a zero limit.
+            if u1 == 0.0 or u2 == 0.0:
+                continue
             x1 = math.exp((1.0 - float(u1)) * log_endpoint_tau)
-            log_x2_min = math.log(endpoint_tau / x1)
-            x2 = math.exp((1.0 - float(u2)) * log_x2_min)
-            jacobian_over_x1_x2 = (-log_endpoint_tau) * (-log_x2_min)
-
-            xi = min(
-                math.nextafter(1.0, 0.0),
-                max(math.nextafter(0.0, 1.0), float(uz)),
+            log_x2_min = u1 * log_endpoint_tau
+            x2 = math.exp((1.0 - u2*u2) * log_x2_min)
+            threshold_log = -log_x2_min * u2*u2
+            partonic_scale_sq = (minimum_q_sq / requested_z_max) * math.exp(threshold_log)
+            xi_width = -requested_z_max * math.expm1(-threshold_log)
+            xi_min = max(requested_z_min, requested_z_max - xi_width)
+            xi_max = requested_z_max
+            if maximum_q_sq is not None:
+                xi_max = min(xi_max, maximum_q_sq / partonic_scale_sq)
+            if xi_min >= xi_max and not (
+                xi_max == 1.0 and requested_z_max == 1.0 and xi_width > 0.0
+                and requested_z_min <= 1.0-xi_width
+            ):
+                continue
+            one_leg_components = finite_qqbar_scheme_bin_components(
+                xi_min, xi_max,
+                endpoint_width=(min(1.0-requested_z_min, xi_width) if xi_max == 1.0 else None),
             )
-            partonic_scale_sq = x1 * x2 * centre_of_mass_sq
             luminosity = provider.luminosity(channel, x1, x2, muf_sq)
+            jacobian_over_x1_x2 = log_endpoint_tau * log_x2_min * 2.0*u2
+            common_weight = jacobian_over_x1_x2 * 2.0 * luminosity
+            if not math.isfinite(common_weight) or not all(map(math.isfinite, one_leg_components)):
+                raise pygloopException("Non-finite analytic-xi DY counterterm evaluation.")
+            for index, component in enumerate(one_leg_components):
+                component_accumulated[index] += common_weight * component
 
-            q_sq = xi * partonic_scale_sq
-            born_at_xi = luminosity
-            if (
-                xi < requested_z_min
-                or xi > requested_z_max
-                or q_sq < minimum_q_sq
-                or (maximum_q_sq is not None and q_sq > maximum_q_sq)
-            ):
-                born_at_xi = 0.0
-
-            born_at_endpoint = luminosity
-            if (
-                requested_z_max < 1.0
-                or partonic_scale_sq < minimum_q_sq
-                or (
-                    maximum_q_sq is not None
-                    and partonic_scale_sq > maximum_q_sq
-                )
-            ):
-                born_at_endpoint = 0.0
-
-            one_leg_weight = finite_qqbar_scheme_continuous_weight(
-                xi,
-                born_at_xi,
-                born_at_endpoint,
-            )
-            one_leg_weight += (
-                QQBAR_SCHEME_DELTA_COEFFICIENT * born_at_endpoint
-            )
-            accumulated += jacobian_over_x1_x2 * 2.0 * one_leg_weight
-
-        replica_values.append(
-            physical_normalisation * accumulated / float(len(samples))
+        component_replicas = tuple(
+            physical_normalisation * value / float(len(samples))
+            for value in component_accumulated
         )
+        replica_values.append(math.fsum(component_replicas))
+        for label, value in zip(
+            component_labels,
+            component_replicas,
+            strict=True,
+        ):
+            component_replica_values[label].append(value)
 
     central_value = math.fsum(replica_values) / replica_count
     variance = math.fsum(
         (value - central_value) ** 2 for value in replica_values
     ) / (replica_count - 1)
+    components = []
+    for label in component_labels:
+        values = component_replica_values[label]
+        component_central = math.fsum(values) / replica_count
+        component_variance = math.fsum(
+            (value - component_central) ** 2 for value in values
+        ) / (replica_count - 1)
+        components.append(
+            DYSchemeCountertermComponentResult(
+                label=label,
+                central_value=component_central,
+                error=math.sqrt(component_variance / replica_count),
+                replica_values=tuple(values),
+            )
+        )
     return DYSchemeCountertermResult(
         central_value=central_value,
         error=math.sqrt(variance / replica_count),
         n_samples=sample_count,
         elapsed_time=time.monotonic() - start,
         replica_values=tuple(replica_values),
+        components=tuple(components),
+        method=DY_QQBAR_AUXILIARY_METHOD,
+        integration_dimension=2,
+    )
+
+
+def integrate_partonic_qqbar_scheme_counterterm(
+    channel: tuple[int, int],
+    z_bin: tuple[float, float] | None,
+    physical_normalisation: float,
+    replicas: int,
+) -> DYSchemeCountertermResult:
+    """Integrate the one-loop DY ``D_qq`` term at fixed partonic energy.
+
+    The campaign observable is z weighted, so the Born test function is
+    constant at fixed ``shat``.  This permits an exact distributional
+    integration and avoids introducing a fictitious PDF or a Q-min cut in the
+    partonic benchmark.
+    """
+
+    if tuple(channel) not in {(1, -1), (-1, 1)}:
+        raise pygloopException(
+            "The partonic finite qqbar scheme counterterm only supports DY "
+            "channels (1,-1) and (-1,1)."
+        )
+    low, high = z_bin if z_bin is not None else (0.0, 1.0)
+    low = float(low)
+    high = float(high)
+    if not (
+        math.isfinite(low)
+        and math.isfinite(high)
+        and 0.0 <= low < high <= 1.0
+    ):
+        raise pygloopException(
+            "Partonic DY scheme-counterterm z bounds require "
+            "0 <= ZMIN < ZMAX <= 1."
+        )
+    normalisation = float(physical_normalisation)
+    if not math.isfinite(normalisation):
+        raise pygloopException(
+            "Partonic DY scheme-counterterm normalisation must be finite."
+        )
+    replica_count = int(replicas)
+    if replica_count < 2:
+        raise pygloopException(
+            "DY scheme-counterterm integration requires at least two replicas."
+        )
+
+    common = 2.0 * normalisation * 12.0 / (18.0 * math.pi)
+    def regular_primitive(value: float) -> float:
+        return value - 0.5 * value**2
+    component_values = (
+        common * (regular_primitive(high) - regular_primitive(low)),
+        common * qqbar_log_z_bin_integral(low, high),
+        common * weighted_d1_bin_integral(low, high),
+        (
+            2.0
+            * normalisation
+            * QQBAR_SCHEME_DELTA_PI_SQUARED_COEFFICIENT
+            if high == 1.0
+            else 0.0
+        ),
+        (
+            2.0 * normalisation * QQBAR_SCHEME_DELTA_RATIONAL_COEFFICIENT
+            if high == 1.0
+            else 0.0
+        ),
+    )
+    labels = (
+        "regular",
+        "log_x_plus",
+        "log_one_minus_x_plus",
+        "delta_pi_squared",
+        "delta_rational",
+    )
+    components = tuple(
+        DYSchemeCountertermComponentResult(
+            label=label,
+            central_value=value,
+            error=0.0,
+            replica_values=tuple(value for _ in range(replica_count)),
+        )
+        for label, value in zip(labels, component_values, strict=True)
+    )
+    total = math.fsum(component_values)
+    return DYSchemeCountertermResult(
+        central_value=total,
+        error=0.0,
+        n_samples=0,
+        elapsed_time=0.0,
+        replica_values=tuple(total for _ in range(replica_count)),
+        components=components,
     )
 
 
 def integrate_regular_born_scheme_counterterm(
-    provider: DYPDFProvider,
+    provider: DYPDFProvider | None,
     channel: tuple[int, int],
-    muf_sq: float,
+    muf_sq: float | None,
     e_cm_sq: float,
     threshold_sq: float,
     convolutions: tuple[DYRegularSchemeConvolution, ...],
@@ -889,13 +1304,17 @@ def integrate_regular_born_scheme_counterterm(
     replicas: int,
     seed: int,
     clip_threshold: float | None = None,
+    workers: int = 1,
+    integrate_beams: bool = True,
 ) -> DYSchemeCountertermResult:
     """Convolve regular finite kernels with DY-generated Born integrands.
 
-    Each Sobol sample shares the beam fractions, splitting fraction and loop
-    coordinates across all requested Born channels.  This preserves useful
-    correlations between the components while the returned uncertainty is
-    computed directly from replicas of their sum.
+    Each Sobol sample shares the splitting fraction and loop coordinates across
+    all requested Born channels.  Hadronic mode additionally samples common
+    beam fractions and applies the selected PDF luminosity.  Partonic mode
+    evaluates the same coefficient-function convolution at fixed ``e_cm_sq``.
+    This preserves useful correlations between the components while the
+    returned uncertainty is computed directly from replicas of their sum.
     """
 
     if not convolutions:
@@ -907,6 +1326,19 @@ def integrate_regular_born_scheme_counterterm(
         threshold_sq,
         "scheme-counterterm threshold squared",
     )
+    beam_convolution = bool(integrate_beams)
+    resolved_muf_sq: float | None = None
+    if beam_convolution:
+        if provider is None or muf_sq is None:
+            raise pygloopException(
+                "Hadronic regular scheme-counterterm integration requires "
+                "PDF setup."
+            )
+        resolved_muf_sq = _positive_finite_scale(muf_sq, "mufsq")
+    elif provider is not None or muf_sq is not None:
+        raise pygloopException(
+            "Partonic regular scheme-counterterm integration does not accept PDFs."
+        )
     power = int(sobol_power)
     replica_count = int(replicas)
     if not 1 <= power <= 30:
@@ -949,114 +1381,124 @@ def integrate_regular_born_scheme_counterterm(
             components=empty_components,
         )
 
-    try:
-        from scipy.stats import qmc
-    except ImportError as exc:
-        raise pygloopException(
-            "DY scheme-counterterm integration requires scipy.stats.qmc."
-        ) from exc
-
     log_endpoint_tau = math.log(endpoint_tau)
     replica_values: list[float] = []
     component_replica_values: dict[str, list[float]] = {
         convolution.label: [] for convolution in convolutions
     }
-    fallback_count = 0
-    clipped_count = 0
-    nonfinite_count = 0
     start = time.monotonic()
-    for replica in range(replica_count):
-        samples = qmc.Sobol(
-            d=6,
-            scramble=True,
-            seed=int(seed) + replica,
-        ).random_base2(power)
-        accumulated = 0.0
-        component_accumulated = {
-            convolution.label: 0.0 for convolution in convolutions
-        }
-        for u1, u2, uxi, uk1, uk2, uk3 in samples:
+    def evaluate_sample(
+        sample: Any,
+    ) -> tuple[tuple[float, ...], int, int, int]:
+        if beam_convolution:
+            u1, u2, uxi, uk1, uk2, uk3 = sample
             x1 = math.exp((1.0 - float(u1)) * log_endpoint_tau)
             log_x2_min = math.log(endpoint_tau / x1)
             x2 = math.exp((1.0 - float(u2)) * log_x2_min)
             beam_jacobian = (
-                x1
-                * x2
-                * (-log_endpoint_tau)
-                * (-log_x2_min)
+                x1 * x2 * (-log_endpoint_tau) * (-log_x2_min)
             )
             partonic_scale_sq = x1 * x2 * centre_of_mass_sq
-            xi_min = physical_threshold_sq / partonic_scale_sq
-            xi_width = 1.0 - xi_min
-            if xi_width <= 0.0:
-                continue
-            xi = xi_min + xi_width * float(uxi)
-            xi = min(
-                math.nextafter(1.0, 0.0),
-                max(math.nextafter(xi_min, 1.0), xi),
+            assert provider is not None and resolved_muf_sq is not None
+            luminosity = provider.luminosity(
+                channel,
+                x1,
+                x2,
+                resolved_muf_sq,
             )
-            scaled_partonic_scale_sq = xi * partonic_scale_sq
-            loop_coordinates = (float(uk1), float(uk2), float(uk3))
-            luminosity = provider.luminosity(channel, x1, x2, muf_sq)
-            common_weight = beam_jacobian * xi_width * luminosity
+            common_weight = beam_jacobian * luminosity
+        else:
+            uxi, uk1, uk2, uk3 = sample
+            partonic_scale_sq = centre_of_mass_sq
+            common_weight = 1.0
+        xi_min = physical_threshold_sq / partonic_scale_sq
+        xi_width = 1.0 - xi_min
+        if xi_width <= 0.0:
+            zeros = tuple(0.0 for _ in convolutions)
+            return (*zeros, 0.0), 0, 0, 0
+        xi = xi_min + xi_width * float(uxi)
+        xi = min(
+            math.nextafter(1.0, 0.0),
+            max(math.nextafter(xi_min, 1.0), xi),
+        )
+        scaled_partonic_scale_sq = xi * partonic_scale_sq
+        loop_coordinates = (float(uk1), float(uk2), float(uk3))
+        common_weight *= xi_width
 
-            def sample_components(use_fallback: bool) -> tuple[float, ...]:
-                return tuple(
-                    common_weight
-                    * convolution.physical_normalisation
-                    * convolution.kernel(xi)
-                    * convolution.born_integrand(
-                        scaled_partonic_scale_sq,
-                        loop_coordinates,
-                        use_fallback,
-                    )
-                    for convolution in convolutions
+        def sample_components(use_fallback: bool) -> tuple[float, ...]:
+            return tuple(
+                common_weight
+                * convolution.physical_normalisation
+                * convolution.kernel(xi)
+                * convolution.born_integrand(
+                    scaled_partonic_scale_sq,
+                    loop_coordinates,
+                    use_fallback,
                 )
+                for convolution in convolutions
+            )
 
+        fallback_count = 0
+        clipped_count = 0
+        nonfinite_count = 0
+        try:
+            component_weights = sample_components(False)
+            weight = math.fsum(component_weights)
+        except Exception:
+            component_weights = tuple(math.nan for _ in convolutions)
+            weight = math.nan
+        needs_fallback = not math.isfinite(weight) or any(
+            not math.isfinite(value) for value in component_weights
+        )
+        if clip_threshold is not None and math.isfinite(weight):
+            needs_fallback = needs_fallback or abs(weight) > clip_threshold
+        if needs_fallback:
+            fallback_count = 1
             try:
-                component_weights = sample_components(False)
+                component_weights = sample_components(True)
                 weight = math.fsum(component_weights)
             except Exception:
                 component_weights = tuple(math.nan for _ in convolutions)
                 weight = math.nan
-            needs_fallback = not math.isfinite(weight) or any(
-                not math.isfinite(value) for value in component_weights
-            )
-            if clip_threshold is not None and math.isfinite(weight):
-                needs_fallback = needs_fallback or abs(weight) > clip_threshold
-            if needs_fallback:
-                fallback_count += 1
-                try:
-                    component_weights = sample_components(True)
-                    weight = math.fsum(component_weights)
-                except Exception:
-                    component_weights = tuple(math.nan for _ in convolutions)
-                    weight = math.nan
 
-            if not math.isfinite(weight) or any(
-                not math.isfinite(value) for value in component_weights
-            ):
-                nonfinite_count += 1
-                component_weights = tuple(0.0 for _ in convolutions)
-                weight = 0.0
-            elif clip_threshold is not None and abs(weight) > clip_threshold:
-                clipped_count += 1
-                component_weights = tuple(0.0 for _ in convolutions)
-                weight = 0.0
+        if not math.isfinite(weight) or any(
+            not math.isfinite(value) for value in component_weights
+        ):
+            nonfinite_count = 1
+            component_weights = tuple(0.0 for _ in convolutions)
+            weight = 0.0
+        elif clip_threshold is not None and abs(weight) > clip_threshold:
+            clipped_count = 1
+            component_weights = tuple(0.0 for _ in convolutions)
+            weight = 0.0
+        return (
+            (*component_weights, weight),
+            fallback_count,
+            clipped_count,
+            nonfinite_count,
+        )
 
-            accumulated += weight
-            for convolution, component_weight in zip(
-                convolutions,
-                component_weights,
-                strict=True,
-            ):
-                component_accumulated[convolution.label] += component_weight
-
-        normalisation = float(len(samples))
-        replica_values.append(accumulated / normalisation)
-        for convolution in convolutions:
+    replica_sums, fallback_count, clipped_count, nonfinite_count = (
+        _integrate_sobol_chunks(
+            dimensions=6 if beam_convolution else 4,
+            power=power,
+            replicas=replica_count,
+            seed=seed,
+            output_width=len(convolutions) + 1,
+            evaluator=evaluate_sample,
+            workers=workers,
+        )
+    )
+    normalisation = float(2**power)
+    for sums in replica_sums:
+        replica_values.append(sums[-1] / normalisation)
+        for convolution, component_sum in zip(
+            convolutions,
+            sums[:-1],
+            strict=True,
+        ):
             component_replica_values[convolution.label].append(
-                component_accumulated[convolution.label] / normalisation
+                component_sum / normalisation
             )
 
     if nonfinite_count == sample_count:
@@ -1284,6 +1726,7 @@ def integrate_ttbar_qqbar_auxiliary(
     born_coefficient: float,
     integrate_beams: bool,
     clip_threshold: float | None = None,
+    workers: int = 1,
 ) -> DYQQbarAuxiliaryResult:
     """Integrate correlated two-leg ``D_qq`` and physical Born contributions.
 
@@ -1346,7 +1789,8 @@ def integrate_ttbar_qqbar_auxiliary(
         "log_x_plus",
         "log_one_minus_x_plus",
         "lower_limit_remainder",
-        "delta",
+        "delta_pi_squared",
+        "delta_rational",
     )
     sample_count = replica_count * 2**power
     endpoint_tau = threshold_sq / centre_of_mass_sq
@@ -1374,13 +1818,6 @@ def integrate_ttbar_qqbar_auxiliary(
     if endpoint_tau >= 1.0:
         return empty_result()
 
-    try:
-        from scipy.stats import qmc
-    except ImportError as exc:
-        raise pygloopException(
-            "DY scheme-counterterm integration requires scipy.stats.qmc."
-        ) from exc
-
     dimensions = 6 if beam_convolution else 4
     log_endpoint_tau = math.log(endpoint_tau)
     dqq_replica_values: list[float] = []
@@ -1389,179 +1826,182 @@ def integrate_ttbar_qqbar_auxiliary(
     component_replica_values: dict[str, list[float]] = {
         label: [] for label in component_labels
     }
-    fallback_count = 0
-    clipped_count = 0
-    nonfinite_count = 0
     start = time.monotonic()
 
-    for replica in range(replica_count):
-        samples = qmc.Sobol(
-            d=dimensions,
-            scramble=True,
-            seed=int(seed) + replica,
-        ).random_base2(power)
-        dqq_accumulated = 0.0
-        born_accumulated = 0.0
-        combined_accumulated = 0.0
-        component_accumulated = {label: 0.0 for label in component_labels}
-
-        for sample in samples:
-            if beam_convolution:
-                u1, u2, uxi, uk1, uk2, uk3 = sample
-                x1 = math.exp((1.0 - float(u1)) * log_endpoint_tau)
-                log_x2_min = math.log(endpoint_tau / x1)
-                x2 = math.exp((1.0 - float(u2)) * log_x2_min)
-                beam_jacobian = (
-                    x1
-                    * x2
-                    * (-log_endpoint_tau)
-                    * (-log_x2_min)
-                )
-                partonic_scale_sq = x1 * x2 * centre_of_mass_sq
-                assert provider is not None and resolved_muf_sq is not None
-                luminosity = provider.luminosity(
-                    channel,
-                    x1,
-                    x2,
-                    resolved_muf_sq,
-                )
-                common_weight = beam_jacobian * luminosity
-            else:
-                uxi, uk1, uk2, uk3 = sample
-                partonic_scale_sq = centre_of_mass_sq
-                common_weight = 1.0
-
-            xi_min = threshold_sq / partonic_scale_sq
-            xi_width = 1.0 - xi_min
-            if xi_width <= 0.0:
-                continue
-            xi = xi_min + xi_width * float(uxi)
-            xi = min(
-                math.nextafter(1.0, 0.0),
-                max(math.nextafter(xi_min, 1.0), xi),
+    def evaluate_sample(
+        sample: Any,
+    ) -> tuple[tuple[float, ...], int, int, int]:
+        if beam_convolution:
+            u1, u2, uxi, uk1, uk2, uk3 = sample
+            x1 = math.exp((1.0 - float(u1)) * log_endpoint_tau)
+            log_x2_min = math.log(endpoint_tau / x1)
+            x2 = math.exp((1.0 - float(u2)) * log_x2_min)
+            beam_jacobian = (
+                x1 * x2 * (-log_endpoint_tau) * (-log_x2_min)
             )
-            loop_coordinates = (float(uk1), float(uk2), float(uk3))
+            partonic_scale_sq = x1 * x2 * centre_of_mass_sq
+            assert provider is not None and resolved_muf_sq is not None
+            luminosity = provider.luminosity(
+                channel,
+                x1,
+                x2,
+                resolved_muf_sq,
+            )
+            common_weight = beam_jacobian * luminosity
+        else:
+            uxi, uk1, uk2, uk3 = sample
+            partonic_scale_sq = centre_of_mass_sq
+            common_weight = 1.0
 
-            def paired_sample(
-                use_fallback: bool,
-            ) -> tuple[tuple[float, ...], float, float, float]:
-                born_at_endpoint = born_integrand(
-                    partonic_scale_sq,
-                    loop_coordinates,
-                    use_fallback,
-                )
-                born_at_xi = born_integrand(
-                    xi * partonic_scale_sq,
-                    loop_coordinates,
-                    use_fallback,
-                )
-                numerators = finite_qqbar_scheme_continuous_components(
-                    xi,
-                    born_at_xi,
+        xi_min = threshold_sq / partonic_scale_sq
+        xi_width = 1.0 - xi_min
+        if xi_width <= 0.0:
+            return tuple(0.0 for _ in range(9)), 0, 0, 0
+        xi = xi_min + xi_width * float(uxi)
+        xi = min(
+            math.nextafter(1.0, 0.0),
+            max(math.nextafter(xi_min, 1.0), xi),
+        )
+        loop_coordinates = (float(uk1), float(uk2), float(uk3))
+
+        def paired_sample(
+            use_fallback: bool,
+        ) -> tuple[tuple[float, ...], float, float, float]:
+            born_at_endpoint = born_integrand(
+                partonic_scale_sq,
+                loop_coordinates,
+                use_fallback,
+            )
+            born_at_xi = born_integrand(
+                xi * partonic_scale_sq,
+                loop_coordinates,
+                use_fallback,
+            )
+            numerators = finite_qqbar_scheme_continuous_components(
+                xi,
+                born_at_xi,
+                born_at_endpoint,
+            )
+            continuous_scale = (
+                2.0
+                * dqq_norm
+                * common_weight
+                * xi_width
+                / (18.0 * math.pi)
+            )
+            endpoint_scale = 2.0 * dqq_norm * common_weight
+            component_weights = (
+                continuous_scale * numerators.regular,
+                continuous_scale * numerators.log_x_plus,
+                continuous_scale * numerators.log_one_minus_x_plus,
+                endpoint_scale
+                * finite_qqbar_scheme_lower_limit_remainder(
+                    xi_min,
                     born_at_endpoint,
-                )
-                continuous_scale = (
-                    2.0
-                    * dqq_norm
-                    * common_weight
-                    * xi_width
-                    / (18.0 * math.pi)
-                )
-                endpoint_scale = 2.0 * dqq_norm * common_weight
-                component_weights = (
-                    continuous_scale * numerators.regular,
-                    continuous_scale * numerators.log_x_plus,
-                    continuous_scale * numerators.log_one_minus_x_plus,
-                    endpoint_scale
-                    * finite_qqbar_scheme_lower_limit_remainder(
-                        xi_min,
-                        born_at_endpoint,
-                    ),
-                    endpoint_scale
-                    * QQBAR_SCHEME_DELTA_COEFFICIENT
-                    * born_at_endpoint,
-                )
-                dqq_weight = math.fsum(component_weights)
-                born_weight = born_norm * common_weight * born_at_endpoint
-                combined_weight = (
-                    dqq_factor * dqq_weight + born_factor * born_weight
-                )
-                return (
+                ),
+                endpoint_scale
+                * QQBAR_SCHEME_DELTA_PI_SQUARED_COEFFICIENT
+                * born_at_endpoint,
+                endpoint_scale
+                * QQBAR_SCHEME_DELTA_RATIONAL_COEFFICIENT
+                * born_at_endpoint,
+            )
+            dqq_weight = math.fsum(component_weights)
+            born_weight = born_norm * common_weight * born_at_endpoint
+            combined_weight = (
+                dqq_factor * dqq_weight + born_factor * born_weight
+            )
+            return (
+                component_weights,
+                dqq_weight,
+                born_weight,
+                combined_weight,
+            )
+
+        fallback_count = 0
+        clipped_count = 0
+        nonfinite_count = 0
+        try:
+            component_weights, dqq_weight, born_weight, combined_weight = (
+                paired_sample(False)
+            )
+        except Exception:
+            component_weights = tuple(math.nan for _ in component_labels)
+            dqq_weight = born_weight = combined_weight = math.nan
+        sample_values = (
+            *component_weights,
+            dqq_weight,
+            born_weight,
+            combined_weight,
+        )
+        needs_fallback = any(not math.isfinite(value) for value in sample_values)
+        if clip_threshold is not None and not needs_fallback:
+            needs_fallback = max(
+                abs(dqq_weight),
+                abs(born_weight),
+                abs(combined_weight),
+            ) > clip_threshold
+        if needs_fallback:
+            fallback_count = 1
+            try:
+                (
                     component_weights,
                     dqq_weight,
                     born_weight,
                     combined_weight,
-                )
-
-            try:
-                component_weights, dqq_weight, born_weight, combined_weight = (
-                    paired_sample(False)
-                )
+                ) = paired_sample(True)
             except Exception:
                 component_weights = tuple(math.nan for _ in component_labels)
                 dqq_weight = born_weight = combined_weight = math.nan
-            sample_values = (
-                *component_weights,
-                dqq_weight,
-                born_weight,
-                combined_weight,
-            )
-            needs_fallback = any(not math.isfinite(value) for value in sample_values)
-            if clip_threshold is not None and not needs_fallback:
-                needs_fallback = max(
-                    abs(dqq_weight),
-                    abs(born_weight),
-                    abs(combined_weight),
-                ) > clip_threshold
-            if needs_fallback:
-                fallback_count += 1
-                try:
-                    (
-                        component_weights,
-                        dqq_weight,
-                        born_weight,
-                        combined_weight,
-                    ) = paired_sample(True)
-                except Exception:
-                    component_weights = tuple(math.nan for _ in component_labels)
-                    dqq_weight = born_weight = combined_weight = math.nan
 
-            sample_values = (
-                *component_weights,
-                dqq_weight,
-                born_weight,
-                combined_weight,
-            )
-            if any(not math.isfinite(value) for value in sample_values):
-                nonfinite_count += 1
-                component_weights = tuple(0.0 for _ in component_labels)
-                dqq_weight = born_weight = combined_weight = 0.0
-            elif clip_threshold is not None and max(
-                abs(dqq_weight),
-                abs(born_weight),
-                abs(combined_weight),
-            ) > clip_threshold:
-                clipped_count += 1
-                component_weights = tuple(0.0 for _ in component_labels)
-                dqq_weight = born_weight = combined_weight = 0.0
+        sample_values = (
+            *component_weights,
+            dqq_weight,
+            born_weight,
+            combined_weight,
+        )
+        if any(not math.isfinite(value) for value in sample_values):
+            nonfinite_count = 1
+            component_weights = tuple(0.0 for _ in component_labels)
+            dqq_weight = born_weight = combined_weight = 0.0
+        elif clip_threshold is not None and max(
+            abs(dqq_weight),
+            abs(born_weight),
+            abs(combined_weight),
+        ) > clip_threshold:
+            clipped_count = 1
+            component_weights = tuple(0.0 for _ in component_labels)
+            dqq_weight = born_weight = combined_weight = 0.0
+        return (
+            (*component_weights, dqq_weight, born_weight, combined_weight),
+            fallback_count,
+            clipped_count,
+            nonfinite_count,
+        )
 
-            dqq_accumulated += dqq_weight
-            born_accumulated += born_weight
-            combined_accumulated += combined_weight
-            for label, value in zip(
-                component_labels,
-                component_weights,
-                strict=True,
-            ):
-                component_accumulated[label] += value
-
-        sample_normalisation = float(len(samples))
-        dqq_replica_values.append(dqq_accumulated / sample_normalisation)
-        born_replica_values.append(born_accumulated / sample_normalisation)
-        combined_replica_values.append(combined_accumulated / sample_normalisation)
-        for label in component_labels:
+    replica_sums, fallback_count, clipped_count, nonfinite_count = (
+        _integrate_sobol_chunks(
+            dimensions=dimensions,
+            power=power,
+            replicas=replica_count,
+            seed=seed,
+            output_width=9,
+            evaluator=evaluate_sample,
+            workers=workers,
+        )
+    )
+    sample_normalisation = float(2**power)
+    for sums in replica_sums:
+        dqq_replica_values.append(sums[6] / sample_normalisation)
+        born_replica_values.append(sums[7] / sample_normalisation)
+        combined_replica_values.append(sums[8] / sample_normalisation)
+        for label, component_sum in zip(
+            component_labels,
+            sums[:6],
+            strict=True,
+        ):
             component_replica_values[label].append(
-                component_accumulated[label] / sample_normalisation
+                component_sum / sample_normalisation
             )
 
     if nonfinite_count == sample_count:
@@ -1627,14 +2067,19 @@ def integrate_ttbar_gg_auxiliary(
     clip_threshold: float | None = None,
     *,
     active_flavours: int = GG_SCHEME_ACTIVE_FLAVOURS,
+    provider: DYPDFProvider | None = None,
+    muf_sq: float | None = None,
+    integrate_beams: bool = False,
+    workers: int = 1,
 ) -> DYGGAuxiliaryResult:
-    """Integrate the physical partonic ``Dgg-LSZ+top-LSZ`` conversion.
+    """Integrate the physical ``Dgg-LSZ+top-LSZ`` conversion.
 
     The generated one-loop forward integrand is converted to a physical Born
     cut before the kernel acts on it.  All distribution pieces, the massless
     LSZ subtraction, the single two-beam massive-top LSZ endpoint and the Born
     diagnostic use identical scrambled Sobol samples, preserving their replica
-    covariance.
+    covariance.  Hadronic mode additionally shares the two beam fractions and
+    their PDF luminosity across every correlated component.
     """
 
     if tuple(channel) != (0, 0):
@@ -1649,6 +2094,18 @@ def integrate_ttbar_gg_auxiliary(
     lambda_value = _positive_finite_scale(lambda_sq, "Lambdasq")
     mur_value = _positive_finite_scale(mur_sq, "mursq")
     alpha_value = _positive_finite_scale(alpha_s, "scheme alpha_s")
+    beam_convolution = bool(integrate_beams)
+    resolved_muf_sq: float | None = None
+    if beam_convolution:
+        if provider is None or muf_sq is None:
+            raise pygloopException(
+                "Hadronic ttbar gg auxiliary integration requires PDF setup."
+            )
+        resolved_muf_sq = _positive_finite_scale(muf_sq, "mufsq")
+    elif provider is not None or muf_sq is not None:
+        raise pygloopException(
+            "Partonic ttbar gg auxiliary integration does not accept PDFs."
+        )
     endpoint_coefficients = gg_scheme_endpoint_coefficients(
         lambda_value,
         mur_value,
@@ -1684,7 +2141,7 @@ def integrate_ttbar_gg_auxiliary(
     )
     sample_count = replica_count * 2**power
     threshold_sq = 4.0 * top_mass**2
-    xi_min = threshold_sq / centre_of_mass_sq
+    endpoint_tau = threshold_sq / centre_of_mass_sq
 
     def empty_result() -> DYGGAuxiliaryResult:
         zeros = tuple(0.0 for _ in range(replica_count))
@@ -1709,17 +2166,11 @@ def integrate_ttbar_gg_auxiliary(
             ),
         )
 
-    if xi_min >= 1.0:
+    if endpoint_tau >= 1.0:
         return empty_result()
 
-    try:
-        from scipy.stats import qmc
-    except ImportError as exc:
-        raise pygloopException(
-            "DY scheme-counterterm integration requires scipy.stats.qmc."
-        ) from exc
-
-    xi_width = 1.0 - xi_min
+    dimensions = 6 if beam_convolution else 4
+    log_endpoint_tau = math.log(endpoint_tau)
     dgg_minus_lsz_replica_values: list[float] = []
     top_lsz_replica_values: list[float] = []
     born_replica_values: list[float] = []
@@ -1727,84 +2178,126 @@ def integrate_ttbar_gg_auxiliary(
     component_replica_values: dict[str, list[float]] = {
         label: [] for label in component_labels
     }
-    fallback_count = 0
-    clipped_count = 0
-    nonfinite_count = 0
     start = time.monotonic()
 
-    for replica in range(replica_count):
-        samples = qmc.Sobol(
-            d=4,
-            scramble=True,
-            seed=int(seed) + replica,
-        ).random_base2(power)
-        dgg_minus_lsz_accumulated = 0.0
-        top_lsz_accumulated = 0.0
-        born_accumulated = 0.0
-        combined_accumulated = 0.0
-        component_accumulated = {label: 0.0 for label in component_labels}
-
-        for uxi, uk1, uk2, uk3 in samples:
-            xi = xi_min + xi_width * float(uxi)
-            xi = min(
-                math.nextafter(1.0, 0.0),
-                max(math.nextafter(xi_min, 1.0), xi),
+    def evaluate_sample(
+        sample: Any,
+    ) -> tuple[tuple[float, ...], int, int, int]:
+        if beam_convolution:
+            u1, u2, uxi, uk1, uk2, uk3 = sample
+            x1 = math.exp((1.0 - float(u1)) * log_endpoint_tau)
+            log_x2_min = math.log(endpoint_tau / x1)
+            x2 = math.exp((1.0 - float(u2)) * log_x2_min)
+            beam_jacobian = (
+                x1 * x2 * (-log_endpoint_tau) * (-log_x2_min)
             )
-            loop_coordinates = (float(uk1), float(uk2), float(uk3))
+            partonic_scale_sq = x1 * x2 * centre_of_mass_sq
+            assert provider is not None and resolved_muf_sq is not None
+            luminosity = provider.luminosity(
+                channel,
+                x1,
+                x2,
+                resolved_muf_sq,
+            )
+            common_weight = beam_jacobian * luminosity
+        else:
+            uxi, uk1, uk2, uk3 = sample
+            partonic_scale_sq = centre_of_mass_sq
+            common_weight = 1.0
 
-            def paired_sample(
-                use_fallback: bool,
-            ) -> tuple[tuple[float, ...], float, float, float, float]:
-                born_at_endpoint = normalisation * born_integrand(
-                    centre_of_mass_sq,
-                    loop_coordinates,
-                    use_fallback,
-                )
-                born_at_xi = normalisation * born_integrand(
-                    xi * centre_of_mass_sq,
-                    loop_coordinates,
-                    use_fallback,
-                )
-                continuous = finite_gg_scheme_continuous_components(
-                    xi,
-                    born_at_xi,
+        xi_min = threshold_sq / partonic_scale_sq
+        xi_width = 1.0 - xi_min
+        if xi_width <= 0.0:
+            return tuple(0.0 for _ in range(11)), 0, 0, 0
+        xi = xi_min + xi_width * float(uxi)
+        xi = min(
+            math.nextafter(1.0, 0.0),
+            max(math.nextafter(xi_min, 1.0), xi),
+        )
+        loop_coordinates = (float(uk1), float(uk2), float(uk3))
+
+        def paired_sample(
+            use_fallback: bool,
+        ) -> tuple[tuple[float, ...], float, float, float, float]:
+            born_at_endpoint = common_weight * normalisation * born_integrand(
+                partonic_scale_sq,
+                loop_coordinates,
+                use_fallback,
+            )
+            born_at_xi = common_weight * normalisation * born_integrand(
+                xi * partonic_scale_sq,
+                loop_coordinates,
+                use_fallback,
+            )
+            continuous = finite_gg_scheme_continuous_components(
+                xi,
+                born_at_xi,
+                born_at_endpoint,
+                lambda_value,
+                mur_value,
+                alpha_value,
+            )
+            component_weights = (
+                2.0 * xi_width * continuous[0],
+                2.0 * xi_width * continuous[1],
+                2.0 * xi_width * continuous[2],
+                2.0
+                * finite_gg_scheme_lower_limit_remainder(
+                    xi_min,
                     born_at_endpoint,
                     lambda_value,
                     mur_value,
                     alpha_value,
-                )
-                component_weights = (
-                    2.0 * xi_width * continuous[0],
-                    2.0 * xi_width * continuous[1],
-                    2.0 * xi_width * continuous[2],
-                    2.0
-                    * finite_gg_scheme_lower_limit_remainder(
-                        xi_min,
-                        born_at_endpoint,
-                        lambda_value,
-                        mur_value,
-                        alpha_value,
-                    ),
-                    2.0
-                    * endpoint_coefficients.dgg_delta
-                    * born_at_endpoint,
-                    2.0
-                    * endpoint_coefficients.minus_lsz
-                    * born_at_endpoint,
-                    endpoint_coefficients.top_lsz_total
-                    * born_at_endpoint,
-                )
-                dgg_minus_lsz_weight = math.fsum(component_weights[:-1])
-                top_lsz_weight = component_weights[-1]
-                combined_weight = dgg_minus_lsz_weight + top_lsz_weight
-                return (
-                    component_weights,
-                    dgg_minus_lsz_weight,
-                    top_lsz_weight,
-                    born_at_endpoint,
-                    combined_weight,
-                )
+                ),
+                2.0 * endpoint_coefficients.dgg_delta * born_at_endpoint,
+                2.0 * endpoint_coefficients.minus_lsz * born_at_endpoint,
+                endpoint_coefficients.top_lsz_total * born_at_endpoint,
+            )
+            dgg_minus_lsz_weight = math.fsum(component_weights[:-1])
+            top_lsz_weight = component_weights[-1]
+            combined_weight = dgg_minus_lsz_weight + top_lsz_weight
+            return (
+                component_weights,
+                dgg_minus_lsz_weight,
+                top_lsz_weight,
+                born_at_endpoint,
+                combined_weight,
+            )
 
+        fallback_count = 0
+        clipped_count = 0
+        nonfinite_count = 0
+        try:
+            (
+                component_weights,
+                dgg_minus_lsz_weight,
+                top_lsz_weight,
+                born_weight,
+                combined_weight,
+            ) = paired_sample(False)
+        except Exception:
+            component_weights = tuple(math.nan for _ in component_labels)
+            dgg_minus_lsz_weight = math.nan
+            top_lsz_weight = math.nan
+            born_weight = math.nan
+            combined_weight = math.nan
+        sample_values = (
+            *component_weights,
+            dgg_minus_lsz_weight,
+            top_lsz_weight,
+            born_weight,
+            combined_weight,
+        )
+        needs_fallback = any(not math.isfinite(value) for value in sample_values)
+        if clip_threshold is not None and not needs_fallback:
+            needs_fallback = max(
+                abs(dgg_minus_lsz_weight),
+                abs(top_lsz_weight),
+                abs(born_weight),
+                abs(combined_weight),
+            ) > clip_threshold
+        if needs_fallback:
+            fallback_count = 1
             try:
                 (
                     component_weights,
@@ -1812,95 +2305,77 @@ def integrate_ttbar_gg_auxiliary(
                     top_lsz_weight,
                     born_weight,
                     combined_weight,
-                ) = paired_sample(False)
+                ) = paired_sample(True)
             except Exception:
                 component_weights = tuple(math.nan for _ in component_labels)
                 dgg_minus_lsz_weight = math.nan
                 top_lsz_weight = math.nan
                 born_weight = math.nan
                 combined_weight = math.nan
-            sample_values = (
+
+        sample_values = (
+            *component_weights,
+            dgg_minus_lsz_weight,
+            top_lsz_weight,
+            born_weight,
+            combined_weight,
+        )
+        if any(not math.isfinite(value) for value in sample_values):
+            nonfinite_count = 1
+            component_weights = tuple(0.0 for _ in component_labels)
+            dgg_minus_lsz_weight = 0.0
+            top_lsz_weight = 0.0
+            born_weight = 0.0
+            combined_weight = 0.0
+        elif clip_threshold is not None and max(
+            abs(dgg_minus_lsz_weight),
+            abs(top_lsz_weight),
+            abs(born_weight),
+            abs(combined_weight),
+        ) > clip_threshold:
+            clipped_count = 1
+            component_weights = tuple(0.0 for _ in component_labels)
+            dgg_minus_lsz_weight = 0.0
+            top_lsz_weight = 0.0
+            born_weight = 0.0
+            combined_weight = 0.0
+        return (
+            (
                 *component_weights,
                 dgg_minus_lsz_weight,
                 top_lsz_weight,
                 born_weight,
                 combined_weight,
-            )
-            needs_fallback = any(not math.isfinite(value) for value in sample_values)
-            if clip_threshold is not None and not needs_fallback:
-                needs_fallback = max(
-                    abs(dgg_minus_lsz_weight),
-                    abs(top_lsz_weight),
-                    abs(born_weight),
-                    abs(combined_weight),
-                ) > clip_threshold
-            if needs_fallback:
-                fallback_count += 1
-                try:
-                    (
-                        component_weights,
-                        dgg_minus_lsz_weight,
-                        top_lsz_weight,
-                        born_weight,
-                        combined_weight,
-                    ) = paired_sample(True)
-                except Exception:
-                    component_weights = tuple(math.nan for _ in component_labels)
-                    dgg_minus_lsz_weight = math.nan
-                    top_lsz_weight = math.nan
-                    born_weight = math.nan
-                    combined_weight = math.nan
-
-            sample_values = (
-                *component_weights,
-                dgg_minus_lsz_weight,
-                top_lsz_weight,
-                born_weight,
-                combined_weight,
-            )
-            if any(not math.isfinite(value) for value in sample_values):
-                nonfinite_count += 1
-                component_weights = tuple(0.0 for _ in component_labels)
-                dgg_minus_lsz_weight = 0.0
-                top_lsz_weight = 0.0
-                born_weight = 0.0
-                combined_weight = 0.0
-            elif clip_threshold is not None and max(
-                abs(dgg_minus_lsz_weight),
-                abs(top_lsz_weight),
-                abs(born_weight),
-                abs(combined_weight),
-            ) > clip_threshold:
-                clipped_count += 1
-                component_weights = tuple(0.0 for _ in component_labels)
-                dgg_minus_lsz_weight = 0.0
-                top_lsz_weight = 0.0
-                born_weight = 0.0
-                combined_weight = 0.0
-
-            dgg_minus_lsz_accumulated += dgg_minus_lsz_weight
-            top_lsz_accumulated += top_lsz_weight
-            born_accumulated += born_weight
-            combined_accumulated += combined_weight
-            for label, value in zip(
-                component_labels,
-                component_weights,
-                strict=True,
-            ):
-                component_accumulated[label] += value
-
-        sample_normalisation = float(len(samples))
-        dgg_minus_lsz_replica_values.append(
-            dgg_minus_lsz_accumulated / sample_normalisation
+            ),
+            fallback_count,
+            clipped_count,
+            nonfinite_count,
         )
-        top_lsz_replica_values.append(
-            top_lsz_accumulated / sample_normalisation
+
+    replica_sums, fallback_count, clipped_count, nonfinite_count = (
+        _integrate_sobol_chunks(
+            dimensions=dimensions,
+            power=power,
+            replicas=replica_count,
+            seed=seed,
+            output_width=11,
+            evaluator=evaluate_sample,
+            workers=workers,
         )
-        born_replica_values.append(born_accumulated / sample_normalisation)
-        combined_replica_values.append(combined_accumulated / sample_normalisation)
-        for label in component_labels:
+    )
+    sample_normalisation = float(2**power)
+    for sums in replica_sums:
+        dgg_minus_lsz_replica_values.append(sums[7] / sample_normalisation)
+        top_lsz_replica_values.append(sums[8] / sample_normalisation)
+        born_replica_values.append(sums[9] / sample_normalisation)
+        combined_replica_values.append(sums[10] / sample_normalisation)
+        for label, component_sum in zip(
+            component_labels,
+            sums[:7],
+            strict=True,
+        ):
             component_replica_values[label].append(
-                component_accumulated[label] / sample_normalisation
+                component_sum / sample_normalisation
             )
 
     if nonfinite_count == sample_count:
