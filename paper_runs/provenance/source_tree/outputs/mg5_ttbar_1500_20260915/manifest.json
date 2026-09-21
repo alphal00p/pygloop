@@ -1,0 +1,49 @@
+{
+  "process": "/tmp/mg5_ttbar_1500_20260915.qiksjj/PP_TTBAR_NF1",
+  "run_name": "run_ttbar_s1500_matched_20260915",
+  "sqrt_s_gev": 1500,
+  "launch_card": "/home/zeno/DY/pygloop_6c15087/outputs/mg5_ttbar_1500_20260915/cards/launch.cmd",
+  "run_card": "/home/zeno/DY/pygloop_6c15087/outputs/mg5_ttbar_1500_20260915/cards/run_card.dat",
+  "process_hashes": {
+    "run_card": "e9af750f4d264a37b6c04bc0f13f49a46234c273c5b0b1c30419ae9e250a65de",
+    "param_card": "9029bcaf59ab0f1581569030ce47c93cf1c3b1dbc4c207161da9d4e66bb10b5e",
+    "process_card": "802ebf9a3b199b5edafd0652e465424f2e1cba035f0ef5450e205e880201cd25",
+    "analysis_card": "0bec851029fa9c2943d342ca7037f73f37afcfaf1e78d6c8e0a7fa7da5f7c9c3",
+    "launcher": "b3fa822a8f91238798c238f22d6fb4d345f5c13a4456969469a1cdf761a2a9cc",
+    "analysis": "ce6f603f73b99267691bc16e38fa5fdac8c94fd3feb168e403ac06b9c6d022a8",
+    "nf_definition": "3091c41ce55736872f440c3c634e64a85597e11280a345f670fb86c3eeba26fd"
+  },
+  "physics": {
+    "light_flavours": [
+      "d"
+    ],
+    "massive_flavours": [
+      "t"
+    ],
+    "m_top_gev": 173.0,
+    "pdf": "PDF4LHC21_40",
+    "member": 0,
+    "lhaid": 93100,
+    "mu_r_gev": 91.118,
+    "mu_f_gev": 91.118,
+    "pdf_alpha_s_at_mu_r": 0.11801390904201399,
+    "pygloop_alpha_s": 0.118,
+    "pure_nlo_coupling_ratio": 1.0003536613961583
+  },
+  "integration": {
+    "cores": 32,
+    "grid_points_per_channel": 100000,
+    "grid_iterations": 4,
+    "production_points_per_channel": 10000000,
+    "production_iterations": 1,
+    "seed": 915150001
+  },
+  "observable": "pure NLO correction, total and incoming families",
+  "reference_shift": false,
+  "finite_postprocessing": false,
+  "provenance": {
+    "archived_manifest": "/home/zeno/DY/pygloop_6c15087/outputs/ttbar_dy_msbar_scan_20260901/benchmarks/mg5/manifest.json",
+    "archived_run_card_sha256": "a237c7a6d172ccf4d2e673b8d64f310a8d367faefed22bde51ac38345a043b7b",
+    "nf1_recipe": "/home/zeno/DY/pygloop_6c15087/outputs/gg_ttbar_cm_mg5_convolution_20260825/RUN_SETTINGS.md"
+  }
+}

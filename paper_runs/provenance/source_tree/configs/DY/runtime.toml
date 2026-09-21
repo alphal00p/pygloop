@@ -1,0 +1,46 @@
+#:schema https://raw.githubusercontent.com/alphal00p/gammaloop/refs/heads/hedge_numerator/assets/schemas/runtime.json
+[general]
+m_uv = 1.0
+mu_r_sq = 8315.251344
+enable_cache = false
+
+[kinematics]
+e_cm = 1000.0
+
+[integrator]
+#n_increase = 0
+#n_start = 100000
+#n_max = 10000000
+discrete_dim_learning_rate = 0.5
+continuous_dim_learning_rate = 0.5
+max_prob_ratio = 100.0
+#integrated_phase = "real"
+#seed = 1337
+
+[stability]
+check_on_norm = true
+rotation_axis = []
+
+#[[stability.rotation_axis]]
+#type = "z"
+
+[[stability.levels]]
+precision = "Double"
+required_precision_for_re = 1.0e-8
+required_precision_for_im = 1.0e-8
+escalate_for_large_weight_threshold = 0.9
+
+[[stability.levels]]
+precision = "Quad"
+required_precision_for_re = 1.0e-5
+required_precision_for_im = 1.0e-5
+escalate_for_large_weight_threshold = -1.0
+
+[subtraction]
+disable_threshold_subtraction = false
+
+[sampling]
+type = "default"
+mode = "spherical"
+mapping = "linear"
+b = 10.0

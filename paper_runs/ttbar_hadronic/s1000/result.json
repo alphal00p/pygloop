@@ -1,0 +1,4459 @@
+{
+  "card": "cards/campaigns/ttbar_dy_msbar_scan_20260901/production_1b/ttbar/hadronic/s1000/combined.toml",
+  "card_sha256": "d67ab86bd38687210c5b95d5117f7ad2fafa13b36e309ae88567262ea4c25325",
+  "dy_effective_settings": {
+    "common": {
+      "channel": [
+        1,
+        -1
+      ],
+      "diagrams": [],
+      "final_state": [
+        "t",
+        "t"
+      ],
+      "gammaloop": {
+        "general_settings": [],
+        "generation_configuration": "/home/zeno/DY/pygloop_6c15087/configs/DY/generate.toml",
+        "runtime_configuration": "/home/zeno/DY/pygloop_6c15087/configs/DY/runtime.toml",
+        "settings": []
+      },
+      "initial_state": {
+        "external_gluon_polarisation": false,
+        "symmetrise_p1_p2": true
+      },
+      "kinematics": {
+        "helicities": [
+          1,
+          1,
+          0,
+          0,
+          0
+        ],
+        "m_higgs": 125.0,
+        "m_top": 173.0,
+        "pg1": [
+          500.0,
+          0.0,
+          0.0,
+          500.0
+        ],
+        "pg2": [
+          500.0,
+          0.0,
+          0.0,
+          -500.0
+        ]
+      },
+      "n_loops": 2,
+      "precision": {
+        "fallback_precision": 32
+      },
+      "process": "dy",
+      "process_basename": "PP_TTBAR_FLOOR15_1B_PARENT_S1000_20260906",
+      "process_name": "tt~",
+      "scales": {
+        "lambda_sq": 8302.489924,
+        "mur_sq": 8302.489924,
+        "muv": 500.0
+      },
+      "skip_ps_validation": true,
+      "verbosity": "info"
+    },
+    "integrate": {
+      "beams": {
+        "enabled": true,
+        "integrated_leptonic_phase_space": false,
+        "parameterisation": "beta_y",
+        "pdf": {
+          "member": 0,
+          "muf_sq": 8302.489924,
+          "set": "PDF4LHC21_40"
+        },
+        "physical_normalisation": true,
+        "scheme_counterterm": {
+          "alpha_s": 0.118,
+          "enabled": false,
+          "replicas": 8,
+          "sobol_power": 15
+        }
+      },
+      "cores": 248,
+      "decoupling": {
+        "enabled": false
+      },
+      "implementation": "zenos",
+      "integrator": "symbolica",
+      "iterations": 100,
+      "multi_channeling": true,
+      "parameterisation": "spherical",
+      "phase": "real",
+      "physical_channel_backend": "saved-jit",
+      "physical_channel_batch_size": 512,
+      "physical_channel_cards": {
+        "gg": "/home/zeno/DY/pygloop_6c15087/cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s1000/gg.toml",
+        "qg": "/home/zeno/DY/pygloop_6c15087/cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s1000/qg.toml",
+        "qqbar": "/home/zeno/DY/pygloop_6c15087/cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s1000/qqbar.toml"
+      },
+      "physical_channel_live_diagnostics": false,
+      "physical_channel_min_fraction": 0.1,
+      "physical_channel_multi_channeling": true,
+      "physical_channel_warmup_iterations": 3,
+      "points_per_iteration": 10000000,
+      "restart": false,
+      "runtime_parameters": {
+        "alpha_ew_inverse": "132.507",
+        "alpha_s": "0.118",
+        "lambda_sq": "8302.489924",
+        "m_top": "173",
+        "mur_sq": "8302.489924",
+        "muv": "500",
+        "zmax": "1",
+        "zmin": "0"
+      },
+      "seed": 909101000,
+      "selection": {
+        "integrated_uv_counterterms": "all"
+      },
+      "stability": {
+        "backend": "double-float",
+        "rotation_check_arb_digits": 32,
+        "rotation_check_count": 1,
+        "rotation_check_digits": 7,
+        "rotation_check_eps": 1e-15,
+        "theta_tolerance": 0.0
+      },
+      "workspace_name": "production_pp_ttbar_floor10_batch512_1b_s1000_20260908"
+    },
+    "schema_version": 1
+  },
+  "dy_physical_channels": {
+    "gg": {
+      "bundle": "TTBAR_GG_MSBAR_CM_ESURFACE_V1_20260909_2L_processed",
+      "card_path": "/home/zeno/DY/pygloop_6c15087/cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s1000/gg.toml",
+      "generation_fingerprint": "0dd179c545a8d0a221a8ea5a39c2fc907f5727d3330f64a2f61122e04cd9eb3f",
+      "grouped_soft_pair": null,
+      "integration_graph_channels": [
+        "graph_0",
+        "graph_1",
+        "graph_2",
+        "graph_3",
+        "graph_4",
+        "graph_5",
+        "graph_6",
+        "graph_7",
+        "graph_8",
+        "graph_9",
+        "graph_10",
+        "graph_11",
+        "graph_12",
+        "graph_13",
+        "graph_14",
+        "graph_15",
+        "graph_16",
+        "graph_17",
+        "graph_18",
+        "graph_19",
+        "graph_20",
+        "graph_21",
+        "graph_22",
+        "graph_23",
+        "graph_24",
+        "graph_25",
+        "graph_26",
+        "graph_27",
+        "graph_28",
+        "graph_29",
+        "graph_30",
+        "graph_31",
+        "graph_32",
+        "graph_33",
+        "graph_34",
+        "graph_35",
+        "graph_36",
+        "graph_37",
+        "graph_38",
+        "graph_39",
+        "graph_40",
+        "graph_41",
+        "graph_42",
+        "graph_43",
+        "graph_44",
+        "graph_45",
+        "graph_46",
+        "graph_47",
+        "graph_48",
+        "graph_49",
+        "graph_50",
+        "graph_51",
+        "graph_52",
+        "graph_53",
+        "graph_54",
+        "graph_55",
+        "graph_56",
+        "graph_57",
+        "graph_58",
+        "graph_59",
+        "graph_60",
+        "graph_61",
+        "graph_62",
+        "graph_63",
+        "graph_64"
+      ],
+      "pdf_luminosity_family": "gg",
+      "source_card_sha256": "b75e15c6039a112daff8a762e082ace14c818cdbb64c9d1b950e423882617234"
+    },
+    "qg": {
+      "bundle": "TTBAR_QG_MSBAR_CM_ESURFACE_V1_20260909_2L_processed",
+      "card_path": "/home/zeno/DY/pygloop_6c15087/cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s1000/qg.toml",
+      "generation_fingerprint": "dc766e8888c2f0c4f1c091062ae482128feac8dfec2fc22c83222c72f4447c25",
+      "grouped_soft_pair": null,
+      "integration_graph_channels": [
+        "graph_0",
+        "graph_1",
+        "graph_2",
+        "graph_3",
+        "graph_4",
+        "graph_5",
+        "graph_6",
+        "graph_7",
+        "graph_8",
+        "graph_9",
+        "graph_10"
+      ],
+      "pdf_luminosity_family": "qg",
+      "source_card_sha256": "455476ac48009bfcf0e3cc3d80d1162d266eccf6f6645afcc393bc4cae1c24c0"
+    },
+    "qqbar": {
+      "bundle": "TTBAR_QQBAR_MSBAR_CM_ESURFACE_V1_20260909_2L_processed",
+      "card_path": "/home/zeno/DY/pygloop_6c15087/cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s1000/qqbar.toml",
+      "generation_fingerprint": "907fc143e38ab12cb79cb09ee24918f00ce78db22fe14096dc9ce16a3cee8742",
+      "grouped_soft_pair": null,
+      "integration_graph_channels": [
+        "graph_0",
+        "graph_1",
+        "graph_2",
+        "graph_3",
+        "graph_4",
+        "graph_5",
+        "graph_6",
+        "graph_7",
+        "graph_8",
+        "graph_9",
+        "graph_10",
+        "graph_11",
+        "graph_12",
+        "graph_13",
+        "graph_14",
+        "graph_15"
+      ],
+      "pdf_luminosity_family": "qqbar",
+      "source_card_sha256": "b1c022c535c3f6be8cf993ffe2b478bac5eab99983990d942f78638ef4c134dc"
+    }
+  },
+  "execution_overrides": {
+    "cores": 248,
+    "iterations": 100,
+    "points_per_iteration": 10000000,
+    "seed": 909101000
+  },
+  "finished_utc": "2026-09-10T04:51:26.588275+00:00",
+  "integration_result": {
+    "central_value": 1.13193021827957e-11,
+    "dy_coupling_normalisation_applied": false,
+    "dy_coupling_normalisation_convention": "none",
+    "dy_coupling_normalisation_factor": 1.0,
+    "dy_coupling_normalisation_includes_unit_conversion": false,
+    "elapsed_time": 4327647.506107643,
+    "error": 1.3622768089847012e-13,
+    "graph_channel_estimates": {
+      "gg": {
+        "graph_0": {
+          "central_value": 8.216348939415965e-12,
+          "error": 2.463427341000057e-14,
+          "selected_samples": 50610088
+        },
+        "graph_1": {
+          "central_value": -9.9126990474576e-14,
+          "error": 9.313406832438757e-16,
+          "selected_samples": 1913956
+        },
+        "graph_10": {
+          "central_value": 1.4297603518363086e-12,
+          "error": 7.034225461108379e-15,
+          "selected_samples": 26663731
+        },
+        "graph_11": {
+          "central_value": -1.7140721799821567e-30,
+          "error": 3.177271388191092e-32,
+          "selected_samples": 1914944
+        },
+        "graph_12": {
+          "central_value": 1.9962532860422122e-13,
+          "error": 1.2646403492448709e-15,
+          "selected_samples": 1916736
+        },
+        "graph_13": {
+          "central_value": 4.240992829361853e-12,
+          "error": 1.6740208824378326e-14,
+          "selected_samples": 17020908
+        },
+        "graph_14": {
+          "central_value": -4.0279981116834386e-14,
+          "error": 6.422816732709526e-17,
+          "selected_samples": 1916156
+        },
+        "graph_15": {
+          "central_value": -3.623316380553127e-26,
+          "error": 3.6829621903710205e-26,
+          "selected_samples": 1913888
+        },
+        "graph_16": {
+          "central_value": -1.3202369902690854e-12,
+          "error": 9.278832789775584e-15,
+          "selected_samples": 3646003
+        },
+        "graph_17": {
+          "central_value": 1.4420553739169005e-13,
+          "error": 2.520176224409966e-16,
+          "selected_samples": 1914847
+        },
+        "graph_18": {
+          "central_value": -4.236362074938314e-12,
+          "error": 9.383434203761482e-15,
+          "selected_samples": 11326366
+        },
+        "graph_19": {
+          "central_value": -3.6339359581429706e-13,
+          "error": 1.5327924601435478e-15,
+          "selected_samples": 1914144
+        },
+        "graph_2": {
+          "central_value": 4.396765638975862e-12,
+          "error": 8.039709329788143e-15,
+          "selected_samples": 7352205
+        },
+        "graph_20": {
+          "central_value": 2.595584562535498e-13,
+          "error": 2.405427016718282e-15,
+          "selected_samples": 1917548
+        },
+        "graph_21": {
+          "central_value": 4.1038691044398757e-13,
+          "error": 1.8357482863345308e-15,
+          "selected_samples": 2749139
+        },
+        "graph_22": {
+          "central_value": 1.638797933610388e-13,
+          "error": 6.479336238062301e-15,
+          "selected_samples": 1915653
+        },
+        "graph_23": {
+          "central_value": 1.7645635408426413e-13,
+          "error": 1.2652269478426402e-15,
+          "selected_samples": 1917124
+        },
+        "graph_24": {
+          "central_value": -2.100544893539743e-13,
+          "error": 2.9735628876336445e-15,
+          "selected_samples": 1915489
+        },
+        "graph_25": {
+          "central_value": -1.7512094912278322e-13,
+          "error": 3.3737366669927787e-15,
+          "selected_samples": 1916497
+        },
+        "graph_26": {
+          "central_value": 9.1865189367353e-14,
+          "error": 1.4773872325153974e-16,
+          "selected_samples": 1915575
+        },
+        "graph_27": {
+          "central_value": 1.0310356947805455e-14,
+          "error": 1.7524683389215112e-17,
+          "selected_samples": 1916337
+        },
+        "graph_28": {
+          "central_value": 3.9476965687264107e-13,
+          "error": 1.878259578748635e-15,
+          "selected_samples": 1915970
+        },
+        "graph_29": {
+          "central_value": -2.2937957496954005e-11,
+          "error": 2.365597631466666e-14,
+          "selected_samples": 32458926
+        },
+        "graph_3": {
+          "central_value": -3.0986777981690584e-14,
+          "error": 1.6918776081086724e-16,
+          "selected_samples": 1915241
+        },
+        "graph_30": {
+          "central_value": 9.551239991235104e-13,
+          "error": 4.0785259331406364e-14,
+          "selected_samples": 38693241
+        },
+        "graph_31": {
+          "central_value": -1.1454502667242909e-14,
+          "error": 4.9614395455520517e-17,
+          "selected_samples": 1916546
+        },
+        "graph_32": {
+          "central_value": 8.468683194436022e-15,
+          "error": 1.0979098799250422e-15,
+          "selected_samples": 1918742
+        },
+        "graph_33": {
+          "central_value": 1.3503511120443582e-12,
+          "error": 1.8960295015511072e-14,
+          "selected_samples": 6595047
+        },
+        "graph_34": {
+          "central_value": -1.5748669019993707e-29,
+          "error": 8.406465667382861e-30,
+          "selected_samples": 1913502
+        },
+        "graph_35": {
+          "central_value": -8.652163817502981e-12,
+          "error": 1.9211792327897195e-14,
+          "selected_samples": 191558711
+        },
+        "graph_36": {
+          "central_value": 1.1170582200909083e-12,
+          "error": 5.718820082383798e-15,
+          "selected_samples": 5771942
+        },
+        "graph_37": {
+          "central_value": -7.281854720454525e-12,
+          "error": 2.4333968989228367e-14,
+          "selected_samples": 29271563
+        },
+        "graph_38": {
+          "central_value": -1.450011211045127e-13,
+          "error": 8.258764812686368e-16,
+          "selected_samples": 1915097
+        },
+        "graph_39": {
+          "central_value": 3.5112035759209197e-12,
+          "error": 1.616419651542659e-14,
+          "selected_samples": 16855829
+        },
+        "graph_4": {
+          "central_value": 2.9654971801980896e-13,
+          "error": 4.99837343323311e-15,
+          "selected_samples": 2340699
+        },
+        "graph_40": {
+          "central_value": 8.186655685663105e-13,
+          "error": 4.5845835654871833e-14,
+          "selected_samples": 59051202
+        },
+        "graph_41": {
+          "central_value": -1.0348532567146286e-12,
+          "error": 2.671756946433627e-15,
+          "selected_samples": 6192543
+        },
+        "graph_42": {
+          "central_value": -2.5084626698529594e-12,
+          "error": 1.357507102765279e-14,
+          "selected_samples": 29251018
+        },
+        "graph_43": {
+          "central_value": -1.160212500405602e-12,
+          "error": 5.845589626211856e-15,
+          "selected_samples": 6174409
+        },
+        "graph_44": {
+          "central_value": -1.6692130633734597e-13,
+          "error": 1.2000707518296142e-15,
+          "selected_samples": 1915852
+        },
+        "graph_45": {
+          "central_value": -9.453784051779145e-14,
+          "error": 1.552561582226344e-16,
+          "selected_samples": 1915897
+        },
+        "graph_46": {
+          "central_value": 1.886356449865577e-14,
+          "error": 6.12221765567723e-17,
+          "selected_samples": 1915123
+        },
+        "graph_47": {
+          "central_value": 1.9896334747381233e-12,
+          "error": 8.256610100304131e-14,
+          "selected_samples": 17299241
+        },
+        "graph_48": {
+          "central_value": 4.2587432411601954e-14,
+          "error": 4.1495812474545883e-16,
+          "selected_samples": 1917053
+        },
+        "graph_49": {
+          "central_value": 1.1705268592176768e-11,
+          "error": 1.4833557459156684e-14,
+          "selected_samples": 18005540
+        },
+        "graph_5": {
+          "central_value": 1.528222217876298e-14,
+          "error": 4.328434731328784e-16,
+          "selected_samples": 1915321
+        },
+        "graph_50": {
+          "central_value": -6.473090860802446e-13,
+          "error": 6.6572970014962515e-15,
+          "selected_samples": 2779308
+        },
+        "graph_51": {
+          "central_value": -2.038163976298744e-12,
+          "error": 3.4934183837868556e-15,
+          "selected_samples": 2308803
+        },
+        "graph_52": {
+          "central_value": -1.1626317965894545e-13,
+          "error": 4.493839410536726e-15,
+          "selected_samples": 1915367
+        },
+        "graph_53": {
+          "central_value": 4.970421729544253e-13,
+          "error": 1.8509025775975885e-15,
+          "selected_samples": 6252637
+        },
+        "graph_54": {
+          "central_value": 2.0868512218406774e-12,
+          "error": 9.490120766911533e-15,
+          "selected_samples": 53645577
+        },
+        "graph_55": {
+          "central_value": -5.761582270830871e-13,
+          "error": 2.405059054689184e-15,
+          "selected_samples": 3071902
+        },
+        "graph_56": {
+          "central_value": 1.4118223071632557e-12,
+          "error": 4.683744304721677e-15,
+          "selected_samples": 3662079
+        },
+        "graph_57": {
+          "central_value": 4.5060491990940116e-12,
+          "error": 9.522893780911128e-15,
+          "selected_samples": 13445685
+        },
+        "graph_58": {
+          "central_value": -1.4996700986484648e-14,
+          "error": 6.694801252320381e-16,
+          "selected_samples": 1915049
+        },
+        "graph_59": {
+          "central_value": -1.5836930958386125e-14,
+          "error": 6.728365072242507e-16,
+          "selected_samples": 1913743
+        },
+        "graph_6": {
+          "central_value": 1.444218300961313e-14,
+          "error": 4.398940761774975e-16,
+          "selected_samples": 1914773
+        },
+        "graph_60": {
+          "central_value": 1.9569292178325444e-14,
+          "error": 1.5728407629540758e-15,
+          "selected_samples": 1915103
+        },
+        "graph_61": {
+          "central_value": -4.462433667222556e-12,
+          "error": 3.5703659360636225e-14,
+          "selected_samples": 17330523
+        },
+        "graph_62": {
+          "central_value": -1.1802922561034693e-28,
+          "error": 9.317400256079892e-29,
+          "selected_samples": 1915895
+        },
+        "graph_63": {
+          "central_value": 3.9642041566239294e-13,
+          "error": 2.4981404443941457e-15,
+          "selected_samples": 1915379
+        },
+        "graph_64": {
+          "central_value": -2.8127215470912343e-13,
+          "error": 2.563656975995774e-15,
+          "selected_samples": 1914295
+        },
+        "graph_7": {
+          "central_value": -1.8190735173436472e-14,
+          "error": 1.4435156720307552e-15,
+          "selected_samples": 1916331
+        },
+        "graph_8": {
+          "central_value": 5.305904224702925e-13,
+          "error": 1.7384059348456297e-15,
+          "selected_samples": 3530899
+        },
+        "graph_9": {
+          "central_value": -4.797266581987364e-13,
+          "error": 1.4816089946088599e-15,
+          "selected_samples": 4382499
+        }
+      },
+      "qg": {
+        "graph_0": {
+          "central_value": 1.439704108455199e-13,
+          "error": 3.545467739716453e-16,
+          "selected_samples": 8273628
+        },
+        "graph_1": {
+          "central_value": 3.1506369251568197e-13,
+          "error": 6.396549932614268e-16,
+          "selected_samples": 17076559
+        },
+        "graph_10": {
+          "central_value": 1.0167149832253832e-15,
+          "error": 7.965541900431184e-17,
+          "selected_samples": 386160
+        },
+        "graph_2": {
+          "central_value": 3.1217128681014067e-13,
+          "error": 5.321900853343719e-16,
+          "selected_samples": 12847997
+        },
+        "graph_3": {
+          "central_value": -2.294248935085554e-16,
+          "error": 1.7320471269444399e-18,
+          "selected_samples": 233851
+        },
+        "graph_4": {
+          "central_value": -1.1319157727569191e-13,
+          "error": 2.4982254825930043e-16,
+          "selected_samples": 3630180
+        },
+        "graph_5": {
+          "central_value": 6.8348556568819294e-15,
+          "error": 4.4473463810486154e-17,
+          "selected_samples": 233208
+        },
+        "graph_6": {
+          "central_value": 5.301574944507912e-13,
+          "error": 8.397840445577297e-16,
+          "selected_samples": 21479396
+        },
+        "graph_7": {
+          "central_value": -2.4733098738045224e-13,
+          "error": 6.624221656035981e-16,
+          "selected_samples": 19042775
+        },
+        "graph_8": {
+          "central_value": -5.577509829693028e-13,
+          "error": 7.786218850159243e-16,
+          "selected_samples": 23309023
+        },
+        "graph_9": {
+          "central_value": 9.673372946536583e-14,
+          "error": 2.4293711844707503e-16,
+          "selected_samples": 3585375
+        }
+      },
+      "qqbar": {
+        "graph_0": {
+          "central_value": -1.50026388159222e-14,
+          "error": 9.669835637441945e-16,
+          "selected_samples": 1311892
+        },
+        "graph_1": {
+          "central_value": -3.5417122254760404e-14,
+          "error": 1.45246815335769e-16,
+          "selected_samples": 351943
+        },
+        "graph_10": {
+          "central_value": 1.9702724410790672e-13,
+          "error": 1.3848664507342585e-15,
+          "selected_samples": 2008157
+        },
+        "graph_11": {
+          "central_value": 8.205483798203458e-13,
+          "error": 3.089211089011957e-15,
+          "selected_samples": 10291374
+        },
+        "graph_12": {
+          "central_value": -8.421068706253839e-12,
+          "error": 7.076580631963067e-15,
+          "selected_samples": 35097109
+        },
+        "graph_13": {
+          "central_value": 2.5613528695285535e-12,
+          "error": 8.226009025251356e-15,
+          "selected_samples": 30908032
+        },
+        "graph_14": {
+          "central_value": -4.559061912611205e-13,
+          "error": 8.258424626549248e-15,
+          "selected_samples": 5713509
+        },
+        "graph_15": {
+          "central_value": -7.664040442900864e-14,
+          "error": 1.8276853074035385e-15,
+          "selected_samples": 1943146
+        },
+        "graph_2": {
+          "central_value": 9.324906947930427e-14,
+          "error": 4.646234145587781e-16,
+          "selected_samples": 2274747
+        },
+        "graph_3": {
+          "central_value": 9.32490648932053e-14,
+          "error": 4.3880299331387663e-16,
+          "selected_samples": 2410678
+        },
+        "graph_4": {
+          "central_value": 3.153323699667865e-12,
+          "error": 3.852324711102765e-15,
+          "selected_samples": 26051534
+        },
+        "graph_5": {
+          "central_value": -1.0079307883726913e-12,
+          "error": 1.8883888926179806e-15,
+          "selected_samples": 5129011
+        },
+        "graph_6": {
+          "central_value": 1.7022769378393314e-14,
+          "error": 1.265187687725941e-16,
+          "selected_samples": 351611
+        },
+        "graph_7": {
+          "central_value": -7.211002698407629e-14,
+          "error": 8.589039248971763e-16,
+          "selected_samples": 4871528
+        },
+        "graph_8": {
+          "central_value": 1.6866084800774465e-14,
+          "error": 1.2270865478343939e-16,
+          "selected_samples": 350803
+        },
+        "graph_9": {
+          "central_value": 2.1309971636462213e-13,
+          "error": 1.7905226356803697e-15,
+          "selected_samples": 6409338
+        }
+      }
+    },
+    "iteration_diagnostics": [],
+    "large_weight_retry_count": 11531277,
+    "large_weight_retry_example": null,
+    "large_weight_retry_example_arb_wgt": null,
+    "large_weight_retry_example_compiled_wgt": null,
+    "large_weight_retry_example_momentum_point": null,
+    "large_weight_salvaged_count": 11531277,
+    "large_weight_unstable_count": 0,
+    "large_weight_zeroed_abs_sum": 22437124.51147804,
+    "large_weight_zeroed_count": 355,
+    "large_weight_zeroed_signed_sum": 8012995.167374022,
+    "max_wgt": 278524.2552378673,
+    "n_samples": 1030000000,
+    "nan_weight_count": 0,
+    "nan_weight_example": null,
+    "nan_weight_example_momentum_point": null,
+    "nan_weight_rotated_count": 0,
+    "nan_weight_rotated_example": null,
+    "nan_weight_rotated_example_momentum_point": null,
+    "physical_channel_adaptive_samples": {
+      "gg": 654427436,
+      "qg": 10098152,
+      "qqbar": 35474412
+    },
+    "physical_channel_covariance": {
+      "gg": {
+        "gg": 1.7874809149058946e-26,
+        "qg": 3.74970333810953e-33,
+        "qqbar": -2.2449493076961893e-32
+      },
+      "qg": {
+        "gg": 3.74970333810953e-33,
+        "qg": 3.1162266338509427e-30,
+        "qqbar": 1.4225293900961033e-33
+      },
+      "qqbar": {
+        "gg": -2.2449493076961893e-32,
+        "qg": 1.4225293900961033e-33,
+        "qqbar": 6.800902235082403e-28
+      }
+    },
+    "physical_channel_effective_probabilities": {
+      "gg": 0.7544252047734057,
+      "qg": 0.11009536162515283,
+      "qqbar": 0.13547943360144052
+    },
+    "physical_channel_estimates": {
+      "gg": {
+        "adaptive_samples": 654427436,
+        "auxiliary": {
+          "__class__": "IntegrationResult",
+          "central_value": 1.1584072595148425e-11,
+          "dy_auxiliary_central_value": 1.9276636272961676e-11,
+          "dy_auxiliary_clipped_count": 0,
+          "dy_auxiliary_clipped_fraction": 0.0,
+          "dy_auxiliary_elapsed_time": 91.20728468999732,
+          "dy_auxiliary_error": 4.241420451970934e-14,
+          "dy_auxiliary_fallback_count": 0,
+          "dy_auxiliary_fallback_fraction": 0.0,
+          "dy_auxiliary_n_samples": 2097152,
+          "dy_auxiliary_nonfinite_count": 0,
+          "dy_auxiliary_nonfinite_fraction": 0.0,
+          "dy_auxiliary_replica_values": [
+            1.9066689716118025e-11,
+            1.9303594730803315e-11,
+            1.943167966330868e-11,
+            1.922104917296691e-11,
+            1.9187034395726573e-11,
+            1.935395218772221e-11,
+            1.9396003405967613e-11,
+            1.9253086911080084e-11
+          ],
+          "dy_decoupling_born_central_value": -3.4988775033851624e-13,
+          "dy_decoupling_born_error": 1.9918432203126948e-16,
+          "dy_decoupling_born_replica_values": [
+            -3.493099681156093e-13,
+            -3.5041495718500424e-13,
+            -3.5034328620702525e-13,
+            -3.5013150268291786e-13,
+            -3.48839294286404e-13,
+            -3.5020930597917997e-13,
+            -3.5018889737566754e-13,
+            -3.496647908763218e-13
+          ],
+          "dy_decoupling_born_unscaled_central_value": 2.179403012597184e-11,
+          "dy_decoupling_born_unscaled_error": 1.2406919392779026e-14,
+          "dy_decoupling_born_unscaled_replica_values": [
+            2.1758040860385656e-11,
+            2.182686912043181e-11,
+            2.182240483309474e-11,
+            2.1809213126611403e-11,
+            2.1728723230364936e-11,
+            2.1814059387679404e-11,
+            2.1812788163638698e-11,
+            2.1780142285568066e-11
+          ],
+          "dy_decoupling_coefficient": -0.016054293231500892,
+          "dy_decoupling_enabled": true,
+          "dy_dgg_minus_lsz_central_value": 1.9276636272961676e-11,
+          "dy_dgg_minus_lsz_error": 4.241420451970898e-14,
+          "dy_dgg_minus_lsz_unscaled_central_value": 1.9276636272961676e-11,
+          "dy_dgg_minus_lsz_unscaled_error": 4.241420451970898e-14,
+          "dy_hard_central_value": -7.692563677813252e-12,
+          "dy_hard_error": 1.2679055329171499e-13,
+          "dy_hard_factor": -0.5,
+          "dy_hard_unscaled_central_value": 1.5385127355626503e-11,
+          "dy_hard_unscaled_error": 2.5358110658342997e-13,
+          "dy_scheme_alpha_s": 0.118,
+          "dy_scheme_born_central_value": 2.179403012597184e-11,
+          "dy_scheme_born_error": 1.2406919392779026e-14,
+          "dy_scheme_born_replica_values": [
+            2.1758040860385656e-11,
+            2.182686912043181e-11,
+            2.182240483309474e-11,
+            2.1809213126611403e-11,
+            2.1728723230364936e-11,
+            2.1814059387679404e-11,
+            2.1812788163638698e-11,
+            2.1780142285568066e-11
+          ],
+          "dy_scheme_conversion_channel": "gg",
+          "dy_scheme_conversion_enabled": true,
+          "dy_scheme_counterterm_central_value": 1.9626524023300192e-11,
+          "dy_scheme_counterterm_clipped_count": 0,
+          "dy_scheme_counterterm_clipped_fraction": 0.0,
+          "dy_scheme_counterterm_components": {
+            "Dgg_delta": {
+              "central_value": -1.522188934380913e-13,
+              "error": 8.665526889832842e-17,
+              "replica_values": [
+                -1.519675289060835e-13,
+                -1.5244825511968132e-13,
+                -1.5241707461407907e-13,
+                -1.5232493805411978e-13,
+                -1.517627619504454e-13,
+                -1.5235878642878127e-13,
+                -1.5234990765254423e-13,
+                -1.5212189477899576e-13
+              ],
+              "unscaled_central_value": -1.522188934380913e-13,
+              "unscaled_error": 8.665526889832842e-17,
+              "unscaled_replica_values": [
+                -1.519675289060835e-13,
+                -1.5244825511968132e-13,
+                -1.5241707461407907e-13,
+                -1.5232493805411978e-13,
+                -1.517627619504454e-13,
+                -1.5235878642878127e-13,
+                -1.5234990765254423e-13,
+                -1.5212189477899576e-13
+              ]
+            },
+            "Dgg_log_one_minus_z_plus": {
+              "central_value": 9.244701433959192e-12,
+              "error": 3.2116647244829675e-14,
+              "replica_values": [
+                9.113240955100654e-12,
+                9.243908469601456e-12,
+                9.32822903182935e-12,
+                9.153130419477995e-12,
+                9.17769119672937e-12,
+                9.34409774956483e-12,
+                9.348284746636006e-12,
+                9.249028902733874e-12
+              ],
+              "unscaled_central_value": 9.244701433959192e-12,
+              "unscaled_error": 3.2116647244829675e-14,
+              "unscaled_replica_values": [
+                9.113240955100654e-12,
+                9.243908469601456e-12,
+                9.32822903182935e-12,
+                9.153130419477995e-12,
+                9.17769119672937e-12,
+                9.34409774956483e-12,
+                9.348284746636006e-12,
+                9.249028902733874e-12
+              ]
+            },
+            "Dgg_log_z_plus": {
+              "central_value": -7.86710777461795e-13,
+              "error": 5.468624312305243e-16,
+              "replica_values": [
+                -7.890186296173061e-13,
+                -7.839288317629653e-13,
+                -7.876304299575034e-13,
+                -7.873881299626466e-13,
+                -7.853333604541818e-13,
+                -7.869964736549871e-13,
+                -7.871412315369963e-13,
+                -7.862491327477726e-13
+              ],
+              "unscaled_central_value": -7.86710777461795e-13,
+              "unscaled_error": 5.468624312305243e-16,
+              "unscaled_replica_values": [
+                -7.890186296173061e-13,
+                -7.839288317629653e-13,
+                -7.876304299575034e-13,
+                -7.873881299626466e-13,
+                -7.853333604541818e-13,
+                -7.869964736549871e-13,
+                -7.871412315369963e-13,
+                -7.862491327477726e-13
+              ]
+            },
+            "Dgg_lower_limit_remainder": {
+              "central_value": 8.130450360768947e-12,
+              "error": 1.507236119265266e-14,
+              "replica_values": [
+                8.062229377010302e-12,
+                8.149014156703638e-12,
+                8.19979141766765e-12,
+                8.165241988501022e-12,
+                8.11580945550724e-12,
+                8.104863057746599e-12,
+                8.142483236978094e-12,
+                8.104170196037028e-12
+              ],
+              "unscaled_central_value": 8.130450360768947e-12,
+              "unscaled_error": 1.507236119265266e-14,
+              "unscaled_replica_values": [
+                8.062229377010302e-12,
+                8.149014156703638e-12,
+                8.19979141766765e-12,
+                8.165241988501022e-12,
+                8.11580945550724e-12,
+                8.104863057746599e-12,
+                8.142483236978094e-12,
+                8.104170196037028e-12
+              ]
+            },
+            "Dgg_regular": {
+              "central_value": -4.794478905270501e-13,
+              "error": 5.0347816564845765e-16,
+              "replica_values": [
+                -4.821742895729865e-13,
+                -4.778151782983379e-13,
+                -4.804776110290097e-13,
+                -4.797850174200398e-13,
+                -4.792840419885056e-13,
+                -4.78566435859962e-13,
+                -4.779928705697887e-13,
+                -4.794876794777707e-13
+              ],
+              "unscaled_central_value": -4.794478905270501e-13,
+              "unscaled_error": 5.0347816564845765e-16,
+              "unscaled_replica_values": [
+                -4.821742895729865e-13,
+                -4.778151782983379e-13,
+                -4.804776110290097e-13,
+                -4.797850174200398e-13,
+                -4.792840419885056e-13,
+                -4.78566435859962e-13,
+                -4.779928705697887e-13,
+                -4.794876794777707e-13
+              ]
+            },
+            "minus_LSZ": {
+              "central_value": 3.3198620396604725e-12,
+              "error": 1.8899331827629097e-15,
+              "replica_values": [
+                3.31437983210344e-12,
+                3.324864369679204e-12,
+                3.3241843294122664e-12,
+                3.322174850424707e-12,
+                3.3099139078830904e-12,
+                3.322913076354514e-12,
+                3.322719432112844e-12,
+                3.3177465193137158e-12
+              ],
+              "unscaled_central_value": 3.3198620396604725e-12,
+              "unscaled_error": 1.8899331827629097e-15,
+              "unscaled_replica_values": [
+                3.31437983210344e-12,
+                3.324864369679204e-12,
+                3.3241843294122664e-12,
+                3.322174850424707e-12,
+                3.3099139078830904e-12,
+                3.322913076354514e-12,
+                3.322719432112844e-12,
+                3.3177465193137158e-12
+              ]
+            },
+            "top_LSZ": {
+              "central_value": 3.4988775033851624e-13,
+              "error": 1.9918432203129087e-16,
+              "replica_values": [
+                3.493099681156091e-13,
+                3.504149571850044e-13,
+                3.5034328620702525e-13,
+                3.501315026829179e-13,
+                3.4883929428640396e-13,
+                3.5020930597918007e-13,
+                3.501888973756674e-13,
+                3.4966479087632173e-13
+              ],
+              "unscaled_central_value": 3.4988775033851624e-13,
+              "unscaled_error": 1.9918432203129087e-16,
+              "unscaled_replica_values": [
+                3.493099681156091e-13,
+                3.504149571850044e-13,
+                3.5034328620702525e-13,
+                3.501315026829179e-13,
+                3.4883929428640396e-13,
+                3.5020930597918007e-13,
+                3.501888973756674e-13,
+                3.4966479087632173e-13
+              ]
+            }
+          },
+          "dy_scheme_counterterm_elapsed_time": 91.20728468999732,
+          "dy_scheme_counterterm_error": 4.256286139599226e-14,
+          "dy_scheme_counterterm_factor": 1.0,
+          "dy_scheme_counterterm_factor_was_explicit": false,
+          "dy_scheme_counterterm_fallback_count": 0,
+          "dy_scheme_counterterm_n_samples": 2097152,
+          "dy_scheme_counterterm_nonfinite_count": 0,
+          "dy_scheme_counterterm_replica_values": [
+            1.9415999684233634e-11,
+            1.965400968798832e-11,
+            1.9782022949515707e-11,
+            1.957118067564983e-11,
+            1.9535873690012977e-11,
+            1.970416149370139e-11,
+            1.974619230334328e-11,
+            1.9602751701956406e-11
+          ],
+          "dy_scheme_counterterm_unscaled_central_value": 1.9626524023300192e-11,
+          "dy_scheme_counterterm_unscaled_error": 4.256286139599226e-14,
+          "dy_scheme_counterterm_unscaled_replica_values": [
+            1.9415999684233634e-11,
+            1.965400968798832e-11,
+            1.9782022949515707e-11,
+            1.957118067564983e-11,
+            1.9535873690012977e-11,
+            1.970416149370139e-11,
+            1.974619230334328e-11,
+            1.9602751701956406e-11
+          ],
+          "dy_top_lsz_central_value": 3.4988775033851624e-13,
+          "dy_top_lsz_error": 1.9918432203129087e-16,
+          "dy_top_lsz_unscaled_central_value": 3.4988775033851624e-13,
+          "dy_top_lsz_unscaled_error": 1.9918432203129087e-16,
+          "elapsed_time": 0.0,
+          "error": 1.3369670582725272e-13,
+          "large_weight_retry_count": 0,
+          "large_weight_retry_example": null,
+          "large_weight_retry_example_arb_wgt": null,
+          "large_weight_retry_example_compiled_wgt": null,
+          "large_weight_retry_example_momentum_point": null,
+          "large_weight_salvaged_count": 0,
+          "large_weight_unstable_count": 0,
+          "large_weight_zeroed_abs_sum": 0.0,
+          "large_weight_zeroed_count": 0,
+          "large_weight_zeroed_signed_sum": 0.0,
+          "max_preclip_wgt": null,
+          "max_preclip_wgt_momentum_point": null,
+          "max_preclip_wgt_point": null,
+          "max_stable_wgt": null,
+          "max_stable_wgt_jacobian": null,
+          "max_stable_wgt_momentum_point": null,
+          "max_stable_wgt_point": null,
+          "max_wgt": null,
+          "max_wgt_jacobian": null,
+          "max_wgt_momentum_point": null,
+          "max_wgt_point": null,
+          "n_samples": 1000000000,
+          "nan_weight_count": 0,
+          "nan_weight_example": null,
+          "nan_weight_example_momentum_point": null,
+          "nan_weight_rotated_count": 0,
+          "nan_weight_rotated_example": null,
+          "nan_weight_rotated_example_momentum_point": null,
+          "soft_mirror_hp_orbit_failure_count": 0,
+          "soft_mirror_hp_orbit_retry_count": 0,
+          "soft_mirror_hp_orbit_salvaged_count": 0,
+          "soft_mirror_large_trigger_count": 0,
+          "soft_mirror_max_post_average_wgt": null,
+          "soft_mirror_max_post_average_wgt_point": null,
+          "soft_mirror_max_raw_side": null,
+          "soft_mirror_max_raw_side_wgt": null,
+          "soft_mirror_max_raw_side_wgt_point": null,
+          "soft_mirror_min_residual_ratio": null,
+          "soft_mirror_min_residual_ratio_point": null,
+          "soft_mirror_min_residual_ratio_sides": null,
+          "soft_mirror_pair_count": 0,
+          "stability_float_mismatch_retry_count": 0,
+          "stability_float_nonfinite_retry_count": 0,
+          "stability_float_pair_accepted_count": 0,
+          "stability_hp_accepted_count": 0,
+          "stability_hp_disagreement_count": 0,
+          "stability_hp_error_count": 0,
+          "stability_hp_escalation_accepted_count": 0,
+          "stability_hp_escalation_count": 0,
+          "stability_hp_failure_example": null,
+          "stability_hp_failure_example_momentum_point": null,
+          "stability_hp_failure_reason": null,
+          "stability_hp_nonfinite_count": 0,
+          "stability_hp_retry_count": 0,
+          "t_solver_failure_surfaces": {},
+          "t_solver_failure_terms": {},
+          "t_solver_float_failed_surface_count": 0,
+          "t_solver_float_failed_term_count": 0,
+          "t_solver_float_failure_sample_count": 0,
+          "t_solver_hp_retry_count": 0,
+          "t_solver_hp_salvaged_count": 0,
+          "t_solver_hp_unresolved_count": 0,
+          "unstable_count": 0,
+          "unstable_example": null,
+          "unstable_example_momentum_point": null,
+          "unstable_retry_count": 0,
+          "unstable_retry_example": null,
+          "unstable_retry_example_momentum_point": null,
+          "unstable_retry_example_rel": null,
+          "unstable_salvaged_count": 0
+        },
+        "auxiliary_error": 4.241420451970934e-14,
+        "central_value": 1.1584072595148425e-11,
+        "effective_sampling_probability": 0.7544252047734057,
+        "error": 1.3369670582725272e-13,
+        "floor_samples": 100000000,
+        "hard_central_value": -7.692563677813252e-12,
+        "hard_error": 1.2679055329171499e-13,
+        "pdf_luminosity_family": "gg",
+        "q_bins": [],
+        "sampling_factor": -0.5,
+        "selected_samples": 754427436,
+        "source_card": "/home/zeno/DY/pygloop_6c15087/cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s1000/gg.toml"
+      },
+      "qg": {
+        "adaptive_samples": 10098152,
+        "auxiliary": {
+          "__class__": "IntegrationResult",
+          "central_value": -6.091215764748229e-13,
+          "dy_auxiliary_central_value": -1.09656678868342e-12,
+          "dy_auxiliary_clipped_count": 0,
+          "dy_auxiliary_clipped_fraction": 0.0,
+          "dy_auxiliary_elapsed_time": 87.13687107601436,
+          "dy_auxiliary_error": 6.460921040923028e-16,
+          "dy_auxiliary_fallback_count": 0,
+          "dy_auxiliary_fallback_fraction": 0.0,
+          "dy_auxiliary_n_samples": 2097152,
+          "dy_auxiliary_nonfinite_count": 0,
+          "dy_auxiliary_nonfinite_fraction": 0.0,
+          "dy_auxiliary_replica_values": [
+            -1.0956014872766622e-12,
+            -1.0935132379017261e-12,
+            -1.096044748660893e-12,
+            -1.0997239493754762e-12,
+            -1.0976920056345918e-12,
+            -1.0965245000495325e-12,
+            -1.0976023594739056e-12,
+            -1.095832021094573e-12
+          ],
+          "dy_coupling_normalisation_applied": false,
+          "dy_coupling_normalisation_convention": "none",
+          "dy_coupling_normalisation_factor": 1.0,
+          "dy_coupling_normalisation_includes_unit_conversion": false,
+          "dy_decoupling_born_central_value": 0.0,
+          "dy_decoupling_born_error": 0.0,
+          "dy_decoupling_born_replica_values": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "dy_decoupling_born_unscaled_central_value": 0.0,
+          "dy_decoupling_born_unscaled_error": 0.0,
+          "dy_decoupling_born_unscaled_replica_values": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "dy_decoupling_coefficient": 0.0,
+          "dy_decoupling_enabled": true,
+          "dy_hard_central_value": 4.874452122085971e-13,
+          "dy_hard_error": 1.6427999351352932e-15,
+          "dy_hard_factor": 0.5,
+          "dy_hard_unscaled_central_value": 9.748904244171943e-13,
+          "dy_hard_unscaled_error": 3.2855998702705864e-15,
+          "dy_scheme_conversion_channel": "qg",
+          "dy_scheme_conversion_enabled": true,
+          "dy_scheme_counterterm_applied_factor": 6.283185307179586,
+          "dy_scheme_counterterm_central_value": -1.09656678868342e-12,
+          "dy_scheme_counterterm_clipped_count": 0,
+          "dy_scheme_counterterm_clipped_fraction": 0.0,
+          "dy_scheme_counterterm_components": {
+            "D_gq_x_qqbar": {
+              "central_value": -4.165656365248428e-13,
+              "error": 3.6365321423264075e-16,
+              "replica_values": [
+                -4.1549583307121105e-13,
+                -4.155081044557437e-13,
+                -4.169054656323905e-13,
+                -4.180466852003996e-13,
+                -4.171613474067541e-13,
+                -4.1761775353654993e-13,
+                -4.1638092668279896e-13,
+                -4.1540897621289407e-13
+              ],
+              "unscaled_central_value": -6.629848017515051e-14,
+              "unscaled_error": 5.787720661638077e-17,
+              "unscaled_replica_values": [
+                -6.612821566736824e-14,
+                -6.61301687188752e-14,
+                -6.635256565742324e-14,
+                -6.653419639282509e-14,
+                -6.639329050666033e-14,
+                -6.646592979827478e-14,
+                -6.626908269075152e-14,
+                -6.611439196902566e-14
+              ]
+            },
+            "D_qg_x_gg": {
+              "central_value": -6.800011521585775e-13,
+              "error": 4.3696109573652097e-16,
+              "replica_values": [
+                -6.801056542054515e-13,
+                -6.780051334459821e-13,
+                -6.791392830285026e-13,
+                -6.816772641750768e-13,
+                -6.805306582278382e-13,
+                -6.789067465129828e-13,
+                -6.812214327911067e-13,
+                -6.804230448816793e-13
+              ],
+              "unscaled_central_value": -1.0822554467422166e-13,
+              "unscaled_error": 6.954451832531823e-17,
+              "unscaled_replica_values": [
+                -1.0824217669154488e-13,
+                -1.0790786842960819e-13,
+                -1.0808837394187193e-13,
+                -1.0849230618682325e-13,
+                -1.0830981818254167e-13,
+                -1.0805136460597759e-13,
+                -1.0841975836884798e-13,
+                -1.0829269098655781e-13
+              ]
+            }
+          },
+          "dy_scheme_counterterm_elapsed_time": 87.13687107601436,
+          "dy_scheme_counterterm_error": 6.460921040923028e-16,
+          "dy_scheme_counterterm_factor": 6.283185307179586,
+          "dy_scheme_counterterm_fallback_count": 0,
+          "dy_scheme_counterterm_n_samples": 2097152,
+          "dy_scheme_counterterm_nonfinite_count": 0,
+          "dy_scheme_counterterm_replica_values": [
+            -1.0956014872766622e-12,
+            -1.0935132379017261e-12,
+            -1.096044748660893e-12,
+            -1.0997239493754762e-12,
+            -1.0976920056345918e-12,
+            -1.0965245000495325e-12,
+            -1.0976023594739056e-12,
+            -1.095832021094573e-12
+          ],
+          "dy_scheme_counterterm_unscaled_central_value": -1.7452402484937215e-13,
+          "dy_scheme_counterterm_unscaled_error": 1.0282875205893339e-16,
+          "dy_scheme_counterterm_unscaled_replica_values": [
+            -1.7437039235891308e-13,
+            -1.7403803714848344e-13,
+            -1.7444093959929518e-13,
+            -1.750265025796483e-13,
+            -1.7470310868920192e-13,
+            -1.7451729440425233e-13,
+            -1.746888410595995e-13,
+            -1.744070829555834e-13
+          ],
+          "elapsed_time": 0.0,
+          "error": 1.7652837261615887e-15,
+          "large_weight_retry_count": 0,
+          "large_weight_retry_example": null,
+          "large_weight_retry_example_arb_wgt": null,
+          "large_weight_retry_example_compiled_wgt": null,
+          "large_weight_retry_example_momentum_point": null,
+          "large_weight_salvaged_count": 0,
+          "large_weight_unstable_count": 0,
+          "large_weight_zeroed_abs_sum": 0.0,
+          "large_weight_zeroed_count": 0,
+          "large_weight_zeroed_signed_sum": 0.0,
+          "max_preclip_wgt": null,
+          "max_preclip_wgt_momentum_point": null,
+          "max_preclip_wgt_point": null,
+          "max_stable_wgt": null,
+          "max_stable_wgt_jacobian": null,
+          "max_stable_wgt_momentum_point": null,
+          "max_stable_wgt_point": null,
+          "max_wgt": null,
+          "max_wgt_jacobian": null,
+          "max_wgt_momentum_point": null,
+          "max_wgt_point": null,
+          "n_samples": 1000000000,
+          "nan_weight_count": 0,
+          "nan_weight_example": null,
+          "nan_weight_example_momentum_point": null,
+          "nan_weight_rotated_count": 0,
+          "nan_weight_rotated_example": null,
+          "nan_weight_rotated_example_momentum_point": null,
+          "soft_mirror_hp_orbit_failure_count": 0,
+          "soft_mirror_hp_orbit_retry_count": 0,
+          "soft_mirror_hp_orbit_salvaged_count": 0,
+          "soft_mirror_large_trigger_count": 0,
+          "soft_mirror_max_post_average_wgt": null,
+          "soft_mirror_max_post_average_wgt_point": null,
+          "soft_mirror_max_raw_side": null,
+          "soft_mirror_max_raw_side_wgt": null,
+          "soft_mirror_max_raw_side_wgt_point": null,
+          "soft_mirror_min_residual_ratio": null,
+          "soft_mirror_min_residual_ratio_point": null,
+          "soft_mirror_min_residual_ratio_sides": null,
+          "soft_mirror_pair_count": 0,
+          "stability_float_mismatch_retry_count": 0,
+          "stability_float_nonfinite_retry_count": 0,
+          "stability_float_pair_accepted_count": 0,
+          "stability_hp_accepted_count": 0,
+          "stability_hp_disagreement_count": 0,
+          "stability_hp_error_count": 0,
+          "stability_hp_escalation_accepted_count": 0,
+          "stability_hp_escalation_count": 0,
+          "stability_hp_failure_example": null,
+          "stability_hp_failure_example_momentum_point": null,
+          "stability_hp_failure_reason": null,
+          "stability_hp_nonfinite_count": 0,
+          "stability_hp_retry_count": 0,
+          "t_solver_failure_surfaces": {},
+          "t_solver_failure_terms": {},
+          "t_solver_float_failed_surface_count": 0,
+          "t_solver_float_failed_term_count": 0,
+          "t_solver_float_failure_sample_count": 0,
+          "t_solver_hp_retry_count": 0,
+          "t_solver_hp_salvaged_count": 0,
+          "t_solver_hp_unresolved_count": 0,
+          "unstable_count": 0,
+          "unstable_example": null,
+          "unstable_example_momentum_point": null,
+          "unstable_retry_count": 0,
+          "unstable_retry_example": null,
+          "unstable_retry_example_momentum_point": null,
+          "unstable_retry_example_rel": null,
+          "unstable_salvaged_count": 0
+        },
+        "auxiliary_error": 6.460921040923028e-16,
+        "central_value": -6.091215764748229e-13,
+        "effective_sampling_probability": 0.11009536162515283,
+        "error": 1.7652837261615887e-15,
+        "floor_samples": 100000000,
+        "hard_central_value": 4.874452122085971e-13,
+        "hard_error": 1.6427999351352932e-15,
+        "pdf_luminosity_family": "qg",
+        "q_bins": [],
+        "sampling_factor": 0.5,
+        "selected_samples": 110098152,
+        "source_card": "/home/zeno/DY/pygloop_6c15087/cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s1000/qg.toml"
+      },
+      "qqbar": {
+        "adaptive_samples": 35474412,
+        "auxiliary": {
+          "__class__": "IntegrationResult",
+          "central_value": 3.4435116416261133e-13,
+          "dy_auxiliary_central_value": 3.2626881444934743e-12,
+          "dy_auxiliary_clipped_count": 0,
+          "dy_auxiliary_clipped_fraction": 0.0,
+          "dy_auxiliary_elapsed_time": 74.1401688180049,
+          "dy_auxiliary_error": 2.1342803333881138e-14,
+          "dy_auxiliary_fallback_count": 0,
+          "dy_auxiliary_fallback_fraction": 0.0,
+          "dy_auxiliary_n_samples": 2097152,
+          "dy_auxiliary_nonfinite_count": 0,
+          "dy_auxiliary_nonfinite_fraction": 0.0,
+          "dy_auxiliary_replica_values": [
+            3.1976116125843485e-12,
+            3.229593850701367e-12,
+            3.2312242033367444e-12,
+            3.2916299988479335e-12,
+            3.2249340260671534e-12,
+            3.3903310886001146e-12,
+            3.285040079267861e-12,
+            3.251140296542272e-12
+          ],
+          "dy_decoupling_born_central_value": -2.01024400071151e-13,
+          "dy_decoupling_born_error": 2.2382038630438504e-16,
+          "dy_decoupling_born_replica_values": [
+            -2.0022358903530296e-13,
+            -2.0044734027557372e-13,
+            -2.0096600471971417e-13,
+            -2.007807924690122e-13,
+            -2.0164119435663976e-13,
+            -2.0214149152770554e-13,
+            -2.012605608609131e-13,
+            -2.007342273243464e-13
+          ],
+          "dy_decoupling_born_unscaled_central_value": 1.252153534088386e-11,
+          "dy_decoupling_born_unscaled_error": 1.3941466190814082e-14,
+          "dy_decoupling_born_unscaled_replica_values": [
+            1.247165391513061e-11,
+            1.2485591074309423e-11,
+            1.2517897974193546e-11,
+            1.2506361356042175e-11,
+            1.255995461456939e-11,
+            1.2591117442097925e-11,
+            1.2536245473952735e-11,
+            1.2503460876775082e-11
+          ],
+          "dy_decoupling_coefficient": -0.016054293231500892,
+          "dy_decoupling_enabled": true,
+          "dy_hard_central_value": -2.918336980330863e-12,
+          "dy_hard_error": 1.4985825614877297e-14,
+          "dy_hard_factor": -0.5,
+          "dy_hard_unscaled_central_value": 5.836673960661726e-12,
+          "dy_hard_unscaled_error": 2.9971651229754593e-14,
+          "dy_scheme_alpha_s": 0.118,
+          "dy_scheme_conversion_enabled": true,
+          "dy_scheme_counterterm_central_value": 3.4637125445646243e-12,
+          "dy_scheme_counterterm_clipped_count": 0,
+          "dy_scheme_counterterm_clipped_fraction": 0.0,
+          "dy_scheme_counterterm_components": {
+            "delta_pi_squared": {
+              "central_value": 2.0630366603347168e-12,
+              "error": 2.296983162804056e-15,
+              "replica_values": [
+                2.054818242449275e-12,
+                2.0571145159927363e-12,
+                2.062437371140149e-12,
+                2.0605366085312012e-12,
+                2.0693665845747482e-12,
+                2.074500943411811e-12,
+                2.0654602883462435e-12,
+                2.060058728231568e-12
+              ],
+              "unscaled_central_value": 3.496672305652062e-11,
+              "unscaled_error": 3.893191801362807e-14,
+              "unscaled_replica_values": [
+                3.4827427838123306e-11,
+                3.486634772869045e-11,
+                3.49565656125449e-11,
+                3.492434929713901e-11,
+                3.507400990804658e-11,
+                3.5161032939183245e-11,
+                3.500780149739396e-11,
+                3.491624963104353e-11
+              ]
+            },
+            "delta_rational": {
+              "central_value": -2.508351795871789e-12,
+              "error": 2.7927966343420436e-15,
+              "replica_values": [
+                -2.4983593979379433e-12,
+                -2.501151331778627e-12,
+                -2.507623147585335e-12,
+                -2.505312097376997e-12,
+                -2.5160480608681856e-12,
+                -2.522290692643573e-12,
+                -2.5112985741778285e-12,
+                -2.5047310646058195e-12
+              ],
+              "unscaled_central_value": -4.2514437218165913e-11,
+              "unscaled_error": 4.7335536175288874e-14,
+              "unscaled_replica_values": [
+                -4.2345074541321075e-11,
+                -4.239239545387503e-11,
+                -4.250208724720907e-11,
+                -4.2462916904694866e-11,
+                -4.264488238759637e-11,
+                -4.2750689705823276e-11,
+                -4.2564382613183536e-11,
+                -4.245306889162406e-11
+              ]
+            },
+            "log_one_minus_x_plus": {
+              "central_value": 1.6363764874842209e-12,
+              "error": 1.6788569649406714e-14,
+              "replica_values": [
+                1.5769146893032556e-12,
+                1.626898904035389e-12,
+                1.6294106417941084e-12,
+                1.662343606667816e-12,
+                1.5782448248176044e-12,
+                1.7210600431925004e-12,
+                1.6655559227343655e-12,
+                1.6305832673287266e-12
+              ],
+              "unscaled_central_value": 2.7735194703122388e-11,
+              "unscaled_error": 2.8455202795604603e-13,
+              "unscaled_replica_values": [
+                2.672736761530942e-11,
+                2.7574557695515068e-11,
+                2.7617129521934043e-11,
+                2.8175315367251118e-11,
+                2.6749912285044144e-11,
+                2.917050920665255e-11,
+                2.8229761402277384e-11,
+                2.7637004530995366e-11
+              ]
+            },
+            "log_x_plus": {
+              "central_value": -2.3057849367904235e-13,
+              "error": 1.448488392928069e-16,
+              "replica_values": [
+                -2.3080538683787874e-13,
+                -2.3093731022417005e-13,
+                -2.305577350101887e-13,
+                -2.304889728446242e-13,
+                -2.3018139362914725e-13,
+                -2.298123184417994e-13,
+                -2.3087244956481177e-13,
+                -2.309723828797187e-13
+              ],
+              "unscaled_central_value": -3.908110062356651e-12,
+              "unscaled_error": 2.455065072759439e-15,
+              "unscaled_replica_values": [
+                -3.911955709116589e-12,
+                -3.914191698714747e-12,
+                -3.907758220511674e-12,
+                -3.906592760078376e-12,
+                -3.901379553036394e-12,
+                -3.895124041386431e-12,
+                -3.913092365505284e-12,
+                -3.914786150503707e-12
+              ]
+            },
+            "lower_limit_remainder": {
+              "central_value": 2.4838891766824112e-12,
+              "error": 8.414201613769264e-15,
+              "replica_values": [
+                2.47583091377805e-12,
+                2.458740447484929e-12,
+                2.4592681607241467e-12,
+                2.485984058824025e-12,
+                2.5059501795642505e-12,
+                2.5296773023430588e-12,
+                2.4780719801588824e-12,
+                2.477590370581949e-12
+              ],
+              "unscaled_central_value": 4.209981655393918e-11,
+              "unscaled_error": 1.4261358667405532e-13,
+              "unscaled_replica_values": [
+                4.196323582674661e-11,
+                4.167356690652422e-11,
+                4.1682511198714355e-11,
+                4.213532303091568e-11,
+                4.2473731857021197e-11,
+                4.287588648039083e-11,
+                4.200122000269292e-11,
+                4.1993057128507616e-11
+              ]
+            },
+            "regular": {
+              "central_value": 1.9340509614107622e-14,
+              "error": 2.2816068728527393e-17,
+              "replica_values": [
+                1.9436140864896057e-14,
+                1.937596546668113e-14,
+                1.925491699357905e-14,
+                1.9347587515526846e-14,
+                1.9243085964521323e-14,
+                1.933730226582331e-14,
+                1.938347263192235e-14,
+                1.9345605209910908e-14
+              ],
+              "unscaled_central_value": 3.278052476967394e-13,
+              "unscaled_error": 3.8671302929707447e-16,
+              "unscaled_replica_values": [
+                3.294261163541705e-13,
+                3.2840619435052766e-13,
+                3.2635452531489914e-13,
+                3.279252121275737e-13,
+                3.261539993986665e-13,
+                3.2775088586141205e-13,
+                3.285334344393619e-13,
+                3.2789161372730354e-13
+              ]
+            }
+          },
+          "dy_scheme_counterterm_elapsed_time": 74.1401688180049,
+          "dy_scheme_counterterm_error": 2.1505613814165543e-14,
+          "dy_scheme_counterterm_factor": 0.059,
+          "dy_scheme_counterterm_factor_was_explicit": false,
+          "dy_scheme_counterterm_fallback_count": 0,
+          "dy_scheme_counterterm_n_samples": 2097152,
+          "dy_scheme_counterterm_nonfinite_count": 0,
+          "dy_scheme_counterterm_replica_values": [
+            3.397835201619652e-12,
+            3.430041190976938e-12,
+            3.4321902080564575e-12,
+            3.492410791316946e-12,
+            3.4265752204237927e-12,
+            3.5924725801278184e-12,
+            3.4863006401287745e-12,
+            3.451874523866618e-12
+          ],
+          "dy_scheme_counterterm_unscaled_central_value": 5.870699228075635e-11,
+          "dy_scheme_counterterm_unscaled_error": 3.645019290536533e-13,
+          "dy_scheme_counterterm_unscaled_replica_values": [
+            5.75904271460958e-11,
+            5.813629137249048e-11,
+            5.817271539078742e-11,
+            5.91934032426601e-11,
+            5.807754610887785e-11,
+            6.088936576487828e-11,
+            5.908984135811482e-11,
+            5.850634786214607e-11
+          ],
+          "elapsed_time": 0.0,
+          "error": 2.6078539520230813e-14,
+          "large_weight_retry_count": 0,
+          "large_weight_retry_example": null,
+          "large_weight_retry_example_arb_wgt": null,
+          "large_weight_retry_example_compiled_wgt": null,
+          "large_weight_retry_example_momentum_point": null,
+          "large_weight_salvaged_count": 0,
+          "large_weight_unstable_count": 0,
+          "large_weight_zeroed_abs_sum": 0.0,
+          "large_weight_zeroed_count": 0,
+          "large_weight_zeroed_signed_sum": 0.0,
+          "max_preclip_wgt": null,
+          "max_preclip_wgt_momentum_point": null,
+          "max_preclip_wgt_point": null,
+          "max_stable_wgt": null,
+          "max_stable_wgt_jacobian": null,
+          "max_stable_wgt_momentum_point": null,
+          "max_stable_wgt_point": null,
+          "max_wgt": null,
+          "max_wgt_jacobian": null,
+          "max_wgt_momentum_point": null,
+          "max_wgt_point": null,
+          "n_samples": 1000000000,
+          "nan_weight_count": 0,
+          "nan_weight_example": null,
+          "nan_weight_example_momentum_point": null,
+          "nan_weight_rotated_count": 0,
+          "nan_weight_rotated_example": null,
+          "nan_weight_rotated_example_momentum_point": null,
+          "soft_mirror_hp_orbit_failure_count": 0,
+          "soft_mirror_hp_orbit_retry_count": 0,
+          "soft_mirror_hp_orbit_salvaged_count": 0,
+          "soft_mirror_large_trigger_count": 0,
+          "soft_mirror_max_post_average_wgt": null,
+          "soft_mirror_max_post_average_wgt_point": null,
+          "soft_mirror_max_raw_side": null,
+          "soft_mirror_max_raw_side_wgt": null,
+          "soft_mirror_max_raw_side_wgt_point": null,
+          "soft_mirror_min_residual_ratio": null,
+          "soft_mirror_min_residual_ratio_point": null,
+          "soft_mirror_min_residual_ratio_sides": null,
+          "soft_mirror_pair_count": 0,
+          "stability_float_mismatch_retry_count": 0,
+          "stability_float_nonfinite_retry_count": 0,
+          "stability_float_pair_accepted_count": 0,
+          "stability_hp_accepted_count": 0,
+          "stability_hp_disagreement_count": 0,
+          "stability_hp_error_count": 0,
+          "stability_hp_escalation_accepted_count": 0,
+          "stability_hp_escalation_count": 0,
+          "stability_hp_failure_example": null,
+          "stability_hp_failure_example_momentum_point": null,
+          "stability_hp_failure_reason": null,
+          "stability_hp_nonfinite_count": 0,
+          "stability_hp_retry_count": 0,
+          "t_solver_failure_surfaces": {},
+          "t_solver_failure_terms": {},
+          "t_solver_float_failed_surface_count": 0,
+          "t_solver_float_failed_term_count": 0,
+          "t_solver_float_failure_sample_count": 0,
+          "t_solver_hp_retry_count": 0,
+          "t_solver_hp_salvaged_count": 0,
+          "t_solver_hp_unresolved_count": 0,
+          "unstable_count": 0,
+          "unstable_example": null,
+          "unstable_example_momentum_point": null,
+          "unstable_retry_count": 0,
+          "unstable_retry_example": null,
+          "unstable_retry_example_momentum_point": null,
+          "unstable_retry_example_rel": null,
+          "unstable_salvaged_count": 0
+        },
+        "auxiliary_error": 2.1342803333881138e-14,
+        "central_value": 3.4435116416261133e-13,
+        "effective_sampling_probability": 0.13547943360144052,
+        "error": 2.6078539520230813e-14,
+        "floor_samples": 100000000,
+        "hard_central_value": -2.918336980330863e-12,
+        "hard_error": 1.4985825614877297e-14,
+        "pdf_luminosity_family": "qqbar",
+        "q_bins": [],
+        "sampling_factor": -0.5,
+        "selected_samples": 135474412,
+        "source_card": "/home/zeno/DY/pygloop_6c15087/cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s1000/qqbar.toml"
+      }
+    },
+    "physical_channel_floor_samples": {
+      "gg": 100000000,
+      "qg": 100000000,
+      "qqbar": 100000000
+    },
+    "physical_channel_min_fraction": 0.1,
+    "physical_channel_probability_history": [
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.3333333333333333,
+          "qg": 0.3333333333333333,
+          "qqbar": 0.3333333333333333
+        },
+        "adaptive_samples": {
+          "gg": 2335635,
+          "qg": 2332922,
+          "qqbar": 2331443
+        },
+        "effective_probabilities": {
+          "gg": 0.3333333333333333,
+          "qg": 0.3333333333333333,
+          "qqbar": 0.3333333333333333
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 1,
+        "stage": "warmup"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9297067385967288,
+          "qg": 0.014529311924133011,
+          "qqbar": 0.05576394947913828
+        },
+        "adaptive_samples": {
+          "gg": 6506400,
+          "qg": 101619,
+          "qqbar": 391981
+        },
+        "effective_probabilities": {
+          "gg": 0.7507947170177101,
+          "qg": 0.11017051834689312,
+          "qqbar": 0.1390347646353968
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 2,
+        "stage": "warmup"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9468999576990237,
+          "qg": 0.011455433934478322,
+          "qqbar": 0.041644608366498075
+        },
+        "adaptive_samples": {
+          "gg": 6627340,
+          "qg": 80232,
+          "qqbar": 292428
+        },
+        "effective_probabilities": {
+          "gg": 0.7628299703893165,
+          "qg": 0.10801880375413483,
+          "qqbar": 0.12915122585654865
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 3,
+        "stage": "warmup"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6544299,
+          "qg": 101271,
+          "qqbar": 354430
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 1,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6544137,
+          "qg": 101515,
+          "qqbar": 354348
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 2,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6545535,
+          "qg": 101110,
+          "qqbar": 353355
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 3,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6544101,
+          "qg": 100941,
+          "qqbar": 354958
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 4,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6544928,
+          "qg": 100335,
+          "qqbar": 354737
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 5,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6544652,
+          "qg": 100317,
+          "qqbar": 355031
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 6,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6544691,
+          "qg": 100761,
+          "qqbar": 354548
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 7,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6543609,
+          "qg": 100817,
+          "qqbar": 355574
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 8,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6544835,
+          "qg": 101284,
+          "qqbar": 353881
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 9,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6544320,
+          "qg": 101274,
+          "qqbar": 354406
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 10,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6544455,
+          "qg": 101481,
+          "qqbar": 354064
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 11,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6544112,
+          "qg": 100857,
+          "qqbar": 355031
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 12,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6543941,
+          "qg": 100854,
+          "qqbar": 355205
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 13,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6544992,
+          "qg": 101060,
+          "qqbar": 353948
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 14,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6543501,
+          "qg": 101400,
+          "qqbar": 355099
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 15,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6544665,
+          "qg": 100839,
+          "qqbar": 354496
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 16,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6544748,
+          "qg": 101436,
+          "qqbar": 353816
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 17,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6544069,
+          "qg": 101020,
+          "qqbar": 354911
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 18,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6544728,
+          "qg": 100939,
+          "qqbar": 354333
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 19,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6543555,
+          "qg": 100974,
+          "qqbar": 355471
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 20,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6543719,
+          "qg": 101215,
+          "qqbar": 355066
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 21,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6543994,
+          "qg": 100786,
+          "qqbar": 355220
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 22,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6544019,
+          "qg": 101103,
+          "qqbar": 354878
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 23,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6544197,
+          "qg": 100414,
+          "qqbar": 355389
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 24,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6543986,
+          "qg": 101165,
+          "qqbar": 354849
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 25,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6545210,
+          "qg": 100630,
+          "qqbar": 354160
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 26,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6544564,
+          "qg": 100978,
+          "qqbar": 354458
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 27,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6544620,
+          "qg": 100824,
+          "qqbar": 354556
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 28,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6544351,
+          "qg": 100396,
+          "qqbar": 355253
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 29,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6544163,
+          "qg": 101156,
+          "qqbar": 354681
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 30,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6543427,
+          "qg": 100718,
+          "qqbar": 355855
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 31,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6544784,
+          "qg": 100742,
+          "qqbar": 354474
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 32,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6543577,
+          "qg": 101526,
+          "qqbar": 354897
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 33,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6544728,
+          "qg": 101154,
+          "qqbar": 354118
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 34,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6544643,
+          "qg": 101218,
+          "qqbar": 354139
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 35,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6544267,
+          "qg": 100891,
+          "qqbar": 354842
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 36,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6545442,
+          "qg": 100406,
+          "qqbar": 354152
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 37,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6545101,
+          "qg": 101016,
+          "qqbar": 353883
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 38,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6545257,
+          "qg": 100625,
+          "qqbar": 354118
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 39,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6544879,
+          "qg": 101360,
+          "qqbar": 353761
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 40,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6544823,
+          "qg": 101053,
+          "qqbar": 354124
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 41,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6544034,
+          "qg": 101106,
+          "qqbar": 354860
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 42,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6544812,
+          "qg": 100679,
+          "qqbar": 354509
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 43,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6544746,
+          "qg": 101087,
+          "qqbar": 354167
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 44,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6544267,
+          "qg": 101160,
+          "qqbar": 354573
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 45,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6542798,
+          "qg": 101391,
+          "qqbar": 355811
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 46,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6543821,
+          "qg": 100961,
+          "qqbar": 355218
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 47,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6544212,
+          "qg": 101058,
+          "qqbar": 354730
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 48,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6544213,
+          "qg": 100670,
+          "qqbar": 355117
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 49,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6544180,
+          "qg": 101405,
+          "qqbar": 354415
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 50,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6544333,
+          "qg": 100910,
+          "qqbar": 354757
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 51,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6543475,
+          "qg": 101289,
+          "qqbar": 355236
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 52,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6544553,
+          "qg": 101134,
+          "qqbar": 354313
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 53,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6543912,
+          "qg": 101089,
+          "qqbar": 354999
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 54,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6543772,
+          "qg": 101044,
+          "qqbar": 355184
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 55,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6543434,
+          "qg": 101527,
+          "qqbar": 355039
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 56,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6545095,
+          "qg": 100286,
+          "qqbar": 354619
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 57,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6543636,
+          "qg": 100717,
+          "qqbar": 355647
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 58,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6544126,
+          "qg": 100882,
+          "qqbar": 354992
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 59,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6545231,
+          "qg": 101165,
+          "qqbar": 353604
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 60,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6544686,
+          "qg": 100451,
+          "qqbar": 354863
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 61,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6542247,
+          "qg": 101294,
+          "qqbar": 356459
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 62,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6544674,
+          "qg": 101180,
+          "qqbar": 354146
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 63,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6543622,
+          "qg": 101284,
+          "qqbar": 355094
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 64,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6543874,
+          "qg": 101250,
+          "qqbar": 354876
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 65,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6543748,
+          "qg": 101736,
+          "qqbar": 354516
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 66,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6544505,
+          "qg": 100847,
+          "qqbar": 354648
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 67,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6544819,
+          "qg": 100268,
+          "qqbar": 354913
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 68,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6544881,
+          "qg": 101208,
+          "qqbar": 353911
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 69,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6544448,
+          "qg": 100824,
+          "qqbar": 354728
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 70,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6544621,
+          "qg": 101081,
+          "qqbar": 354298
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 71,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6543966,
+          "qg": 101075,
+          "qqbar": 354959
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 72,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6544116,
+          "qg": 100585,
+          "qqbar": 355299
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 73,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6543748,
+          "qg": 100930,
+          "qqbar": 355322
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 74,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6542724,
+          "qg": 101810,
+          "qqbar": 355466
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 75,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6544192,
+          "qg": 100976,
+          "qqbar": 354832
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 76,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6544645,
+          "qg": 100568,
+          "qqbar": 354787
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 77,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6544439,
+          "qg": 101195,
+          "qqbar": 354366
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 78,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6544221,
+          "qg": 100845,
+          "qqbar": 354934
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 79,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6544007,
+          "qg": 101009,
+          "qqbar": 354984
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 80,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6544770,
+          "qg": 101142,
+          "qqbar": 354088
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 81,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6544007,
+          "qg": 100822,
+          "qqbar": 355171
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 82,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6544881,
+          "qg": 100606,
+          "qqbar": 354513
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 83,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6545489,
+          "qg": 101020,
+          "qqbar": 353491
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 84,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6543645,
+          "qg": 100847,
+          "qqbar": 355508
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 85,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6543499,
+          "qg": 100999,
+          "qqbar": 355502
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 86,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6544823,
+          "qg": 101090,
+          "qqbar": 354087
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 87,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6543305,
+          "qg": 101104,
+          "qqbar": 355591
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 88,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6544971,
+          "qg": 100946,
+          "qqbar": 354083
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 89,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6544419,
+          "qg": 100804,
+          "qqbar": 354777
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 90,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6543573,
+          "qg": 101160,
+          "qqbar": 355267
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 91,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6543364,
+          "qg": 101204,
+          "qqbar": 355432
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 92,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6544214,
+          "qg": 100769,
+          "qqbar": 355017
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 93,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6544079,
+          "qg": 100494,
+          "qqbar": 355427
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 94,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6543578,
+          "qg": 100847,
+          "qqbar": 355575
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 95,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6544730,
+          "qg": 101100,
+          "qqbar": 354170
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 96,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6544495,
+          "qg": 101138,
+          "qqbar": 354367
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 97,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6544362,
+          "qg": 100931,
+          "qqbar": 354707
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 98,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6544855,
+          "qg": 100792,
+          "qqbar": 354353
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 99,
+        "stage": "production"
+      },
+      {
+        "adaptive_fraction": 0.7,
+        "adaptive_probabilities": {
+          "gg": 0.9348931496762951,
+          "qg": 0.014421945178789796,
+          "qqbar": 0.05068490514491519
+        },
+        "adaptive_samples": {
+          "gg": 6543920,
+          "qg": 100500,
+          "qqbar": 355580
+        },
+        "effective_probabilities": {
+          "gg": 0.7544252047734065,
+          "qg": 0.11009536162515286,
+          "qqbar": 0.13547943360144063
+        },
+        "floor_fraction": 0.1,
+        "floor_samples": {
+          "gg": 1000000,
+          "qg": 1000000,
+          "qqbar": 1000000
+        },
+        "iteration": 100,
+        "stage": "production"
+      }
+    ],
+    "q_bin_edges": [],
+    "q_bin_estimates": [],
+    "soft_mirror_hp_orbit_failure_count": 1,
+    "soft_mirror_hp_orbit_retry_count": 15398358,
+    "soft_mirror_hp_orbit_salvaged_count": 15398357,
+    "soft_mirror_large_trigger_count": 1310079,
+    "soft_mirror_max_post_average_wgt": null,
+    "soft_mirror_max_post_average_wgt_point": null,
+    "soft_mirror_max_raw_side": null,
+    "soft_mirror_max_raw_side_wgt": null,
+    "soft_mirror_max_raw_side_wgt_point": null,
+    "soft_mirror_min_residual_ratio": null,
+    "soft_mirror_min_residual_ratio_point": null,
+    "soft_mirror_min_residual_ratio_sides": null,
+    "soft_mirror_pair_count": 415414728,
+    "stability_float_mismatch_retry_count": 16482769,
+    "stability_float_nonfinite_retry_count": 27717,
+    "stability_float_pair_accepted_count": 1401974607,
+    "stability_hp_accepted_count": 28041761,
+    "stability_hp_disagreement_count": 0,
+    "stability_hp_error_count": 2,
+    "stability_hp_escalation_accepted_count": 3921,
+    "stability_hp_escalation_count": 3922,
+    "stability_hp_failure_example": null,
+    "stability_hp_failure_example_momentum_point": null,
+    "stability_hp_failure_reason": null,
+    "stability_hp_nonfinite_count": 0,
+    "stability_hp_retry_count": 28041763,
+    "t_solver_failure_surfaces": {},
+    "t_solver_failure_terms": {},
+    "t_solver_float_failed_surface_count": 0,
+    "t_solver_float_failed_term_count": 0,
+    "t_solver_float_failure_sample_count": 0,
+    "t_solver_hp_retry_count": 0,
+    "t_solver_hp_salvaged_count": 0,
+    "t_solver_hp_unresolved_count": 0
+  },
+  "integration_time_s": 36099.55484008789,
+  "schema_version": 1
+}

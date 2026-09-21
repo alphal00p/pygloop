@@ -1,0 +1,173 @@
+{
+  "campaign": "ttbar_cm_e_surface_campaign_20260909",
+  "cards": {
+    "cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s1000/gg.toml": "b75e15c6039a112daff8a762e082ace14c818cdbb64c9d1b950e423882617234",
+    "cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s1000/qg.toml": "455476ac48009bfcf0e3cc3d80d1162d266eccf6f6645afcc393bc4cae1c24c0",
+    "cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s1000/qqbar.toml": "b1c022c535c3f6be8cf993ffe2b478bac5eab99983990d942f78638ef4c134dc",
+    "cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s2000/gg.toml": "f2c285cf29d6cc0d3cdce49f498e651268b1be7a85f75c02bc75aba4016d87e3",
+    "cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s2000/qg.toml": "9e29bbde0c802153d1a0e494d9223d3e57e8bb1c28fc93598b5c619a6e819d94",
+    "cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s2000/qqbar.toml": "2f6bcf5099a8a7aaa2098e543c5e854c25258fc30d5e347d617714adad8f094e",
+    "cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/partonic/s400/gg.toml": "17df64a69f591a7e9e33628829fe7b3915e755c064c166a301ea5b6a69be2116",
+    "cards/campaigns/ttbar_dy_msbar_scan_20260901/production_1b/ttbar/hadronic/s1000/combined.toml": "d67ab86bd38687210c5b95d5117f7ad2fafa13b36e309ae88567262ea4c25325",
+    "cards/campaigns/ttbar_dy_msbar_scan_20260901/production_1b/ttbar/hadronic/s2000/combined.toml": "9811ed4368cf6b7ffff3a80e3e3b5ab982a4b26a658e7ab1361dfe925f949a75"
+  },
+  "created_utc": "2026-09-09T09:20:26.635846+00:00",
+  "estimated_runtime": {
+    "basis": "historical 64-core 400 GeV replica, 256-core 1000 GeV 1B, and 256-core 2000 GeV pilot throughput",
+    "nominal_hours": 33,
+    "range_hours": [
+      31,
+      36
+    ]
+  },
+  "fix": {
+    "bundles": {
+      "gg": {
+        "bundle_format_version": 10,
+        "generation_settings_fingerprint": "0dd179c545a8d0a221a8ea5a39c2fc907f5727d3330f64a2f61122e04cd9eb3f",
+        "metadata": "outputs/evaluators/tt~/TTBAR_GG_MSBAR_CM_ESURFACE_V1_20260909_2L_processed/bundle_metadata.json",
+        "metadata_sha256": "bf06a952261147b69cdf654bc16fc8015ec9d30313fbc9bfdbc0f4ea89ab7293",
+        "name": "TTBAR_GG_MSBAR_CM_ESURFACE_V1_20260909_2L_processed",
+        "source_graph_count": 65,
+        "term_count": 318,
+        "ttbar_cm_e_surface_schema": "p2_eq_minus_p1_v1"
+      },
+      "qg": {
+        "bundle_format_version": 10,
+        "generation_settings_fingerprint": "dc766e8888c2f0c4f1c091062ae482128feac8dfec2fc22c83222c72f4447c25",
+        "metadata": "outputs/evaluators/tt~/TTBAR_QG_MSBAR_CM_ESURFACE_V1_20260909_2L_processed/bundle_metadata.json",
+        "metadata_sha256": "b4eb7ef37ec2ca5cf0688fcbfaab18523e8ccd3f3f2e8b31e863c73170b6a664",
+        "name": "TTBAR_QG_MSBAR_CM_ESURFACE_V1_20260909_2L_processed",
+        "source_graph_count": 11,
+        "term_count": 28,
+        "ttbar_cm_e_surface_schema": "p2_eq_minus_p1_v1"
+      },
+      "qqbar": {
+        "bundle_format_version": 10,
+        "generation_settings_fingerprint": "907fc143e38ab12cb79cb09ee24918f00ce78db22fe14096dc9ce16a3cee8742",
+        "metadata": "outputs/evaluators/tt~/TTBAR_QQBAR_MSBAR_CM_ESURFACE_V1_20260909_2L_processed/bundle_metadata.json",
+        "metadata_sha256": "06209648a4ba9e4354c442e70072b8eb21f079c14a78298b33a8ce87530c99dd",
+        "name": "TTBAR_QQBAR_MSBAR_CM_ESURFACE_V1_20260909_2L_processed",
+        "source_graph_count": 16,
+        "term_count": 85,
+        "ttbar_cm_e_surface_schema": "p2_eq_minus_p1_v1"
+      }
+    },
+    "historical_born_bundles_reused": [
+      "TTBAR_GG_BORN_MSBAR_SCAN_20260901_1L_processed",
+      "TTBAR_QQBAR_BORN_MSBAR_SCAN_20260901_1L_processed"
+    ],
+    "historical_two_loop_bundles_preserved": true,
+    "regeneration_required": true,
+    "schema": "p2_eq_minus_p1_v1"
+  },
+  "git_head": "63107ef131f062b095ce1427f54728590a17e8f1",
+  "outputs": {
+    "bundle_metadata_snapshot": "outputs/ttbar_cm_e_surface_campaign_20260909/provenance/bundle_metadata.tar.gz",
+    "cards_snapshot": "outputs/ttbar_cm_e_surface_campaign_20260909/provenance/cards_used.tar.gz",
+    "controller_log": "outputs/ttbar_cm_e_surface_campaign_20260909/logs/controller.log",
+    "resource_log": "outputs/ttbar_cm_e_surface_campaign_20260909/logs/resource_monitor.log"
+  },
+  "python": "/home/zeno/DY/pygloop_6c15087/.venv_final/bin/python3.13",
+  "queue": [
+    {
+      "benchmark_gev_minus2": 9.04804607314716E-9,
+      "cores_per_replica": 62,
+      "id": "partonic_s400_gg",
+      "iterations": 100,
+      "points_per_iteration": 1000000,
+      "replicas": 4,
+      "samples_per_replica": 100000000,
+      "seeds": [
+        909040101,
+        909040201,
+        909040301,
+        909040401
+      ],
+      "status": "complete"
+    },
+    {
+      "cores": 248,
+      "id": "hadronic_s1000",
+      "iterations": 100,
+      "mg5_error_pb": 0.0000058161524,
+      "mg5_pb": 0.0044288347,
+      "muvsq": 250000.0,
+      "physical_channel_batch_size": 512,
+      "physical_channel_min_fraction": 0.1,
+      "points_per_iteration": 10000000,
+      "production_samples": 1000000000,
+      "seed": 909101000,
+      "status": "complete",
+      "warmup_iterations": 3,
+      "warmup_samples": 30000000
+    },
+    {
+      "cores": 248,
+      "id": "hadronic_s2000",
+      "iterations": 500,
+      "mg5_error_pb": 0.00050438876,
+      "mg5_pb": 0.25238927,
+      "muvsq": 8302.489924,
+      "physical_channel_batch_size": 512,
+      "physical_channel_min_fraction": 0.075,
+      "points_per_iteration": 2000000,
+      "production_samples": 1000000000,
+      "seed": 909102000,
+      "status": "aborted_memory_guard",
+      "warmup_iterations": 3,
+      "warmup_samples": 6000000
+    }
+  ],
+  "request": {
+    "follow_on_order": [
+      "hadronic_s1000",
+      "hadronic_s2000"
+    ],
+    "maximum_node_cpu_fraction": 0.65,
+    "partonic_order": "four concurrent 400 GeV gg replicas",
+    "stop_old_s1000": true
+  },
+  "resource_policy": {
+    "abort_after_consecutive_low_memory_checks": 2,
+    "abort_below_memavailable_gib": 100,
+    "configured_cpu_fraction": 0.6458333333333334,
+    "hadronic_cores": 248,
+    "logical_cores": 384,
+    "maximum_allowed_cores": 249,
+    "memory_check_interval_seconds": 60,
+    "partonic_concurrency": 4,
+    "partonic_cores_per_replica": 62,
+    "partonic_total_cores": 248,
+    "pss_report_interval_seconds": 300
+  },
+  "schema_version": 1,
+  "source_hashes": {
+    "src/processes/dy/dy.py": "ec3d10abfb78e8e4c9ade1977e75a0cc2bdca8542aa83b6fbfca03168a1a4ead",
+    "src/processes/dy/dy_evaluators.py": "96a0e52b3451ca28ab5545de207adb6138450fb64aa2aaea495364a6f5b709a5",
+    "src/processes/dy/dy_integrand.py": "ff4447a1b557b84d16a705fca66384d8ac2386eed8c621964bafd2dd9a98806e",
+    "src/processes/dy/dy_stability.py": "02c50f7dd75c13070d8e2e31dd8243af4a82d5b4b5ffe6298d041bb84ce815c9",
+    "src/pygloop.py": "b8b8ef96ac1fa8cb75aa722517ae6ba23d74bb8fc04c42f89daf3e756cffb4fd",
+    "src/utils/utils.py": "42af8ebe05f02a131e552dd0d02c3db52e233367939365252b861cc0ccb19486"
+  },
+  "status": "aborted_memory_guard",
+  "stopped_old_s1000": "outputs/ttbar_cm_e_surface_campaign_20260909/aborted_s1000_old/termination_record.json",
+  "updated_utc": "2026-09-10T11:13:09Z",
+  "validation": {
+    "all_generation_workers_succeeded": true,
+    "card_checks_passed": 9,
+    "replay": {
+      "float_root_failure_samples": 0,
+      "hp_unresolved_samples": 0,
+      "path": "outputs/ttbar_cm_e_surface_campaign_20260909/validation/gg_fixed_full_bundle_replay.json",
+      "samples": 10240,
+      "sha256": "ae29add5333cf6a526eefd19f091877e2eb896cb371516a8c1d22df7977e5259"
+    }
+  },
+  "controller": {
+    "pid": 3297386,
+    "started_utc": "2026-09-09T09:22:36Z",
+    "kind": "detached_sequential_queue"
+  },
+  "finished_utc": "2026-09-10T11:13:09Z"
+}

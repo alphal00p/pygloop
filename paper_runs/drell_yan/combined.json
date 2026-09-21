@@ -1,0 +1,65 @@
+{
+  "channel": "inclusive",
+  "collision": "hadronic",
+  "estimate": {
+    "central_value_gev_minus2": 1.5134285539913603e-14,
+    "central_value_pb": 5.892982957874475e-06,
+    "error_gev_minus2": 1.4207044004150938e-17,
+    "error_pb": 5.531933963941331e-09
+  },
+  "formula": "w_i=(1/error_i^2)/sum_j(1/error_j^2); value=sum_i(w_i*value_i); error=sqrt(1/sum_i(1/error_i^2))",
+  "id": "dy_hadronic_s1000_inclusive",
+  "input_runs": [
+    {
+      "central_value_gev_minus2": 1.5108541987251303e-14,
+      "error_gev_minus2": 3.812932256764379e-17,
+      "id": "dy_s1000_replica_00",
+      "metadata_file": "drell_yan/replica_00/metadata.json",
+      "weight": 0.13883190167463685
+    },
+    {
+      "central_value_gev_minus2": 1.51607847412069e-14,
+      "error_gev_minus2": 4.880091760038847e-17,
+      "id": "dy_s1000_replica_01",
+      "metadata_file": "drell_yan/replica_01/metadata.json",
+      "weight": 0.08475229652457152
+    },
+    {
+      "central_value_gev_minus2": 1.5157937294220503e-14,
+      "error_gev_minus2": 2.406165456134041e-17,
+      "id": "dy_s1000_replica_02",
+      "metadata_file": "drell_yan/replica_02/metadata.json",
+      "weight": 0.3486233534074081
+    },
+    {
+      "central_value_gev_minus2": 1.5121537246180268e-14,
+      "error_gev_minus2": 3.94001431696038e-17,
+      "id": "dy_s1000_replica_03",
+      "metadata_file": "drell_yan/replica_03/metadata.json",
+      "weight": 0.13002050585718034
+    },
+    {
+      "central_value_gev_minus2": 1.508463086178506e-14,
+      "error_gev_minus2": 3.496889604321578e-17,
+      "id": "dy_s1000_replica_04",
+      "metadata_file": "drell_yan/replica_04/metadata.json",
+      "weight": 0.1650606713846447
+    },
+    {
+      "central_value_gev_minus2": 1.51564100994155e-14,
+      "error_gev_minus2": 3.8998672236169856e-17,
+      "id": "dy_s1000_replica_05",
+      "metadata_file": "drell_yan/replica_05/metadata.json",
+      "weight": 0.13271127115155854
+    }
+  ],
+  "method": "inverse_variance_weighted_independent_final_inclusive_estimates",
+  "n_runs": 6,
+  "process": "drell_yan",
+  "production_points": 25165824,
+  "replica_consistency_chi_square": 4.15976596178338,
+  "replica_consistency_degrees_of_freedom": 5,
+  "selection": "Inclusive totals of the six histogram runs only; no separate bin refinements",
+  "sqrt_s_gev": 1000,
+  "summary_file": "drell_yan/combined.json"
+}

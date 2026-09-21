@@ -1,0 +1,74 @@
+{
+  "utc": "2026-09-14T20:47:15.052093+00:00",
+  "status": "production_running",
+  "cards": {
+    "gg": {
+      "path": "/home/zeno/DY/pygloop_6c15087/outputs/ttbar_h_exact_runtime_20260914/cards/channels/gg.toml",
+      "sha256": "46a09936df7a696e9edead187dce6bf496d02bb9ed1f3fce255467b4baa75639",
+      "original_card": "/home/zeno/DY/pygloop_6c15087/outputs/ttbar_cm_e_surface_campaign_20260909/follow_on_s1500/cards/calibrated/muv750/gg.toml",
+      "original_sha256": "2f4fe6544b577434ac49062cc12fdfb5b8bfe4b3f9fb5811a6e4df0c9cfcf64c",
+      "bundle": "TTBAR_GG_H_EXACT_RUNTIME_20260914_2L_processed"
+    },
+    "qqbar": {
+      "path": "/home/zeno/DY/pygloop_6c15087/outputs/ttbar_h_exact_runtime_20260914/cards/channels/qqbar.toml",
+      "sha256": "397adebe7f488285863204a80abf8b27124d21156c41295a953fb6dd99724fa0",
+      "original_card": "/home/zeno/DY/pygloop_6c15087/outputs/ttbar_cm_e_surface_campaign_20260909/follow_on_s1500/cards/calibrated/muv750/qqbar.toml",
+      "original_sha256": "1d560cba6e4df2277e5e7c3a0822eff6aa5f433d6d8733587c499b67ad91a956",
+      "bundle": "TTBAR_QQBAR_H_EXACT_RUNTIME_20260914_2L_processed"
+    },
+    "qg": {
+      "path": "/home/zeno/DY/pygloop_6c15087/outputs/ttbar_h_exact_runtime_20260914/cards/channels/qg.toml",
+      "sha256": "ed07cd98d4d3dda6a1fd059dd069668e74927fb97853230cdc487668650dfde5",
+      "original_card": "/home/zeno/DY/pygloop_6c15087/outputs/ttbar_cm_e_surface_campaign_20260909/follow_on_s1500/cards/calibrated/muv750/qg.toml",
+      "original_sha256": "133b68fd5778b6f42410d9f63c0d2fe2f24cdf99c72f5dce810c627b46e61781",
+      "bundle": "TTBAR_QG_H_EXACT_RUNTIME_20260914_2L_processed"
+    },
+    "gg_born": {
+      "path": "/home/zeno/DY/pygloop_6c15087/outputs/ttbar_h_exact_runtime_20260914/cards/channels/gg_born.toml",
+      "sha256": "05193c2dddca3a9678316ca31627857258f11519434395e4aa0322d53b95f6a9",
+      "original_card": "/home/zeno/DY/pygloop_6c15087/cards/campaigns/ttbar_dy_msbar_scan_20260901/generation/ttbar_gg_born.toml",
+      "original_sha256": "38d86f5b2e82dcee1ea93c8173d78cfe2bd8e8bdca25096c67ca748f90d7b2c7",
+      "bundle": "TTBAR_GG_BORN_H_EXACT_RUNTIME_20260914_1L_processed"
+    },
+    "qqbar_born": {
+      "path": "/home/zeno/DY/pygloop_6c15087/outputs/ttbar_h_exact_runtime_20260914/cards/channels/qqbar_born.toml",
+      "sha256": "6a6e32f88e0077a6a0a993e4feac9263d89214e5ee52d8e0d103c9c045235096",
+      "original_card": "/home/zeno/DY/pygloop_6c15087/cards/campaigns/ttbar_dy_msbar_scan_20260901/generation/ttbar_qqbar_born.toml",
+      "original_sha256": "8d5a7b2d87b70139582596080feeb1415ea56e528f0e61ebd3a994e3c93682e9",
+      "bundle": "TTBAR_QQBAR_BORN_H_EXACT_RUNTIME_20260914_1L_processed"
+    }
+  },
+  "reference_regression": "omitted_by_explicit_user_instruction",
+  "production_started": true,
+  "production_started_utc": "2026-09-14T21:08:06.963308+00:00",
+  "controller_pid": 442239,
+  "worker_pgid": 442244,
+  "production_card": "/home/zeno/DY/pygloop_6c15087/outputs/ttbar_h_exact_runtime_20260914/cards/s1500_1b.toml",
+  "production_seed": 909151001,
+  "production_samples": 1000000000,
+  "warmup_samples": 6000000,
+  "cores": 248,
+  "normalization_audit": "/home/zeno/DY/pygloop_6c15087/outputs/ttbar_h_exact_runtime_20260914/normalization_audit.json",
+  "source_hashes": {
+    "src/processes/dy/dy_infrared_test.py": "39c2a2afcb15011a9fbc7e47056015a26bccaaf1f2067c3bb42bf2028692fb9b",
+    "src/processes/dy/dy_card.py": "639fb907f622b444c5e2c4a5b236fec65de6cd2bf9f4edb2d8e8ed469cc4527a",
+    "src/processes/dy/dy_pdf.py": "0556f2f9a5ee312ba1a14ab2b40ebc946442a0eadc84b24e58830fc6d23e9847",
+    "src/processes/dy/dy_ghosts.py": "00063b1742e3ceafb5c402a182338c5507f59df5bc3327050b412e12bd2d1a5d",
+    "src/processes/dy/dy_integrated_uv_ct.py": "866742e55fc83b33a33a43f4fe986f4d910f3c4d66c159b9bb7257368ec5e044",
+    "src/processes/dy/dy_evaluators.py": "8f1243780ad7cf61f3f0c21a073b38095e0f8b5d496b3ef9c18f12eaaf9b80a8",
+    "src/processes/dy/dy_classes.py": "d0f7727aa1c3057dde57cd735a9b13a169295bae83ae5f3ada364a03c66354c4",
+    "src/processes/dy/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "src/processes/dy/dy_physical_channels.py": "49c8292a69dbc19027c0e73569cc72cc8ec0ad7e18a60775b9cde37596b009bc",
+    "src/processes/dy/dy_graph_utils.py": "a39cebd9a45f1695444eaa3c9000c257da71b644993afe86cd46651733a43094",
+    "src/processes/dy/dy_symbolica_utils.py": "6071202404a49242f53fcdc06ca052acb7b098b653a39826cee82c000c06bf71",
+    "src/processes/dy/dy_analytic.py": "e2560d342c9882a56556353add64eed5103140e8b4e0626aa700ce7541c82450",
+    "src/processes/dy/dy.py": "ec3d10abfb78e8e4c9ade1977e75a0cc2bdca8542aa83b6fbfca03168a1a4ead",
+    "src/processes/dy/dy_stability.py": "02c50f7dd75c13070d8e2e31dd8243af4a82d5b4b5ffe6298d041bb84ce815c9",
+    "src/processes/dy/dy_integrand.py": "ff4447a1b557b84d16a705fca66384d8ac2386eed8c621964bafd2dd9a98806e",
+    "src/processes/dy/dy_runtime_parameters.py": "3c0b9908f3a9a7c6ef11cdcbb8a2e825bd06b93e246861ad966441a76cf7cf26",
+    "src/processes/dy/dy_top_self_energy.py": "da9f24c1e8ebd9e017b2326098623d88ed7d15c99dd9d94c5ce5c2085718823e",
+    "src/processes/dy/dy_vegas_tests/test.py": "9e8a2ee4cf1aacda5ed5ce354d4d4e4b0475289532a9d7d9515fa9abe7995a48",
+    "src/processes/dy/uv_integrated_counterterms/uv_integrated_ct.py": "49df9f54baef645170a53aab57c0a73cf87fba5aea766cd2c5743c15d79839a7",
+    "src/processes/dy/factorisation_test/generate_ttbar_graphs.py": "43647bcee367b2f1060be13bc8f0749b08d93cc0b62869fa95a66c0738316d76"
+  }
+}

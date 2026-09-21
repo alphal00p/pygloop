@@ -1,0 +1,379 @@
+{
+  "cards": [
+    {
+      "archive_path": "provenance/source_tree/cards/dy_histogram_precision_ladder_20260917.toml",
+      "child_cards": [
+        {
+          "archive_path": "provenance/source_tree/cards/dy_paired_sobol_20260917/qqbar.toml",
+          "channel": "qqbar",
+          "sha256": "f29d96277bf71f184a8a51d313195fac9d71c4436b2451ccd4320a4716a59482",
+          "source_path": "cards/dy_paired_sobol_20260917/qqbar.toml"
+        },
+        {
+          "archive_path": "provenance/source_tree/cards/dy_paired_sobol_20260917/qg.toml",
+          "channel": "qg",
+          "sha256": "d8da2410b863cd8eee9120ff28dc3ea8985c2d4a536962543ed49707202392e3",
+          "source_path": "cards/dy_paired_sobol_20260917/qg.toml"
+        }
+      ],
+      "configuration_files": [
+        "provenance/source_tree/configs/DY/generate.toml",
+        "provenance/source_tree/configs/DY/runtime.toml"
+      ],
+      "sha256": "49f567fc13096279497c11152af187880186fb0b0e01483168191f314870ad1e",
+      "source_path": "cards/dy_histogram_precision_ladder_20260917.toml"
+    },
+    {
+      "archive_path": "provenance/source_tree/cards/dy_paired_sobol_20260917/qqbar.toml",
+      "child_cards": [],
+      "configuration_files": [
+        "provenance/source_tree/configs/DY/generate.toml",
+        "provenance/source_tree/configs/DY/runtime.toml"
+      ],
+      "sha256": "f29d96277bf71f184a8a51d313195fac9d71c4436b2451ccd4320a4716a59482",
+      "source_path": "cards/dy_paired_sobol_20260917/qqbar.toml"
+    },
+    {
+      "archive_path": "provenance/source_tree/cards/dy_paired_sobol_20260917/qg.toml",
+      "child_cards": [],
+      "configuration_files": [
+        "provenance/source_tree/configs/DY/generate.toml",
+        "provenance/source_tree/configs/DY/runtime.toml"
+      ],
+      "sha256": "d8da2410b863cd8eee9120ff28dc3ea8985c2d4a536962543ed49707202392e3",
+      "source_path": "cards/dy_paired_sobol_20260917/qg.toml"
+    },
+    {
+      "archive_path": "provenance/source_tree/cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/partonic/s400/qqbar.toml",
+      "child_cards": [],
+      "configuration_files": [
+        "provenance/source_tree/configs/DY/generate.toml",
+        "provenance/source_tree/configs/DY/runtime.toml"
+      ],
+      "sha256": "e6e70a10ca3b8abe3e14dceb08536c3effd6cd374e63366a197e5b1c4e6355e6",
+      "source_path": "cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/partonic/s400/qqbar.toml"
+    },
+    {
+      "archive_path": "provenance/source_tree/cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/partonic/s400/qg.toml",
+      "child_cards": [],
+      "configuration_files": [
+        "provenance/source_tree/configs/DY/generate.toml",
+        "provenance/source_tree/configs/DY/runtime.toml"
+      ],
+      "sha256": "e1e26a830aaaab5d46beb91a067acc5e64177e4f52ec43f0ec357a4180589e6c",
+      "source_path": "cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/partonic/s400/qg.toml"
+    },
+    {
+      "archive_path": "provenance/source_tree/cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/partonic/s400/gg.toml",
+      "child_cards": [],
+      "configuration_files": [
+        "provenance/source_tree/configs/DY/generate.toml",
+        "provenance/source_tree/configs/DY/runtime.toml"
+      ],
+      "sha256": "17df64a69f591a7e9e33628829fe7b3915e755c064c166a301ea5b6a69be2116",
+      "source_path": "cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/partonic/s400/gg.toml"
+    },
+    {
+      "archive_path": "provenance/source_tree/cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/partonic/s1000/qqbar.toml",
+      "child_cards": [],
+      "configuration_files": [
+        "provenance/source_tree/configs/DY/generate.toml",
+        "provenance/source_tree/configs/DY/runtime.toml"
+      ],
+      "sha256": "b378362e8122696dd341bdf90f8d4dabb0a9b90df0efce0112776478390b4fe8",
+      "source_path": "cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/partonic/s1000/qqbar.toml"
+    },
+    {
+      "archive_path": "provenance/source_tree/cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/partonic/s1000/qg.toml",
+      "child_cards": [],
+      "configuration_files": [
+        "provenance/source_tree/configs/DY/generate.toml",
+        "provenance/source_tree/configs/DY/runtime.toml"
+      ],
+      "sha256": "f78b1f5ea980c685e289f3879501569f4744ad6c3cf14507d8edf3815c987fe2",
+      "source_path": "cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/partonic/s1000/qg.toml"
+    },
+    {
+      "archive_path": "provenance/source_tree/cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/partonic/s1000/gg.toml",
+      "child_cards": [],
+      "configuration_files": [
+        "provenance/source_tree/configs/DY/generate.toml",
+        "provenance/source_tree/configs/DY/runtime.toml"
+      ],
+      "sha256": "7ba8590a3e741bfc43b658a9ff7706726691b7a32dbe88c07257037ce0ee1901",
+      "source_path": "cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/partonic/s1000/gg.toml"
+    },
+    {
+      "archive_path": "provenance/source_tree/cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/partonic/s2000/qqbar.toml",
+      "child_cards": [],
+      "configuration_files": [
+        "provenance/source_tree/configs/DY/generate.toml",
+        "provenance/source_tree/configs/DY/runtime.toml"
+      ],
+      "sha256": "5afca24b9cea70625fc69247c2500589b012ce34725efd745c9d8886e8935583",
+      "source_path": "cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/partonic/s2000/qqbar.toml"
+    },
+    {
+      "archive_path": "provenance/source_tree/cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/partonic/s2000/qg.toml",
+      "child_cards": [],
+      "configuration_files": [
+        "provenance/source_tree/configs/DY/generate.toml",
+        "provenance/source_tree/configs/DY/runtime.toml"
+      ],
+      "sha256": "999bee851b8fe76c16ca3b6195d59b04738445a8a458ddff2287d06e5048ada6",
+      "source_path": "cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/partonic/s2000/qg.toml"
+    },
+    {
+      "archive_path": "provenance/source_tree/cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/partonic/s2000/gg.toml",
+      "child_cards": [],
+      "configuration_files": [
+        "provenance/source_tree/configs/DY/generate.toml",
+        "provenance/source_tree/configs/DY/runtime.toml"
+      ],
+      "sha256": "3816ed934a9782f65ebca271c93c5c507bdc2b6baf7e6e0d852934be1582937e",
+      "source_path": "cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/partonic/s2000/gg.toml"
+    },
+    {
+      "archive_path": "provenance/source_tree/cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s400/combined.toml",
+      "child_cards": [
+        {
+          "archive_path": "provenance/source_tree/cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s400/qqbar.toml",
+          "channel": "qqbar",
+          "sha256": "f519aa1f82e7a32d2ad7e8448943c3e4273172763566d088029b50c7e2a7347b",
+          "source_path": "cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s400/qqbar.toml"
+        },
+        {
+          "archive_path": "provenance/source_tree/cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s400/qg.toml",
+          "channel": "qg",
+          "sha256": "652607e542880a700dadc2e0f1b0055577e1ea5d522052b24f52af22f7670fb2",
+          "source_path": "cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s400/qg.toml"
+        },
+        {
+          "archive_path": "provenance/source_tree/cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s400/gg.toml",
+          "channel": "gg",
+          "sha256": "943323ca8130c1697c6a13dd9a9c62077e8aad22bb329ee2284190bb3440c7cc",
+          "source_path": "cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s400/gg.toml"
+        }
+      ],
+      "configuration_files": [
+        "provenance/source_tree/configs/DY/generate.toml",
+        "provenance/source_tree/configs/DY/runtime.toml"
+      ],
+      "sha256": "8ec4dacdf57ebfd6f64aff35ddfedd64a0471e9081d0ab14b71aa2cbede1553b",
+      "source_path": "cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s400/combined.toml"
+    },
+    {
+      "archive_path": "provenance/source_tree/cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s400/qqbar.toml",
+      "child_cards": [],
+      "configuration_files": [
+        "provenance/source_tree/configs/DY/generate.toml",
+        "provenance/source_tree/configs/DY/runtime.toml"
+      ],
+      "sha256": "f519aa1f82e7a32d2ad7e8448943c3e4273172763566d088029b50c7e2a7347b",
+      "source_path": "cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s400/qqbar.toml"
+    },
+    {
+      "archive_path": "provenance/source_tree/cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s400/qg.toml",
+      "child_cards": [],
+      "configuration_files": [
+        "provenance/source_tree/configs/DY/generate.toml",
+        "provenance/source_tree/configs/DY/runtime.toml"
+      ],
+      "sha256": "652607e542880a700dadc2e0f1b0055577e1ea5d522052b24f52af22f7670fb2",
+      "source_path": "cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s400/qg.toml"
+    },
+    {
+      "archive_path": "provenance/source_tree/cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s400/gg.toml",
+      "child_cards": [],
+      "configuration_files": [
+        "provenance/source_tree/configs/DY/generate.toml",
+        "provenance/source_tree/configs/DY/runtime.toml"
+      ],
+      "sha256": "943323ca8130c1697c6a13dd9a9c62077e8aad22bb329ee2284190bb3440c7cc",
+      "source_path": "cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s400/gg.toml"
+    },
+    {
+      "archive_path": "provenance/source_tree/cards/campaigns/ttbar_dy_msbar_scan_20260901/production_1b/ttbar/hadronic/s1000/combined.toml",
+      "child_cards": [
+        {
+          "archive_path": "provenance/source_tree/cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s1000/qqbar.toml",
+          "channel": "qqbar",
+          "sha256": "b1c022c535c3f6be8cf993ffe2b478bac5eab99983990d942f78638ef4c134dc",
+          "source_path": "cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s1000/qqbar.toml"
+        },
+        {
+          "archive_path": "provenance/source_tree/cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s1000/qg.toml",
+          "channel": "qg",
+          "sha256": "455476ac48009bfcf0e3cc3d80d1162d266eccf6f6645afcc393bc4cae1c24c0",
+          "source_path": "cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s1000/qg.toml"
+        },
+        {
+          "archive_path": "provenance/source_tree/cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s1000/gg.toml",
+          "channel": "gg",
+          "sha256": "b75e15c6039a112daff8a762e082ace14c818cdbb64c9d1b950e423882617234",
+          "source_path": "cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s1000/gg.toml"
+        }
+      ],
+      "configuration_files": [
+        "provenance/source_tree/configs/DY/generate.toml",
+        "provenance/source_tree/configs/DY/runtime.toml"
+      ],
+      "sha256": "d67ab86bd38687210c5b95d5117f7ad2fafa13b36e309ae88567262ea4c25325",
+      "source_path": "cards/campaigns/ttbar_dy_msbar_scan_20260901/production_1b/ttbar/hadronic/s1000/combined.toml"
+    },
+    {
+      "archive_path": "provenance/source_tree/cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s1000/qqbar.toml",
+      "child_cards": [],
+      "configuration_files": [
+        "provenance/source_tree/configs/DY/generate.toml",
+        "provenance/source_tree/configs/DY/runtime.toml"
+      ],
+      "sha256": "b1c022c535c3f6be8cf993ffe2b478bac5eab99983990d942f78638ef4c134dc",
+      "source_path": "cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s1000/qqbar.toml"
+    },
+    {
+      "archive_path": "provenance/source_tree/cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s1000/qg.toml",
+      "child_cards": [],
+      "configuration_files": [
+        "provenance/source_tree/configs/DY/generate.toml",
+        "provenance/source_tree/configs/DY/runtime.toml"
+      ],
+      "sha256": "455476ac48009bfcf0e3cc3d80d1162d266eccf6f6645afcc393bc4cae1c24c0",
+      "source_path": "cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s1000/qg.toml"
+    },
+    {
+      "archive_path": "provenance/source_tree/cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s1000/gg.toml",
+      "child_cards": [],
+      "configuration_files": [
+        "provenance/source_tree/configs/DY/generate.toml",
+        "provenance/source_tree/configs/DY/runtime.toml"
+      ],
+      "sha256": "b75e15c6039a112daff8a762e082ace14c818cdbb64c9d1b950e423882617234",
+      "source_path": "cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s1000/gg.toml"
+    },
+    {
+      "archive_path": "provenance/source_tree/outputs/ttbar_h_exact_runtime_20260914/cards/s1500_1b.toml",
+      "child_cards": [
+        {
+          "archive_path": "provenance/source_tree/outputs/ttbar_h_exact_runtime_20260914/cards/channels/qqbar.toml",
+          "channel": "qqbar",
+          "sha256": "397adebe7f488285863204a80abf8b27124d21156c41295a953fb6dd99724fa0",
+          "source_path": "outputs/ttbar_h_exact_runtime_20260914/cards/channels/qqbar.toml"
+        },
+        {
+          "archive_path": "provenance/source_tree/outputs/ttbar_h_exact_runtime_20260914/cards/channels/qg.toml",
+          "channel": "qg",
+          "sha256": "ed07cd98d4d3dda6a1fd059dd069668e74927fb97853230cdc487668650dfde5",
+          "source_path": "outputs/ttbar_h_exact_runtime_20260914/cards/channels/qg.toml"
+        },
+        {
+          "archive_path": "provenance/source_tree/outputs/ttbar_h_exact_runtime_20260914/cards/channels/gg.toml",
+          "channel": "gg",
+          "sha256": "46a09936df7a696e9edead187dce6bf496d02bb9ed1f3fce255467b4baa75639",
+          "source_path": "outputs/ttbar_h_exact_runtime_20260914/cards/channels/gg.toml"
+        }
+      ],
+      "configuration_files": [
+        "provenance/source_tree/configs/DY/generate.toml",
+        "provenance/source_tree/configs/DY/runtime.toml"
+      ],
+      "sha256": "51559ecb573a2faaf2dbae4330007c063d8458e0c70d3b7fa6a83dc1dd24d450",
+      "source_path": "outputs/ttbar_h_exact_runtime_20260914/cards/s1500_1b.toml"
+    },
+    {
+      "archive_path": "provenance/source_tree/outputs/ttbar_h_exact_runtime_20260914/cards/channels/qqbar.toml",
+      "child_cards": [],
+      "configuration_files": [
+        "provenance/source_tree/configs/DY/generate.toml",
+        "provenance/source_tree/configs/DY/runtime.toml"
+      ],
+      "sha256": "397adebe7f488285863204a80abf8b27124d21156c41295a953fb6dd99724fa0",
+      "source_path": "outputs/ttbar_h_exact_runtime_20260914/cards/channels/qqbar.toml"
+    },
+    {
+      "archive_path": "provenance/source_tree/outputs/ttbar_h_exact_runtime_20260914/cards/channels/qg.toml",
+      "child_cards": [],
+      "configuration_files": [
+        "provenance/source_tree/configs/DY/generate.toml",
+        "provenance/source_tree/configs/DY/runtime.toml"
+      ],
+      "sha256": "ed07cd98d4d3dda6a1fd059dd069668e74927fb97853230cdc487668650dfde5",
+      "source_path": "outputs/ttbar_h_exact_runtime_20260914/cards/channels/qg.toml"
+    },
+    {
+      "archive_path": "provenance/source_tree/outputs/ttbar_h_exact_runtime_20260914/cards/channels/gg.toml",
+      "child_cards": [],
+      "configuration_files": [
+        "provenance/source_tree/configs/DY/generate.toml",
+        "provenance/source_tree/configs/DY/runtime.toml"
+      ],
+      "sha256": "46a09936df7a696e9edead187dce6bf496d02bb9ed1f3fce255467b4baa75639",
+      "source_path": "outputs/ttbar_h_exact_runtime_20260914/cards/channels/gg.toml"
+    },
+    {
+      "archive_path": "provenance/source_tree/cards/campaigns/ttbar_dy_msbar_scan_20260901/production_1b/ttbar/hadronic/s2000/combined.toml",
+      "child_cards": [
+        {
+          "archive_path": "provenance/source_tree/cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s2000/qqbar.toml",
+          "channel": "qqbar",
+          "sha256": "2ca808b040e4a91c9fa484b2ca53fe0fcb5030d171f25abbca493c72df44ee7b",
+          "source_path": "cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s2000/qqbar.toml"
+        },
+        {
+          "archive_path": "provenance/source_tree/cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s2000/qg.toml",
+          "channel": "qg",
+          "sha256": "56845cfc4fe17847e03236d1320b78114865e3846f4a13f367a88e86fdbc0767",
+          "source_path": "cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s2000/qg.toml"
+        },
+        {
+          "archive_path": "provenance/source_tree/cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s2000/gg.toml",
+          "channel": "gg",
+          "sha256": "1e51f5764868e175f980a7ec8f35c4e1eac108faeef01af1176044bbf2165948",
+          "source_path": "cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s2000/gg.toml"
+        }
+      ],
+      "configuration_files": [
+        "provenance/source_tree/configs/DY/generate.toml",
+        "provenance/source_tree/configs/DY/runtime.toml"
+      ],
+      "sha256": "9811ed4368cf6b7ffff3a80e3e3b5ab982a4b26a658e7ab1361dfe925f949a75",
+      "source_path": "cards/campaigns/ttbar_dy_msbar_scan_20260901/production_1b/ttbar/hadronic/s2000/combined.toml"
+    },
+    {
+      "archive_origin": "historical_card_restored_and_verified_against_run_hash",
+      "archive_path": "provenance/source_tree/cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s2000/qqbar.toml",
+      "child_cards": [],
+      "configuration_files": [
+        "provenance/source_tree/configs/DY/generate.toml",
+        "provenance/source_tree/configs/DY/runtime.toml"
+      ],
+      "restoration_record": "provenance/s2000_selection_correction.json",
+      "sha256": "2ca808b040e4a91c9fa484b2ca53fe0fcb5030d171f25abbca493c72df44ee7b",
+      "source_path": "cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s2000/qqbar.toml"
+    },
+    {
+      "archive_origin": "historical_card_restored_and_verified_against_run_hash",
+      "archive_path": "provenance/source_tree/cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s2000/qg.toml",
+      "child_cards": [],
+      "configuration_files": [
+        "provenance/source_tree/configs/DY/generate.toml",
+        "provenance/source_tree/configs/DY/runtime.toml"
+      ],
+      "restoration_record": "provenance/s2000_selection_correction.json",
+      "sha256": "56845cfc4fe17847e03236d1320b78114865e3846f4a13f367a88e86fdbc0767",
+      "source_path": "cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s2000/qg.toml"
+    },
+    {
+      "archive_origin": "historical_card_restored_and_verified_against_run_hash",
+      "archive_path": "provenance/source_tree/cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s2000/gg.toml",
+      "child_cards": [],
+      "configuration_files": [
+        "provenance/source_tree/configs/DY/generate.toml",
+        "provenance/source_tree/configs/DY/runtime.toml"
+      ],
+      "restoration_record": "provenance/s2000_selection_correction.json",
+      "sha256": "1e51f5764868e175f980a7ec8f35c4e1eac108faeef01af1176044bbf2165948",
+      "source_path": "cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s2000/gg.toml"
+    }
+  ]
+}

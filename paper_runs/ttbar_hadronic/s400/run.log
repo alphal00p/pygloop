@@ -1,0 +1,699 @@
+[92mINFO[0m [94mmain l.1827[0m [96mt=2026-09-01,21:28:22.101[0m > Using DY card /home/zeno/DY/pygloop_6c15087/cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s400/combined.toml (source SHA256 8ec4dacdf57ebfd6f64aff35ddfedd64a0471e9081d0ab14b71aa2cbede1553b, generation fingerprint bcd24bc3a47153206d9a2b5ae664ba7aa98376e227a5bc35972dbbfc1f64d3bb).
+[92mINFO[0m [94mmain l.1853[0m [96mt=2026-09-01,21:28:22.101[0m > Applied general settings to process PP_TTBAR_MSBAR_PARENT_S400_20260901: {}
+[92mINFO[0m [94m__init__ l.940[0m [96mt=2026-09-01,21:28:22.188[0m > Loaded compiled DY bundle from [92m/home/zeno/DY/pygloop_6c15087/outputs/evaluators/tt~/TTBAR_QQBAR_MSBAR_SCAN_20260901_2L_processed[0m
+[92mWARNING[0m [94m_verify_card_bundle_compatibility l.396[0m [96mt=2026-09-01,21:28:22.194[0m > DY bundle source provenance differs from the current checkout for: src/processes/dy/dy.py. Physics settings match, so integration will continue.
+[92mINFO[0m [94m__init__ l.940[0m [96mt=2026-09-01,21:28:22.243[0m > Loaded compiled DY bundle from [92m/home/zeno/DY/pygloop_6c15087/outputs/evaluators/tt~/TTBAR_QG_MSBAR_SCAN_20260901_2L_processed[0m
+[92mWARNING[0m [94m_verify_card_bundle_compatibility l.396[0m [96mt=2026-09-01,21:28:22.246[0m > DY bundle source provenance differs from the current checkout for: src/processes/dy/dy.py. Physics settings match, so integration will continue.
+[92mINFO[0m [94m__init__ l.940[0m [96mt=2026-09-01,21:28:22.627[0m > Loaded compiled DY bundle from [92m/home/zeno/DY/pygloop_6c15087/outputs/evaluators/tt~/TTBAR_GG_MSBAR_SCAN_20260901_2L_processed[0m
+[92mWARNING[0m [94m_verify_card_bundle_compatibility l.396[0m [96mt=2026-09-01,21:28:22.714[0m > DY bundle source provenance differs from the current checkout for: src/processes/dy/dy.py, src/processes/dy/dy_evaluators.py, src/processes/dy/dy_physical_channels.py. Physics settings match, so integration will continue.
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-01,21:28:22.815[0m > Hierarchical physical-channel Symbolica production: iteration 1/100 with 1000000 points (0.075 floor per channel)
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-01,21:29:44.031[0m > Physical-channel hard total after iteration 1: -5.2353937014387240e-19 +/- 7.3719e-19
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-01,21:29:44.031[0m > Hierarchical physical-channel Symbolica production: iteration 2/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-01,21:32:41.821[0m > Physical-channel hard total after iteration 2: -2.2238418142297644e-19 +/- 3.7944e-19
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-01,21:32:41.821[0m > Hierarchical physical-channel Symbolica production: iteration 3/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-01,21:34:41.861[0m > Physical-channel hard total after iteration 3: -2.2279787645564593e-19 +/- 2.5446e-19
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-01,21:34:41.862[0m > Hierarchical physical-channel Symbolica production: iteration 4/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-01,21:37:09.869[0m > Physical-channel hard total after iteration 4: -1.8219634138189631e-19 +/- 1.9334e-19
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-01,21:37:09.869[0m > Hierarchical physical-channel Symbolica production: iteration 5/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-01,21:40:24.983[0m > Physical-channel hard total after iteration 5: -1.6046791183766321e-19 +/- 1.5516e-19
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-01,21:40:24.983[0m > Hierarchical physical-channel Symbolica production: iteration 6/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-01,21:43:50.251[0m > Physical-channel hard total after iteration 6: -1.7611442148230540e-19 +/- 1.2979e-19
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-01,21:43:50.257[0m > Hierarchical physical-channel Symbolica production: iteration 7/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-01,21:47:27.832[0m > Physical-channel hard total after iteration 7: -1.7488274885310241e-19 +/- 1.1151e-19
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-01,21:47:27.833[0m > Hierarchical physical-channel Symbolica production: iteration 8/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-01,21:49:59.614[0m > Physical-channel hard total after iteration 8: -1.7572191419407314e-19 +/- 9.7878e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-01,21:49:59.614[0m > Hierarchical physical-channel Symbolica production: iteration 9/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-01,21:52:36.406[0m > Physical-channel hard total after iteration 9: -1.7290511111528101e-19 +/- 8.7219e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-01,21:52:36.406[0m > Hierarchical physical-channel Symbolica production: iteration 10/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-01,21:56:20.409[0m > Physical-channel hard total after iteration 10: -1.6912964374485169e-19 +/- 7.8677e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-01,21:56:20.410[0m > Hierarchical physical-channel Symbolica production: iteration 11/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-01,21:58:43.330[0m > Physical-channel hard total after iteration 11: -1.6349900430332819e-19 +/- 7.1670e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-01,21:58:43.330[0m > Hierarchical physical-channel Symbolica production: iteration 12/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-01,22:01:16.437[0m > Physical-channel hard total after iteration 12: -1.5416806715903577e-19 +/- 6.5973e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-01,22:01:16.437[0m > Hierarchical physical-channel Symbolica production: iteration 13/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-01,22:04:13.058[0m > Physical-channel hard total after iteration 13: -1.5469732486228566e-19 +/- 6.1023e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-01,22:04:13.058[0m > Hierarchical physical-channel Symbolica production: iteration 14/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-01,22:06:39.444[0m > Physical-channel hard total after iteration 14: -1.5336486751102391e-19 +/- 5.6773e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-01,22:06:39.444[0m > Hierarchical physical-channel Symbolica production: iteration 15/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-01,22:10:03.035[0m > Physical-channel hard total after iteration 15: -1.5797709534798111e-19 +/- 5.3107e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-01,22:10:03.036[0m > Hierarchical physical-channel Symbolica production: iteration 16/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-01,22:13:16.491[0m > Physical-channel hard total after iteration 16: -1.5520470786731583e-19 +/- 4.9890e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-01,22:13:16.491[0m > Hierarchical physical-channel Symbolica production: iteration 17/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-01,22:16:24.978[0m > Physical-channel hard total after iteration 17: -1.5841505681051297e-19 +/- 4.7136e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-01,22:16:24.978[0m > Hierarchical physical-channel Symbolica production: iteration 18/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-01,22:19:24.158[0m > Physical-channel hard total after iteration 18: -1.5796501701802998e-19 +/- 4.4606e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-01,22:19:24.158[0m > Hierarchical physical-channel Symbolica production: iteration 19/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-01,22:22:59.371[0m > Physical-channel hard total after iteration 19: -1.5412990806328861e-19 +/- 4.2360e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-01,22:22:59.371[0m > Hierarchical physical-channel Symbolica production: iteration 20/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-01,22:26:20.483[0m > Physical-channel hard total after iteration 20: -1.5569663919068673e-19 +/- 4.0323e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-01,22:26:20.483[0m > Hierarchical physical-channel Symbolica production: iteration 21/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-01,22:30:03.945[0m > Physical-channel hard total after iteration 21: -1.5873997213967431e-19 +/- 3.8508e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-01,22:30:03.945[0m > Hierarchical physical-channel Symbolica production: iteration 22/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-01,22:33:17.873[0m > Physical-channel hard total after iteration 22: -1.6041220224005237e-19 +/- 3.6828e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-01,22:33:17.894[0m > Hierarchical physical-channel Symbolica production: iteration 23/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-01,22:37:06.165[0m > Physical-channel hard total after iteration 23: -1.6270953423082191e-19 +/- 3.5296e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-01,22:37:06.165[0m > Hierarchical physical-channel Symbolica production: iteration 24/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-01,22:40:33.365[0m > Physical-channel hard total after iteration 24: -1.6334803062656432e-19 +/- 3.3927e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-01,22:40:33.365[0m > Hierarchical physical-channel Symbolica production: iteration 25/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-01,22:43:39.883[0m > Physical-channel hard total after iteration 25: -1.5957859128763737e-19 +/- 3.2648e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-01,22:43:39.883[0m > Hierarchical physical-channel Symbolica production: iteration 26/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-01,22:46:43.695[0m > Physical-channel hard total after iteration 26: -1.5831828311048368e-19 +/- 3.1454e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-01,22:46:43.696[0m > Hierarchical physical-channel Symbolica production: iteration 27/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-01,22:51:31.089[0m > Physical-channel hard total after iteration 27: -1.5440961318299257e-19 +/- 3.0381e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-01,22:51:31.090[0m > Hierarchical physical-channel Symbolica production: iteration 28/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-01,22:56:00.040[0m > Physical-channel hard total after iteration 28: -1.5277741828421464e-19 +/- 2.9393e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-01,22:56:00.040[0m > Hierarchical physical-channel Symbolica production: iteration 29/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-01,23:00:00.343[0m > Physical-channel hard total after iteration 29: -1.4980171447079255e-19 +/- 2.8458e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-01,23:00:00.344[0m > Hierarchical physical-channel Symbolica production: iteration 30/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-01,23:04:30.556[0m > Physical-channel hard total after iteration 30: -1.4976930490927768e-19 +/- 2.7579e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-01,23:04:30.557[0m > Hierarchical physical-channel Symbolica production: iteration 31/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-01,23:08:05.949[0m > Physical-channel hard total after iteration 31: -1.5044313045389476e-19 +/- 2.6745e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-01,23:08:05.949[0m > Hierarchical physical-channel Symbolica production: iteration 32/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-01,23:12:52.493[0m > Physical-channel hard total after iteration 32: -1.4912607056950012e-19 +/- 2.5960e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-01,23:12:52.494[0m > Hierarchical physical-channel Symbolica production: iteration 33/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-01,23:19:13.003[0m > Physical-channel hard total after iteration 33: -1.5024234120009710e-19 +/- 2.5219e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-01,23:19:13.004[0m > Hierarchical physical-channel Symbolica production: iteration 34/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-01,23:23:13.910[0m > Physical-channel hard total after iteration 34: -1.4988486834500934e-19 +/- 2.4520e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-01,23:23:13.910[0m > Hierarchical physical-channel Symbolica production: iteration 35/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-01,23:26:51.892[0m > Physical-channel hard total after iteration 35: -1.5013292483991244e-19 +/- 2.3882e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-01,23:26:51.892[0m > Hierarchical physical-channel Symbolica production: iteration 36/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-01,23:30:48.642[0m > Physical-channel hard total after iteration 36: -1.5090505139874322e-19 +/- 2.3269e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-01,23:30:48.642[0m > Hierarchical physical-channel Symbolica production: iteration 37/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-01,23:33:36.216[0m > Physical-channel hard total after iteration 37: -1.5550004098556149e-19 +/- 2.2686e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-01,23:33:36.216[0m > Hierarchical physical-channel Symbolica production: iteration 38/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-01,23:36:18.020[0m > Physical-channel hard total after iteration 38: -1.5600088350215100e-19 +/- 2.2137e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-01,23:36:18.020[0m > Hierarchical physical-channel Symbolica production: iteration 39/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-01,23:39:12.130[0m > Physical-channel hard total after iteration 39: -1.5545680248270416e-19 +/- 2.1607e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-01,23:39:12.146[0m > Hierarchical physical-channel Symbolica production: iteration 40/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-01,23:41:56.815[0m > Physical-channel hard total after iteration 40: -1.5407438667968635e-19 +/- 2.1114e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-01,23:41:56.815[0m > Hierarchical physical-channel Symbolica production: iteration 41/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-01,23:45:19.554[0m > Physical-channel hard total after iteration 41: -1.5646142819363098e-19 +/- 2.0642e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-01,23:45:19.554[0m > Hierarchical physical-channel Symbolica production: iteration 42/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-01,23:48:12.347[0m > Physical-channel hard total after iteration 42: -1.5498165534149276e-19 +/- 2.0192e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-01,23:48:12.348[0m > Hierarchical physical-channel Symbolica production: iteration 43/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-01,23:51:19.586[0m > Physical-channel hard total after iteration 43: -1.5417639966366987e-19 +/- 1.9765e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-01,23:51:19.586[0m > Hierarchical physical-channel Symbolica production: iteration 44/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-01,23:53:52.424[0m > Physical-channel hard total after iteration 44: -1.5166521494713732e-19 +/- 1.9351e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-01,23:53:52.425[0m > Hierarchical physical-channel Symbolica production: iteration 45/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-01,23:56:43.422[0m > Physical-channel hard total after iteration 45: -1.5146909389785272e-19 +/- 1.8953e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-01,23:56:43.422[0m > Hierarchical physical-channel Symbolica production: iteration 46/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-01,23:59:22.760[0m > Physical-channel hard total after iteration 46: -1.5107769793557492e-19 +/- 1.8582e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-01,23:59:22.760[0m > Hierarchical physical-channel Symbolica production: iteration 47/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-02,00:02:02.157[0m > Physical-channel hard total after iteration 47: -1.5250171042870781e-19 +/- 1.8227e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-02,00:02:02.158[0m > Hierarchical physical-channel Symbolica production: iteration 48/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-02,00:04:43.542[0m > Physical-channel hard total after iteration 48: -1.5205714951373833e-19 +/- 1.7876e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-02,00:04:43.543[0m > Hierarchical physical-channel Symbolica production: iteration 49/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-02,00:07:20.987[0m > Physical-channel hard total after iteration 49: -1.5013724430624977e-19 +/- 1.7549e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-02,00:07:20.988[0m > Hierarchical physical-channel Symbolica production: iteration 50/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-02,00:09:52.028[0m > Physical-channel hard total after iteration 50: -1.4917577372214500e-19 +/- 1.7228e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-02,00:09:52.028[0m > Hierarchical physical-channel Symbolica production: iteration 51/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-02,00:12:35.640[0m > Physical-channel hard total after iteration 51: -1.4840824361211794e-19 +/- 1.6919e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-02,00:12:35.669[0m > Hierarchical physical-channel Symbolica production: iteration 52/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-02,00:15:32.849[0m > Physical-channel hard total after iteration 52: -1.4784859344097680e-19 +/- 1.6647e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-02,00:15:32.849[0m > Hierarchical physical-channel Symbolica production: iteration 53/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-02,00:18:16.680[0m > Physical-channel hard total after iteration 53: -1.4819215954921382e-19 +/- 1.6364e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-02,00:18:16.680[0m > Hierarchical physical-channel Symbolica production: iteration 54/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-02,00:21:10.137[0m > Physical-channel hard total after iteration 54: -1.4822445770244197e-19 +/- 1.6094e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-02,00:21:10.137[0m > Hierarchical physical-channel Symbolica production: iteration 55/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-02,00:24:07.918[0m > Physical-channel hard total after iteration 55: -1.4786148588434022e-19 +/- 1.5836e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-02,00:24:07.918[0m > Hierarchical physical-channel Symbolica production: iteration 56/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-02,00:27:01.620[0m > Physical-channel hard total after iteration 56: -1.4519284536421639e-19 +/- 1.5682e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-02,00:27:01.620[0m > Hierarchical physical-channel Symbolica production: iteration 57/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-02,00:29:52.046[0m > Physical-channel hard total after iteration 57: -1.4366931389174030e-19 +/- 1.5431e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-02,00:29:52.046[0m > Hierarchical physical-channel Symbolica production: iteration 58/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-02,00:32:56.921[0m > Physical-channel hard total after iteration 58: -1.4305887830187914e-19 +/- 1.5190e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-02,00:32:56.922[0m > Hierarchical physical-channel Symbolica production: iteration 59/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-02,00:36:08.722[0m > Physical-channel hard total after iteration 59: -1.4504658290501788e-19 +/- 1.4956e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-02,00:36:08.722[0m > Hierarchical physical-channel Symbolica production: iteration 60/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-02,00:39:45.122[0m > Physical-channel hard total after iteration 60: -1.4443457811430391e-19 +/- 1.4737e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-02,00:39:45.144[0m > Hierarchical physical-channel Symbolica production: iteration 61/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-02,00:42:58.924[0m > Physical-channel hard total after iteration 61: -1.4408075336018336e-19 +/- 1.4520e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-02,00:42:58.946[0m > Hierarchical physical-channel Symbolica production: iteration 62/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-02,00:46:08.420[0m > Physical-channel hard total after iteration 62: -1.4507690231085960e-19 +/- 1.4390e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-02,00:46:08.420[0m > Hierarchical physical-channel Symbolica production: iteration 63/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-02,00:49:33.248[0m > Physical-channel hard total after iteration 63: -1.4449211609908892e-19 +/- 1.4184e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-02,00:49:33.248[0m > Hierarchical physical-channel Symbolica production: iteration 64/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-02,00:52:27.722[0m > Physical-channel hard total after iteration 64: -1.4393792998902496e-19 +/- 1.3984e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-02,00:52:27.722[0m > Hierarchical physical-channel Symbolica production: iteration 65/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-02,00:55:30.361[0m > Physical-channel hard total after iteration 65: -1.4343396411282017e-19 +/- 1.3795e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-02,00:55:30.361[0m > Hierarchical physical-channel Symbolica production: iteration 66/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-02,00:58:29.678[0m > Physical-channel hard total after iteration 66: -1.4366138467836319e-19 +/- 1.3608e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-02,00:58:29.678[0m > Hierarchical physical-channel Symbolica production: iteration 67/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-02,01:01:00.470[0m > Physical-channel hard total after iteration 67: -1.4350572751963918e-19 +/- 1.3430e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-02,01:01:00.470[0m > Hierarchical physical-channel Symbolica production: iteration 68/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-02,01:03:22.973[0m > Physical-channel hard total after iteration 68: -1.4238309038313653e-19 +/- 1.3254e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-02,01:03:22.973[0m > Hierarchical physical-channel Symbolica production: iteration 69/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-02,01:06:06.434[0m > Physical-channel hard total after iteration 69: -1.4297737851292207e-19 +/- 1.3084e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-02,01:06:06.435[0m > Hierarchical physical-channel Symbolica production: iteration 70/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-02,01:09:09.010[0m > Physical-channel hard total after iteration 70: -1.4200391802432124e-19 +/- 1.2938e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-02,01:09:09.010[0m > Hierarchical physical-channel Symbolica production: iteration 71/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-02,01:12:27.261[0m > Physical-channel hard total after iteration 71: -1.4352456286806683e-19 +/- 1.2780e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-02,01:12:27.261[0m > Hierarchical physical-channel Symbolica production: iteration 72/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-02,01:15:26.430[0m > Physical-channel hard total after iteration 72: -1.4201775252511039e-19 +/- 1.2620e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-02,01:15:26.430[0m > Hierarchical physical-channel Symbolica production: iteration 73/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-02,01:18:30.808[0m > Physical-channel hard total after iteration 73: -1.4323653092603258e-19 +/- 1.2474e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-02,01:18:30.808[0m > Hierarchical physical-channel Symbolica production: iteration 74/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-02,01:21:34.590[0m > Physical-channel hard total after iteration 74: -1.4277923100788551e-19 +/- 1.2324e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-02,01:21:34.590[0m > Hierarchical physical-channel Symbolica production: iteration 75/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-02,01:24:36.365[0m > Physical-channel hard total after iteration 75: -1.4302455662961042e-19 +/- 1.2180e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-02,01:24:36.366[0m > Hierarchical physical-channel Symbolica production: iteration 76/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-02,01:27:52.559[0m > Physical-channel hard total after iteration 76: -1.4351762956117116e-19 +/- 1.2037e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-02,01:27:52.559[0m > Hierarchical physical-channel Symbolica production: iteration 77/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-02,01:31:00.620[0m > Physical-channel hard total after iteration 77: -1.4284075896515508e-19 +/- 1.1899e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-02,01:31:00.621[0m > Hierarchical physical-channel Symbolica production: iteration 78/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-02,01:34:06.002[0m > Physical-channel hard total after iteration 78: -1.4352859507247858e-19 +/- 1.1781e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-02,01:34:06.002[0m > Hierarchical physical-channel Symbolica production: iteration 79/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-02,01:37:06.347[0m > Physical-channel hard total after iteration 79: -1.4203142057492299e-19 +/- 1.1650e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-02,01:37:06.348[0m > Hierarchical physical-channel Symbolica production: iteration 80/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-02,01:39:40.035[0m > Physical-channel hard total after iteration 80: -1.4168873440279880e-19 +/- 1.1524e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-02,01:39:40.036[0m > Hierarchical physical-channel Symbolica production: iteration 81/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-02,01:42:23.698[0m > Physical-channel hard total after iteration 81: -1.4208913090254954e-19 +/- 1.1400e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-02,01:42:23.713[0m > Hierarchical physical-channel Symbolica production: iteration 82/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-02,01:45:13.255[0m > Physical-channel hard total after iteration 82: -1.4255021239911086e-19 +/- 1.1285e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-02,01:45:13.255[0m > Hierarchical physical-channel Symbolica production: iteration 83/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-02,01:47:41.379[0m > Physical-channel hard total after iteration 83: -1.4267155604823066e-19 +/- 1.1169e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-02,01:47:41.380[0m > Hierarchical physical-channel Symbolica production: iteration 84/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-02,01:50:14.241[0m > Physical-channel hard total after iteration 84: -1.4358676145180925e-19 +/- 1.1068e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-02,01:50:14.241[0m > Hierarchical physical-channel Symbolica production: iteration 85/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-02,01:52:58.173[0m > Physical-channel hard total after iteration 85: -1.4352062284967398e-19 +/- 1.0957e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-02,01:52:58.173[0m > Hierarchical physical-channel Symbolica production: iteration 86/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-02,01:55:43.738[0m > Physical-channel hard total after iteration 86: -1.4345256788303279e-19 +/- 1.0856e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-02,01:55:43.739[0m > Hierarchical physical-channel Symbolica production: iteration 87/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-02,01:58:45.326[0m > Physical-channel hard total after iteration 87: -1.4276068398053449e-19 +/- 1.0752e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-02,01:58:45.326[0m > Hierarchical physical-channel Symbolica production: iteration 88/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-02,02:02:03.109[0m > Physical-channel hard total after iteration 88: -1.4239462247750383e-19 +/- 1.0648e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-02,02:02:03.109[0m > Hierarchical physical-channel Symbolica production: iteration 89/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-02,02:04:25.292[0m > Physical-channel hard total after iteration 89: -1.4245443936007114e-19 +/- 1.0543e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-02,02:04:25.292[0m > Hierarchical physical-channel Symbolica production: iteration 90/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-02,02:07:13.431[0m > Physical-channel hard total after iteration 90: -1.4311407195395193e-19 +/- 1.0441e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-02,02:07:13.432[0m > Hierarchical physical-channel Symbolica production: iteration 91/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-02,02:09:28.300[0m > Physical-channel hard total after iteration 91: -1.4329461234329142e-19 +/- 1.0346e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-02,02:09:28.300[0m > Hierarchical physical-channel Symbolica production: iteration 92/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-02,02:12:20.998[0m > Physical-channel hard total after iteration 92: -1.4296786012792438e-19 +/- 1.0249e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-02,02:12:20.998[0m > Hierarchical physical-channel Symbolica production: iteration 93/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-02,02:15:13.612[0m > Physical-channel hard total after iteration 93: -1.4296774546956244e-19 +/- 1.0159e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-02,02:15:13.612[0m > Hierarchical physical-channel Symbolica production: iteration 94/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-02,02:17:49.384[0m > Physical-channel hard total after iteration 94: -1.4248497067945592e-19 +/- 1.0065e-20
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-02,02:17:49.384[0m > Hierarchical physical-channel Symbolica production: iteration 95/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-02,02:20:33.735[0m > Physical-channel hard total after iteration 95: -1.4280152983906271e-19 +/- 9.9724e-21
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-02,02:20:33.735[0m > Hierarchical physical-channel Symbolica production: iteration 96/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-02,02:23:23.976[0m > Physical-channel hard total after iteration 96: -1.4273986257439831e-19 +/- 9.8932e-21
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-02,02:23:23.977[0m > Hierarchical physical-channel Symbolica production: iteration 97/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-02,02:26:07.431[0m > Physical-channel hard total after iteration 97: -1.4324667038042940e-19 +/- 9.8066e-21
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-02,02:26:07.431[0m > Hierarchical physical-channel Symbolica production: iteration 98/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-02,02:29:08.038[0m > Physical-channel hard total after iteration 98: -1.4363871156547451e-19 +/- 9.7206e-21
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-02,02:29:08.038[0m > Hierarchical physical-channel Symbolica production: iteration 99/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-02,02:31:45.773[0m > Physical-channel hard total after iteration 99: -1.4308746294774309e-19 +/- 9.6359e-21
+[92mINFO[0m [94m_integrate_hierarchical l.1709[0m [96mt=2026-09-02,02:31:45.773[0m > Hierarchical physical-channel Symbolica production: iteration 100/100 with 1000000 points (0.075 floor per channel)
+[92mINFO[0m [94m_integrate_hierarchical l.1783[0m [96mt=2026-09-02,02:34:40.808[0m > Physical-channel hard total after iteration 100: -1.4323046141489820e-19 +/- 9.5531e-21
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+Thanks for using LHAPDF 6.5.5Thanks for using LHAPDF 6.5.5  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)Thanks for using LHAPDF 6.5.5Thanks for using LHAPDF 6.5.5Thanks for using LHAPDF . Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)Thanks for using LHAPDF 6.5.5Thanks for using LHAPDF 6.5.5Thanks for using LHAPDF . Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)Thanks for using LHAPDF 6.5.5Thanks for using LHAPDF 6.5.5Thanks for using LHAPDF 6.5.5
+Thanks for using LHAPDF 6.5.5Thanks for using LHAPDF 6.5.5Thanks for using LHAPDF 6.5.5Thanks for using LHAPDF 6.5.5Thanks for using LHAPDF 6.5.5Thanks for using LHAPDF . Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)Thanks for using LHAPDF 6.5.5Thanks for using LHAPDF 6.5.5Thanks for using LHAPDF 6.5.5Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)Thanks for using LHAPDF 
+6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+
+. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+
+. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5LHAPDF  loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat6.5.5
+ loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.datPDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+[92mINFO[0m [94m_apply_ttbar_qqbar_scheme_and_decoupling l.3364[0m [96mt=2026-09-02,02:35:29.641[0m > ttbar qqbar scheme/decoupling flags: scheme=True decoupling=True; coefficients hard=-5.0000000000000000e-01 Dqq=+5.8999999999999997e-02 Born=-1.6054293231500892e-02
+[92mINFO[0m [94m_apply_ttbar_qqbar_scheme_and_decoupling l.3373[0m [96mt=2026-09-02,02:35:29.641[0m > ttbar qqbar components: hard=-1.6130203619607598e-19 +/- 8.7493e-21; Dqq=+2.7360355450042357e-18 +/- 4.0262e-21 (raw +4.6373483813631114e-17 +/- 6.8240e-20); Born=-5.8736762736784296e-20 +/- 2.0260e-23 (raw +3.6586327339240383e-18 +/- 1.2620e-21); auxiliary=+2.6772987822674558e-18 +/- 4.0076e-21; total=+2.5159967460713798e-18 +/- 9.6234e-21
+[92mINFO[0m [94m_apply_ttbar_qqbar_scheme_and_decoupling l.3393[0m [96mt=2026-09-02,02:35:29.664[0m > ttbar qqbar auxiliary diagnostics: samples=2097152 elapsed=47.10s fallback/nonfinite/clipped=0/0/0; fractions=0.000e+00/0.000e+00/0.000e+00
+[92mINFO[0m [94m_apply_ttbar_qqbar_scheme_and_decoupling l.3406[0m [96mt=2026-09-02,02:35:29.664[0m > ttbar qqbar Dqq component regular: +2.5936651274152058e-22 +/- 1.3859e-25 (raw +4.3960425888393318e-21 +/- 2.3490e-24)
+[92mINFO[0m [94m_apply_ttbar_qqbar_scheme_and_decoupling l.3406[0m [96mt=2026-09-02,02:35:29.664[0m > ttbar qqbar Dqq component log_x_plus: -1.4453194675920814e-20 +/- 2.0180e-24 (raw -2.4496940128679346e-19 +/- 3.4203e-23)
+[92mINFO[0m [94m_apply_ttbar_qqbar_scheme_and_decoupling l.3406[0m [96mt=2026-09-02,02:35:29.664[0m > ttbar qqbar Dqq component log_one_minus_x_plus: +8.7074248639634942e-19 +/- 1.8015e-21 (raw +1.4758347227056771e-17 +/- 3.0534e-20)
+[92mINFO[0m [94m_apply_ttbar_qqbar_scheme_and_decoupling l.3406[0m [96mt=2026-09-02,02:35:29.664[0m > ttbar qqbar Dqq component lower_limit_remainder: +2.0096022829611922e-18 +/- 2.8175e-21 (raw +3.4061055643410041e-17 +/- 4.7754e-20)
+[92mINFO[0m [94m_apply_ttbar_qqbar_scheme_and_decoupling l.3406[0m [96mt=2026-09-02,02:35:29.664[0m > ttbar qqbar Dqq component delta: -1.3011539619012473e-19 +/- 4.4881e-23 (raw -2.2053456981377073e-18 +/- 7.6069e-22)
+LHAPDF 6.5.5LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+ loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF LHAPDF LHAPDF LHAPDF LHAPDF 6.5.5LHAPDF 6.5.5LHAPDF LHAPDF LHAPDF 6.5.5LHAPDF 6.5.5LHAPDF 6.5.5LHAPDF 6.5.5LHAPDF 6.5.5LHAPDF 6.5.5LHAPDF 6.5.5LHAPDF 6.5.5LHAPDF 6.5.56.5.5 loading LHAPDF 6.5.5LHAPDF 6.5.5LHAPDF 6.5.5LHAPDF 6.5.5LHAPDF 6.5.5LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+6.5.5 loading LHAPDF 6.5.5LHAPDF 6.5.5LHAPDF 6.5.5LHAPDF 6.5.56.5.5 loading 6.5.5 loading  loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+ loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+ loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+ loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+ loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+ loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+ loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+ loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat loading 
+/home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.datPDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+ loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+/home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+ loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+ loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+ loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+ loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+ loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+/home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+ loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+ loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+ loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+ loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+/home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+/home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+[92mINFO[0m [94m_add_dy_msbar_scheme_counterterm l.3553[0m [96mt=2026-09-02,02:36:42.802[0m > ttbar MSbar gq scheme counterterm: -6.4610549397183915e-21 +/- 3.3749e-24 (raw -1.0283088312444898e-21 +/- 5.3713e-25; factor +6.2831853071795862e+00; 2097152 Sobol samples in 73.13s); fallback/clipped/nonfinite = 0/0 (0.000e+00)/0; combined: -8.6530308437068862e-21 +/- 4.6153e-23
+[92mINFO[0m [94m_add_dy_msbar_scheme_counterterm l.3575[0m [96mt=2026-09-02,02:36:42.802[0m > ttbar qg decoupling: enabled=True coefficient=+0.0000000000000000e+00; Born contribution=+0.0000000000000000e+00 +/- 0.0000e+00 (zero at NLO)
+[92mINFO[0m [94m_add_dy_msbar_scheme_counterterm l.3584[0m [96mt=2026-09-02,02:36:42.889[0m > ttbar MSbar gq component D_gq_x_qqbar: -3.5327472516697691e-21 +/- 1.8273e-24
+[92mINFO[0m [94m_add_dy_msbar_scheme_counterterm l.3584[0m [96mt=2026-09-02,02:36:42.889[0m > ttbar MSbar gq component D_qg_x_gg: -2.9283076880486149e-21 +/- 1.5572e-24
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+ loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5LHAPDF  loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+6.5.5 loading PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100/home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+ loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+[92mINFO[0m [94m_apply_ttbar_gg_scheme l.3098[0m [96mt=2026-09-02,02:38:18.099[0m > ttbar gg scheme/decoupling flags: scheme=True decoupling=True; coefficients hard=-5.0000000000000000e-01 scheme=+1.0000000000000000e+00 Born=-1.6054293231500892e-02; physical convention=-1/2*Hraw+(Dgg-LSZ)+top-LSZ+cdec*Born
+[92mINFO[0m [94m_apply_ttbar_gg_scheme l.3108[0m [96mt=2026-09-02,02:38:18.100[0m > ttbar gg components: hard=+2.0263550685138097e-20 +/- 3.8354e-21; Dgg-LSZ=+1.8258599133520978e-19 +/- 2.7547e-22; top-LSZ=+1.3647498570697973e-21 +/- 6.3921e-25; Born=-1.3647498570697969e-21 +/- 6.3921e-25; auxiliary=+1.8258599133520923e-19 +/- 2.7547e-22; total=+2.0284954202034731e-19 +/- 3.8453e-21
+[92mINFO[0m [94m_apply_ttbar_gg_scheme l.3126[0m [96mt=2026-09-02,02:38:18.124[0m > ttbar gg auxiliary diagnostics: samples=2097152 elapsed=95.20s fallback/nonfinite/clipped=0/0/0; fractions=0.000e+00/0.000e+00/0.000e+00
+[92mINFO[0m [94mmain l.2155[0m [96mt=2026-09-02,02:38:18.819[0m > --------------------------------------------------------------------------------
+[92mINFO[0m [94mmain l.2156[0m [96mt=2026-09-02,02:38:18.821[0m > Integration with settings below completed in [92m18596.72s[0m:
+| [94mdy_card                       [0m: [92mPosixPath('/home/zeno/DY/pygloop_6c15087/cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s400/combined.toml')[0m
+| [94mdy_card_check                 [0m: [92mFalse[0m
+| [94mdy_dump_effective_card        [0m: [92mFalse[0m
+| [94mdy_allow_unverified_bundle    [0m: [92mFalse[0m
+| [94mprocess                       [0m: [92m'dy'[0m
+| [94mgeneral_settings              [0m: [92m[][0m
+| [94mdiagrams                      [0m: [92m[][0m
+| [94moverwrite_process_basename    [0m: [92m'PP_TTBAR_MSBAR_PARENT_S400_20260901'[0m
+| [94mverbosity                     [0m: [92m'info'[0m
+| [94mparameterisation              [0m: [92m'spherical'[0m
+| [94mdy_skip_ps_validation         [0m: [92mTrue[0m
+| [94mdy_rotation_check_digits      [0m: [92m7[0m
+| [94mdy_rotation_check_eps         [0m: [92m1e-15[0m
+| [94mdy_rotation_check_arb_digits  [0m: [92m32[0m
+| [94mdy_fallback_precision         [0m: [92m32[0m
+| [94mdy_stability_backend          [0m: [92m'double-float'[0m
+| [94mdy_stability_arb_digits       [0m: [92mNone[0m
+| [94mdy_stability_rtol             [0m: [92mNone[0m
+| [94mdy_stability_atol             [0m: [92mNone[0m
+| [94mdy_theta_tol                  [0m: [92m0.0[0m
+| [94mdy_large_weight_precision     [0m: [92mNone[0m
+| [94mdy_large_weight_clip          [0m: [92mNone[0m
+| [94mdy_soft_mirror_edge           [0m: [92mNone[0m
+| [94mdy_large_weight_threshold     [0m: [92mNone[0m
+| [94mdy_zero_large_weight_samples  [0m: [92mFalse[0m
+| [94mdy_integrated_uv_ct_filter    [0m: [92m'all'[0m
+| [94mdy_accept_all_arb_retries     [0m: [92mFalse[0m
+| [94mdy_final_state                [0m: [92m['t', 't'][0m
+| [94mdy_process_name               [0m: [92m'tt~'[0m
+| [94mdy_channel                    [0m: [92m[1, -1][0m
+| [94mexternal_gluon_polarisation   [0m: [92mFalse[0m
+| [94mdy_symmetrise_p1_p2           [0m: [92mTrue[0m
+| [94mdy_parallel_graphs            [0m: [92m1[0m
+| [94mdy_integrate_beams            [0m: [92mTrue[0m
+| [94mdy_beam_parameterisation      [0m: [92m'beta_y'[0m
+| [94mdy_z_bin                      [0m: [92mNone[0m
+| [94mdy_q_min                      [0m: [92mNone[0m
+| [94mdy_q_max                      [0m: [92mNone[0m
+| [94mdy_physical_normalisation     [0m: [92mTrue[0m
+| [94mdy_integrated_leptonic_phase_space[0m: [92mFalse[0m
+| [94mdy_pdf_set                    [0m: [92m'PDF4LHC21_40'[0m
+| [94mdy_pdf_member                 [0m: [92m0[0m
+| [94mdy_muf_sq                     [0m: [92m8302.489924[0m
+| [94mdy_msbar_scheme_counterterm   [0m: [92mFalse[0m
+| [94mdy_decoupling                 [0m: [92mFalse[0m
+| [94mdy_scheme_counterterm_sobol_power[0m: [92m15[0m
+| [94mdy_scheme_counterterm_replicas[0m: [92m8[0m
+| [94mdy_scheme_counterterm_factor  [0m: [92mNone[0m
+| [94mdy_scheme_born_bundle         [0m: [92mNone[0m
+| [94mdy_scheme_born_bundles        [0m: [92mNone[0m
+| [94mdy_scheme_alpha_s             [0m: [92m0.118[0m
+| [94mdy_scheme_counterterm_clip    [0m: [92mNone[0m
+| [94mdy_ttbar_pt_min               [0m: [92mNone[0m
+| [94mdy_muv                        [0m: [92m200.0[0m
+| [94mdy_runtime_parameter_overrides[0m: [92mNone[0m
+| [94mdy_lambda_sq                  [0m: [92m8302.489924[0m
+| [94mdy_mur_sq                     [0m: [92m8302.489924[0m
+| [94mgammaloop_configuration       [0m: [92m'/home/zeno/DY/pygloop_6c15087/configs/DY/generate.toml'[0m
+| [94mruntime_configuration         [0m: [92m'/home/zeno/DY/pygloop_6c15087/configs/DY/runtime.toml'[0m
+| [94mgammaloop_settings            [0m: [92m[][0m
+| [94mm_top                         [0m: [92m173.0[0m
+| [94mm_higgs                       [0m: [92m125.0[0m
+| [94mpg1                           [0m: [92m[200.0, 0.0, 0.0, 200.0][0m
+| [94mpg2                           [0m: [92m[200.0, 0.0, 0.0, -200.0][0m
+| [94mph1                           [0m: [92m[438.5555662246945, 155.3322001835378, 348.0160396513587, -177.3773615718412][0m
+| [94mph2                           [0m: [92m[356.3696374921922, -16.802389008511, -318.7291102436005, 97.48719163688098][0m
+| [94mph3                           [0m: [92m[205.0747962831133, -138.5298111750267, -29.28692940775817, 79.8901699349603][0m
+| [94mhelicities                    [0m: [92m[1, 1, 0, 0, 0][0m
+| [94mn_loops                       [0m: [92m2[0m
+| [94mclean                         [0m: [92mFalse[0m
+| [94mintegrand_implementation      [0m: [92m'zenos'[0m
+| [94mintegrand_evaluator_compiler  [0m: [92m'symbolica_only'[0m
+| [94mmulti_channeling              [0m: [92mTrue[0m
+| [94mcommand                       [0m: [92m'integrate'[0m
+| [94mn_iterations                  [0m: [92m100[0m
+| [94mpoints_per_iteration          [0m: [92m1000000[0m
+| [94mintegrator                    [0m: [92m'symbolica'[0m
+| [94mn_cores                       [0m: [92m32[0m
+| [94mphysical_channel_multi_channeling[0m: [92mTrue[0m
+| [94mdy_q_bins                     [0m: [92mNone[0m
+| [94mdy_physical_channel_cards     [0m: [92m{'gg': '/home/zeno/DY/pygloop_6c15087/cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s400/gg.toml',
+ 'qg': '/home/zeno/DY/pygloop_6c15087/cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s400/qg.toml',
+ 'qqbar': '/home/zeno/DY/pygloop_6c15087/cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s400/qqbar.toml'}[0m
+| [94mdy_physical_channel_backend   [0m: [92m'saved-jit'[0m
+| [94mdy_physical_channel_batch_size[0m: [92m256[0m
+| [94mdy_physical_channel_warmup_iterations[0m: [92m0[0m
+| [94mdy_physical_channel_min_fraction[0m: [92m0.075[0m
+| [94mdy_physical_channel_target_relative_precision[0m: [92mNone[0m
+| [94mtarget                        [0m: [92mNone[0m
+| [94mphase                         [0m: [92m'real'[0m
+| [94mseed                          [0m: [92m902000400[0m
+| [94mrestart                       [0m: [92mFalse[0m
+| [94mrun_workspace_name            [0m: [92m'production_pp_ttbar_msbar_s400_20260901'[0m
+| [94mdy_integration_graphs         [0m: [92mNone[0m
+| [94mdy_graph_weights              [0m: [92mNone[0m
+| [94mdy_runtime_parameters         [0m: [92m{'alpha_ew_inverse': '132.507',
+ 'alpha_s': '0.118',
+ 'lambda_sq': '8302.489924',
+ 'm_top': '173',
+ 'mur_sq': '8302.489924',
+ 'muv': '200',
+ 'zmax': '1',
+ 'zmin': '0'}[0m
+| 
+| > Integration result after [92m100000000[0m evaluations in [92m318804.89 CPU-s[0m [94m(3188.0 µs / eval)[0m
+| > Extremal weights:
+| >   with jacobian    : -2.71139e+04 at xs = [3.8371261945803186e-07 8.2960923164572342e-01 5.0005232824414192e-01 1.2665271475701539e-01 8.0867069249712842e-01 1.4948087609447261e-01 7.8261334192832310e-01 4.7198936799372876e-01] | jacobian = 1.48131e+02
+| >     momentum space  : k = [[7.3611556652565090e-05, -1.3468116446741505e-04, -2.5232034714571700e-08]; [9.4593469943888788e+00, -2.4487172580508673e+01, 5.1728342613811755e+01]], p1 = [0.0000000000000000e+00, 0.0000000000000000e+00, 1.8811106161123007e+02], p2 = [0.0000000000000000e+00, 0.0000000000000000e+00, -1.8811106161123007e+02]
+| >   without jacobian : 5.68265e+06 at xs = [1.4679215069135134e-09 6.3488881889352222e-01 4.9976116277220245e-01 5.1386520553409240e-02 2.7324740562562561e-01 6.3517056984851195e-01 3.7741287543452229e-01 5.8489360168183246e-01] | jacobian = 3.96291e-04
+| >     momentum space  : k = [[-3.8860904035618826e-07, -4.4017018156321558e-07, 4.4056975440685443e-10]; [-2.8736526400328897e+00, 1.9533306629081206e+01, -8.9272964794245890e+00]], p1 = [0.0000000000000000e+00, 0.0000000000000000e+00, 1.7618815887325948e+02], p2 = [0.0000000000000000e+00, 0.0000000000000000e+00, -1.7618815887325948e+02]
+| >   before clipping   : 8.74389e+05 at xs = [4.7557927068763900e-07 5.6822484653028327e-01 5.0004953144493802e-01 5.8220940479230966e-02 2.7526977935696400e-02 5.5824585055814424e-01 6.3041711389180988e-01 5.7057243844739169e-01]
+| >     momentum space  : k = [[-1.7301955740422833e-04, -7.9071923799086871e-05, -2.9601518004831431e-08]; [2.3952452195674336e+01, 4.1845560253245750e+00, -4.4996498700651806e+00]], p1 = [0.0000000000000000e+00, 0.0000000000000000e+00, 1.8236427960873635e+02], p2 = [0.0000000000000000e+00, 0.0000000000000000e+00, -1.8236427960873635e+02]
+| > Stability pipeline: float pairs accepted = 114861144, HP pairs attempted/accepted = 2510246/2509934
+| > Stability triggers: float mismatch = 1304374, float non-finite/error = 1566
+| > E-surface root recovery: affected samples = 24297, failed terms/surfaces = 33549/33535, HP attempted/salvaged/unresolved = 24297/24297/0
+| >   root failures = 17516: GL13/collinear/surface-group-17
+| >   root failures = 10381: GL13/PM/surface-group-20
+| >   root failures = 5114: GL000/PM/surface-group-1
+| >   root failures = 399: GL11/PM/surface-group-15
+| >   root failures = 30: GL077/PM/surface-group-51
+| >   root failures = 12: GL061/PM/surface-group-40
+| >   root failures = 11: GL101/collinear/surface-group-66
+| >   root failures = 10: GL047/anti-collinear/surface-group-29
+| >   root failures = 10: GL101/PM/surface-group-67
+| >   root failures = 9: GL047/anti-collinear/surface-group-28
+| >   ... 11 additional surfaces
+| > Higher-precision rejections: disagreement = 312, non-finite = 0, error = 0
+| > Soft-mirror stability: pairs = 18185377, large-side triggers = 70692, HP orbits attempted/salvaged/failed = 813987/813690/297
+| > Unstable rotational-check points rejected = 87
+| > Rotational-check high-precision retries = 1305940
+| > Rotational-check high-precision salvaged = 1305853
+| > Large-weight high-precision retries = 1180009
+| > Large-weight high-precision salvaged = 1179784
+| > Large-weight high-precision rejected = 225
+| > Large-weight samples zeroed = 105 (1.050e-06 of samples; removed signed/absolute sums = 5.61758e+05/2.72409e+06)
+| > Non-finite final outputs zeroed = 0
+| > Non-finite float rotated evaluations seen = 0
+| > [92mCentral value[0m : +2.7101932572480485e-18   +/- 1.04e-20     ([92m0.382%[0m)
+Physical-channel sampling:
+  backend=saved-jit, batch=256, warmup=0, production=100000000, topology=physical-floor-mixture, joint leaves=92
+  physical floor=0.075000
+  persistent workers: qqbar=6, qg=4, gg=22
+Physical-channel observer estimates:
+  qqbar   : +2.5159967460713798e-18 +/- 9.6234e-21 [61863948 selected; floor=7500000, adaptive=54363948]
+  qg      : -8.6530308437068862e-21 +/- 4.6153e-23 [8923967 selected; floor=7500000, adaptive=1423967]
+  gg      : +2.0284954202034731e-19 +/- 3.8453e-21 [29212085 selected; floor=7500000, adaptive=21712085]
+  sum     : +2.7101932572480203e-18
+  total   : +2.7101932572480485e-18
+Physical-channel correlation matrix:
+  qqbar   : qqbar=+1.000000, qg=-0.000008, gg=+0.000001
+  qg      : qqbar=-0.000008, qg=+1.000000, gg=+0.000003
+  gg      : qqbar=+0.000001, qg=+0.000003, gg=+1.000000
+[92mINFO[0m [94mmain l.2161[0m [96mt=2026-09-02,02:38:18.821[0m > --------------------------------------------------------------------------------
+[92mINFO[0m [94mmain l.2215[0m [96mt=2026-09-02,02:38:18.839[0m > Command 'integrate' completed in [92m18596.74s[0m.

@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "started_utc": "2026-09-07T19:40:19Z",
+  "status_at_handoff": "running",
+  "card": "cards/campaigns/ttbar_dy_msbar_scan_20260901/production_1b/ttbar/hadronic/s2000/combined.toml",
+  "card_sha256": "9811ed4368cf6b7ffff3a80e3e3b5ab982a4b26a658e7ab1361dfe925f949a75",
+  "generation_fingerprint": "a68cf7b6280fa5a0c163565dcf9b37884817c2a5fc896c7dc010b09b60c0f379",
+  "result": "outputs/ttbar_dy_msbar_scan_20260901/ttbar_floor075_batch512_muvsqmursq_1b/results/s2000/combined.json",
+  "log": "outputs/ttbar_dy_msbar_scan_20260901/ttbar_floor075_batch512_muvsqmursq_1b/logs/s2000/combined.log",
+  "runner_pid_at_launch": 1728259,
+  "cores": 256,
+  "production_iterations": 500,
+  "points_per_iteration": 2000000,
+  "production_samples": 1000000000,
+  "warmup_samples": 6000000,
+  "seed": 906102000,
+  "physical_channel_min_fraction": 0.075,
+  "physical_channel_batch_size": 512,
+  "muv_sq": 8302.489924,
+  "mur_sq": 8302.489924,
+  "first_completed_iteration": {
+    "production_samples": 2000000,
+    "raw_hard_central_value_gev_minus_2": -9.614470015660432e-10,
+    "raw_hard_error_gev_minus_2": 1.8952e-10,
+    "cumulative_clipped_points_including_warmup": 3,
+    "clipped_points_in_first_production_iteration": 0
+  }
+}

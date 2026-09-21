@@ -1,0 +1,83 @@
+{
+  "utc": "2026-09-14T21:04:31.356577+00:00",
+  "passed": true,
+  "directory": "/home/zeno/DY/pygloop_6c15087/outputs/ttbar_h_exact_runtime_20260914/validation/replay_etqnsbqk",
+  "inventory": {
+    "gg": {
+      "terms": 318,
+      "inventory_matches": true,
+      "comparison": "source, cut membership, routing, approximation, graph grouping, and support indices; enumeration labels excluded",
+      "bundle": "TTBAR_GG_H_EXACT_RUNTIME_20260914_2L_processed",
+      "metadata_sha256": "aab7c5e4ec975303a06dd73657eda8e4c4f8adac682649c0df33fb14c735ce72"
+    },
+    "qg": {
+      "terms": 28,
+      "inventory_matches": true,
+      "comparison": "source, cut membership, routing, approximation, graph grouping, and support indices; enumeration labels excluded",
+      "bundle": "TTBAR_QG_H_EXACT_RUNTIME_20260914_2L_processed",
+      "metadata_sha256": "885055b3cedca3007bf4f75a797b62cee7a421c1d3796ecbdc2e25b3e792f6e9"
+    },
+    "qqbar": {
+      "terms": 85,
+      "inventory_matches": true,
+      "comparison": "source, cut membership, routing, approximation, graph grouping, and support indices; enumeration labels excluded",
+      "bundle": "TTBAR_QQBAR_H_EXACT_RUNTIME_20260914_2L_processed",
+      "metadata_sha256": "3bffba62c507069545c9fa6a924403e5833b014cf84d9bc07abcc80960716876"
+    }
+  },
+  "coefficients": [
+    {
+      "graph": "GL105",
+      "pm_constant": "-9/32",
+      "uv_constant": "-1/2",
+      "exact_relation": true,
+      "expected_pm_constant": "-9/32",
+      "expected_uv_constant": "-1/2",
+      "signed_constants_preserved": true
+    },
+    {
+      "graph": "GL021",
+      "pm_constant": "9/32",
+      "uv_constant": "-1/2",
+      "exact_relation": true,
+      "expected_pm_constant": "9/32",
+      "expected_uv_constant": "-1/2",
+      "signed_constants_preserved": true
+    }
+  ],
+  "points": [
+    {
+      "iteration": 59,
+      "passed": true,
+      "magnitude_and_tail_check_passed": true,
+      "signed_constants_preserved": true,
+      "old_integrand": -0.002164438324363925,
+      "new_production_integrand": 3.9323210541801606e-11,
+      "new_192_digit_integrand": 3.932322240493577e-11,
+      "magnitude_reduction": 55042242.01351944,
+      "production_failure_counters": {},
+      "radial_values_0p1_1_10": [
+        3.932333430773322e-11,
+        3.932322240493577e-11,
+        3.932321121466751e-11
+      ]
+    },
+    {
+      "iteration": 328,
+      "passed": true,
+      "magnitude_and_tail_check_passed": true,
+      "signed_constants_preserved": true,
+      "old_integrand": 0.0008359312656089196,
+      "new_production_integrand": -4.905683560119404e-10,
+      "new_192_digit_integrand": -4.905683580637164e-10,
+      "magnitude_reduction": 1704005.6739663312,
+      "production_failure_counters": {},
+      "radial_values_0p1_1_10": [
+        -4.905777008149475e-10,
+        -4.905683580637164e-10,
+        -4.905674237948912e-10
+      ]
+    }
+  ],
+  "diagnostic_coefficient_correction_applied": false
+}

@@ -1,0 +1,446 @@
+{
+  "bundles": [
+    {
+      "archive_path": "provenance/source_tree/outputs/evaluators/tt~/TTBAR_GG_MSBAR_CM_ESURFACE_V1_20260909_2L_processed/bundle_metadata.json",
+      "archived_generation_fingerprint": "0dd179c545a8d0a221a8ea5a39c2fc907f5727d3330f64a2f61122e04cd9eb3f",
+      "bundle": "TTBAR_GG_MSBAR_CM_ESURFACE_V1_20260909_2L_processed",
+      "recorded_generation_fingerprint": "0dd179c545a8d0a221a8ea5a39c2fc907f5727d3330f64a2f61122e04cd9eb3f",
+      "source_path": "outputs/evaluators/tt~/TTBAR_GG_MSBAR_CM_ESURFACE_V1_20260909_2L_processed/bundle_metadata.json",
+      "verification": "matches_run_record"
+    },
+    {
+      "archive_path": "provenance/source_tree/outputs/evaluators/tt~/TTBAR_GG_BORN_MSBAR_SCAN_20260901_1L_processed/bundle_metadata.json",
+      "archived_generation_fingerprint": "f1ad1942d165cae0da87d0d22b3535738d0c21f328900f98b8b28492059f19b5",
+      "bundle": "TTBAR_GG_BORN_MSBAR_SCAN_20260901_1L_processed",
+      "recorded_generation_fingerprint": null,
+      "source_path": "outputs/evaluators/tt~/TTBAR_GG_BORN_MSBAR_SCAN_20260901_1L_processed/bundle_metadata.json",
+      "verification": "identity_from_card_no_run_fingerprint_saved"
+    },
+    {
+      "archive_path": "provenance/source_tree/outputs/evaluators/tt~/TTBAR_QG_MSBAR_CM_ESURFACE_V1_20260909_2L_processed/bundle_metadata.json",
+      "archived_generation_fingerprint": "dc766e8888c2f0c4f1c091062ae482128feac8dfec2fc22c83222c72f4447c25",
+      "bundle": "TTBAR_QG_MSBAR_CM_ESURFACE_V1_20260909_2L_processed",
+      "recorded_generation_fingerprint": "dc766e8888c2f0c4f1c091062ae482128feac8dfec2fc22c83222c72f4447c25",
+      "source_path": "outputs/evaluators/tt~/TTBAR_QG_MSBAR_CM_ESURFACE_V1_20260909_2L_processed/bundle_metadata.json",
+      "verification": "matches_run_record"
+    },
+    {
+      "archive_path": "provenance/source_tree/outputs/evaluators/tt~/TTBAR_QQBAR_MSBAR_CM_ESURFACE_V1_20260909_2L_processed/bundle_metadata.json",
+      "archived_generation_fingerprint": "907fc143e38ab12cb79cb09ee24918f00ce78db22fe14096dc9ce16a3cee8742",
+      "bundle": "TTBAR_QQBAR_MSBAR_CM_ESURFACE_V1_20260909_2L_processed",
+      "recorded_generation_fingerprint": "907fc143e38ab12cb79cb09ee24918f00ce78db22fe14096dc9ce16a3cee8742",
+      "source_path": "outputs/evaluators/tt~/TTBAR_QQBAR_MSBAR_CM_ESURFACE_V1_20260909_2L_processed/bundle_metadata.json",
+      "verification": "matches_run_record"
+    },
+    {
+      "archive_path": "provenance/source_tree/outputs/evaluators/tt~/TTBAR_QQBAR_BORN_MSBAR_SCAN_20260901_1L_processed/bundle_metadata.json",
+      "archived_generation_fingerprint": "2d0ab3ca728b07548c565aada1844dc16069c1af7b2ae2df46112112f6dd3f03",
+      "bundle": "TTBAR_QQBAR_BORN_MSBAR_SCAN_20260901_1L_processed",
+      "recorded_generation_fingerprint": null,
+      "source_path": "outputs/evaluators/tt~/TTBAR_QQBAR_BORN_MSBAR_SCAN_20260901_1L_processed/bundle_metadata.json",
+      "verification": "identity_from_card_no_run_fingerprint_saved"
+    }
+  ],
+  "campaign_metadata": [
+    "provenance/source_tree/outputs/ttbar_cm_e_surface_campaign_20260909/manifest.json"
+  ],
+  "channel": "inclusive",
+  "collision": "hadronic",
+  "completion_evidence": "Final result with finished_utc and the full requested sample count",
+  "cores": 248,
+  "diagnostics_in_original_result": true,
+  "effective_settings": {
+    "common": {
+      "channel": [
+        1,
+        -1
+      ],
+      "diagrams": [],
+      "final_state": [
+        "t",
+        "t"
+      ],
+      "gammaloop": {
+        "general_settings": [],
+        "generation_configuration": "/home/zeno/DY/pygloop_6c15087/configs/DY/generate.toml",
+        "runtime_configuration": "/home/zeno/DY/pygloop_6c15087/configs/DY/runtime.toml",
+        "settings": []
+      },
+      "initial_state": {
+        "external_gluon_polarisation": false,
+        "symmetrise_p1_p2": true
+      },
+      "kinematics": {
+        "helicities": [
+          1,
+          1,
+          0,
+          0,
+          0
+        ],
+        "m_higgs": 125.0,
+        "m_top": 173.0,
+        "pg1": [
+          500.0,
+          0.0,
+          0.0,
+          500.0
+        ],
+        "pg2": [
+          500.0,
+          0.0,
+          0.0,
+          -500.0
+        ]
+      },
+      "n_loops": 2,
+      "precision": {
+        "fallback_precision": 32
+      },
+      "process": "dy",
+      "process_basename": "PP_TTBAR_FLOOR15_1B_PARENT_S1000_20260906",
+      "process_name": "tt~",
+      "scales": {
+        "lambda_sq": 8302.489924,
+        "mur_sq": 8302.489924,
+        "muv": 500.0
+      },
+      "skip_ps_validation": true,
+      "verbosity": "info"
+    },
+    "integrate": {
+      "beams": {
+        "enabled": true,
+        "integrated_leptonic_phase_space": false,
+        "parameterisation": "beta_y",
+        "pdf": {
+          "member": 0,
+          "muf_sq": 8302.489924,
+          "set": "PDF4LHC21_40"
+        },
+        "physical_normalisation": true,
+        "scheme_counterterm": {
+          "alpha_s": 0.118,
+          "enabled": false,
+          "replicas": 8,
+          "sobol_power": 15
+        }
+      },
+      "cores": 248,
+      "decoupling": {
+        "enabled": false
+      },
+      "implementation": "zenos",
+      "integrator": "symbolica",
+      "iterations": 100,
+      "multi_channeling": true,
+      "parameterisation": "spherical",
+      "phase": "real",
+      "physical_channel_backend": "saved-jit",
+      "physical_channel_batch_size": 512,
+      "physical_channel_cards": {
+        "gg": "/home/zeno/DY/pygloop_6c15087/cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s1000/gg.toml",
+        "qg": "/home/zeno/DY/pygloop_6c15087/cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s1000/qg.toml",
+        "qqbar": "/home/zeno/DY/pygloop_6c15087/cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s1000/qqbar.toml"
+      },
+      "physical_channel_live_diagnostics": false,
+      "physical_channel_min_fraction": 0.1,
+      "physical_channel_multi_channeling": true,
+      "physical_channel_warmup_iterations": 3,
+      "points_per_iteration": 10000000,
+      "restart": false,
+      "runtime_parameters": {
+        "alpha_ew_inverse": "132.507",
+        "alpha_s": "0.118",
+        "lambda_sq": "8302.489924",
+        "m_top": "173",
+        "mur_sq": "8302.489924",
+        "muv": "500",
+        "zmax": "1",
+        "zmin": "0"
+      },
+      "seed": 909101000,
+      "selection": {
+        "integrated_uv_counterterms": "all"
+      },
+      "stability": {
+        "backend": "double-float",
+        "rotation_check_arb_digits": 32,
+        "rotation_check_count": 1,
+        "rotation_check_digits": 7,
+        "rotation_check_eps": 1e-15,
+        "theta_tolerance": 0.0
+      },
+      "workspace_name": "production_pp_ttbar_floor10_batch512_1b_s1000_20260908"
+    },
+    "schema_version": 1
+  },
+  "effective_settings_source": "embedded_in_original_result",
+  "estimate": {
+    "central_value_gev_minus2": 1.13193021827957e-11,
+    "central_value_pb": 0.004407506035374248,
+    "error_gev_minus2": 1.3622768089847012e-13,
+    "error_pb": 5.304428807083479e-05
+  },
+  "execution_overrides": {
+    "cores": 248,
+    "iterations": 100,
+    "points_per_iteration": 10000000,
+    "seed": 909101000
+  },
+  "finished_utc": "2026-09-10T04:51:26.588275+00:00",
+  "id": "ttbar_hadronic_s1000",
+  "input_card": {
+    "archive_path": "provenance/source_tree/cards/campaigns/ttbar_dy_msbar_scan_20260901/production_1b/ttbar/hadronic/s1000/combined.toml",
+    "child_cards": [
+      {
+        "archive_path": "provenance/source_tree/cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s1000/qqbar.toml",
+        "channel": "qqbar",
+        "sha256": "b1c022c535c3f6be8cf993ffe2b478bac5eab99983990d942f78638ef4c134dc",
+        "source_path": "cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s1000/qqbar.toml"
+      },
+      {
+        "archive_path": "provenance/source_tree/cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s1000/qg.toml",
+        "channel": "qg",
+        "sha256": "455476ac48009bfcf0e3cc3d80d1162d266eccf6f6645afcc393bc4cae1c24c0",
+        "source_path": "cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s1000/qg.toml"
+      },
+      {
+        "archive_path": "provenance/source_tree/cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s1000/gg.toml",
+        "channel": "gg",
+        "sha256": "b75e15c6039a112daff8a762e082ace14c818cdbb64c9d1b950e423882617234",
+        "source_path": "cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s1000/gg.toml"
+      }
+    ],
+    "configuration_files": [
+      "provenance/source_tree/configs/DY/generate.toml",
+      "provenance/source_tree/configs/DY/runtime.toml"
+    ],
+    "sha256": "d67ab86bd38687210c5b95d5117f7ad2fafa13b36e309ae88567262ea4c25325",
+    "source_path": "cards/campaigns/ttbar_dy_msbar_scan_20260901/production_1b/ttbar/hadronic/s1000/combined.toml"
+  },
+  "log_file": "ttbar_hadronic/s1000/run.log",
+  "metadata_file": "ttbar_hadronic/s1000/metadata.json",
+  "notes": [],
+  "physics": {
+    "beams": {
+      "enabled": true,
+      "integrated_leptonic_phase_space": false,
+      "parameterisation": "beta_y",
+      "pdf": {
+        "member": 0,
+        "muf_sq": 8302.489924,
+        "set": "PDF4LHC21_40"
+      },
+      "physical_normalisation": true,
+      "scheme_counterterm": {
+        "alpha_s": 0.118,
+        "enabled": false,
+        "replicas": 8,
+        "sobol_power": 15
+      }
+    },
+    "decoupling": {
+      "enabled": false
+    },
+    "initial_state": {
+      "external_gluon_polarisation": false,
+      "symmetrise_p1_p2": true
+    },
+    "kinematics": {
+      "helicities": [
+        1,
+        1,
+        0,
+        0,
+        0
+      ],
+      "m_higgs": 125.0,
+      "m_top": 173.0,
+      "pg1": [
+        500.0,
+        0.0,
+        0.0,
+        500.0
+      ],
+      "pg2": [
+        500.0,
+        0.0,
+        0.0,
+        -500.0
+      ]
+    },
+    "runtime_parameters": {
+      "alpha_ew_inverse": "132.507",
+      "alpha_s": "0.118",
+      "lambda_sq": "8302.489924",
+      "m_top": "173",
+      "mur_sq": "8302.489924",
+      "muv": "500",
+      "zmax": "1",
+      "zmin": "0"
+    },
+    "scales": {
+      "lambda_sq": 8302.489924,
+      "mur_sq": 8302.489924,
+      "muv": 500.0
+    },
+    "selection": {
+      "integrated_uv_counterterms": "all"
+    },
+    "sqrt_s_gev": 1000.0,
+    "stability": {
+      "backend": "double-float",
+      "rotation_check_arb_digits": 32,
+      "rotation_check_count": 1,
+      "rotation_check_digits": 7,
+      "rotation_check_eps": 1e-15,
+      "theta_tolerance": 0.0
+    }
+  },
+  "process": "ttbar",
+  "provenance": {
+    "gg": {
+      "bundle": "TTBAR_GG_MSBAR_CM_ESURFACE_V1_20260909_2L_processed",
+      "card_path": "/home/zeno/DY/pygloop_6c15087/cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s1000/gg.toml",
+      "generation_fingerprint": "0dd179c545a8d0a221a8ea5a39c2fc907f5727d3330f64a2f61122e04cd9eb3f",
+      "grouped_soft_pair": null,
+      "integration_graph_channels": [
+        "graph_0",
+        "graph_1",
+        "graph_2",
+        "graph_3",
+        "graph_4",
+        "graph_5",
+        "graph_6",
+        "graph_7",
+        "graph_8",
+        "graph_9",
+        "graph_10",
+        "graph_11",
+        "graph_12",
+        "graph_13",
+        "graph_14",
+        "graph_15",
+        "graph_16",
+        "graph_17",
+        "graph_18",
+        "graph_19",
+        "graph_20",
+        "graph_21",
+        "graph_22",
+        "graph_23",
+        "graph_24",
+        "graph_25",
+        "graph_26",
+        "graph_27",
+        "graph_28",
+        "graph_29",
+        "graph_30",
+        "graph_31",
+        "graph_32",
+        "graph_33",
+        "graph_34",
+        "graph_35",
+        "graph_36",
+        "graph_37",
+        "graph_38",
+        "graph_39",
+        "graph_40",
+        "graph_41",
+        "graph_42",
+        "graph_43",
+        "graph_44",
+        "graph_45",
+        "graph_46",
+        "graph_47",
+        "graph_48",
+        "graph_49",
+        "graph_50",
+        "graph_51",
+        "graph_52",
+        "graph_53",
+        "graph_54",
+        "graph_55",
+        "graph_56",
+        "graph_57",
+        "graph_58",
+        "graph_59",
+        "graph_60",
+        "graph_61",
+        "graph_62",
+        "graph_63",
+        "graph_64"
+      ],
+      "pdf_luminosity_family": "gg",
+      "source_card_sha256": "b75e15c6039a112daff8a762e082ace14c818cdbb64c9d1b950e423882617234"
+    },
+    "qg": {
+      "bundle": "TTBAR_QG_MSBAR_CM_ESURFACE_V1_20260909_2L_processed",
+      "card_path": "/home/zeno/DY/pygloop_6c15087/cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s1000/qg.toml",
+      "generation_fingerprint": "dc766e8888c2f0c4f1c091062ae482128feac8dfec2fc22c83222c72f4447c25",
+      "grouped_soft_pair": null,
+      "integration_graph_channels": [
+        "graph_0",
+        "graph_1",
+        "graph_2",
+        "graph_3",
+        "graph_4",
+        "graph_5",
+        "graph_6",
+        "graph_7",
+        "graph_8",
+        "graph_9",
+        "graph_10"
+      ],
+      "pdf_luminosity_family": "qg",
+      "source_card_sha256": "455476ac48009bfcf0e3cc3d80d1162d266eccf6f6645afcc393bc4cae1c24c0"
+    },
+    "qqbar": {
+      "bundle": "TTBAR_QQBAR_MSBAR_CM_ESURFACE_V1_20260909_2L_processed",
+      "card_path": "/home/zeno/DY/pygloop_6c15087/cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s1000/qqbar.toml",
+      "generation_fingerprint": "907fc143e38ab12cb79cb09ee24918f00ce78db22fe14096dc9ce16a3cee8742",
+      "grouped_soft_pair": null,
+      "integration_graph_channels": [
+        "graph_0",
+        "graph_1",
+        "graph_2",
+        "graph_3",
+        "graph_4",
+        "graph_5",
+        "graph_6",
+        "graph_7",
+        "graph_8",
+        "graph_9",
+        "graph_10",
+        "graph_11",
+        "graph_12",
+        "graph_13",
+        "graph_14",
+        "graph_15"
+      ],
+      "pdf_luminosity_family": "qqbar",
+      "source_card_sha256": "b1c022c535c3f6be8cf993ffe2b478bac5eab99983990d942f78638ef4c134dc"
+    }
+  },
+  "replica": null,
+  "result_file": "ttbar_hadronic/s1000/result.json",
+  "samples": {
+    "production_points": 1000000000,
+    "saved_n_samples": 1030000000,
+    "saved_n_samples_includes_warmup": true,
+    "total_hard_points_evaluated": 1030000000,
+    "warmup_or_learning_points": 30000000
+  },
+  "seed": 909101000,
+  "source_result": "outputs/ttbar_cm_e_surface_campaign_20260909/results/hadronic/s1000/combined.json",
+  "sqrt_s_gev": 1000,
+  "status": "completed",
+  "supplemental_files": [
+    "ttbar_hadronic/s1000/saved_comparison_mg5.json"
+  ],
+  "timing": {
+    "reported_accumulated_worker_elapsed_seconds": 4327647.506107643,
+    "wall_seconds": 36099.55484008789
+  }
+}

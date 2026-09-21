@@ -1,0 +1,14 @@
+{
+  "combined_error_pb": 5.3362197534225774e-05,
+  "difference_pb": -2.132866462575215e-05,
+  "gev_minus2_to_pb": 389379660.0,
+  "mg5_error_pb": 5.8161524e-06,
+  "mg5_pb": 0.0044288347,
+  "n_samples": 1030000000,
+  "pull": -0.39969614467380654,
+  "pygloop_error_pb": 5.304428807083479e-05,
+  "pygloop_pb": 0.004407506035374248,
+  "ratio": 0.9951841362185515,
+  "schema_version": 1,
+  "sqrt_s_gev": 1000
+}

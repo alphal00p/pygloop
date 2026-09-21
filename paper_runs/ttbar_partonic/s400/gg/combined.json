@@ -1,0 +1,52 @@
+{
+  "agrees_with_saved_combination": true,
+  "channel": "gg",
+  "collision": "partonic",
+  "estimate": {
+    "central_value_gev_minus2": 8.956657093943998e-09,
+    "central_value_pb": 3.4875400939765018,
+    "error_gev_minus2": 8.702184661201833e-11,
+    "error_pb": 0.033884537046359846
+  },
+  "formula": "w_i=(1/error_i^2)/sum_j(1/error_j^2); value=sum_i(w_i*value_i); error=sqrt(1/sum_i(1/error_i^2))",
+  "id": "ttbar_partonic_s400_gg",
+  "input_runs": [
+    {
+      "central_value_gev_minus2": 8.883619744829951e-09,
+      "error_gev_minus2": 1.6001345814764566e-10,
+      "id": "ttbar_partonic_s400_gg_replica_01",
+      "metadata_file": "ttbar_partonic/s400/gg/replica_01/metadata.json",
+      "weight": 0.2957628124970701
+    },
+    {
+      "central_value_gev_minus2": 9.021841721096324e-09,
+      "error_gev_minus2": 1.2963070017505263e-10,
+      "id": "ttbar_partonic_s400_gg_replica_02",
+      "metadata_file": "ttbar_partonic/s400/gg/replica_02/metadata.json",
+      "weight": 0.4506515364235955
+    },
+    {
+      "central_value_gev_minus2": 8.92141001046833e-09,
+      "error_gev_minus2": 2.281578471593778e-10,
+      "id": "ttbar_partonic_s400_gg_replica_03",
+      "metadata_file": "ttbar_partonic/s400/gg/replica_03/metadata.json",
+      "weight": 0.14547413015368962
+    },
+    {
+      "central_value_gev_minus2": 8.932179760220813e-09,
+      "error_gev_minus2": 2.6466243647114525e-10,
+      "id": "ttbar_partonic_s400_gg_replica_04",
+      "metadata_file": "ttbar_partonic/s400/gg/replica_04/metadata.json",
+      "weight": 0.10811152092564483
+    }
+  ],
+  "method": "inverse_variance_weighted_independent_final_inclusive_estimates",
+  "n_runs": 4,
+  "original_combination_file": "ttbar_partonic/s400/gg/original_combination.json",
+  "process": "ttbar",
+  "production_points": 400000000,
+  "replica_consistency_chi_square": 0.4936181443534358,
+  "replica_consistency_degrees_of_freedom": 3,
+  "sqrt_s_gev": 400,
+  "summary_file": "ttbar_partonic/s400/gg/combined.json"
+}

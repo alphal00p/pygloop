@@ -1,0 +1,303 @@
+{
+  "bundles": [
+    {
+      "archive_path": "provenance/source_tree/outputs/evaluators/tt~/TTBAR_GG_MSBAR_CM_ESURFACE_V1_20260909_2L_processed/bundle_metadata.json",
+      "archived_generation_fingerprint": "0dd179c545a8d0a221a8ea5a39c2fc907f5727d3330f64a2f61122e04cd9eb3f",
+      "bundle": "TTBAR_GG_MSBAR_CM_ESURFACE_V1_20260909_2L_processed",
+      "recorded_generation_fingerprint": "0dd179c545a8d0a221a8ea5a39c2fc907f5727d3330f64a2f61122e04cd9eb3f",
+      "run_fingerprint_source": "ttbar_partonic/s400/gg/replica_03/run.log",
+      "source_path": "outputs/evaluators/tt~/TTBAR_GG_MSBAR_CM_ESURFACE_V1_20260909_2L_processed/bundle_metadata.json",
+      "verification": "matches_run_log"
+    },
+    {
+      "archive_path": "provenance/source_tree/outputs/evaluators/tt~/TTBAR_GG_BORN_MSBAR_SCAN_20260901_1L_processed/bundle_metadata.json",
+      "archived_generation_fingerprint": "f1ad1942d165cae0da87d0d22b3535738d0c21f328900f98b8b28492059f19b5",
+      "bundle": "TTBAR_GG_BORN_MSBAR_SCAN_20260901_1L_processed",
+      "recorded_generation_fingerprint": null,
+      "source_path": "outputs/evaluators/tt~/TTBAR_GG_BORN_MSBAR_SCAN_20260901_1L_processed/bundle_metadata.json",
+      "verification": "identity_from_card_no_run_fingerprint_saved"
+    }
+  ],
+  "campaign_metadata": [
+    "provenance/source_tree/outputs/ttbar_cm_e_surface_campaign_20260909/manifest.json"
+  ],
+  "channel": "gg",
+  "collision": "partonic",
+  "completion_evidence": "Final result with finished_utc and the full requested sample count",
+  "cores": 62,
+  "diagnostics_in_original_result": true,
+  "effective_settings": {
+    "common": {
+      "channel": [
+        0,
+        0
+      ],
+      "diagrams": [],
+      "final_state": [
+        "t",
+        "t"
+      ],
+      "gammaloop": {
+        "general_settings": [],
+        "generation_configuration": "/home/zeno/DY/pygloop_6c15087/configs/DY/generate.toml",
+        "runtime_configuration": "/home/zeno/DY/pygloop_6c15087/configs/DY/runtime.toml",
+        "settings": []
+      },
+      "initial_state": {
+        "external_gluon_polarisation": true,
+        "symmetrise_p1_p2": true
+      },
+      "kinematics": {
+        "helicities": [
+          1,
+          1,
+          0,
+          0,
+          0
+        ],
+        "m_higgs": 125.0,
+        "m_top": 173.0,
+        "pg1": [
+          200.0,
+          0.0,
+          0.0,
+          200.0
+        ],
+        "pg2": [
+          200.0,
+          0.0,
+          0.0,
+          -200.0
+        ]
+      },
+      "n_loops": 2,
+      "precision": {
+        "fallback_precision": 32
+      },
+      "process": "dy",
+      "process_basename": "TTBAR_GG_MSBAR_CM_ESURFACE_V1_20260909",
+      "process_name": "tt~",
+      "scales": {
+        "lambda_sq": 8302.489924,
+        "mur_sq": 8302.489924,
+        "muv": 200.0
+      },
+      "skip_ps_validation": true,
+      "verbosity": "info"
+    },
+    "integrate": {
+      "beams": {
+        "enabled": false,
+        "integrated_leptonic_phase_space": false,
+        "parameterisation": "x1_x2",
+        "pdf": {
+          "member": 0
+        },
+        "physical_normalisation": true,
+        "scheme_counterterm": {
+          "alpha_s": 0.118,
+          "born_bundle": "TTBAR_GG_BORN_MSBAR_SCAN_20260901_1L_processed",
+          "clip": 0.032988570301826226,
+          "enabled": true,
+          "replicas": 8,
+          "sobol_power": 18
+        }
+      },
+      "cores": 62,
+      "decoupling": {
+        "enabled": false
+      },
+      "implementation": "zenos",
+      "integrator": "symbolica",
+      "iterations": 100,
+      "multi_channeling": true,
+      "parameterisation": "spherical",
+      "phase": "real",
+      "physical_channel_backend": "saved-jit",
+      "physical_channel_batch_size": 256,
+      "physical_channel_live_diagnostics": false,
+      "physical_channel_min_fraction": 0.0,
+      "physical_channel_multi_channeling": false,
+      "physical_channel_warmup_iterations": 0,
+      "points_per_iteration": 1000000,
+      "restart": false,
+      "runtime_parameters": {
+        "alpha_ew_inverse": "132.507",
+        "alpha_s": "0.118",
+        "lambda_sq": "8302.489924",
+        "m_top": "173",
+        "mur_sq": "8302.489924",
+        "muv": "200",
+        "zmax": "1",
+        "zmin": "0"
+      },
+      "seed": 909040301,
+      "selection": {
+        "integrated_uv_counterterms": "all"
+      },
+      "stability": {
+        "backend": "double-float",
+        "large_weight_clip": 0.027418591243443036,
+        "large_weight_precision": 0.00027418591243443034,
+        "rotation_check_arb_digits": 32,
+        "rotation_check_count": 1,
+        "rotation_check_digits": 7,
+        "rotation_check_eps": 1e-15,
+        "soft_mirror_edges": [
+          "GL015:7",
+          "GL018:8",
+          "GL059:8",
+          "GL071:7",
+          "GL075:8",
+          "GL099:8",
+          "GL115:8"
+        ],
+        "theta_tolerance": 0.0
+      },
+      "workspace_name": "production_ttbar_partonic_s400_gg_20260901"
+    },
+    "schema_version": 1
+  },
+  "effective_settings_source": "embedded_in_original_result",
+  "estimate": {
+    "central_value_gev_minus2": 8.92141001046833e-09,
+    "central_value_pb": 3.473815596596755,
+    "error_gev_minus2": 2.281578471593778e-10,
+    "error_pb": 0.0888400249532505
+  },
+  "execution_overrides": {
+    "cores": 62,
+    "iterations": 100,
+    "points_per_iteration": 1000000,
+    "seed": 909040301
+  },
+  "finished_utc": "2026-09-09T18:49:09.488373+00:00",
+  "id": "ttbar_partonic_s400_gg_replica_03",
+  "input_card": {
+    "archive_path": "provenance/source_tree/cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/partonic/s400/gg.toml",
+    "child_cards": [],
+    "configuration_files": [
+      "provenance/source_tree/configs/DY/generate.toml",
+      "provenance/source_tree/configs/DY/runtime.toml"
+    ],
+    "sha256": "17df64a69f591a7e9e33628829fe7b3915e755c064c166a301ea5b6a69be2116",
+    "source_path": "cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/partonic/s400/gg.toml"
+  },
+  "log_file": "ttbar_partonic/s400/gg/replica_03/run.log",
+  "metadata_file": "ttbar_partonic/s400/gg/replica_03/metadata.json",
+  "notes": [],
+  "partonic_value_audit": {
+    "bundle_fingerprint_matches_log": true,
+    "card_hash_matches_log": true,
+    "gev_minus2_to_pb": 389379660.0,
+    "previous_response_unit": "pb",
+    "saved_value_unit": "GeV^-2",
+    "source_field": "integration_result.central_value"
+  },
+  "physics": {
+    "beams": {
+      "enabled": false,
+      "integrated_leptonic_phase_space": false,
+      "parameterisation": "x1_x2",
+      "pdf": {
+        "member": 0
+      },
+      "physical_normalisation": true,
+      "scheme_counterterm": {
+        "alpha_s": 0.118,
+        "born_bundle": "TTBAR_GG_BORN_MSBAR_SCAN_20260901_1L_processed",
+        "clip": 0.032988570301826226,
+        "enabled": true,
+        "replicas": 8,
+        "sobol_power": 18
+      }
+    },
+    "decoupling": {
+      "enabled": false
+    },
+    "initial_state": {
+      "external_gluon_polarisation": true,
+      "symmetrise_p1_p2": true
+    },
+    "kinematics": {
+      "helicities": [
+        1,
+        1,
+        0,
+        0,
+        0
+      ],
+      "m_higgs": 125.0,
+      "m_top": 173.0,
+      "pg1": [
+        200.0,
+        0.0,
+        0.0,
+        200.0
+      ],
+      "pg2": [
+        200.0,
+        0.0,
+        0.0,
+        -200.0
+      ]
+    },
+    "runtime_parameters": {
+      "alpha_ew_inverse": "132.507",
+      "alpha_s": "0.118",
+      "lambda_sq": "8302.489924",
+      "m_top": "173",
+      "mur_sq": "8302.489924",
+      "muv": "200",
+      "zmax": "1",
+      "zmin": "0"
+    },
+    "scales": {
+      "lambda_sq": 8302.489924,
+      "mur_sq": 8302.489924,
+      "muv": 200.0
+    },
+    "selection": {
+      "integrated_uv_counterterms": "all"
+    },
+    "sqrt_s_gev": 400.0,
+    "stability": {
+      "backend": "double-float",
+      "large_weight_clip": 0.027418591243443036,
+      "large_weight_precision": 0.00027418591243443034,
+      "rotation_check_arb_digits": 32,
+      "rotation_check_count": 1,
+      "rotation_check_digits": 7,
+      "rotation_check_eps": 1e-15,
+      "soft_mirror_edges": [
+        "GL015:7",
+        "GL018:8",
+        "GL059:8",
+        "GL071:7",
+        "GL075:8",
+        "GL099:8",
+        "GL115:8"
+      ],
+      "theta_tolerance": 0.0
+    }
+  },
+  "process": "ttbar",
+  "provenance": {},
+  "replica": 3,
+  "result_file": "ttbar_partonic/s400/gg/replica_03/result.json",
+  "samples": {
+    "production_points": 100000000,
+    "saved_n_samples": 100000000,
+    "saved_n_samples_includes_warmup": false,
+    "total_hard_points_evaluated": 100000000,
+    "warmup_or_learning_points": 0
+  },
+  "seed": 909040301,
+  "source_result": "outputs/ttbar_cm_e_surface_campaign_20260909/results/partonic/s400/gg_r03.json",
+  "sqrt_s_gev": 400,
+  "status": "completed",
+  "timing": {
+    "reported_accumulated_worker_elapsed_seconds": 1370139.0124673843,
+    "wall_seconds": 33987.778829813
+  }
+}

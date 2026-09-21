@@ -1,0 +1,12 @@
+{
+  "production_start": "2026-09-14T21:08:06.963308+00:00",
+  "controller_pid": 442239,
+  "worker_pgid": 442244,
+  "sha256": {
+    "src/processes/dy/dy_runtime_parameters.py": "3c0b9908f3a9a7c6ef11cdcbb8a2e825bd06b93e246861ad966441a76cf7cf26",
+    "src/processes/dy/dy_evaluators.py": "8f1243780ad7cf61f3f0c21a073b38095e0f8b5d496b3ef9c18f12eaaf9b80a8",
+    "src/processes/dy/dy_physical_channels.py": "49c8292a69dbc19027c0e73569cc72cc8ec0ad7e18a60775b9cde37596b009bc",
+    "outputs/ttbar_h_exact_runtime_20260914/monitor_run.py": "4e286775485aa1455067e05e6ba5df25c9590984930a61902ac5a793ca9e5581",
+    "outputs/ttbar_h_exact_runtime_20260914/probe_points.py": "f17391bd20973c605dd92687f9735917dd9e8def1713ad02288ce1ce3af19633"
+  }
+}

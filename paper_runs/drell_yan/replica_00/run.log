@@ -1,0 +1,967 @@
+[92mINFO[0m [94mmain l.1936[0m [96mt=2026-09-17,11:59:42.945[0m > Using DY card /home/zeno/DY/pygloop_6c15087/cards/dy_histogram_precision_ladder_20260917.toml (source SHA256 49f567fc13096279497c11152af187880186fb0b0e01483168191f314870ad1e, generation fingerprint 1c10dab89f991ed4bc3b4f4debd968c24f7a800f6c6d3a5d9db411891fb0b471).
+[92mINFO[0m [94mmain l.1962[0m [96mt=2026-09-17,11:59:42.945[0m > Applied general settings to process PP_DY_S1000_CM_H_EXACT_AUX_INCLUSIVE_20260915: {}
+[92mINFO[0m [94m__init__ l.997[0m [96mt=2026-09-17,11:59:42.987[0m > Loaded compiled DY bundle from [92m/home/zeno/DY/pygloop_6c15087/outputs/evaluators/DY/DY_QQBAR_S1000_CM_H_EXACT_AUX_20260915_1L_processed[0m
+[92mWARNING[0m [94m_verify_card_bundle_compatibility l.410[0m [96mt=2026-09-17,11:59:42.989[0m > DY bundle source provenance differs from the current checkout for: src/processes/dy/dy.py, src/processes/dy/dy_card.py, src/processes/dy/dy_evaluators.py, src/processes/dy/dy_histogram.py, src/processes/dy/dy_paired_settings.py, src/processes/dy/dy_paired_sobol.py, src/processes/dy/dy_pdf.py, src/processes/dy/dy_physical_channels.py, src/processes/dy/dy_precision.py, src/pygloop.py. Physics settings match, so integration will continue.
+[92mINFO[0m [94m__init__ l.997[0m [96mt=2026-09-17,11:59:43.004[0m > Loaded compiled DY bundle from [92m/home/zeno/DY/pygloop_6c15087/outputs/evaluators/DY/DY_QG_S1000_CM_H_EXACT_AUX_20260915_1L_processed[0m
+[92mWARNING[0m [94m_verify_card_bundle_compatibility l.410[0m [96mt=2026-09-17,11:59:43.005[0m > DY bundle source provenance differs from the current checkout for: src/processes/dy/dy.py, src/processes/dy/dy_card.py, src/processes/dy/dy_evaluators.py, src/processes/dy/dy_histogram.py, src/processes/dy/dy_paired_settings.py, src/processes/dy/dy_paired_sobol.py, src/processes/dy/dy_pdf.py, src/processes/dy/dy_physical_channels.py, src/processes/dy/dy_precision.py, src/pygloop.py. Physics settings match, so integration will continue.
+DY_PAIRED {"event": "stage_start", "status": "auxiliary"}
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF LHAPDF LHAPDF 6.5.56.5.56.5.5 loading  loading  loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat/home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat/home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+
+
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+
+
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF LHAPDF 6.5.56.5.5 loading  loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat/home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+LHAPDF PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 931006.5.5
+ loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+DY_PAIRED {"event": "progress", "status": "auxiliary"}
+DY_PAIRED {"event": "stage_start", "status": "learning_1"}
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF LHAPDF 6.5.56.5.5 loading  loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat/home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF LHAPDF 6.5.56.5.5 loading  loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat/home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF LHAPDF 6.5.56.5.5 loading  loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat/home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF LHAPDF 6.5.56.5.5 loading  loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat/home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100LHAPDF 
+6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.datLHAPDF 
+6.5.5PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100 loading 
+/home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF LHAPDF LHAPDF LHAPDF 6.5.56.5.56.5.56.5.5 loading  loading  loading  loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat/home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat/home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat/home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+
+
+
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+
+
+
+LHAPDF 6.5.5LHAPDF  loading 6.5.5/home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat loading 
+/home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.datPDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF LHAPDF 6.5.56.5.5 loading  loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat/home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF LHAPDF 6.5.56.5.5 loading  loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat/home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+LHAPDF 6.5.5 loading /home/zeno/MG5_aMC_v3_7_0_working/HEPTools/lhapdf6_py3//share/LHAPDF/PDF4LHC21_40/PDF4LHC21_40_0000.dat
+PDF4LHC21_40 PDF set, member #0, version 1; LHAPDF ID = 93100
+DY_PAIRED {"event": "stage_start", "status": "learning_2"}
+DY_PAIRED {"event": "stage_start", "status": "learning_3"}
+DY_PAIRED {"event": "grid_frozen", "status": "learning_3"}
+DY_PAIRED {"event": "stage_start", "status": "production"}
+DY_PAIRED {"event": "progress", "status": "production", "production_packets": 99328}
+DY_PAIRED {"event": "progress", "status": "production", "production_packets": 226816}
+DY_PAIRED {"event": "progress", "status": "production", "production_packets": 355328}
+DY_PAIRED {"event": "progress", "status": "production", "production_packets": 481280}
+DY_PAIRED {"event": "progress", "status": "production", "production_packets": 608256}
+DY_PAIRED {"event": "progress", "status": "production", "production_packets": 728576}
+DY_PAIRED {"event": "progress", "status": "production", "production_packets": 884736}
+DY_PAIRED {"event": "progress", "status": "production", "production_packets": 1015808}
+DY_PAIRED {"event": "checkpoint", "status": "production", "production_packets": 1048576, "central_pb": 5.860707623829516e-06, "error_pb": 2.3493770201808327e-08}
+DY_PAIRED {"event": "stage_start", "status": "production", "production_packets": 1048576, "central_pb": 5.860707623829516e-06, "error_pb": 2.3493770201808327e-08}
+DY_PAIRED {"event": "progress", "status": "production", "production_packets": 1147904, "central_pb": 5.860707623829516e-06, "error_pb": 2.3493770201808327e-08}
+DY_PAIRED {"event": "progress", "status": "production", "production_packets": 1276928, "central_pb": 5.860707623829516e-06, "error_pb": 2.3493770201808327e-08}
+DY_PAIRED {"event": "progress", "status": "production", "production_packets": 1407488, "central_pb": 5.860707623829516e-06, "error_pb": 2.3493770201808327e-08}
+DY_PAIRED {"event": "progress", "status": "production", "production_packets": 1531904, "central_pb": 5.860707623829516e-06, "error_pb": 2.3493770201808327e-08}
+DY_PAIRED {"event": "progress", "status": "production", "production_packets": 1670656, "central_pb": 5.860707623829516e-06, "error_pb": 2.3493770201808327e-08}
+DY_PAIRED {"event": "progress", "status": "production", "production_packets": 1816064, "central_pb": 5.860707623829516e-06, "error_pb": 2.3493770201808327e-08}
+DY_PAIRED {"event": "progress", "status": "production", "production_packets": 1950720, "central_pb": 5.860707623829516e-06, "error_pb": 2.3493770201808327e-08}
+DY_PAIRED {"event": "progress", "status": "production", "production_packets": 2084864, "central_pb": 5.860707623829516e-06, "error_pb": 2.3493770201808327e-08}
+DY_PAIRED {"event": "checkpoint", "status": "production", "production_packets": 2097152, "central_pb": 5.879189717945548e-06, "error_pb": 2.5981033909999074e-08}
+DY_PAIRED {"event": "stage_start", "status": "production", "production_packets": 2097152, "central_pb": 5.879189717945548e-06, "error_pb": 2.5981033909999074e-08}
+DY_PAIRED {"event": "progress", "status": "production", "production_packets": 2206208, "central_pb": 5.879189717945548e-06, "error_pb": 2.5981033909999074e-08}
+DY_PAIRED {"event": "progress", "status": "production", "production_packets": 2327040, "central_pb": 5.879189717945548e-06, "error_pb": 2.5981033909999074e-08}
+DY_PAIRED {"event": "progress", "status": "production", "production_packets": 2458112, "central_pb": 5.879189717945548e-06, "error_pb": 2.5981033909999074e-08}
+DY_PAIRED {"event": "progress", "status": "production", "production_packets": 2612224, "central_pb": 5.879189717945548e-06, "error_pb": 2.5981033909999074e-08}
+DY_PAIRED {"event": "progress", "status": "production", "production_packets": 2746880, "central_pb": 5.879189717945548e-06, "error_pb": 2.5981033909999074e-08}
+DY_PAIRED {"event": "progress", "status": "production", "production_packets": 2892800, "central_pb": 5.879189717945548e-06, "error_pb": 2.5981033909999074e-08}
+DY_PAIRED {"event": "progress", "status": "production", "production_packets": 3040256, "central_pb": 5.879189717945548e-06, "error_pb": 2.5981033909999074e-08}
+DY_PAIRED {"event": "progress", "status": "production", "production_packets": 3174400, "central_pb": 5.879189717945548e-06, "error_pb": 2.5981033909999074e-08}
+DY_PAIRED {"event": "progress", "status": "production", "production_packets": 3316736, "central_pb": 5.879189717945548e-06, "error_pb": 2.5981033909999074e-08}
+DY_PAIRED {"event": "progress", "status": "production", "production_packets": 3470336, "central_pb": 5.879189717945548e-06, "error_pb": 2.5981033909999074e-08}
+DY_PAIRED {"event": "progress", "status": "production", "production_packets": 3588608, "central_pb": 5.879189717945548e-06, "error_pb": 2.5981033909999074e-08}
+DY_PAIRED {"event": "progress", "status": "production", "production_packets": 3721728, "central_pb": 5.879189717945548e-06, "error_pb": 2.5981033909999074e-08}
+DY_PAIRED {"event": "progress", "status": "production", "production_packets": 3862528, "central_pb": 5.879189717945548e-06, "error_pb": 2.5981033909999074e-08}
+DY_PAIRED {"event": "progress", "status": "production", "production_packets": 3998208, "central_pb": 5.879189717945548e-06, "error_pb": 2.5981033909999074e-08}
+DY_PAIRED {"event": "progress", "status": "production", "production_packets": 4119552, "central_pb": 5.879189717945548e-06, "error_pb": 2.5981033909999074e-08}
+DY_PAIRED {"event": "checkpoint", "status": "production", "production_packets": 4194304, "central_pb": 5.882958942091637e-06, "error_pb": 1.4846782657419466e-08}
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF Thanks for using LHAPDF 6.5.56.5.5. Please make sure to cite the paper:
+. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5Thanks for using LHAPDF . Please make sure to cite the paper:
+6.5.5  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420). Please make sure to cite the paper:
+
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF Thanks for using LHAPDF 6.5.56.5.5. Please make sure to cite the paper:
+. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF Thanks for using LHAPDF 6.5.56.5.5. Please make sure to cite the paper:
+. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)Thanks for using LHAPDF   Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5
+6.5.5. Please make sure to cite the paper:
+. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)Thanks for using LHAPDF 
+6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF Thanks for using LHAPDF 6.5.56.5.5. Please make sure to cite the paper:
+. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF Thanks for using LHAPDF 6.5.56.5.5. Please make sure to cite the paper:
+. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+Thanks for using LHAPDF   Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)6.5.5
+. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+Thanks for using LHAPDF 6.5.5. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)
+DY_PAIRED {"event": "completed", "status": "completed", "production_packets": 4194304, "central_pb": 5.882958942091637e-06, "error_pb": 1.4846782657419466e-08}
+[92mINFO[0m [94mmain l.2280[0m [96mt=2026-09-17,12:17:50.424[0m > --------------------------------------------------------------------------------
+[92mINFO[0m [94mmain l.2281[0m [96mt=2026-09-17,12:17:50.426[0m > Integration with settings below completed in [92m1087.48s[0m:
+| [94mdy_card                       [0m: [92mPosixPath('/home/zeno/DY/pygloop_6c15087/cards/dy_histogram_precision_ladder_20260917.toml')[0m
+| [94mdy_card_check                 [0m: [92mFalse[0m
+| [94mdy_dump_effective_card        [0m: [92mFalse[0m
+| [94mdy_allow_unverified_bundle    [0m: [92mFalse[0m
+| [94mprocess                       [0m: [92m'dy'[0m
+| [94mgeneral_settings              [0m: [92m[][0m
+| [94mdiagrams                      [0m: [92m[][0m
+| [94moverwrite_process_basename    [0m: [92m'PP_DY_S1000_CM_H_EXACT_AUX_INCLUSIVE_20260915'[0m
+| [94mverbosity                     [0m: [92m'info'[0m
+| [94mparameterisation              [0m: [92m'spherical'[0m
+| [94mdy_skip_ps_validation         [0m: [92mTrue[0m
+| [94mdy_rotation_check_digits      [0m: [92m7[0m
+| [94mdy_rotation_check_count       [0m: [92m2[0m
+| [94mdy_rotation_check_eps         [0m: [92m1e-15[0m
+| [94mdy_rotation_check_arb_digits  [0m: [92m32[0m
+| [94mdy_fallback_precision         [0m: [92m32[0m
+| [94mdy_precision_ladder           [0m: [92m[16, 32, 60][0m
+| [94mdy_stability_backend          [0m: [92m'double-float'[0m
+| [94mdy_stability_arb_digits       [0m: [92mNone[0m
+| [94mdy_stability_rtol             [0m: [92mNone[0m
+| [94mdy_stability_atol             [0m: [92mNone[0m
+| [94mdy_theta_tol                  [0m: [92m0.0[0m
+| [94mdy_large_weight_precision     [0m: [92mNone[0m
+| [94mdy_large_weight_clip          [0m: [92mNone[0m
+| [94mdy_soft_mirror_edge           [0m: [92mNone[0m
+| [94mdy_grouped_soft_pair          [0m: [92mNone[0m
+| [94mdy_grouped_soft_pair_transform[0m: [92mNone[0m
+| [94mdy_large_weight_threshold     [0m: [92mNone[0m
+| [94mdy_zero_large_weight_samples  [0m: [92mFalse[0m
+| [94mdy_integrated_uv_ct_filter    [0m: [92m'all'[0m
+| [94mdy_accept_all_arb_retries     [0m: [92mFalse[0m
+| [94mdy_final_state                [0m: [92m['a'][0m
+| [94mdy_process_name               [0m: [92m'dy'[0m
+| [94mdy_channel                    [0m: [92m[1, -1][0m
+| [94mexternal_gluon_polarisation   [0m: [92mFalse[0m
+| [94mdy_symmetrise_p1_p2           [0m: [92mTrue[0m
+| [94mdy_parallel_graphs            [0m: [92m1[0m
+| [94mdy_integrate_beams            [0m: [92mTrue[0m
+| [94mdy_beam_parameterisation      [0m: [92m'x1_x2'[0m
+| [94mdy_z_bin                      [0m: [92m[0.0, 1.0][0m
+| [94mdy_q_min                      [0m: [92m300.0[0m
+| [94mdy_q_max                      [0m: [92mNone[0m
+| [94mdy_physical_normalisation     [0m: [92mTrue[0m
+| [94mdy_integrated_leptonic_phase_space[0m: [92mTrue[0m
+| [94mdy_pdf_set                    [0m: [92m'PDF4LHC21_40'[0m
+| [94mdy_pdf_member                 [0m: [92m0[0m
+| [94mdy_muf_sq                     [0m: [92m8302.489924[0m
+| [94mdy_msbar_scheme_counterterm   [0m: [92mFalse[0m
+| [94mdy_decoupling                 [0m: [92mFalse[0m
+| [94mdy_scheme_counterterm_sobol_power[0m: [92m15[0m
+| [94mdy_scheme_counterterm_replicas[0m: [92m8[0m
+| [94mdy_scheme_counterterm_factor  [0m: [92mNone[0m
+| [94mdy_scheme_born_bundle         [0m: [92mNone[0m
+| [94mdy_scheme_born_bundles        [0m: [92mNone[0m
+| [94mdy_scheme_alpha_s             [0m: [92m0.118[0m
+| [94mdy_scheme_counterterm_clip    [0m: [92mNone[0m
+| [94mdy_ttbar_pt_min               [0m: [92mNone[0m
+| [94mdy_muv                        [0m: [92m1000.0[0m
+| [94mdy_runtime_parameter_overrides[0m: [92mNone[0m
+| [94mdy_lambda_sq                  [0m: [92m8302.489924[0m
+| [94mdy_mur_sq                     [0m: [92m8302.489924[0m
+| [94mgammaloop_configuration       [0m: [92m'/home/zeno/DY/pygloop_6c15087/configs/DY/generate.toml'[0m
+| [94mruntime_configuration         [0m: [92m'/home/zeno/DY/pygloop_6c15087/configs/DY/runtime.toml'[0m
+| [94mgammaloop_settings            [0m: [92m[][0m
+| [94mm_top                         [0m: [92m173.0[0m
+| [94mm_higgs                       [0m: [92m125.0[0m
+| [94mpg1                           [0m: [92m[500.0, 0.0, 0.0, 500.0][0m
+| [94mpg2                           [0m: [92m[500.0, 0.0, 0.0, -500.0][0m
+| [94mph1                           [0m: [92m[438.5555662246945, 155.3322001835378, 348.0160396513587, -177.3773615718412][0m
+| [94mph2                           [0m: [92m[356.3696374921922, -16.802389008511, -318.7291102436005, 97.48719163688098][0m
+| [94mph3                           [0m: [92m[205.0747962831133, -138.5298111750267, -29.28692940775817, 79.8901699349603][0m
+| [94mhelicities                    [0m: [92m[1, 1, 0, 0, 0][0m
+| [94mn_loops                       [0m: [92m1[0m
+| [94mclean                         [0m: [92mFalse[0m
+| [94mintegrand_implementation      [0m: [92m'zenos'[0m
+| [94mintegrand_evaluator_compiler  [0m: [92m'symbolica_only'[0m
+| [94mmulti_channeling              [0m: [92mTrue[0m
+| [94mcommand                       [0m: [92m'integrate'[0m
+| [94mn_iterations                  [0m: [92m100[0m
+| [94mpoints_per_iteration          [0m: [92m1000000[0m
+| [94mintegrator                    [0m: [92m'dy-paired-sobol'[0m
+| [94mn_cores                       [0m: [92m128[0m
+| [94mdy_paired_replicas            [0m: [92m16[0m
+| [94mdy_paired_learning_points     [0m: [92m[1024, 2048, 4096][0m
+| [94mdy_paired_production_points   [0m: [92m131072[0m
+| [94mdy_paired_max_points          [0m: [92m262144[0m
+| [94mdy_paired_audit_block_size    [0m: [92m512[0m
+| [94mdy_paired_target_relative_error[0m: [92m0.005[0m
+| [94mdy_paired_auxiliary_error_fraction[0m: [92m0.1[0m
+| [94mdy_paired_output_directory    [0m: [92m'/home/zeno/DY/pygloop_6c15087/outputs/dy_histogram_precision_ladder_20260917/production'[0m
+| [94mdy_paired_z_histogram_edges   [0m: [92m[0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0][0m
+| [94mphysical_channel_multi_channeling[0m: [92mTrue[0m
+| [94mdy_q_bins                     [0m: [92mNone[0m
+| [94mdy_physical_channel_cards     [0m: [92m{'qg': '/home/zeno/DY/pygloop_6c15087/cards/dy_paired_sobol_20260917/qg.toml',
+ 'qqbar': '/home/zeno/DY/pygloop_6c15087/cards/dy_paired_sobol_20260917/qqbar.toml'}[0m
+| [94mdy_physical_channel_backend   [0m: [92m'saved-jit'[0m
+| [94mdy_physical_channel_batch_size[0m: [92m256[0m
+| [94mdy_physical_channel_warmup_iterations[0m: [92m0[0m
+| [94mdy_physical_channel_min_fraction[0m: [92m0.075[0m
+| [94mdy_physical_channel_target_relative_precision[0m: [92mNone[0m
+| [94mdy_physical_channel_live_diagnostics[0m: [92mTrue[0m
+| [94mtarget                        [0m: [92mNone[0m
+| [94mphase                         [0m: [92m'real'[0m
+| [94mseed                          [0m: [92m927170001[0m
+| [94mrestart                       [0m: [92mFalse[0m
+| [94mrun_workspace_name            [0m: [92m'dy_cm_exact_aux_20260915_inclusive_combined'[0m
+| [94mdy_integration_graphs         [0m: [92mNone[0m
+| [94mdy_graph_weights              [0m: [92mNone[0m
+| [94mdy_runtime_parameters         [0m: [92m{'alpha_ew_inverse': '132.507',
+ 'alpha_s': '0.118',
+ 'lambda_sq': '8302.489924',
+ 'm_top': '173',
+ 'mur_sq': '8302.489924',
+ 'muv': '1000',
+ 'zmax': '1',
+ 'zmin': '0'}[0m
+| 
+| > Integration result after [92m4194304[0m evaluations in [92m118476.71 CPU-s[0m [94m(28247.0 µs / eval)[0m
+| > Extremal weights:
+| > Stability pipeline: float pairs accepted = 0, HP pairs attempted/accepted = 855453/0
+| > Stability triggers: float mismatch = 0, float non-finite/error = 0
+| > Higher-precision rejections: disagreement = 0, non-finite = 0, error = 0
+| > Unstable rotational-check points rejected = 0
+| > Rotational-check high-precision retries = 0
+| > Rotational-check high-precision salvaged = 0
+| > Large-weight high-precision retries = 0
+| > Large-weight high-precision salvaged = 0
+| > Large-weight high-precision rejected = 0
+| > Large-weight samples zeroed = 0 (0.000e+00 of samples; removed signed/absolute sums = 0.00000e+00/0.00000e+00)
+| > Non-finite final outputs zeroed = 0
+| > Non-finite float rotated evaluations seen = 0
+| > [92mCentral value[0m : +1.5108541987251303e-14   +/- 3.81e-17     ([92m0.252%[0m)
+Physical-channel sampling:
+  backend=shared-card-precision-ladder, batch=512, warmup=114688, production=4194304, topology=paired-angular-frozen-sobol, joint leaves=6
+  physical floor=0.000000
+  persistent workers: shared=128
+  precision target=0.500000%, achieved=unavailable, met=False, stop=max_points, iterations=3
+Physical-channel observer estimates:
+  qqbar   : +1.6663794520590952e-14 +/- 3.7908e-17 [3540958 selected]
+  qg      : -1.5552525333396483e-15 +/- 7.1699e-18 [653346 selected]
+  sum     : +1.5108541987251303e-14
+  total   : +1.5108541987251303e-14
+Physical-channel correlation matrix:
+  qqbar   : qqbar=+1.000000, qg=-0.063557
+  qg      : qqbar=-0.063557, qg=+1.000000
+[92mINFO[0m [94mmain l.2286[0m [96mt=2026-09-17,12:17:50.426[0m > --------------------------------------------------------------------------------
+[92mINFO[0m [94mmain l.2340[0m [96mt=2026-09-17,12:17:50.426[0m > Command 'integrate' completed in [92m1087.48s[0m.

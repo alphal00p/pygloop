@@ -1,0 +1,193 @@
+{
+  "bundles": [
+    {
+      "archive_path": "provenance/source_tree/outputs/evaluators/DY/DY_QQBAR_S1000_CM_H_EXACT_AUX_20260915_1L_processed/bundle_metadata.json",
+      "archived_generation_fingerprint": "db7ab51f6cd9888ca576079b494f6150c87201f25e25d9382cfaff86de0d537e",
+      "bundle": "DY_QQBAR_S1000_CM_H_EXACT_AUX_20260915_1L_processed",
+      "recorded_generation_fingerprint": "db7ab51f6cd9888ca576079b494f6150c87201f25e25d9382cfaff86de0d537e",
+      "source_path": "outputs/evaluators/DY/DY_QQBAR_S1000_CM_H_EXACT_AUX_20260915_1L_processed/bundle_metadata.json",
+      "verification": "matches_run_record"
+    },
+    {
+      "archive_path": "provenance/source_tree/outputs/evaluators/DY/DY_QG_S1000_CM_H_EXACT_AUX_20260915_1L_processed/bundle_metadata.json",
+      "archived_generation_fingerprint": "9d728b1b90361a864dae79b115674e490f71a46183cf8089cc8b650dcb5efc5d",
+      "bundle": "DY_QG_S1000_CM_H_EXACT_AUX_20260915_1L_processed",
+      "recorded_generation_fingerprint": "9d728b1b90361a864dae79b115674e490f71a46183cf8089cc8b650dcb5efc5d",
+      "source_path": "outputs/evaluators/DY/DY_QG_S1000_CM_H_EXACT_AUX_20260915_1L_processed/bundle_metadata.json",
+      "verification": "matches_run_record"
+    },
+    {
+      "archive_path": "provenance/source_tree/outputs/evaluators/tt~/TTBAR_QQBAR_MSBAR_SCAN_20260901_2L_processed/bundle_metadata.json",
+      "archived_generation_fingerprint": "1ed7d8023a58dd2e1bf3a4c81a8a66c540cd99216d142a741dc7b95fad4fba2e",
+      "bundle": "TTBAR_QQBAR_MSBAR_SCAN_20260901_2L_processed",
+      "recorded_generation_fingerprint": null,
+      "source_path": "outputs/evaluators/tt~/TTBAR_QQBAR_MSBAR_SCAN_20260901_2L_processed/bundle_metadata.json",
+      "verification": "identity_from_card_no_run_fingerprint_saved"
+    },
+    {
+      "archive_path": "provenance/source_tree/outputs/evaluators/tt~/TTBAR_QQBAR_BORN_MSBAR_SCAN_20260901_1L_processed/bundle_metadata.json",
+      "archived_generation_fingerprint": "2d0ab3ca728b07548c565aada1844dc16069c1af7b2ae2df46112112f6dd3f03",
+      "bundle": "TTBAR_QQBAR_BORN_MSBAR_SCAN_20260901_1L_processed",
+      "recorded_generation_fingerprint": null,
+      "source_path": "outputs/evaluators/tt~/TTBAR_QQBAR_BORN_MSBAR_SCAN_20260901_1L_processed/bundle_metadata.json",
+      "verification": "identity_from_card_no_run_fingerprint_saved"
+    },
+    {
+      "archive_path": "provenance/source_tree/outputs/evaluators/tt~/TTBAR_QG_MSBAR_SCAN_20260901_2L_processed/bundle_metadata.json",
+      "archived_generation_fingerprint": "2a11f12b87985f5ce68fa1be76a1c7d98c2b114d32c5fade628ccbad4b5b1272",
+      "bundle": "TTBAR_QG_MSBAR_SCAN_20260901_2L_processed",
+      "recorded_generation_fingerprint": null,
+      "source_path": "outputs/evaluators/tt~/TTBAR_QG_MSBAR_SCAN_20260901_2L_processed/bundle_metadata.json",
+      "verification": "identity_from_card_no_run_fingerprint_saved"
+    },
+    {
+      "archive_path": "provenance/source_tree/outputs/evaluators/tt~/TTBAR_GG_MSBAR_CM_ESURFACE_V1_20260909_2L_processed/bundle_metadata.json",
+      "archived_generation_fingerprint": "0dd179c545a8d0a221a8ea5a39c2fc907f5727d3330f64a2f61122e04cd9eb3f",
+      "bundle": "TTBAR_GG_MSBAR_CM_ESURFACE_V1_20260909_2L_processed",
+      "recorded_generation_fingerprint": null,
+      "source_path": "outputs/evaluators/tt~/TTBAR_GG_MSBAR_CM_ESURFACE_V1_20260909_2L_processed/bundle_metadata.json",
+      "verification": "identity_from_card_no_run_fingerprint_saved"
+    },
+    {
+      "archive_path": "provenance/source_tree/outputs/evaluators/tt~/TTBAR_GG_BORN_MSBAR_SCAN_20260901_1L_processed/bundle_metadata.json",
+      "archived_generation_fingerprint": "f1ad1942d165cae0da87d0d22b3535738d0c21f328900f98b8b28492059f19b5",
+      "bundle": "TTBAR_GG_BORN_MSBAR_SCAN_20260901_1L_processed",
+      "recorded_generation_fingerprint": null,
+      "source_path": "outputs/evaluators/tt~/TTBAR_GG_BORN_MSBAR_SCAN_20260901_1L_processed/bundle_metadata.json",
+      "verification": "identity_from_card_no_run_fingerprint_saved"
+    },
+    {
+      "archive_path": "provenance/source_tree/outputs/evaluators/tt~/TTBAR_GG_MSBAR_SCAN_20260901_2L_processed/bundle_metadata.json",
+      "archived_generation_fingerprint": "947ee682f45309c22b0f7057fc829a10358c1372f7cffc73fefda21e0ae0e553",
+      "bundle": "TTBAR_GG_MSBAR_SCAN_20260901_2L_processed",
+      "recorded_generation_fingerprint": null,
+      "source_path": "outputs/evaluators/tt~/TTBAR_GG_MSBAR_SCAN_20260901_2L_processed/bundle_metadata.json",
+      "verification": "identity_from_card_no_run_fingerprint_saved"
+    },
+    {
+      "archive_path": "provenance/source_tree/outputs/evaluators/tt~/TTBAR_GG_MSBAR_CM_ESURFACE_V1_20260909_2L_processed/bundle_metadata.json",
+      "archived_generation_fingerprint": "0dd179c545a8d0a221a8ea5a39c2fc907f5727d3330f64a2f61122e04cd9eb3f",
+      "bundle": "TTBAR_GG_MSBAR_CM_ESURFACE_V1_20260909_2L_processed",
+      "recorded_generation_fingerprint": "0dd179c545a8d0a221a8ea5a39c2fc907f5727d3330f64a2f61122e04cd9eb3f",
+      "source_path": "outputs/evaluators/tt~/TTBAR_GG_MSBAR_CM_ESURFACE_V1_20260909_2L_processed/bundle_metadata.json",
+      "verification": "matches_run_record"
+    },
+    {
+      "archive_path": "provenance/source_tree/outputs/evaluators/tt~/TTBAR_QG_MSBAR_CM_ESURFACE_V1_20260909_2L_processed/bundle_metadata.json",
+      "archived_generation_fingerprint": "dc766e8888c2f0c4f1c091062ae482128feac8dfec2fc22c83222c72f4447c25",
+      "bundle": "TTBAR_QG_MSBAR_CM_ESURFACE_V1_20260909_2L_processed",
+      "recorded_generation_fingerprint": "dc766e8888c2f0c4f1c091062ae482128feac8dfec2fc22c83222c72f4447c25",
+      "source_path": "outputs/evaluators/tt~/TTBAR_QG_MSBAR_CM_ESURFACE_V1_20260909_2L_processed/bundle_metadata.json",
+      "verification": "matches_run_record"
+    },
+    {
+      "archive_path": "provenance/source_tree/outputs/evaluators/tt~/TTBAR_QQBAR_MSBAR_CM_ESURFACE_V1_20260909_2L_processed/bundle_metadata.json",
+      "archived_generation_fingerprint": "907fc143e38ab12cb79cb09ee24918f00ce78db22fe14096dc9ce16a3cee8742",
+      "bundle": "TTBAR_QQBAR_MSBAR_CM_ESURFACE_V1_20260909_2L_processed",
+      "recorded_generation_fingerprint": "907fc143e38ab12cb79cb09ee24918f00ce78db22fe14096dc9ce16a3cee8742",
+      "source_path": "outputs/evaluators/tt~/TTBAR_QQBAR_MSBAR_CM_ESURFACE_V1_20260909_2L_processed/bundle_metadata.json",
+      "verification": "matches_run_record"
+    },
+    {
+      "archive_path": "provenance/source_tree/outputs/evaluators/tt~/TTBAR_GG_H_EXACT_RUNTIME_20260914_2L_processed/bundle_metadata.json",
+      "archived_generation_fingerprint": "56504d2a2e697095c345c938ff877e6211a77e41eaf93ad13eec38175286e208",
+      "bundle": "TTBAR_GG_H_EXACT_RUNTIME_20260914_2L_processed",
+      "recorded_generation_fingerprint": "56504d2a2e697095c345c938ff877e6211a77e41eaf93ad13eec38175286e208",
+      "source_path": "outputs/evaluators/tt~/TTBAR_GG_H_EXACT_RUNTIME_20260914_2L_processed/bundle_metadata.json",
+      "verification": "matches_run_record"
+    },
+    {
+      "archive_path": "provenance/source_tree/outputs/evaluators/tt~/TTBAR_GG_BORN_H_EXACT_RUNTIME_20260914_1L_processed/bundle_metadata.json",
+      "archived_generation_fingerprint": "1d455f7f9eda71b78c5761b2c70c156620715413e75c529a304f32f5c6c942db",
+      "bundle": "TTBAR_GG_BORN_H_EXACT_RUNTIME_20260914_1L_processed",
+      "recorded_generation_fingerprint": null,
+      "source_path": "outputs/evaluators/tt~/TTBAR_GG_BORN_H_EXACT_RUNTIME_20260914_1L_processed/bundle_metadata.json",
+      "verification": "identity_from_card_no_run_fingerprint_saved"
+    },
+    {
+      "archive_path": "provenance/source_tree/outputs/evaluators/tt~/TTBAR_QG_H_EXACT_RUNTIME_20260914_2L_processed/bundle_metadata.json",
+      "archived_generation_fingerprint": "2bdeb59ca97f421eada24efe19124e0a452be13c02c9677e68bfb49076039709",
+      "bundle": "TTBAR_QG_H_EXACT_RUNTIME_20260914_2L_processed",
+      "recorded_generation_fingerprint": "2bdeb59ca97f421eada24efe19124e0a452be13c02c9677e68bfb49076039709",
+      "source_path": "outputs/evaluators/tt~/TTBAR_QG_H_EXACT_RUNTIME_20260914_2L_processed/bundle_metadata.json",
+      "verification": "matches_run_record"
+    },
+    {
+      "archive_path": "provenance/source_tree/outputs/evaluators/tt~/TTBAR_QQBAR_H_EXACT_RUNTIME_20260914_2L_processed/bundle_metadata.json",
+      "archived_generation_fingerprint": "76816ef7fdefe8e9eb166df215e5c5d49f8fc6e791e0ffc6b21505cddefb5b72",
+      "bundle": "TTBAR_QQBAR_H_EXACT_RUNTIME_20260914_2L_processed",
+      "recorded_generation_fingerprint": "76816ef7fdefe8e9eb166df215e5c5d49f8fc6e791e0ffc6b21505cddefb5b72",
+      "source_path": "outputs/evaluators/tt~/TTBAR_QQBAR_H_EXACT_RUNTIME_20260914_2L_processed/bundle_metadata.json",
+      "verification": "matches_run_record"
+    },
+    {
+      "archive_path": "provenance/source_tree/outputs/evaluators/tt~/TTBAR_QQBAR_BORN_H_EXACT_RUNTIME_20260914_1L_processed/bundle_metadata.json",
+      "archived_generation_fingerprint": "340f46ca715e99f6a3b46b713312d438a866c10629b511e1e992bbc373b18110",
+      "bundle": "TTBAR_QQBAR_BORN_H_EXACT_RUNTIME_20260914_1L_processed",
+      "recorded_generation_fingerprint": null,
+      "source_path": "outputs/evaluators/tt~/TTBAR_QQBAR_BORN_H_EXACT_RUNTIME_20260914_1L_processed/bundle_metadata.json",
+      "verification": "identity_from_card_no_run_fingerprint_saved"
+    },
+    {
+      "archive_path": "provenance/source_tree/outputs/evaluators/tt~/TTBAR_GG_MSBAR_SCAN_20260901_2L_processed/bundle_metadata.json",
+      "archived_generation_fingerprint": "947ee682f45309c22b0f7057fc829a10358c1372f7cffc73fefda21e0ae0e553",
+      "bundle": "TTBAR_GG_MSBAR_SCAN_20260901_2L_processed",
+      "recorded_generation_fingerprint": "947ee682f45309c22b0f7057fc829a10358c1372f7cffc73fefda21e0ae0e553",
+      "source_path": "outputs/evaluators/tt~/TTBAR_GG_MSBAR_SCAN_20260901_2L_processed/bundle_metadata.json",
+      "verification": "matches_run_record"
+    },
+    {
+      "archive_path": "provenance/source_tree/outputs/evaluators/tt~/TTBAR_QG_MSBAR_SCAN_20260901_2L_processed/bundle_metadata.json",
+      "archived_generation_fingerprint": "2a11f12b87985f5ce68fa1be76a1c7d98c2b114d32c5fade628ccbad4b5b1272",
+      "bundle": "TTBAR_QG_MSBAR_SCAN_20260901_2L_processed",
+      "recorded_generation_fingerprint": "2a11f12b87985f5ce68fa1be76a1c7d98c2b114d32c5fade628ccbad4b5b1272",
+      "source_path": "outputs/evaluators/tt~/TTBAR_QG_MSBAR_SCAN_20260901_2L_processed/bundle_metadata.json",
+      "verification": "matches_run_record"
+    },
+    {
+      "archive_path": "provenance/source_tree/outputs/evaluators/tt~/TTBAR_QQBAR_MSBAR_SCAN_20260901_2L_processed/bundle_metadata.json",
+      "archived_generation_fingerprint": "1ed7d8023a58dd2e1bf3a4c81a8a66c540cd99216d142a741dc7b95fad4fba2e",
+      "bundle": "TTBAR_QQBAR_MSBAR_SCAN_20260901_2L_processed",
+      "recorded_generation_fingerprint": "1ed7d8023a58dd2e1bf3a4c81a8a66c540cd99216d142a741dc7b95fad4fba2e",
+      "source_path": "outputs/evaluators/tt~/TTBAR_QQBAR_MSBAR_SCAN_20260901_2L_processed/bundle_metadata.json",
+      "verification": "matches_run_record"
+    },
+    {
+      "archive_path": "provenance/source_tree/outputs/evaluators/tt~/TTBAR_QQBAR_MSBAR_SCAN_20260901_2L_processed/bundle_metadata.json",
+      "archived_generation_fingerprint": "1ed7d8023a58dd2e1bf3a4c81a8a66c540cd99216d142a741dc7b95fad4fba2e",
+      "bundle": "TTBAR_QQBAR_MSBAR_SCAN_20260901_2L_processed",
+      "recorded_generation_fingerprint": "1ed7d8023a58dd2e1bf3a4c81a8a66c540cd99216d142a741dc7b95fad4fba2e",
+      "run_fingerprint_source": "ttbar_partonic/s2000/qqbar/run.log",
+      "source_path": "outputs/evaluators/tt~/TTBAR_QQBAR_MSBAR_SCAN_20260901_2L_processed/bundle_metadata.json",
+      "verification": "matches_run_log"
+    },
+    {
+      "archive_path": "provenance/source_tree/outputs/evaluators/tt~/TTBAR_QG_MSBAR_SCAN_20260901_2L_processed/bundle_metadata.json",
+      "archived_generation_fingerprint": "2a11f12b87985f5ce68fa1be76a1c7d98c2b114d32c5fade628ccbad4b5b1272",
+      "bundle": "TTBAR_QG_MSBAR_SCAN_20260901_2L_processed",
+      "recorded_generation_fingerprint": "2a11f12b87985f5ce68fa1be76a1c7d98c2b114d32c5fade628ccbad4b5b1272",
+      "run_fingerprint_source": "ttbar_partonic/s2000/qg/run.log",
+      "source_path": "outputs/evaluators/tt~/TTBAR_QG_MSBAR_SCAN_20260901_2L_processed/bundle_metadata.json",
+      "verification": "matches_run_log"
+    },
+    {
+      "archive_path": "provenance/source_tree/outputs/evaluators/tt~/TTBAR_GG_MSBAR_CM_ESURFACE_V1_20260909_2L_processed/bundle_metadata.json",
+      "archived_generation_fingerprint": "0dd179c545a8d0a221a8ea5a39c2fc907f5727d3330f64a2f61122e04cd9eb3f",
+      "bundle": "TTBAR_GG_MSBAR_CM_ESURFACE_V1_20260909_2L_processed",
+      "recorded_generation_fingerprint": "0dd179c545a8d0a221a8ea5a39c2fc907f5727d3330f64a2f61122e04cd9eb3f",
+      "run_fingerprint_source": "ttbar_partonic/s400/gg/replica_04/run.log",
+      "source_path": "outputs/evaluators/tt~/TTBAR_GG_MSBAR_CM_ESURFACE_V1_20260909_2L_processed/bundle_metadata.json",
+      "verification": "matches_run_log"
+    },
+    {
+      "archive_path": "provenance/source_tree/outputs/evaluators/tt~/TTBAR_GG_MSBAR_SCAN_20260901_2L_processed/bundle_metadata.json",
+      "archived_generation_fingerprint": "947ee682f45309c22b0f7057fc829a10358c1372f7cffc73fefda21e0ae0e553",
+      "bundle": "TTBAR_GG_MSBAR_SCAN_20260901_2L_processed",
+      "recorded_generation_fingerprint": "947ee682f45309c22b0f7057fc829a10358c1372f7cffc73fefda21e0ae0e553",
+      "run_fingerprint_source": "ttbar_partonic/s2000/gg/run.log",
+      "source_path": "outputs/evaluators/tt~/TTBAR_GG_MSBAR_SCAN_20260901_2L_processed/bundle_metadata.json",
+      "verification": "matches_run_log"
+    }
+  ],
+  "missing_optional_metadata": []
+}

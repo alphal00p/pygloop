@@ -1,0 +1,27 @@
+{
+  "utc_started": "2026-09-14T21:08:06.963308+00:00",
+  "status": "complete",
+  "controller_pid": 442239,
+  "worker_pgid": 442244,
+  "command": [
+    "/home/zeno/DY/pygloop_6c15087/.venv_final/bin/python3.13",
+    "-B",
+    "/home/zeno/DY/pygloop_6c15087/outputs/ttbar_h_exact_runtime_20260914/monitor_run.py",
+    "integrate",
+    "--label",
+    "production",
+    "--iterations",
+    "500",
+    "--points",
+    "2000000",
+    "--cores",
+    "248"
+  ],
+  "card_sha256": "51559ecb573a2faaf2dbae4330007c063d8458e0c70d3b7fa6a83dc1dd24d450",
+  "iterations": 500,
+  "points_per_iteration": 2000000,
+  "cores": 248,
+  "utc_finished": "2026-09-15T09:54:53.479513+00:00",
+  "returncode": 0,
+  "elapsed_s": 46006.516241073026
+}

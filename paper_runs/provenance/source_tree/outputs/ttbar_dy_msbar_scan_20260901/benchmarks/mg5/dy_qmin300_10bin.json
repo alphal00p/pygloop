@@ -1,0 +1,417 @@
+{
+  "physics": {
+    "lhaid": 93100,
+    "mu_f_gev": 91.118,
+    "mu_r_gev": 91.118,
+    "pdf": "PDF4LHC21_40",
+    "pdf_member": 0,
+    "q_min_gev": 300.0
+  },
+  "rebinning": "sum adjacent pairs of 0.05-wide HwU bins",
+  "runs": {
+    "1000": {
+      "banner": "/tmp/ttbar_dy_msbar_scan_20260901_mg5/PP_DY_Z20/Events/run_dy_s1000_q300_endpoint_10m_20260906/run_dy_s1000_q300_endpoint_10m_20260906_tag_1_banner.txt",
+      "banner_sha256": "78fcd7166d08df87a179049dfe925ecb84196d3765340930987cf7f6b3649517",
+      "hwu": "/tmp/ttbar_dy_msbar_scan_20260901_mg5/PP_DY_Z20/Events/run_dy_s1000_q300_endpoint_10m_20260906/MADatNLO.HwU",
+      "hwu_sha256": "73508acc4e01d044ded30dc02ed4bf3c85f1f13c4f537b5f3d5c42acb14f82d1",
+      "inclusive": {
+        "central_value_pb": 5.889207570681701e-06,
+        "error_pb": 9.80388248489266e-09
+      },
+      "observable": "z=m_ll^2/shat, z-weighted pure NLO correction",
+      "q_min_gev": 300.0,
+      "qg_bins": [
+        {
+          "central_value_pb": -5.011645058000002e-21,
+          "error_pb": 9.202498216782002e-20,
+          "high": 0.1,
+          "low": 0.0
+        },
+        {
+          "central_value_pb": 1.5097060900000001e-12,
+          "error_pb": 7.054059884845316e-14,
+          "high": 0.2,
+          "low": 0.1
+        },
+        {
+          "central_value_pb": 1.65247545e-10,
+          "error_pb": 2.2709342531068754e-12,
+          "high": 0.3,
+          "low": 0.2
+        },
+        {
+          "central_value_pb": 1.87910589e-09,
+          "error_pb": 1.3293103365405011e-11,
+          "high": 0.4,
+          "low": 0.3
+        },
+        {
+          "central_value_pb": 8.5077946e-09,
+          "error_pb": 4.949763958731947e-11,
+          "high": 0.5,
+          "low": 0.4
+        },
+        {
+          "central_value_pb": 2.3100956000000002e-08,
+          "error_pb": 1.2516077947276296e-10,
+          "high": 0.6,
+          "low": 0.5
+        },
+        {
+          "central_value_pb": 4.330951e-08,
+          "error_pb": 2.449403205220029e-10,
+          "high": 0.7,
+          "low": 0.6
+        },
+        {
+          "central_value_pb": 4.80016483e-08,
+          "error_pb": 4.813769911475088e-10,
+          "high": 0.8,
+          "low": 0.7
+        },
+        {
+          "central_value_pb": -4.23174325e-08,
+          "error_pb": 8.126593989901855e-10,
+          "high": 0.9,
+          "low": 0.8
+        },
+        {
+          "central_value_pb": -6.94896946e-07,
+          "error_pb": 1.6205621782862237e-09,
+          "high": 1.0,
+          "low": 0.9
+        }
+      ],
+      "qqbar_bins": [
+        {
+          "central_value_pb": 3.7573796e-18,
+          "error_pb": 2.343239489082985e-18,
+          "high": 0.1,
+          "low": 0.0
+        },
+        {
+          "central_value_pb": 4.70283686e-12,
+          "error_pb": 9.232409399715634e-14,
+          "high": 0.2,
+          "low": 0.1
+        },
+        {
+          "central_value_pb": 3.212827e-10,
+          "error_pb": 2.744666554663914e-12,
+          "high": 0.3,
+          "low": 0.2
+        },
+        {
+          "central_value_pb": 2.9001406000000005e-09,
+          "error_pb": 1.8017779501081064e-11,
+          "high": 0.4,
+          "low": 0.3
+        },
+        {
+          "central_value_pb": 1.1826615e-08,
+          "error_pb": 5.340753083058699e-11,
+          "high": 0.5,
+          "low": 0.4
+        },
+        {
+          "central_value_pb": 3.1899286e-08,
+          "error_pb": 1.6114579248346293e-10,
+          "high": 0.6,
+          "low": 0.5
+        },
+        {
+          "central_value_pb": 5.661399e-08,
+          "error_pb": 3.945459619718341e-10,
+          "high": 0.7,
+          "low": 0.6
+        },
+        {
+          "central_value_pb": 5.616499999999963e-10,
+          "error_pb": 1.0299602342274676e-09,
+          "high": 0.8,
+          "low": 0.7
+        },
+        {
+          "central_value_pb": -9.0444249e-07,
+          "error_pb": 2.832623211778622e-09,
+          "high": 0.9,
+          "low": 0.8
+        },
+        {
+          "central_value_pb": 7.301770999999999e-06,
+          "error_pb": 9.124147448291155e-09,
+          "high": 1.0,
+          "low": 0.9
+        }
+      ],
+      "sqrt_s_gev": 1000,
+      "total_bins": [
+        {
+          "central_value_pb": 3.752367954942e-18,
+          "error_pb": 2.3450458205631884e-18,
+          "high": 0.1,
+          "low": 0.0
+        },
+        {
+          "central_value_pb": 6.21254295e-12,
+          "error_pb": 1.1618827143173337e-13,
+          "high": 0.2,
+          "low": 0.1
+        },
+        {
+          "central_value_pb": 4.865302449999999e-10,
+          "error_pb": 3.5623499095715965e-12,
+          "high": 0.3,
+          "low": 0.2
+        },
+        {
+          "central_value_pb": 4.77924649e-09,
+          "error_pb": 2.2390778799160134e-11,
+          "high": 0.4,
+          "low": 0.3
+        },
+        {
+          "central_value_pb": 2.03344096e-08,
+          "error_pb": 7.281744759421519e-11,
+          "high": 0.5,
+          "low": 0.4
+        },
+        {
+          "central_value_pb": 5.5000242e-08,
+          "error_pb": 2.0404212102738224e-10,
+          "high": 0.6,
+          "low": 0.5
+        },
+        {
+          "central_value_pb": 9.99235e-08,
+          "error_pb": 4.6439452701953916e-10,
+          "high": 0.7,
+          "low": 0.6
+        },
+        {
+          "central_value_pb": 4.85632983e-08,
+          "error_pb": 1.1369001238878148e-09,
+          "high": 0.8,
+          "low": 0.7
+        },
+        {
+          "central_value_pb": -9.467599225e-07,
+          "error_pb": 2.946891507788186e-09,
+          "high": 0.9,
+          "low": 0.8
+        },
+        {
+          "central_value_pb": 6.606874053999999e-06,
+          "error_pb": 9.266946014294558e-09,
+          "high": 1.0,
+          "low": 0.9
+        }
+      ]
+    },
+    "2000": {
+      "banner": "/tmp/ttbar_dy_msbar_scan_20260901_mg5/PP_DY_Z20/Events/run_dy_s2000_q300_endpoint_10m_20260906/run_dy_s2000_q300_endpoint_10m_20260906_tag_1_banner.txt",
+      "banner_sha256": "b94a167db19a8bf1a8b168353bf66cd3df4698b47896611fc30b249559d306e2",
+      "hwu": "/tmp/ttbar_dy_msbar_scan_20260901_mg5/PP_DY_Z20/Events/run_dy_s2000_q300_endpoint_10m_20260906/MADatNLO.HwU",
+      "hwu_sha256": "ecdc6d760e6cb71924d65ef41e1b3c100dbca856349b02882aac435b0d404b11",
+      "inclusive": {
+        "central_value_pb": 0.00015482010004044342,
+        "error_pb": 4.4246859676026645e-07
+      },
+      "observable": "z=m_ll^2/shat, z-weighted pure NLO correction",
+      "q_min_gev": 300.0,
+      "qg_bins": [
+        {
+          "central_value_pb": 2.2708240378e-10,
+          "error_pb": 6.5468462390912685e-12,
+          "high": 0.1,
+          "low": 0.0
+        },
+        {
+          "central_value_pb": 2.5694130199999997e-08,
+          "error_pb": 2.571671441797381e-10,
+          "high": 0.2,
+          "low": 0.1
+        },
+        {
+          "central_value_pb": 1.9132905500000002e-07,
+          "error_pb": 9.353442723044549e-10,
+          "high": 0.3,
+          "low": 0.2
+        },
+        {
+          "central_value_pb": 6.11085764e-07,
+          "error_pb": 2.5182608777761726e-09,
+          "high": 0.4,
+          "low": 0.3
+        },
+        {
+          "central_value_pb": 1.3045369799999999e-06,
+          "error_pb": 5.004533517006924e-09,
+          "high": 0.5,
+          "low": 0.4
+        },
+        {
+          "central_value_pb": 2.19586533e-06,
+          "error_pb": 9.013262327548445e-09,
+          "high": 0.6,
+          "low": 0.5
+        },
+        {
+          "central_value_pb": 2.96590774e-06,
+          "error_pb": 1.3315079114701798e-08,
+          "high": 0.7,
+          "low": 0.6
+        },
+        {
+          "central_value_pb": 2.69427322e-06,
+          "error_pb": 1.9046260830458247e-08,
+          "high": 0.8,
+          "low": 0.7
+        },
+        {
+          "central_value_pb": -1.279699559e-06,
+          "error_pb": 2.647162224400879e-08,
+          "high": 0.9,
+          "low": 0.8
+        },
+        {
+          "central_value_pb": -2.2779986100000002e-05,
+          "error_pb": 5.174636595963849e-08,
+          "high": 1.0,
+          "low": 0.9
+        }
+      ],
+      "qqbar_bins": [
+        {
+          "central_value_pb": 2.260248396e-10,
+          "error_pb": 5.233402785217964e-12,
+          "high": 0.1,
+          "low": 0.0
+        },
+        {
+          "central_value_pb": 1.7845233e-08,
+          "error_pb": 1.3167909680121404e-10,
+          "high": 0.2,
+          "low": 0.1
+        },
+        {
+          "central_value_pb": 1.5976934e-07,
+          "error_pb": 7.280395868922308e-10,
+          "high": 0.3,
+          "low": 0.2
+        },
+        {
+          "central_value_pb": 6.334872e-07,
+          "error_pb": 2.5378708779705577e-09,
+          "high": 0.4,
+          "low": 0.3
+        },
+        {
+          "central_value_pb": 1.6593687999999998e-06,
+          "error_pb": 6.398279750435581e-09,
+          "high": 0.5,
+          "low": 0.4
+        },
+        {
+          "central_value_pb": 3.2246986e-06,
+          "error_pb": 1.4085244856772104e-08,
+          "high": 0.6,
+          "low": 0.5
+        },
+        {
+          "central_value_pb": 4.656254e-06,
+          "error_pb": 2.889377024320987e-08,
+          "high": 0.7,
+          "low": 0.6
+        },
+        {
+          "central_value_pb": 1.3539292e-06,
+          "error_pb": 6.084886813683554e-08,
+          "high": 0.8,
+          "low": 0.7
+        },
+        {
+          "central_value_pb": -3.7410552e-05,
+          "error_pb": 1.4138528638788725e-07,
+          "high": 0.9,
+          "low": 0.8
+        },
+        {
+          "central_value_pb": 0.00019459584,
+          "error_pb": 4.086231190233734e-07,
+          "high": 1.0,
+          "low": 0.9
+        }
+      ],
+      "sqrt_s_gev": 2000,
+      "total_bins": [
+        {
+          "central_value_pb": 4.5310724338000004e-10,
+          "error_pb": 8.38150943390453e-12,
+          "high": 0.1,
+          "low": 0.0
+        },
+        {
+          "central_value_pb": 4.35393632e-08,
+          "error_pb": 2.889192353927749e-10,
+          "high": 0.2,
+          "low": 0.1
+        },
+        {
+          "central_value_pb": 3.51098395e-07,
+          "error_pb": 1.1852892253855006e-09,
+          "high": 0.3,
+          "low": 0.2
+        },
+        {
+          "central_value_pb": 1.244572964e-06,
+          "error_pb": 3.5752519410230475e-09,
+          "high": 0.4,
+          "low": 0.3
+        },
+        {
+          "central_value_pb": 2.96390578e-06,
+          "error_pb": 8.123012956266885e-09,
+          "high": 0.5,
+          "low": 0.4
+        },
+        {
+          "central_value_pb": 5.4205639300000005e-06,
+          "error_pb": 1.6722231324211165e-08,
+          "high": 0.6,
+          "low": 0.5
+        },
+        {
+          "central_value_pb": 7.622161739999999e-06,
+          "error_pb": 3.181416808118936e-08,
+          "high": 0.7,
+          "low": 0.6
+        },
+        {
+          "central_value_pb": 4.04820242e-06,
+          "error_pb": 6.376005650213814e-08,
+          "high": 0.8,
+          "low": 0.7
+        },
+        {
+          "central_value_pb": -3.8690251558999994e-05,
+          "error_pb": 1.438420869954771e-07,
+          "high": 0.9,
+          "low": 0.8
+        },
+        {
+          "central_value_pb": 0.00017181585390000002,
+          "error_pb": 4.118865617987783e-07,
+          "high": 1.0,
+          "low": 0.9
+        }
+      ]
+    }
+  },
+  "schema_version": 1,
+  "source_bins": 20,
+  "source_manifest": "/home/zeno/DY/pygloop_6c15087/outputs/ttbar_dy_msbar_scan_20260901/diagnostics/hadronic_endpoint_qmin300_mg5_20260906/mg5/manifest.json",
+  "source_manifest_sha256": "666901f1165dbc9f05bf45ea286e4d4aac0ad9c917bc4f4e2a22fe1303811358",
+  "target_bins": 10,
+  "uncertainty_note": "MG5 component and adjacent-bin errors are combined in quadrature; HwU does not expose their covariance."
+}

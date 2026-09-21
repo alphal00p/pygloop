@@ -1,0 +1,1360 @@
+{
+  "bundles": {
+    "dy_qg": {
+      "basename": "DY_QG_MSBAR_ZBINS_20260901",
+      "channel": [
+        1,
+        0
+      ],
+      "loops": 1,
+      "processed_name": "DY_QG_MSBAR_ZBINS_20260901_1L_processed",
+      "top_self_energy": "no-os"
+    },
+    "dy_qqbar": {
+      "basename": "DY_QQBAR_MSBAR_ZBINS_LR_GROUPED_UVLOGFIX_20260903",
+      "channel": [
+        1,
+        -1
+      ],
+      "loops": 1,
+      "processed_name": "DY_QQBAR_MSBAR_ZBINS_LR_GROUPED_UVLOGFIX_20260903_1L_processed",
+      "top_self_energy": "no-os"
+    },
+    "ttbar_gg": {
+      "basename": "TTBAR_GG_MSBAR_SCAN_20260901",
+      "channel": [
+        0,
+        0
+      ],
+      "loops": 2,
+      "processed_name": "TTBAR_GG_MSBAR_SCAN_20260901_2L_processed",
+      "top_self_energy": "projected-os"
+    },
+    "ttbar_gg_born": {
+      "basename": "TTBAR_GG_BORN_MSBAR_SCAN_20260901",
+      "channel": [
+        0,
+        0
+      ],
+      "loops": 1,
+      "processed_name": "TTBAR_GG_BORN_MSBAR_SCAN_20260901_1L_processed",
+      "top_self_energy": "no-os"
+    },
+    "ttbar_qg": {
+      "basename": "TTBAR_QG_MSBAR_SCAN_20260901",
+      "channel": [
+        1,
+        0
+      ],
+      "loops": 2,
+      "processed_name": "TTBAR_QG_MSBAR_SCAN_20260901_2L_processed",
+      "top_self_energy": "no-os"
+    },
+    "ttbar_qqbar": {
+      "basename": "TTBAR_QQBAR_MSBAR_SCAN_20260901",
+      "channel": [
+        1,
+        -1
+      ],
+      "loops": 2,
+      "processed_name": "TTBAR_QQBAR_MSBAR_SCAN_20260901_2L_processed",
+      "top_self_energy": "projected-os"
+    },
+    "ttbar_qqbar_born": {
+      "basename": "TTBAR_QQBAR_BORN_MSBAR_SCAN_20260901",
+      "channel": [
+        1,
+        -1
+      ],
+      "loops": 1,
+      "processed_name": "TTBAR_QQBAR_BORN_MSBAR_SCAN_20260901_1L_processed",
+      "top_self_energy": "no-os"
+    }
+  },
+  "calibrated_keys": [
+    "dy.hadronic.s1000.inclusive.qg",
+    "dy.hadronic.s1000.inclusive.qqbar",
+    "dy.hadronic.s1000.z00_10.qg",
+    "dy.hadronic.s1000.z00_10.qqbar",
+    "dy.hadronic.s1000.z10_20.qg",
+    "dy.hadronic.s1000.z10_20.qqbar",
+    "dy.hadronic.s1000.z20_30.qg",
+    "dy.hadronic.s1000.z20_30.qqbar",
+    "dy.hadronic.s1000.z30_40.qg",
+    "dy.hadronic.s1000.z30_40.qqbar",
+    "dy.hadronic.s1000.z40_50.qg",
+    "dy.hadronic.s1000.z40_50.qqbar",
+    "dy.hadronic.s1000.z50_60.qg",
+    "dy.hadronic.s1000.z50_60.qqbar",
+    "dy.hadronic.s1000.z60_70.qg",
+    "dy.hadronic.s1000.z60_70.qqbar",
+    "dy.hadronic.s1000.z70_80.qg",
+    "dy.hadronic.s1000.z70_80.qqbar",
+    "dy.hadronic.s1000.z80_90.qg",
+    "dy.hadronic.s1000.z80_90.qqbar",
+    "dy.hadronic.s1000.z90_100.qg",
+    "dy.hadronic.s1000.z90_100.qqbar",
+    "dy.hadronic.s2000.inclusive.qg",
+    "dy.hadronic.s2000.inclusive.qqbar",
+    "dy.hadronic.s2000.z00_10.qg",
+    "dy.hadronic.s2000.z00_10.qqbar",
+    "dy.hadronic.s2000.z10_20.qg",
+    "dy.hadronic.s2000.z10_20.qqbar",
+    "dy.hadronic.s2000.z20_30.qg",
+    "dy.hadronic.s2000.z20_30.qqbar",
+    "dy.hadronic.s2000.z30_40.qg",
+    "dy.hadronic.s2000.z30_40.qqbar",
+    "dy.hadronic.s2000.z40_50.qg",
+    "dy.hadronic.s2000.z40_50.qqbar",
+    "dy.hadronic.s2000.z50_60.qg",
+    "dy.hadronic.s2000.z50_60.qqbar",
+    "dy.hadronic.s2000.z60_70.qg",
+    "dy.hadronic.s2000.z60_70.qqbar",
+    "dy.hadronic.s2000.z70_80.qg",
+    "dy.hadronic.s2000.z70_80.qqbar",
+    "dy.hadronic.s2000.z80_90.qg",
+    "dy.hadronic.s2000.z80_90.qqbar",
+    "dy.hadronic.s2000.z90_100.qg",
+    "dy.hadronic.s2000.z90_100.qqbar",
+    "ttbar.hadronic.s1000.gg",
+    "ttbar.hadronic.s1000.qg",
+    "ttbar.hadronic.s1000.qqbar",
+    "ttbar.hadronic.s2000.gg",
+    "ttbar.hadronic.s2000.qg",
+    "ttbar.hadronic.s2000.qqbar",
+    "ttbar.hadronic.s400.gg",
+    "ttbar.hadronic.s400.qg",
+    "ttbar.hadronic.s400.qqbar",
+    "ttbar.partonic.s1000.gg",
+    "ttbar.partonic.s1000.qg",
+    "ttbar.partonic.s1000.qqbar",
+    "ttbar.partonic.s2000.gg",
+    "ttbar.partonic.s2000.qg",
+    "ttbar.partonic.s2000.qqbar",
+    "ttbar.partonic.s400.gg",
+    "ttbar.partonic.s400.qg",
+    "ttbar.partonic.s400.qqbar"
+  ],
+  "campaign": "ttbar_dy_msbar_scan_20260901",
+  "cards": [
+    {
+      "command": "generate",
+      "path": "generation/ttbar_qqbar.toml",
+      "role": "generation",
+      "sha256": "088374f8d2c62ff923f11583f36d08fccd9b88f43e1396dba11f09e270462294"
+    },
+    {
+      "command": "generate",
+      "path": "generation/ttbar_qg.toml",
+      "role": "generation",
+      "sha256": "63e14151164c04dc5952922f4e603650889aaab9be148e3d7066f0c1fd6af58e"
+    },
+    {
+      "command": "generate",
+      "path": "generation/ttbar_gg.toml",
+      "role": "generation",
+      "sha256": "da006ba9b797fd7f304bc808e186b1f6c8995fbfa092218a0507f8f340777acc"
+    },
+    {
+      "command": "generate",
+      "path": "generation/ttbar_qqbar_born.toml",
+      "role": "generation",
+      "sha256": "8d5a7b2d87b70139582596080feeb1415ea56e528f0e61ebd3a994e3c93682e9"
+    },
+    {
+      "command": "generate",
+      "path": "generation/ttbar_gg_born.toml",
+      "role": "generation",
+      "sha256": "38d86f5b2e82dcee1ea93c8173d78cfe2bd8e8bdca25096c67ca748f90d7b2c7"
+    },
+    {
+      "command": "generate",
+      "path": "generation/dy_qqbar.toml",
+      "role": "generation",
+      "sha256": "8e616a91f21a136303fba745d1f5b7f071202f26167659ce0e20aa2fce48269e"
+    },
+    {
+      "command": "generate",
+      "path": "generation/dy_qg.toml",
+      "role": "generation",
+      "sha256": "2e9f9967c85862b5d31dfccb23409e244ff9eca8450b2bad60d330f5052278e6"
+    },
+    {
+      "calibration_key": "ttbar.partonic.s400.qqbar",
+      "command": "integrate",
+      "path": "smoke/ttbar/partonic/s400/qqbar.toml",
+      "role": "smoke_ttbar_partonic",
+      "sha256": "7570f08334c289da48b3177f7f36941f62ed4f2b97129e3b9510bd365661ffc9"
+    },
+    {
+      "calibration_key": "ttbar.partonic.s400.qg",
+      "command": "integrate",
+      "path": "smoke/ttbar/partonic/s400/qg.toml",
+      "role": "smoke_ttbar_partonic",
+      "sha256": "e9c55f55f40f3bcefc129843f7c02e9cb25d8dc651777f582026aec1751ff49f"
+    },
+    {
+      "calibration_key": "ttbar.partonic.s400.gg",
+      "command": "integrate",
+      "path": "smoke/ttbar/partonic/s400/gg.toml",
+      "role": "smoke_ttbar_partonic",
+      "sha256": "bb42410fb0cc88dd1f3a119494b748ce3684c1e32975db38d44cf47e2a7119b0"
+    },
+    {
+      "calibration_key": "ttbar.hadronic.s400.qqbar",
+      "command": "integrate",
+      "path": "smoke/ttbar/hadronic/s400/qqbar.toml",
+      "role": "smoke_ttbar_hadronic",
+      "sha256": "d03b7646eb238005c998456911841dd07d23fc97ae86ddbb787ff007da534438"
+    },
+    {
+      "calibration_key": "ttbar.hadronic.s400.qg",
+      "command": "integrate",
+      "path": "smoke/ttbar/hadronic/s400/qg.toml",
+      "role": "smoke_ttbar_hadronic",
+      "sha256": "dd82133d4cf256f4b9e3b62773c9d17d7a05b350c414c6226331f7d2b7604213"
+    },
+    {
+      "calibration_key": "ttbar.hadronic.s400.gg",
+      "command": "integrate",
+      "path": "smoke/ttbar/hadronic/s400/gg.toml",
+      "role": "smoke_ttbar_hadronic",
+      "sha256": "10ab1708855ec97bf6b1c82cdaa3ce3c43e7121b4645ff6ba65c7dda23fa93cf"
+    },
+    {
+      "calibration_key": "ttbar.partonic.s1000.qqbar",
+      "command": "integrate",
+      "path": "smoke/ttbar/partonic/s1000/qqbar.toml",
+      "role": "smoke_ttbar_partonic",
+      "sha256": "c745fdb6c320726d1ace9d0459f2b60b5898773c6be3d35c6e5de50c90210fcd"
+    },
+    {
+      "calibration_key": "ttbar.partonic.s1000.qg",
+      "command": "integrate",
+      "path": "smoke/ttbar/partonic/s1000/qg.toml",
+      "role": "smoke_ttbar_partonic",
+      "sha256": "39676a151e0ca610df3e554d270c136416c06879c503db7b6908e6dcca80f81b"
+    },
+    {
+      "calibration_key": "ttbar.partonic.s1000.gg",
+      "command": "integrate",
+      "path": "smoke/ttbar/partonic/s1000/gg.toml",
+      "role": "smoke_ttbar_partonic",
+      "sha256": "c2fa943525af505489006be66ff832e961fc7762a35dedabf038fad062906e55"
+    },
+    {
+      "calibration_key": "ttbar.hadronic.s1000.qqbar",
+      "command": "integrate",
+      "path": "smoke/ttbar/hadronic/s1000/qqbar.toml",
+      "role": "smoke_ttbar_hadronic",
+      "sha256": "8c540d02ce8002f3d18384a99bba2b11ca3552baee450a7a4c08f31b86f9f290"
+    },
+    {
+      "calibration_key": "ttbar.hadronic.s1000.qg",
+      "command": "integrate",
+      "path": "smoke/ttbar/hadronic/s1000/qg.toml",
+      "role": "smoke_ttbar_hadronic",
+      "sha256": "c24893c66d32602337ff29b8cb05ccee4455bf0a9ed93630545a591e22e8c76f"
+    },
+    {
+      "calibration_key": "ttbar.hadronic.s1000.gg",
+      "command": "integrate",
+      "path": "smoke/ttbar/hadronic/s1000/gg.toml",
+      "role": "smoke_ttbar_hadronic",
+      "sha256": "e79b312f60f08ce47c161cca21e2423384e5b7e7885e0a093019d48dd9b071d9"
+    },
+    {
+      "calibration_key": "ttbar.partonic.s2000.qqbar",
+      "command": "integrate",
+      "path": "smoke/ttbar/partonic/s2000/qqbar.toml",
+      "role": "smoke_ttbar_partonic",
+      "sha256": "4776e3f21354988d1492e6f6d01583fe98e66617a5e6954845dd3985a00b26b3"
+    },
+    {
+      "calibration_key": "ttbar.partonic.s2000.qg",
+      "command": "integrate",
+      "path": "smoke/ttbar/partonic/s2000/qg.toml",
+      "role": "smoke_ttbar_partonic",
+      "sha256": "2f1c0f59620df1c858e80ec7e0588afd7149330ecf8c1a968448c05f3a05c82c"
+    },
+    {
+      "calibration_key": "ttbar.partonic.s2000.gg",
+      "command": "integrate",
+      "path": "smoke/ttbar/partonic/s2000/gg.toml",
+      "role": "smoke_ttbar_partonic",
+      "sha256": "9279f763806625e06ead1cfcfc722af730809f869ce3bbd38e4fed32700d11b2"
+    },
+    {
+      "calibration_key": "ttbar.hadronic.s2000.qqbar",
+      "command": "integrate",
+      "path": "smoke/ttbar/hadronic/s2000/qqbar.toml",
+      "role": "smoke_ttbar_hadronic",
+      "sha256": "4bdaf4277198ada53c886de4606356fd004cce6d1b9c76dc637a6abf43255476"
+    },
+    {
+      "calibration_key": "ttbar.hadronic.s2000.qg",
+      "command": "integrate",
+      "path": "smoke/ttbar/hadronic/s2000/qg.toml",
+      "role": "smoke_ttbar_hadronic",
+      "sha256": "23b82fbfaf1301e50921159043d85252fb7c60379a9212a18bdeeeb9c0b70ed7"
+    },
+    {
+      "calibration_key": "ttbar.hadronic.s2000.gg",
+      "command": "integrate",
+      "path": "smoke/ttbar/hadronic/s2000/gg.toml",
+      "role": "smoke_ttbar_hadronic",
+      "sha256": "7b758189215edc88fea5327bcb171127cde3df4ef4eaa07561c13a226654a316"
+    },
+    {
+      "calibration_key": "dy.hadronic.s1000.z00_10.qqbar",
+      "command": "integrate",
+      "path": "smoke/dy/s1000/z00_10/qqbar.toml",
+      "role": "smoke_dy_hadronic",
+      "sha256": "b19b7de26bfa4ce364774188667c020864aa287fe3d965216977015432686444"
+    },
+    {
+      "calibration_key": "dy.hadronic.s1000.z00_10.qg",
+      "command": "integrate",
+      "path": "smoke/dy/s1000/z00_10/qg.toml",
+      "role": "smoke_dy_hadronic",
+      "sha256": "26048041644c18795d6e3958ce44f0612033ee3f54ebc824a9a2f36bdcb28c04"
+    },
+    {
+      "calibration_key": "dy.hadronic.s1000.z10_20.qqbar",
+      "command": "integrate",
+      "path": "smoke/dy/s1000/z10_20/qqbar.toml",
+      "role": "smoke_dy_hadronic",
+      "sha256": "4b6191ec63774369376b3692b4014e687479f7a7ceb1ae9d62fa69144d04f533"
+    },
+    {
+      "calibration_key": "dy.hadronic.s1000.z10_20.qg",
+      "command": "integrate",
+      "path": "smoke/dy/s1000/z10_20/qg.toml",
+      "role": "smoke_dy_hadronic",
+      "sha256": "380f1c85431918737ee71c2c93f237b41fc30bf6efd9260ca8a5b3fb556cdfe7"
+    },
+    {
+      "calibration_key": "dy.hadronic.s1000.z20_30.qqbar",
+      "command": "integrate",
+      "path": "smoke/dy/s1000/z20_30/qqbar.toml",
+      "role": "smoke_dy_hadronic",
+      "sha256": "11078a08e7e93b57766a6eeaafb826ec55c1e197179d9f2b01e5334466c755a2"
+    },
+    {
+      "calibration_key": "dy.hadronic.s1000.z20_30.qg",
+      "command": "integrate",
+      "path": "smoke/dy/s1000/z20_30/qg.toml",
+      "role": "smoke_dy_hadronic",
+      "sha256": "794ca06e44c0874ea72d678d3e33bdd7ef08bcd51fa8380ccf686f38f3ab4c59"
+    },
+    {
+      "calibration_key": "dy.hadronic.s1000.z30_40.qqbar",
+      "command": "integrate",
+      "path": "smoke/dy/s1000/z30_40/qqbar.toml",
+      "role": "smoke_dy_hadronic",
+      "sha256": "165d110dcee98bc249bce69023917142226ef0e8076eb34dd15ed8ffa8516d11"
+    },
+    {
+      "calibration_key": "dy.hadronic.s1000.z30_40.qg",
+      "command": "integrate",
+      "path": "smoke/dy/s1000/z30_40/qg.toml",
+      "role": "smoke_dy_hadronic",
+      "sha256": "f7c7c03bb1d1a0cd7eb5561ef7f8e1be6ac0d62d24cf4b2522a9a38b8315bf64"
+    },
+    {
+      "calibration_key": "dy.hadronic.s1000.z40_50.qqbar",
+      "command": "integrate",
+      "path": "smoke/dy/s1000/z40_50/qqbar.toml",
+      "role": "smoke_dy_hadronic",
+      "sha256": "6915153c50c9fb27bc675d5a974d302766bd5864484f4062dd923308637db46a"
+    },
+    {
+      "calibration_key": "dy.hadronic.s1000.z40_50.qg",
+      "command": "integrate",
+      "path": "smoke/dy/s1000/z40_50/qg.toml",
+      "role": "smoke_dy_hadronic",
+      "sha256": "986760e5caef9f0062ef43c4560ebb3c7bea38b4ccb6aa14456b9b86d14b56d4"
+    },
+    {
+      "calibration_key": "dy.hadronic.s1000.z50_60.qqbar",
+      "command": "integrate",
+      "path": "smoke/dy/s1000/z50_60/qqbar.toml",
+      "role": "smoke_dy_hadronic",
+      "sha256": "5a245670adc887e5bfe1bd426971c1e742b31b76aa3016695be3a4191b4b2df6"
+    },
+    {
+      "calibration_key": "dy.hadronic.s1000.z50_60.qg",
+      "command": "integrate",
+      "path": "smoke/dy/s1000/z50_60/qg.toml",
+      "role": "smoke_dy_hadronic",
+      "sha256": "ea2cb387eb67ca8c929ee9679d8b714c2935909d3e2ef5090ebf139e844a96dc"
+    },
+    {
+      "calibration_key": "dy.hadronic.s1000.z60_70.qqbar",
+      "command": "integrate",
+      "path": "smoke/dy/s1000/z60_70/qqbar.toml",
+      "role": "smoke_dy_hadronic",
+      "sha256": "f90c127cb2b47109266412328344da7a76420cc50bd7739bca13a444edc7bbce"
+    },
+    {
+      "calibration_key": "dy.hadronic.s1000.z60_70.qg",
+      "command": "integrate",
+      "path": "smoke/dy/s1000/z60_70/qg.toml",
+      "role": "smoke_dy_hadronic",
+      "sha256": "630f9f1e4824df57a7869f1500aca2f8a44e0e4029de607a27ef21d2a491a155"
+    },
+    {
+      "calibration_key": "dy.hadronic.s1000.z70_80.qqbar",
+      "command": "integrate",
+      "path": "smoke/dy/s1000/z70_80/qqbar.toml",
+      "role": "smoke_dy_hadronic",
+      "sha256": "7ed115259a811094edfb6c5fc76726234ffd82a7df92d813c5d45189101c2dfa"
+    },
+    {
+      "calibration_key": "dy.hadronic.s1000.z70_80.qg",
+      "command": "integrate",
+      "path": "smoke/dy/s1000/z70_80/qg.toml",
+      "role": "smoke_dy_hadronic",
+      "sha256": "72583bdad8f6f70857af820e38cea1d738cfad43cb15561dfa9927ff90d280e0"
+    },
+    {
+      "calibration_key": "dy.hadronic.s1000.z80_90.qqbar",
+      "command": "integrate",
+      "path": "smoke/dy/s1000/z80_90/qqbar.toml",
+      "role": "smoke_dy_hadronic",
+      "sha256": "e96f2c70943f2d19ded703427417a9de884ffb43ab3fc9e9a30d46a9efc0e97c"
+    },
+    {
+      "calibration_key": "dy.hadronic.s1000.z80_90.qg",
+      "command": "integrate",
+      "path": "smoke/dy/s1000/z80_90/qg.toml",
+      "role": "smoke_dy_hadronic",
+      "sha256": "70594a1c507b4efc4f285ec432712cdef4de50d72f5df33522afecd3f9a9a32d"
+    },
+    {
+      "calibration_key": "dy.hadronic.s1000.z90_100.qqbar",
+      "command": "integrate",
+      "path": "smoke/dy/s1000/z90_100/qqbar.toml",
+      "role": "smoke_dy_hadronic",
+      "sha256": "a0385b52f9b2c2f822a4e8026a77b84a76ad195809826d99f42075cc42cff3d4"
+    },
+    {
+      "calibration_key": "dy.hadronic.s1000.z90_100.qg",
+      "command": "integrate",
+      "path": "smoke/dy/s1000/z90_100/qg.toml",
+      "role": "smoke_dy_hadronic",
+      "sha256": "373adeb5879e30d23f459dd6785e0e6e9273a5259c4da7e1a1fc7463d81b4601"
+    },
+    {
+      "calibration_key": "dy.hadronic.s1000.inclusive.qqbar",
+      "command": "integrate",
+      "path": "smoke/dy/s1000/inclusive/qqbar.toml",
+      "role": "smoke_dy_hadronic",
+      "sha256": "f117fe8ee69808ebd751383939c7a124a43f5aef2cf82ce41846c54cc24ecfe5"
+    },
+    {
+      "calibration_key": "dy.hadronic.s1000.inclusive.qg",
+      "command": "integrate",
+      "path": "smoke/dy/s1000/inclusive/qg.toml",
+      "role": "smoke_dy_hadronic",
+      "sha256": "46cf0bfcd8fa046ea4458a0f0b28684e68edd4b064a2e275ae9b0c1e41571b6d"
+    },
+    {
+      "calibration_key": "dy.hadronic.s2000.z00_10.qqbar",
+      "command": "integrate",
+      "path": "smoke/dy/s2000/z00_10/qqbar.toml",
+      "role": "smoke_dy_hadronic",
+      "sha256": "f529168c7a2de5994ba4af7d95a109b48fdd1033b5d4e2ba8acf3bf9bbaebb19"
+    },
+    {
+      "calibration_key": "dy.hadronic.s2000.z00_10.qg",
+      "command": "integrate",
+      "path": "smoke/dy/s2000/z00_10/qg.toml",
+      "role": "smoke_dy_hadronic",
+      "sha256": "88e1b3dfa535d0f52f0e9e9ba432217f82eda36ea3fa6ae0635428d2849280ff"
+    },
+    {
+      "calibration_key": "dy.hadronic.s2000.z10_20.qqbar",
+      "command": "integrate",
+      "path": "smoke/dy/s2000/z10_20/qqbar.toml",
+      "role": "smoke_dy_hadronic",
+      "sha256": "0e230af5e5e7959be8bd5448ef4fb706913581f7a4125b5d48313685840d4273"
+    },
+    {
+      "calibration_key": "dy.hadronic.s2000.z10_20.qg",
+      "command": "integrate",
+      "path": "smoke/dy/s2000/z10_20/qg.toml",
+      "role": "smoke_dy_hadronic",
+      "sha256": "17798bd601d5cdffde10aff38410520be12e887e332ce62bda808ababee60d77"
+    },
+    {
+      "calibration_key": "dy.hadronic.s2000.z20_30.qqbar",
+      "command": "integrate",
+      "path": "smoke/dy/s2000/z20_30/qqbar.toml",
+      "role": "smoke_dy_hadronic",
+      "sha256": "da180b4ff5cff36c1f3ae9824696780c98dccd92ec76a245bc41526cc6835a48"
+    },
+    {
+      "calibration_key": "dy.hadronic.s2000.z20_30.qg",
+      "command": "integrate",
+      "path": "smoke/dy/s2000/z20_30/qg.toml",
+      "role": "smoke_dy_hadronic",
+      "sha256": "ecdeb0af4281fe181be2f6cb83198ec04f703fda03fbba36f9041fb3a7b7860e"
+    },
+    {
+      "calibration_key": "dy.hadronic.s2000.z30_40.qqbar",
+      "command": "integrate",
+      "path": "smoke/dy/s2000/z30_40/qqbar.toml",
+      "role": "smoke_dy_hadronic",
+      "sha256": "783e04774571a3794203ead7a3e0e60fdac0aee334fffc44dad8f0a3b2867489"
+    },
+    {
+      "calibration_key": "dy.hadronic.s2000.z30_40.qg",
+      "command": "integrate",
+      "path": "smoke/dy/s2000/z30_40/qg.toml",
+      "role": "smoke_dy_hadronic",
+      "sha256": "ee8831d42082c4f2f84e0baca42e6a4c579a00ca7520dd09ca8c2a5e62df9b71"
+    },
+    {
+      "calibration_key": "dy.hadronic.s2000.z40_50.qqbar",
+      "command": "integrate",
+      "path": "smoke/dy/s2000/z40_50/qqbar.toml",
+      "role": "smoke_dy_hadronic",
+      "sha256": "aef8887aa36ee67df66fb95580aca8d097de992f188592f1c9f13d53054b0ca0"
+    },
+    {
+      "calibration_key": "dy.hadronic.s2000.z40_50.qg",
+      "command": "integrate",
+      "path": "smoke/dy/s2000/z40_50/qg.toml",
+      "role": "smoke_dy_hadronic",
+      "sha256": "95fe1ef8b6e8a9e20b2062ca988d7a869508d1e077f3e2324b53c8a55869be98"
+    },
+    {
+      "calibration_key": "dy.hadronic.s2000.z50_60.qqbar",
+      "command": "integrate",
+      "path": "smoke/dy/s2000/z50_60/qqbar.toml",
+      "role": "smoke_dy_hadronic",
+      "sha256": "38f78f73cf7428f6229449dc321e071b8fbacd74dfa667537d1658ce72009479"
+    },
+    {
+      "calibration_key": "dy.hadronic.s2000.z50_60.qg",
+      "command": "integrate",
+      "path": "smoke/dy/s2000/z50_60/qg.toml",
+      "role": "smoke_dy_hadronic",
+      "sha256": "fff9a9c2fd4c9b457cd770f07be65d772cbcfa4d3ad7abd2404ed41049403fdd"
+    },
+    {
+      "calibration_key": "dy.hadronic.s2000.z60_70.qqbar",
+      "command": "integrate",
+      "path": "smoke/dy/s2000/z60_70/qqbar.toml",
+      "role": "smoke_dy_hadronic",
+      "sha256": "7f02a58b3bef843e440883577a2ea979bf9f0be0041274a9bc61a2975e9beda0"
+    },
+    {
+      "calibration_key": "dy.hadronic.s2000.z60_70.qg",
+      "command": "integrate",
+      "path": "smoke/dy/s2000/z60_70/qg.toml",
+      "role": "smoke_dy_hadronic",
+      "sha256": "ef812d0bf91f9aece51c95460c030d9bb5f77cf1cc0bff214a874fc10420cddd"
+    },
+    {
+      "calibration_key": "dy.hadronic.s2000.z70_80.qqbar",
+      "command": "integrate",
+      "path": "smoke/dy/s2000/z70_80/qqbar.toml",
+      "role": "smoke_dy_hadronic",
+      "sha256": "e61adb18b04868d6c2eeb67484e4381ff652c1e13494c30ffd88231641062af0"
+    },
+    {
+      "calibration_key": "dy.hadronic.s2000.z70_80.qg",
+      "command": "integrate",
+      "path": "smoke/dy/s2000/z70_80/qg.toml",
+      "role": "smoke_dy_hadronic",
+      "sha256": "b13453e91275090e216d865dc84fb408bfb98fca2a808a5812eefbc1097bb7fb"
+    },
+    {
+      "calibration_key": "dy.hadronic.s2000.z80_90.qqbar",
+      "command": "integrate",
+      "path": "smoke/dy/s2000/z80_90/qqbar.toml",
+      "role": "smoke_dy_hadronic",
+      "sha256": "078e3172f061835b3b684d2e12a5d7a483a9f953cc3d16d9222be1ebe00dd7d0"
+    },
+    {
+      "calibration_key": "dy.hadronic.s2000.z80_90.qg",
+      "command": "integrate",
+      "path": "smoke/dy/s2000/z80_90/qg.toml",
+      "role": "smoke_dy_hadronic",
+      "sha256": "5463aaa9049e478ba35fccffb79f5c8dd22f87e7d00e23a224204f27c9142290"
+    },
+    {
+      "calibration_key": "dy.hadronic.s2000.z90_100.qqbar",
+      "command": "integrate",
+      "path": "smoke/dy/s2000/z90_100/qqbar.toml",
+      "role": "smoke_dy_hadronic",
+      "sha256": "fab7db776fd3009679cbeaf5a352509670e2e10c449c6948aed4fe61cbae6ca5"
+    },
+    {
+      "calibration_key": "dy.hadronic.s2000.z90_100.qg",
+      "command": "integrate",
+      "path": "smoke/dy/s2000/z90_100/qg.toml",
+      "role": "smoke_dy_hadronic",
+      "sha256": "24df1a1919caa65c8659a4cf305b391b188d6e44bd346661d538711527d76260"
+    },
+    {
+      "calibration_key": "dy.hadronic.s2000.inclusive.qqbar",
+      "command": "integrate",
+      "path": "smoke/dy/s2000/inclusive/qqbar.toml",
+      "role": "smoke_dy_hadronic",
+      "sha256": "3cbbb84ddd672296390c8f2e146ab086bf99fd1307fadc0abd46ca853c13b614"
+    },
+    {
+      "calibration_key": "dy.hadronic.s2000.inclusive.qg",
+      "command": "integrate",
+      "path": "smoke/dy/s2000/inclusive/qg.toml",
+      "role": "smoke_dy_hadronic",
+      "sha256": "17778182bb565689fb1128534e9d04e951f537afe13206923c0643aef26930f8"
+    },
+    {
+      "calibration_key": "ttbar.partonic.s400.qqbar",
+      "command": "integrate",
+      "path": "production/ttbar/partonic/s400/qqbar.toml",
+      "role": "production_ttbar_partonic",
+      "sha256": "e6e70a10ca3b8abe3e14dceb08536c3effd6cd374e63366a197e5b1c4e6355e6"
+    },
+    {
+      "calibration_key": "ttbar.partonic.s400.qg",
+      "command": "integrate",
+      "path": "production/ttbar/partonic/s400/qg.toml",
+      "role": "production_ttbar_partonic",
+      "sha256": "e1e26a830aaaab5d46beb91a067acc5e64177e4f52ec43f0ec357a4180589e6c"
+    },
+    {
+      "calibration_key": "ttbar.partonic.s400.gg",
+      "command": "integrate",
+      "path": "production/ttbar/partonic/s400/gg.toml",
+      "role": "production_ttbar_partonic",
+      "sha256": "394b5bf4532bd9376a65de5988c0198ea0ef0a75124a3edb25b0cb864ff0ba59"
+    },
+    {
+      "calibration_key": "ttbar.hadronic.s400.qqbar",
+      "command": "integrate",
+      "path": "production/ttbar/hadronic/s400/qqbar.toml",
+      "role": "production_ttbar_hadronic_child",
+      "sha256": "f519aa1f82e7a32d2ad7e8448943c3e4273172763566d088029b50c7e2a7347b"
+    },
+    {
+      "calibration_key": "ttbar.hadronic.s400.qg",
+      "command": "integrate",
+      "path": "production/ttbar/hadronic/s400/qg.toml",
+      "role": "production_ttbar_hadronic_child",
+      "sha256": "652607e542880a700dadc2e0f1b0055577e1ea5d522052b24f52af22f7670fb2"
+    },
+    {
+      "calibration_key": "ttbar.hadronic.s400.gg",
+      "command": "integrate",
+      "path": "production/ttbar/hadronic/s400/gg.toml",
+      "role": "production_ttbar_hadronic_child",
+      "sha256": "943323ca8130c1697c6a13dd9a9c62077e8aad22bb329ee2284190bb3440c7cc"
+    },
+    {
+      "command": "integrate",
+      "path": "production/ttbar/hadronic/s400/combined.toml",
+      "role": "production_ttbar_hadronic_combined",
+      "sha256": "8ec4dacdf57ebfd6f64aff35ddfedd64a0471e9081d0ab14b71aa2cbede1553b"
+    },
+    {
+      "calibration_key": "ttbar.partonic.s1000.qqbar",
+      "command": "integrate",
+      "path": "production/ttbar/partonic/s1000/qqbar.toml",
+      "role": "production_ttbar_partonic",
+      "sha256": "b378362e8122696dd341bdf90f8d4dabb0a9b90df0efce0112776478390b4fe8"
+    },
+    {
+      "calibration_key": "ttbar.partonic.s1000.qg",
+      "command": "integrate",
+      "path": "production/ttbar/partonic/s1000/qg.toml",
+      "role": "production_ttbar_partonic",
+      "sha256": "f78b1f5ea980c685e289f3879501569f4744ad6c3cf14507d8edf3815c987fe2"
+    },
+    {
+      "calibration_key": "ttbar.partonic.s1000.gg",
+      "command": "integrate",
+      "path": "production/ttbar/partonic/s1000/gg.toml",
+      "role": "production_ttbar_partonic",
+      "sha256": "7ba8590a3e741bfc43b658a9ff7706726691b7a32dbe88c07257037ce0ee1901"
+    },
+    {
+      "calibration_key": "ttbar.hadronic.s1000.qqbar",
+      "command": "integrate",
+      "path": "production/ttbar/hadronic/s1000/qqbar.toml",
+      "role": "production_ttbar_hadronic_child",
+      "sha256": "eb930f97cad2b2f31f5d9bd4ba064e0cd9d29a01b8a66b9daf3d22a90436dfe4"
+    },
+    {
+      "calibration_key": "ttbar.hadronic.s1000.qg",
+      "command": "integrate",
+      "path": "production/ttbar/hadronic/s1000/qg.toml",
+      "role": "production_ttbar_hadronic_child",
+      "sha256": "ba5877975adb64afe5612ebf3693353682adb0ccb0ca11b51e3db4c44181c350"
+    },
+    {
+      "calibration_key": "ttbar.hadronic.s1000.gg",
+      "command": "integrate",
+      "path": "production/ttbar/hadronic/s1000/gg.toml",
+      "role": "production_ttbar_hadronic_child",
+      "sha256": "a816461030ac17a60a02fe75e018dff57d12bfe5d4acec75005bf6f514c0584c"
+    },
+    {
+      "command": "integrate",
+      "path": "production/ttbar/hadronic/s1000/combined.toml",
+      "role": "production_ttbar_hadronic_combined",
+      "sha256": "722883d4d40b0fcb0d26ad4c437354f182d3ada5d825e5c10d99526601e5e98a"
+    },
+    {
+      "calibration_key": "ttbar.partonic.s2000.qqbar",
+      "command": "integrate",
+      "path": "production/ttbar/partonic/s2000/qqbar.toml",
+      "role": "production_ttbar_partonic",
+      "sha256": "5afca24b9cea70625fc69247c2500589b012ce34725efd745c9d8886e8935583"
+    },
+    {
+      "calibration_key": "ttbar.partonic.s2000.qg",
+      "command": "integrate",
+      "path": "production/ttbar/partonic/s2000/qg.toml",
+      "role": "production_ttbar_partonic",
+      "sha256": "999bee851b8fe76c16ca3b6195d59b04738445a8a458ddff2287d06e5048ada6"
+    },
+    {
+      "calibration_key": "ttbar.partonic.s2000.gg",
+      "command": "integrate",
+      "path": "production/ttbar/partonic/s2000/gg.toml",
+      "role": "production_ttbar_partonic",
+      "sha256": "3816ed934a9782f65ebca271c93c5c507bdc2b6baf7e6e0d852934be1582937e"
+    },
+    {
+      "calibration_key": "ttbar.hadronic.s2000.qqbar",
+      "command": "integrate",
+      "path": "production/ttbar/hadronic/s2000/qqbar.toml",
+      "role": "production_ttbar_hadronic_child",
+      "sha256": "2ca808b040e4a91c9fa484b2ca53fe0fcb5030d171f25abbca493c72df44ee7b"
+    },
+    {
+      "calibration_key": "ttbar.hadronic.s2000.qg",
+      "command": "integrate",
+      "path": "production/ttbar/hadronic/s2000/qg.toml",
+      "role": "production_ttbar_hadronic_child",
+      "sha256": "56845cfc4fe17847e03236d1320b78114865e3846f4a13f367a88e86fdbc0767"
+    },
+    {
+      "calibration_key": "ttbar.hadronic.s2000.gg",
+      "command": "integrate",
+      "path": "production/ttbar/hadronic/s2000/gg.toml",
+      "role": "production_ttbar_hadronic_child",
+      "sha256": "1e51f5764868e175f980a7ec8f35c4e1eac108faeef01af1176044bbf2165948"
+    },
+    {
+      "command": "integrate",
+      "path": "production/ttbar/hadronic/s2000/combined.toml",
+      "role": "production_ttbar_hadronic_combined",
+      "sha256": "c998550403016c1cfd992031169848db0ec85f01c544b5d606355129abc14ad1"
+    },
+    {
+      "calibration_key": "dy.hadronic.s1000.z00_10.qqbar",
+      "command": "integrate",
+      "path": "production/dy/s1000/z00_10/qqbar.toml",
+      "role": "production_dy_hadronic_child",
+      "sha256": "a72d6c75b7b24d53b8ab467d7abe01a5b846f85e644d34c8f60b0d08493edccc"
+    },
+    {
+      "calibration_key": "dy.hadronic.s1000.z00_10.qg",
+      "command": "integrate",
+      "path": "production/dy/s1000/z00_10/qg.toml",
+      "role": "production_dy_hadronic_child",
+      "sha256": "5542db1b1359e14f750f95f59fa7cecce67760befb66645034ba6ab85c9733d6"
+    },
+    {
+      "command": "integrate",
+      "path": "production/dy/s1000/z00_10/combined.toml",
+      "role": "production_dy_hadronic_bin",
+      "sha256": "eec5e34dd57ead221970b4e41ad0f75c6076c31935a8ace36540a094f265d822"
+    },
+    {
+      "calibration_key": "dy.hadronic.s1000.z10_20.qqbar",
+      "command": "integrate",
+      "path": "production/dy/s1000/z10_20/qqbar.toml",
+      "role": "production_dy_hadronic_child",
+      "sha256": "8e3324267121fccffcc99574bb95b4d2b6c24a6e483759165f49aeec059eb2a5"
+    },
+    {
+      "calibration_key": "dy.hadronic.s1000.z10_20.qg",
+      "command": "integrate",
+      "path": "production/dy/s1000/z10_20/qg.toml",
+      "role": "production_dy_hadronic_child",
+      "sha256": "212f55855b5095c3644af2df0e0ce11396ab217d29fc1693e466c665ee8c79ea"
+    },
+    {
+      "command": "integrate",
+      "path": "production/dy/s1000/z10_20/combined.toml",
+      "role": "production_dy_hadronic_bin",
+      "sha256": "4edf73ec86c114aeb78503e03283ad9ff21589f12912c135e81786c05fe4f333"
+    },
+    {
+      "calibration_key": "dy.hadronic.s1000.z20_30.qqbar",
+      "command": "integrate",
+      "path": "production/dy/s1000/z20_30/qqbar.toml",
+      "role": "production_dy_hadronic_child",
+      "sha256": "d9e30e5f0888cbd40d271f3394e4dc14106f0d86112aa32fd51cd9af9834578c"
+    },
+    {
+      "calibration_key": "dy.hadronic.s1000.z20_30.qg",
+      "command": "integrate",
+      "path": "production/dy/s1000/z20_30/qg.toml",
+      "role": "production_dy_hadronic_child",
+      "sha256": "d2b2a0e409b3f395b62fd1da6d38fd74b2a7c9624111d0d66c06028e0f8310f6"
+    },
+    {
+      "command": "integrate",
+      "path": "production/dy/s1000/z20_30/combined.toml",
+      "role": "production_dy_hadronic_bin",
+      "sha256": "9910a614b46aef3173e2a58576e0c3ded84446264b0ad403bbd61594906692f6"
+    },
+    {
+      "calibration_key": "dy.hadronic.s1000.z30_40.qqbar",
+      "command": "integrate",
+      "path": "production/dy/s1000/z30_40/qqbar.toml",
+      "role": "production_dy_hadronic_child",
+      "sha256": "ccab99c79247064ff17c8453299dc129d8aa4b2eea0681dce55f28939d7285b0"
+    },
+    {
+      "calibration_key": "dy.hadronic.s1000.z30_40.qg",
+      "command": "integrate",
+      "path": "production/dy/s1000/z30_40/qg.toml",
+      "role": "production_dy_hadronic_child",
+      "sha256": "69316fd42d43014e2dc0c94a0399a5c930d918d50df2d9a083c2cd8565c3a84b"
+    },
+    {
+      "command": "integrate",
+      "path": "production/dy/s1000/z30_40/combined.toml",
+      "role": "production_dy_hadronic_bin",
+      "sha256": "2ebdb678c5445e5c203116554d7d7bced27fec73b9f93d521721a4c8cf62968d"
+    },
+    {
+      "calibration_key": "dy.hadronic.s1000.z40_50.qqbar",
+      "command": "integrate",
+      "path": "production/dy/s1000/z40_50/qqbar.toml",
+      "role": "production_dy_hadronic_child",
+      "sha256": "7cbc716242e34316a54db1df8d837963e7fb28216c08b0d2b1aef1f595750bcb"
+    },
+    {
+      "calibration_key": "dy.hadronic.s1000.z40_50.qg",
+      "command": "integrate",
+      "path": "production/dy/s1000/z40_50/qg.toml",
+      "role": "production_dy_hadronic_child",
+      "sha256": "07dc40c834aab38fbabf4f393a35a5923cb4ff52a556abaa0ea4cf14f6615d46"
+    },
+    {
+      "command": "integrate",
+      "path": "production/dy/s1000/z40_50/combined.toml",
+      "role": "production_dy_hadronic_bin",
+      "sha256": "842aa2159fc271e2898ba99fa7bb49e47509ccbb3c708f07be4dd238c6a8887e"
+    },
+    {
+      "calibration_key": "dy.hadronic.s1000.z50_60.qqbar",
+      "command": "integrate",
+      "path": "production/dy/s1000/z50_60/qqbar.toml",
+      "role": "production_dy_hadronic_child",
+      "sha256": "49684b4b82fb767a050517470d28e5ee2363a2e4c658564691143edf20c4c07b"
+    },
+    {
+      "calibration_key": "dy.hadronic.s1000.z50_60.qg",
+      "command": "integrate",
+      "path": "production/dy/s1000/z50_60/qg.toml",
+      "role": "production_dy_hadronic_child",
+      "sha256": "d1f95aa4acfcfaaed3d890e36a0fde7c50eb505c4b18b4bf48cd8a236096405e"
+    },
+    {
+      "command": "integrate",
+      "path": "production/dy/s1000/z50_60/combined.toml",
+      "role": "production_dy_hadronic_bin",
+      "sha256": "1b8465839ce70b14de7af0c8feca7c43039dda992317ea192f4c4b9c558156f3"
+    },
+    {
+      "calibration_key": "dy.hadronic.s1000.z60_70.qqbar",
+      "command": "integrate",
+      "path": "production/dy/s1000/z60_70/qqbar.toml",
+      "role": "production_dy_hadronic_child",
+      "sha256": "6ecabc16883fd6cec04b3f46088b6a9793312e4c014ae0538c5cb83d548ca475"
+    },
+    {
+      "calibration_key": "dy.hadronic.s1000.z60_70.qg",
+      "command": "integrate",
+      "path": "production/dy/s1000/z60_70/qg.toml",
+      "role": "production_dy_hadronic_child",
+      "sha256": "2722da8e4f7479ced4652995ae8491c6a81f276946fad8a03aefe63257155a59"
+    },
+    {
+      "command": "integrate",
+      "path": "production/dy/s1000/z60_70/combined.toml",
+      "role": "production_dy_hadronic_bin",
+      "sha256": "2aaf08dabf2c86c0d6c9329144fb4d2520288af92d93a0f863b40780534213e2"
+    },
+    {
+      "calibration_key": "dy.hadronic.s1000.z70_80.qqbar",
+      "command": "integrate",
+      "path": "production/dy/s1000/z70_80/qqbar.toml",
+      "role": "production_dy_hadronic_child",
+      "sha256": "a62e6b3f8f2c1bfc2120d32ece8f445c8af34de9461e5f1de53fe2352f34fd6a"
+    },
+    {
+      "calibration_key": "dy.hadronic.s1000.z70_80.qg",
+      "command": "integrate",
+      "path": "production/dy/s1000/z70_80/qg.toml",
+      "role": "production_dy_hadronic_child",
+      "sha256": "a5ca048ca519ee54a78e73f007817d20ec3178d7eac518e4e1949a0ba15a45df"
+    },
+    {
+      "command": "integrate",
+      "path": "production/dy/s1000/z70_80/combined.toml",
+      "role": "production_dy_hadronic_bin",
+      "sha256": "0b061c190a278983377d038e90e9c52428ffbc48160240228eafca23b593f8f2"
+    },
+    {
+      "calibration_key": "dy.hadronic.s1000.z80_90.qqbar",
+      "command": "integrate",
+      "path": "production/dy/s1000/z80_90/qqbar.toml",
+      "role": "production_dy_hadronic_child",
+      "sha256": "f6fbbb0b4f7825cda91b7d85f74bf0c4948665cc9eef0e32666c968535079f41"
+    },
+    {
+      "calibration_key": "dy.hadronic.s1000.z80_90.qg",
+      "command": "integrate",
+      "path": "production/dy/s1000/z80_90/qg.toml",
+      "role": "production_dy_hadronic_child",
+      "sha256": "c212bf1350925d63e846d7588eb62098645b93b0fc1893c3d30ea7addc639ad3"
+    },
+    {
+      "command": "integrate",
+      "path": "production/dy/s1000/z80_90/combined.toml",
+      "role": "production_dy_hadronic_bin",
+      "sha256": "4e66f387358e023c79448805f6f7e07d732f204900b8ce5164b1e019fb0dd364"
+    },
+    {
+      "calibration_key": "dy.hadronic.s1000.z90_100.qqbar",
+      "command": "integrate",
+      "path": "production/dy/s1000/z90_100/qqbar.toml",
+      "role": "production_dy_hadronic_child",
+      "sha256": "c3d831d915815cbfbf4bc2629d725213808f94d15a885ebe18eed43ffebdb083"
+    },
+    {
+      "calibration_key": "dy.hadronic.s1000.z90_100.qg",
+      "command": "integrate",
+      "path": "production/dy/s1000/z90_100/qg.toml",
+      "role": "production_dy_hadronic_child",
+      "sha256": "1decb66c4b9047d363c1f490ff05102f48f79fa56ac4d99bd7a930c368e089f7"
+    },
+    {
+      "command": "integrate",
+      "path": "production/dy/s1000/z90_100/combined.toml",
+      "role": "production_dy_hadronic_zero_bin",
+      "sha256": "258f770180ef1fe9ab1ab7f6d288ec38155f5847231c7d5c66b89c69f81e7fc1"
+    },
+    {
+      "calibration_key": "dy.hadronic.s1000.inclusive.qqbar",
+      "command": "integrate",
+      "path": "production/dy/s1000/inclusive/qqbar.toml",
+      "role": "production_dy_hadronic_child",
+      "sha256": "ffecbcb59ce40c55f293d9c5be8d8daa1a6865759d3de2c450ef58494d1ed773"
+    },
+    {
+      "calibration_key": "dy.hadronic.s1000.inclusive.qg",
+      "command": "integrate",
+      "path": "production/dy/s1000/inclusive/qg.toml",
+      "role": "production_dy_hadronic_child",
+      "sha256": "572166bc97c3d5265fc70b18bda30bd7773c1327f740c7b82c798478fb269908"
+    },
+    {
+      "command": "integrate",
+      "path": "production/dy/s1000/inclusive/combined.toml",
+      "role": "production_dy_hadronic_inclusive",
+      "sha256": "b707f2921651160d6c1613fb9d473d3a736a9bf7d6f8b3ca640d0108c09e867a"
+    },
+    {
+      "calibration_key": "dy.hadronic.s2000.z00_10.qqbar",
+      "command": "integrate",
+      "path": "production/dy/s2000/z00_10/qqbar.toml",
+      "role": "production_dy_hadronic_child",
+      "sha256": "1a4c07a21f80c02eee4e407dfcd1ca97f61f688cedaf0093c4a1551b657f1bab"
+    },
+    {
+      "calibration_key": "dy.hadronic.s2000.z00_10.qg",
+      "command": "integrate",
+      "path": "production/dy/s2000/z00_10/qg.toml",
+      "role": "production_dy_hadronic_child",
+      "sha256": "868dc61ae8627f4f30233a4928fb72dcc13d9bfc95fc370dff7684c53aefdaa6"
+    },
+    {
+      "command": "integrate",
+      "path": "production/dy/s2000/z00_10/combined.toml",
+      "role": "production_dy_hadronic_bin",
+      "sha256": "eec3f3ebfa8cd869af9554042e04bcad42604f10c1355a61e781cc683eb9941b"
+    },
+    {
+      "calibration_key": "dy.hadronic.s2000.z10_20.qqbar",
+      "command": "integrate",
+      "path": "production/dy/s2000/z10_20/qqbar.toml",
+      "role": "production_dy_hadronic_child",
+      "sha256": "f93d85b9ecf9b924c1b87d389a32166ffff8b4ec0e808ac148364fa9692f8741"
+    },
+    {
+      "calibration_key": "dy.hadronic.s2000.z10_20.qg",
+      "command": "integrate",
+      "path": "production/dy/s2000/z10_20/qg.toml",
+      "role": "production_dy_hadronic_child",
+      "sha256": "30e86f91a737a56a35eb9a44b759f33e71eed2a4095e5e7781d9eba9ecb89960"
+    },
+    {
+      "command": "integrate",
+      "path": "production/dy/s2000/z10_20/combined.toml",
+      "role": "production_dy_hadronic_bin",
+      "sha256": "b619412df778f3dbbd7de95c3e25b2a0b3cd83352389f442df37178c43397e1a"
+    },
+    {
+      "calibration_key": "dy.hadronic.s2000.z20_30.qqbar",
+      "command": "integrate",
+      "path": "production/dy/s2000/z20_30/qqbar.toml",
+      "role": "production_dy_hadronic_child",
+      "sha256": "49e436cf9d7cbe0fdcb24cd0017e96a3f78ba65b7d4be6cd566a8f2b8b772a20"
+    },
+    {
+      "calibration_key": "dy.hadronic.s2000.z20_30.qg",
+      "command": "integrate",
+      "path": "production/dy/s2000/z20_30/qg.toml",
+      "role": "production_dy_hadronic_child",
+      "sha256": "378121a53580bfecdb16df1506add8af235d87a4e2a7b34d27d21d9a9659039d"
+    },
+    {
+      "command": "integrate",
+      "path": "production/dy/s2000/z20_30/combined.toml",
+      "role": "production_dy_hadronic_bin",
+      "sha256": "c47f7b153a84f3c1a714a9a28e18e4225e8fc5acb296a5b76d92ab078350cdaf"
+    },
+    {
+      "calibration_key": "dy.hadronic.s2000.z30_40.qqbar",
+      "command": "integrate",
+      "path": "production/dy/s2000/z30_40/qqbar.toml",
+      "role": "production_dy_hadronic_child",
+      "sha256": "8148eb56a0048d42f7713993d8d9ab969b33d0c2d21e7688eb2988d56f978ab2"
+    },
+    {
+      "calibration_key": "dy.hadronic.s2000.z30_40.qg",
+      "command": "integrate",
+      "path": "production/dy/s2000/z30_40/qg.toml",
+      "role": "production_dy_hadronic_child",
+      "sha256": "4c3ed3c7a2cd92d2b2ad2613b1aac8e9db84869e85f398ad78ba18101a934434"
+    },
+    {
+      "command": "integrate",
+      "path": "production/dy/s2000/z30_40/combined.toml",
+      "role": "production_dy_hadronic_bin",
+      "sha256": "9164ec6758c4ef77ac343c0b6efc00736241c903fe620ee7ac2773afd9d366b7"
+    },
+    {
+      "calibration_key": "dy.hadronic.s2000.z40_50.qqbar",
+      "command": "integrate",
+      "path": "production/dy/s2000/z40_50/qqbar.toml",
+      "role": "production_dy_hadronic_child",
+      "sha256": "dedf20d5acda9389897e06a1f7ef7321c707cd60dc88d5298db8eaaf4e772241"
+    },
+    {
+      "calibration_key": "dy.hadronic.s2000.z40_50.qg",
+      "command": "integrate",
+      "path": "production/dy/s2000/z40_50/qg.toml",
+      "role": "production_dy_hadronic_child",
+      "sha256": "01bf3a51d65d8c765ba1630b47329bc42a81dbaf41d05213c44374b7daa99e52"
+    },
+    {
+      "command": "integrate",
+      "path": "production/dy/s2000/z40_50/combined.toml",
+      "role": "production_dy_hadronic_bin",
+      "sha256": "00535e87d46be36f64b875de02a80069e6491d2e9721526a3c958fdbec2fe1b0"
+    },
+    {
+      "calibration_key": "dy.hadronic.s2000.z50_60.qqbar",
+      "command": "integrate",
+      "path": "production/dy/s2000/z50_60/qqbar.toml",
+      "role": "production_dy_hadronic_child",
+      "sha256": "b8dc62e13dd94f194bf808b60153e8a2a81398941787e50112a708544a67c9ad"
+    },
+    {
+      "calibration_key": "dy.hadronic.s2000.z50_60.qg",
+      "command": "integrate",
+      "path": "production/dy/s2000/z50_60/qg.toml",
+      "role": "production_dy_hadronic_child",
+      "sha256": "0aecc1f991e42beefc66fdca73c519b7dd74ff0af64d401ffccdd0b12b1b103a"
+    },
+    {
+      "command": "integrate",
+      "path": "production/dy/s2000/z50_60/combined.toml",
+      "role": "production_dy_hadronic_bin",
+      "sha256": "f1ed9529dd60e432fc63fe6a31793e59744750811568137347a2f60320a8d334"
+    },
+    {
+      "calibration_key": "dy.hadronic.s2000.z60_70.qqbar",
+      "command": "integrate",
+      "path": "production/dy/s2000/z60_70/qqbar.toml",
+      "role": "production_dy_hadronic_child",
+      "sha256": "dfc6dc710d2844a3bd7d6e0ac8c97424d407c915b7817400436a9d65865f1814"
+    },
+    {
+      "calibration_key": "dy.hadronic.s2000.z60_70.qg",
+      "command": "integrate",
+      "path": "production/dy/s2000/z60_70/qg.toml",
+      "role": "production_dy_hadronic_child",
+      "sha256": "e0573ccd9043b77172c614cd37577b678fdaaacdf23cc21663493ce0a0a6510b"
+    },
+    {
+      "command": "integrate",
+      "path": "production/dy/s2000/z60_70/combined.toml",
+      "role": "production_dy_hadronic_bin",
+      "sha256": "3c30a9cde8938458169fa6b187d7e584953b64642a071c1858257f2f2dd1e670"
+    },
+    {
+      "calibration_key": "dy.hadronic.s2000.z70_80.qqbar",
+      "command": "integrate",
+      "path": "production/dy/s2000/z70_80/qqbar.toml",
+      "role": "production_dy_hadronic_child",
+      "sha256": "877bdc36d3fb819029242e3ca6f96054b9dbda8a766d97a89c8ad8d9e9ba60ce"
+    },
+    {
+      "calibration_key": "dy.hadronic.s2000.z70_80.qg",
+      "command": "integrate",
+      "path": "production/dy/s2000/z70_80/qg.toml",
+      "role": "production_dy_hadronic_child",
+      "sha256": "e8c14446dc6ba913ceeb6f2dd6c8ac05f740cff3f84644f417a3465f3a9e0f94"
+    },
+    {
+      "command": "integrate",
+      "path": "production/dy/s2000/z70_80/combined.toml",
+      "role": "production_dy_hadronic_bin",
+      "sha256": "2ad26bbde88844124d20efd7cfa416aab1f9f9fdb3232fc0d04e263ba46b3e5c"
+    },
+    {
+      "calibration_key": "dy.hadronic.s2000.z80_90.qqbar",
+      "command": "integrate",
+      "path": "production/dy/s2000/z80_90/qqbar.toml",
+      "role": "production_dy_hadronic_child",
+      "sha256": "76794275f0dbea1066d6e3ab3f8bea26e59972a1b047d82c1aff815e2081f11b"
+    },
+    {
+      "calibration_key": "dy.hadronic.s2000.z80_90.qg",
+      "command": "integrate",
+      "path": "production/dy/s2000/z80_90/qg.toml",
+      "role": "production_dy_hadronic_child",
+      "sha256": "b5291302b414eeebfa69888a8ac9b9d014aa439cc310122a9bf1f2770c33cc23"
+    },
+    {
+      "command": "integrate",
+      "path": "production/dy/s2000/z80_90/combined.toml",
+      "role": "production_dy_hadronic_bin",
+      "sha256": "89a6794589a08313689598089d5c13dbfb9a2582867bfd194385096009ecb42f"
+    },
+    {
+      "calibration_key": "dy.hadronic.s2000.z90_100.qqbar",
+      "command": "integrate",
+      "path": "production/dy/s2000/z90_100/qqbar.toml",
+      "role": "production_dy_hadronic_child",
+      "sha256": "1944bdcd5931e244b6dc18f6e4d53b0ee0d6480315ecbc311b3d060f145e324a"
+    },
+    {
+      "calibration_key": "dy.hadronic.s2000.z90_100.qg",
+      "command": "integrate",
+      "path": "production/dy/s2000/z90_100/qg.toml",
+      "role": "production_dy_hadronic_child",
+      "sha256": "c75ca05847179eb353d997da675659268fbcff62853a5be853bfd15cb2bd7d91"
+    },
+    {
+      "command": "integrate",
+      "path": "production/dy/s2000/z90_100/combined.toml",
+      "role": "production_dy_hadronic_zero_bin",
+      "sha256": "511632d6ff1374865484b80925575f60d165a030fed859fbd62c754a6270814f"
+    },
+    {
+      "calibration_key": "dy.hadronic.s2000.inclusive.qqbar",
+      "command": "integrate",
+      "path": "production/dy/s2000/inclusive/qqbar.toml",
+      "role": "production_dy_hadronic_child",
+      "sha256": "40b398d5d78ae74c4750eedff9f0b4b8d58d74c423c1a5915b22fba9a84e05c4"
+    },
+    {
+      "calibration_key": "dy.hadronic.s2000.inclusive.qg",
+      "command": "integrate",
+      "path": "production/dy/s2000/inclusive/qg.toml",
+      "role": "production_dy_hadronic_child",
+      "sha256": "ebb3bbc8f1bd61de658a78a1bb7c7fd7267864f4ba382b0dc58094d3bb82aa2b"
+    },
+    {
+      "command": "integrate",
+      "path": "production/dy/s2000/inclusive/combined.toml",
+      "role": "production_dy_hadronic_inclusive",
+      "sha256": "a7d94ad8015cd661a1f44f933bdfc32b828d1c486e04573ed1a6b0256c4dff83"
+    }
+  ],
+  "cores": 384,
+  "dy_energies_gev": [
+    1000,
+    2000
+  ],
+  "dy_hard_clip_multiplier": 10000000.0,
+  "dy_hard_precision_multiplier": 10000.0,
+  "dy_muv_definition": "sqrt(s)",
+  "dy_output_normalisation": {
+    "alpha_ew_inverse": 132.507,
+    "alpha_s": 0.118,
+    "convention": "-e^4*Q_d^2*g_s^2",
+    "factor": -0.0014818063341127303,
+    "includes_gev2_to_pb": false
+  },
+  "dy_production": {
+    "continuous_bins": 64,
+    "continuous_density_floor": 0.5,
+    "cores": 64,
+    "inclusive_iterations": 40,
+    "nonzero_bin_iterations": 10,
+    "points_per_iteration": 1000000,
+    "soft_radius_hp_threshold": 0.001,
+    "zero_bin_iterations": 40
+  },
+  "dy_production_clip_multiplier_overrides": {
+    "dy.hadronic.s2000.z90_100.qg": 100.0,
+    "dy.hadronic.s2000.z90_100.qqbar": 100.0
+  },
+  "dy_production_seed_overrides": {
+    "s2000.z90_100": 924009101
+  },
+  "dy_q_min_gev": 300.0,
+  "dy_qqbar_grouped_soft_pair": {
+    "graphs": [
+      "graph_1",
+      "graph_2"
+    ],
+    "soft_mirror_edges": [
+      "GL1:4",
+      "GL2:5"
+    ],
+    "transform": "invert"
+  },
+  "dy_scheme_clip_multiplier": 10000000.0,
+  "dy_smoke": {
+    "adaptation": "continuous-64-density-floor-0.5",
+    "cores": 64,
+    "iterations": 1,
+    "large_weight_thresholds": false,
+    "points_per_iteration": 1000000,
+    "total_points": 1000000
+  },
+  "dy_z_bin_edges": [
+    0.0,
+    0.1,
+    0.2,
+    0.3,
+    0.4,
+    0.5,
+    0.6,
+    0.7,
+    0.8,
+    0.9,
+    1.0
+  ],
+  "energies_gev": [
+    400,
+    1000,
+    2000
+  ],
+  "expected_calibration_keys": [
+    "dy.hadronic.s1000.inclusive.qg",
+    "dy.hadronic.s1000.inclusive.qqbar",
+    "dy.hadronic.s1000.z00_10.qg",
+    "dy.hadronic.s1000.z00_10.qqbar",
+    "dy.hadronic.s1000.z10_20.qg",
+    "dy.hadronic.s1000.z10_20.qqbar",
+    "dy.hadronic.s1000.z20_30.qg",
+    "dy.hadronic.s1000.z20_30.qqbar",
+    "dy.hadronic.s1000.z30_40.qg",
+    "dy.hadronic.s1000.z30_40.qqbar",
+    "dy.hadronic.s1000.z40_50.qg",
+    "dy.hadronic.s1000.z40_50.qqbar",
+    "dy.hadronic.s1000.z50_60.qg",
+    "dy.hadronic.s1000.z50_60.qqbar",
+    "dy.hadronic.s1000.z60_70.qg",
+    "dy.hadronic.s1000.z60_70.qqbar",
+    "dy.hadronic.s1000.z70_80.qg",
+    "dy.hadronic.s1000.z70_80.qqbar",
+    "dy.hadronic.s1000.z80_90.qg",
+    "dy.hadronic.s1000.z80_90.qqbar",
+    "dy.hadronic.s1000.z90_100.qg",
+    "dy.hadronic.s1000.z90_100.qqbar",
+    "dy.hadronic.s2000.inclusive.qg",
+    "dy.hadronic.s2000.inclusive.qqbar",
+    "dy.hadronic.s2000.z00_10.qg",
+    "dy.hadronic.s2000.z00_10.qqbar",
+    "dy.hadronic.s2000.z10_20.qg",
+    "dy.hadronic.s2000.z10_20.qqbar",
+    "dy.hadronic.s2000.z20_30.qg",
+    "dy.hadronic.s2000.z20_30.qqbar",
+    "dy.hadronic.s2000.z30_40.qg",
+    "dy.hadronic.s2000.z30_40.qqbar",
+    "dy.hadronic.s2000.z40_50.qg",
+    "dy.hadronic.s2000.z40_50.qqbar",
+    "dy.hadronic.s2000.z50_60.qg",
+    "dy.hadronic.s2000.z50_60.qqbar",
+    "dy.hadronic.s2000.z60_70.qg",
+    "dy.hadronic.s2000.z60_70.qqbar",
+    "dy.hadronic.s2000.z70_80.qg",
+    "dy.hadronic.s2000.z70_80.qqbar",
+    "dy.hadronic.s2000.z80_90.qg",
+    "dy.hadronic.s2000.z80_90.qqbar",
+    "dy.hadronic.s2000.z90_100.qg",
+    "dy.hadronic.s2000.z90_100.qqbar",
+    "ttbar.hadronic.s1000.gg",
+    "ttbar.hadronic.s1000.qg",
+    "ttbar.hadronic.s1000.qqbar",
+    "ttbar.hadronic.s2000.gg",
+    "ttbar.hadronic.s2000.qg",
+    "ttbar.hadronic.s2000.qqbar",
+    "ttbar.hadronic.s400.gg",
+    "ttbar.hadronic.s400.qg",
+    "ttbar.hadronic.s400.qqbar",
+    "ttbar.partonic.s1000.gg",
+    "ttbar.partonic.s1000.qg",
+    "ttbar.partonic.s1000.qqbar",
+    "ttbar.partonic.s2000.gg",
+    "ttbar.partonic.s2000.qg",
+    "ttbar.partonic.s2000.qqbar",
+    "ttbar.partonic.s400.gg",
+    "ttbar.partonic.s400.qg",
+    "ttbar.partonic.s400.qqbar"
+  ],
+  "fully_calibrated": true,
+  "hard_clip_multiplier": 1000000.0,
+  "hard_precision_multiplier": 10000.0,
+  "muv_definition": "sqrt(s)/2 for ttbar; sqrt(s) for DY",
+  "pdf": {
+    "member": 0,
+    "set": "PDF4LHC21_40"
+  },
+  "production": {
+    "iterations": 100,
+    "points_per_iteration": 1000000
+  },
+  "python": ".venv_final/bin/python3.13",
+  "reference_scale_sq_gev2": 8302.489924,
+  "rendered_utc": "2026-09-06T16:09:06.151826+00:00",
+  "schema_version": 1,
+  "scheme_clip_multiplier": 1000000.0,
+  "smoke": {
+    "adaptation": "ordinary-continuous",
+    "iterations": 2,
+    "large_weight_thresholds": false,
+    "points_per_iteration": 1000000,
+    "total_points": 2000000
+  }
+}

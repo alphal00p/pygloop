@@ -1,0 +1,49 @@
+{
+  "corrected_utc": "2026-09-21T21:33:04.899106+00:00",
+  "historical_child_card_restorations": [
+    {
+      "archive_path": "provenance/source_tree/cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s2000/gg.toml",
+      "expected_run_card_sha256": "1e51f5764868e175f980a7ec8f35c4e1eac108faeef01af1176044bbf2165948",
+      "operation": {
+        "replace": "TTBAR_GG_MSBAR_CM_ESURFACE_V1_20260909",
+        "with_value": "TTBAR_GG_MSBAR_SCAN_20260901"
+      },
+      "recovered_sha256": "1e51f5764868e175f980a7ec8f35c4e1eac108faeef01af1176044bbf2165948",
+      "source_path": "cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s2000/gg.toml",
+      "source_sha256": "f2c285cf29d6cc0d3cdce49f498e651268b1be7a85f75c02bc75aba4016d87e3",
+      "verification": "Exact SHA256 match to the original card hash saved in the September 8 result"
+    },
+    {
+      "archive_path": "provenance/source_tree/cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s2000/qg.toml",
+      "expected_run_card_sha256": "56845cfc4fe17847e03236d1320b78114865e3846f4a13f367a88e86fdbc0767",
+      "operation": {
+        "replace": "TTBAR_QG_MSBAR_CM_ESURFACE_V1_20260909",
+        "with_value": "TTBAR_QG_MSBAR_SCAN_20260901"
+      },
+      "recovered_sha256": "56845cfc4fe17847e03236d1320b78114865e3846f4a13f367a88e86fdbc0767",
+      "source_path": "cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s2000/qg.toml",
+      "source_sha256": "9e29bbde0c802153d1a0e494d9223d3e57e8bb1c28fc93598b5c619a6e819d94",
+      "verification": "Exact SHA256 match to the original card hash saved in the September 8 result"
+    },
+    {
+      "archive_path": "provenance/source_tree/cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s2000/qqbar.toml",
+      "expected_run_card_sha256": "2ca808b040e4a91c9fa484b2ca53fe0fcb5030d171f25abbca493c72df44ee7b",
+      "operation": {
+        "replace": "TTBAR_QQBAR_MSBAR_CM_ESURFACE_V1_20260909",
+        "with_value": "TTBAR_QQBAR_MSBAR_SCAN_20260901"
+      },
+      "recovered_sha256": "2ca808b040e4a91c9fa484b2ca53fe0fcb5030d171f25abbca493c72df44ee7b",
+      "source_path": "cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s2000/qqbar.toml",
+      "source_sha256": "2f6bcf5099a8a7aaa2098e543c5e854c25258fc30d5e347d617714adad8f094e",
+      "verification": "Exact SHA256 match to the original card hash saved in the September 8 result"
+    }
+  ],
+  "previous_source_result": "outputs/ttbar_cm_e_surface_campaign_20260909/results/hadronic/s2000/combined_restart_20260914.json",
+  "previous_value_pb": 0.2178241456183157,
+  "reason": "User supplied expected hadronic 2000 GeV central value 0.2521...",
+  "selected_finished_utc": "2026-09-08T06:58:31.077048+00:00",
+  "selected_seed": 906102000,
+  "selected_source_result": "outputs/ttbar_dy_msbar_scan_20260901/ttbar_floor075_batch512_muvsqmursq_1b/results/s2000/combined.json",
+  "selected_value_pb": 0.2521121918234394,
+  "superseded_directory": "provenance/superseded/ttbar_hadronic_s2000_restart_20260914"
+}

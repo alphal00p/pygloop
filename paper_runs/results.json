@@ -1,0 +1,337 @@
+{
+  "definitions": {
+    "gev_minus2_to_pb": 389379660.0,
+    "provenance": "Copied files remain unchanged; source paths inside them retain their original values.",
+    "quantity": "Saved finite pure NLO contributions with run-configured scheme conversion and decoupling; LO is not added.",
+    "replica_combination": "Inverse-variance combination of independent run totals; DY is combined at the inclusive level.",
+    "sampling": "Logical production samples; warmup/learning and auxiliary work are recorded separately.",
+    "scope": "Only the 22 user-confirmed runs; original numerical treatment and final estimators are retained.",
+    "settings": "Saved effective settings take precedence; execution_overrides records actual command-line overrides.",
+    "timing": "Wall time and the saved accumulated worker elapsed_time field are kept distinct.",
+    "unit_conversion_source": "Saved hadronic comparisons and examples/report_dy_histogram.py"
+  },
+  "results": [
+    {
+      "channel": "inclusive",
+      "collision": "hadronic",
+      "estimate": {
+        "central_value_gev_minus2": 1.5134285539913603e-14,
+        "central_value_pb": 5.892982957874475e-06,
+        "error_gev_minus2": 1.4207044004150938e-17,
+        "error_pb": 5.531933963941331e-09
+      },
+      "formula": "w_i=(1/error_i^2)/sum_j(1/error_j^2); value=sum_i(w_i*value_i); error=sqrt(1/sum_i(1/error_i^2))",
+      "id": "dy_hadronic_s1000_inclusive",
+      "input_runs": [
+        {
+          "central_value_gev_minus2": 1.5108541987251303e-14,
+          "error_gev_minus2": 3.812932256764379e-17,
+          "id": "dy_s1000_replica_00",
+          "metadata_file": "drell_yan/replica_00/metadata.json",
+          "weight": 0.13883190167463685
+        },
+        {
+          "central_value_gev_minus2": 1.51607847412069e-14,
+          "error_gev_minus2": 4.880091760038847e-17,
+          "id": "dy_s1000_replica_01",
+          "metadata_file": "drell_yan/replica_01/metadata.json",
+          "weight": 0.08475229652457152
+        },
+        {
+          "central_value_gev_minus2": 1.5157937294220503e-14,
+          "error_gev_minus2": 2.406165456134041e-17,
+          "id": "dy_s1000_replica_02",
+          "metadata_file": "drell_yan/replica_02/metadata.json",
+          "weight": 0.3486233534074081
+        },
+        {
+          "central_value_gev_minus2": 1.5121537246180268e-14,
+          "error_gev_minus2": 3.94001431696038e-17,
+          "id": "dy_s1000_replica_03",
+          "metadata_file": "drell_yan/replica_03/metadata.json",
+          "weight": 0.13002050585718034
+        },
+        {
+          "central_value_gev_minus2": 1.508463086178506e-14,
+          "error_gev_minus2": 3.496889604321578e-17,
+          "id": "dy_s1000_replica_04",
+          "metadata_file": "drell_yan/replica_04/metadata.json",
+          "weight": 0.1650606713846447
+        },
+        {
+          "central_value_gev_minus2": 1.51564100994155e-14,
+          "error_gev_minus2": 3.8998672236169856e-17,
+          "id": "dy_s1000_replica_05",
+          "metadata_file": "drell_yan/replica_05/metadata.json",
+          "weight": 0.13271127115155854
+        }
+      ],
+      "method": "inverse_variance_weighted_independent_final_inclusive_estimates",
+      "n_runs": 6,
+      "process": "drell_yan",
+      "production_points": 25165824,
+      "replica_consistency_chi_square": 4.15976596178338,
+      "replica_consistency_degrees_of_freedom": 5,
+      "selection": "Inclusive totals of the six histogram runs only; no separate bin refinements",
+      "sqrt_s_gev": 1000,
+      "summary_file": "drell_yan/combined.json"
+    },
+    {
+      "channel": "qqbar",
+      "collision": "partonic",
+      "estimate": {
+        "central_value_gev_minus2": -8.649568528896798e-09,
+        "central_value_pb": -3.3679660529285353,
+        "error_gev_minus2": 2.692244746282134e-11,
+        "error_pb": 0.010483053439441236
+      },
+      "id": "ttbar_partonic_s400_qqbar",
+      "metadata_file": "ttbar_partonic/s400/qqbar/metadata.json",
+      "method": "saved_final_central_value",
+      "n_runs": 1,
+      "process": "ttbar",
+      "production_points": 100000000,
+      "sqrt_s_gev": 400
+    },
+    {
+      "channel": "qg",
+      "collision": "partonic",
+      "estimate": {
+        "central_value_gev_minus2": -4.0522513815372767e-10,
+        "central_value_pb": -0.15778642651775152,
+        "error_gev_minus2": 5.835923073406315e-13,
+        "error_pb": 0.00022723897421091061
+      },
+      "id": "ttbar_partonic_s400_qg",
+      "metadata_file": "ttbar_partonic/s400/qg/metadata.json",
+      "method": "saved_final_central_value",
+      "n_runs": 1,
+      "process": "ttbar",
+      "production_points": 100000000,
+      "sqrt_s_gev": 400
+    },
+    {
+      "agrees_with_saved_combination": true,
+      "channel": "gg",
+      "collision": "partonic",
+      "estimate": {
+        "central_value_gev_minus2": 8.956657093943998e-09,
+        "central_value_pb": 3.4875400939765018,
+        "error_gev_minus2": 8.702184661201833e-11,
+        "error_pb": 0.033884537046359846
+      },
+      "formula": "w_i=(1/error_i^2)/sum_j(1/error_j^2); value=sum_i(w_i*value_i); error=sqrt(1/sum_i(1/error_i^2))",
+      "id": "ttbar_partonic_s400_gg",
+      "input_runs": [
+        {
+          "central_value_gev_minus2": 8.883619744829951e-09,
+          "error_gev_minus2": 1.6001345814764566e-10,
+          "id": "ttbar_partonic_s400_gg_replica_01",
+          "metadata_file": "ttbar_partonic/s400/gg/replica_01/metadata.json",
+          "weight": 0.2957628124970701
+        },
+        {
+          "central_value_gev_minus2": 9.021841721096324e-09,
+          "error_gev_minus2": 1.2963070017505263e-10,
+          "id": "ttbar_partonic_s400_gg_replica_02",
+          "metadata_file": "ttbar_partonic/s400/gg/replica_02/metadata.json",
+          "weight": 0.4506515364235955
+        },
+        {
+          "central_value_gev_minus2": 8.92141001046833e-09,
+          "error_gev_minus2": 2.281578471593778e-10,
+          "id": "ttbar_partonic_s400_gg_replica_03",
+          "metadata_file": "ttbar_partonic/s400/gg/replica_03/metadata.json",
+          "weight": 0.14547413015368962
+        },
+        {
+          "central_value_gev_minus2": 8.932179760220813e-09,
+          "error_gev_minus2": 2.6466243647114525e-10,
+          "id": "ttbar_partonic_s400_gg_replica_04",
+          "metadata_file": "ttbar_partonic/s400/gg/replica_04/metadata.json",
+          "weight": 0.10811152092564483
+        }
+      ],
+      "method": "inverse_variance_weighted_independent_final_inclusive_estimates",
+      "n_runs": 4,
+      "original_combination_file": "ttbar_partonic/s400/gg/original_combination.json",
+      "process": "ttbar",
+      "production_points": 400000000,
+      "replica_consistency_chi_square": 0.4936181443534358,
+      "replica_consistency_degrees_of_freedom": 3,
+      "sqrt_s_gev": 400,
+      "summary_file": "ttbar_partonic/s400/gg/combined.json"
+    },
+    {
+      "channel": "qqbar",
+      "collision": "partonic",
+      "estimate": {
+        "central_value_gev_minus2": -3.816128083677401e-09,
+        "central_value_pb": -1.485922655738758,
+        "error_gev_minus2": 9.827707146071066e-12,
+        "error_pb": 0.003826709267116722
+      },
+      "id": "ttbar_partonic_s1000_qqbar",
+      "metadata_file": "ttbar_partonic/s1000/qqbar/metadata.json",
+      "method": "saved_final_central_value",
+      "n_runs": 1,
+      "process": "ttbar",
+      "production_points": 100000000,
+      "sqrt_s_gev": 1000
+    },
+    {
+      "channel": "qg",
+      "collision": "partonic",
+      "estimate": {
+        "central_value_gev_minus2": 6.741500847864816e-09,
+        "central_value_pb": 2.6250033080313138,
+        "error_gev_minus2": 1.2397200670790781e-11,
+        "error_pb": 0.004827217782144286
+      },
+      "id": "ttbar_partonic_s1000_qg",
+      "metadata_file": "ttbar_partonic/s1000/qg/metadata.json",
+      "method": "saved_final_central_value",
+      "n_runs": 1,
+      "process": "ttbar",
+      "production_points": 100000000,
+      "sqrt_s_gev": 1000
+    },
+    {
+      "channel": "gg",
+      "collision": "partonic",
+      "estimate": {
+        "central_value_gev_minus2": 2.3117862649104066e-08,
+        "central_value_pb": 9.00162549823484,
+        "error_gev_minus2": 2.4831076490781624e-10,
+        "error_pb": 0.09668716121414542
+      },
+      "id": "ttbar_partonic_s1000_gg",
+      "metadata_file": "ttbar_partonic/s1000/gg/metadata.json",
+      "method": "saved_final_central_value",
+      "n_runs": 1,
+      "process": "ttbar",
+      "production_points": 100000000,
+      "sqrt_s_gev": 1000
+    },
+    {
+      "channel": "qqbar",
+      "collision": "partonic",
+      "estimate": {
+        "central_value_gev_minus2": 1.692757404551e-11,
+        "central_value_pb": 0.006591253026465508,
+        "error_gev_minus2": 8.643620991821333e-12,
+        "error_pb": 0.0033656502029642535
+      },
+      "id": "ttbar_partonic_s2000_qqbar",
+      "metadata_file": "ttbar_partonic/s2000/qqbar/metadata.json",
+      "method": "saved_final_central_value",
+      "n_runs": 1,
+      "process": "ttbar",
+      "production_points": 100000000,
+      "sqrt_s_gev": 2000
+    },
+    {
+      "channel": "qg",
+      "collision": "partonic",
+      "estimate": {
+        "central_value_gev_minus2": 1.4219371195622273e-08,
+        "central_value_pb": 5.536733921565194,
+        "error_gev_minus2": 3.733383687410876e-11,
+        "error_pb": 0.014537036708535931
+      },
+      "id": "ttbar_partonic_s2000_qg",
+      "metadata_file": "ttbar_partonic/s2000/qg/metadata.json",
+      "method": "saved_final_central_value",
+      "n_runs": 1,
+      "process": "ttbar",
+      "production_points": 100000000,
+      "sqrt_s_gev": 2000
+    },
+    {
+      "channel": "gg",
+      "collision": "partonic",
+      "estimate": {
+        "central_value_gev_minus2": 6.075004965826123e-08,
+        "central_value_pb": 23.654833680916873,
+        "error_gev_minus2": 3.7609205635655004e-10,
+        "error_pb": 0.1464425970328143
+      },
+      "id": "ttbar_partonic_s2000_gg",
+      "metadata_file": "ttbar_partonic/s2000/gg/metadata.json",
+      "method": "saved_final_central_value",
+      "n_runs": 1,
+      "process": "ttbar",
+      "production_points": 100000000,
+      "sqrt_s_gev": 2000
+    },
+    {
+      "channel": "inclusive",
+      "collision": "hadronic",
+      "estimate": {
+        "central_value_gev_minus2": 2.7101932572480485e-18,
+        "central_value_pb": 1.0552941290415377e-09,
+        "error_gev_minus2": 1.0363330908523616e-20,
+        "error_pb": 4.035270265628417e-12
+      },
+      "id": "ttbar_hadronic_s400",
+      "metadata_file": "ttbar_hadronic/s400/metadata.json",
+      "method": "saved_final_central_value",
+      "n_runs": 1,
+      "process": "ttbar",
+      "production_points": 100000000,
+      "sqrt_s_gev": 400
+    },
+    {
+      "channel": "inclusive",
+      "collision": "hadronic",
+      "estimate": {
+        "central_value_gev_minus2": 1.13193021827957e-11,
+        "central_value_pb": 0.004407506035374248,
+        "error_gev_minus2": 1.3622768089847012e-13,
+        "error_pb": 5.304428807083479e-05
+      },
+      "id": "ttbar_hadronic_s1000",
+      "metadata_file": "ttbar_hadronic/s1000/metadata.json",
+      "method": "saved_final_central_value",
+      "n_runs": 1,
+      "process": "ttbar",
+      "production_points": 1000000000,
+      "sqrt_s_gev": 1000
+    },
+    {
+      "channel": "inclusive",
+      "collision": "hadronic",
+      "estimate": {
+        "central_value_gev_minus2": 1.541593665377445e-10,
+        "central_value_pb": 0.06002652172828233,
+        "error_gev_minus2": 2.5589713450794433e-12,
+        "error_pb": 0.0009964113922967762
+      },
+      "id": "ttbar_hadronic_s1500",
+      "metadata_file": "ttbar_hadronic/s1500/metadata.json",
+      "method": "saved_final_central_value",
+      "n_runs": 1,
+      "process": "ttbar",
+      "production_points": 1000000000,
+      "sqrt_s_gev": 1500
+    },
+    {
+      "channel": "inclusive",
+      "collision": "hadronic",
+      "estimate": {
+        "central_value_gev_minus2": 6.474713954587136e-10,
+        "central_value_pb": 0.2521121918234394,
+        "error_gev_minus2": 2.3564845132153873e-11,
+        "error_pb": 0.00917567138551073
+      },
+      "id": "ttbar_hadronic_s2000",
+      "metadata_file": "ttbar_hadronic/s2000/metadata.json",
+      "method": "saved_final_central_value",
+      "n_runs": 1,
+      "process": "ttbar",
+      "production_points": 1000000000,
+      "sqrt_s_gev": 2000
+    }
+  ],
+  "schema_version": 1
+}

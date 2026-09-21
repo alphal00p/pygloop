@@ -1,0 +1,104 @@
+schema_version = 1
+
+[common]
+process = "dy"
+process_name = "tt~"
+n_loops = 2
+final_state = ["t", "t"]
+channel = [0, 0]
+diagrams = []
+process_basename = "TTBAR_GG_MSBAR_SCAN_20260901"
+verbosity = "info"
+skip_ps_validation = true
+
+[common.kinematics]
+m_top = 173.0
+m_higgs = 125.0
+pg1 = [200.0, 0.0, 0.0, 200.0]
+pg2 = [200.0, 0.0, 0.0, -200.0]
+helicities = [1, 1, 0, 0, 0]
+
+[common.scales]
+muv = 200.0
+lambda_sq = 8302.489924
+mur_sq = 8302.489924
+
+[common.initial_state]
+external_gluon_polarisation = true
+symmetrise_p1_p2 = true
+
+[common.precision]
+fallback_precision = 32
+
+[common.gammaloop]
+generation_configuration = "../../../../../../../configs/DY/generate.toml"
+runtime_configuration = "../../../../../../../configs/DY/runtime.toml"
+settings = []
+general_settings = []
+
+[generate]
+clean = false
+generation_type = "gammaloop"
+parallel_graphs = 65
+enable_integrated_uv_counterterms = true
+top_self_energy_renormalisation = "projected-os"
+check_generation_limits = false
+threshold_h_function = "gaussian"
+
+[integrate]
+implementation = "zenos"
+parameterisation = "spherical"
+multi_channeling = true
+integrator = "symbolica"
+iterations = 100
+points_per_iteration = 1000000
+cores = 384
+seed = 901040087
+phase = "real"
+restart = false
+workspace_name = "production_ttbar_hadronic_s400_gg_20260901"
+
+[integrate.runtime_parameters]
+m_top = "173"
+muv = "200"
+lambda_sq = "8302.489924"
+mur_sq = "8302.489924"
+alpha_s = "0.118"
+alpha_ew_inverse = "132.507"
+zmin = "0"
+zmax = "1"
+
+[integrate.selection]
+integrated_uv_counterterms = "all"
+
+[integrate.stability]
+rotation_check_digits = 7
+rotation_check_eps = 1.0e-15
+rotation_check_arb_digits = 32
+backend = "double-float"
+theta_tolerance = 0.0
+large_weight_precision = 4.9547337020690805e-15
+large_weight_clip = 4.9547337020690804e-13
+soft_mirror_edges = ["GL015:7", "GL018:8", "GL059:8", "GL071:7", "GL075:8", "GL099:8", "GL115:8"]
+
+[integrate.beams]
+enabled = true
+parameterisation = "beta_y"
+physical_normalisation = true
+integrated_leptonic_phase_space = false
+
+[integrate.beams.pdf]
+set = "PDF4LHC21_40"
+member = 0
+muf_sq = 8302.489924
+
+[integrate.beams.scheme_counterterm]
+enabled = true
+sobol_power = 18
+replicas = 8
+born_bundle = "TTBAR_GG_BORN_MSBAR_SCAN_20260901_1L_processed"
+alpha_s = 0.118
+clip = 1.8456481607401685e-13
+
+[integrate.decoupling]
+enabled = true

@@ -1,0 +1,60 @@
+{
+  "combination": "inverse-variance weighted independent replicas",
+  "combined_error_gev_minus2": 8.702184661201833e-11,
+  "czakon_mitov_gev_minus2": 9.04804607314716e-09,
+  "difference_gev_minus2": -9.138897920316289e-11,
+  "pull": -1.050184324525026,
+  "ratio": 0.9898995895396259,
+  "replica_consistency_chi_square": 0.4936181443534358,
+  "replica_consistency_degrees_of_freedom": 3,
+  "replica_consistency_reduced_chi_square": 0.16453938145114527,
+  "replicas": [
+    {
+      "central_value_gev_minus2": 8.883619744829951e-09,
+      "clipped_count": 0,
+      "error_gev_minus2": 1.6001345814764566e-10,
+      "hp_rejected_count": 0,
+      "n_samples": 100000000,
+      "path": "/home/zeno/DY/pygloop_6c15087/outputs/ttbar_cm_e_surface_campaign_20260909/results/partonic/s400/gg_r01.json",
+      "replica": 1,
+      "seed": 909040101,
+      "t_solver_hp_unresolved_count": 0
+    },
+    {
+      "central_value_gev_minus2": 9.021841721096324e-09,
+      "clipped_count": 0,
+      "error_gev_minus2": 1.2963070017505263e-10,
+      "hp_rejected_count": 0,
+      "n_samples": 100000000,
+      "path": "/home/zeno/DY/pygloop_6c15087/outputs/ttbar_cm_e_surface_campaign_20260909/results/partonic/s400/gg_r02.json",
+      "replica": 2,
+      "seed": 909040201,
+      "t_solver_hp_unresolved_count": 0
+    },
+    {
+      "central_value_gev_minus2": 8.92141001046833e-09,
+      "clipped_count": 0,
+      "error_gev_minus2": 2.281578471593778e-10,
+      "hp_rejected_count": 0,
+      "n_samples": 100000000,
+      "path": "/home/zeno/DY/pygloop_6c15087/outputs/ttbar_cm_e_surface_campaign_20260909/results/partonic/s400/gg_r03.json",
+      "replica": 3,
+      "seed": 909040301,
+      "t_solver_hp_unresolved_count": 0
+    },
+    {
+      "central_value_gev_minus2": 8.932179760220813e-09,
+      "clipped_count": 0,
+      "error_gev_minus2": 2.6466243647114525e-10,
+      "hp_rejected_count": 0,
+      "n_samples": 100000000,
+      "path": "/home/zeno/DY/pygloop_6c15087/outputs/ttbar_cm_e_surface_campaign_20260909/results/partonic/s400/gg_r04.json",
+      "replica": 4,
+      "seed": 909040401,
+      "t_solver_hp_unresolved_count": 0
+    }
+  ],
+  "schema_version": 1,
+  "total_production_samples": 400000000,
+  "weighted_mean_gev_minus2": 8.956657093943998e-09
+}

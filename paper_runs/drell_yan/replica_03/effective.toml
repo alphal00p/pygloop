@@ -1,0 +1,115 @@
+schema_version = 1
+
+[common]
+process = "dy"
+process_name = "dy"
+n_loops = 1
+final_state = ["a"]
+channel = [1, -1]
+diagrams = []
+process_basename = "PP_DY_S1000_CM_H_EXACT_AUX_INCLUSIVE_20260915"
+verbosity = "info"
+skip_ps_validation = true
+
+[common.kinematics]
+m_top = 173.0
+m_higgs = 125.0
+pg1 = [500.0, 0.0, 0.0, 500.0]
+pg2 = [500.0, 0.0, 0.0, -500.0]
+helicities = [1, 1, 0, 0, 0]
+
+[common.scales]
+muv = 1000.0
+lambda_sq = 8302.489924
+mur_sq = 8302.489924
+
+[common.initial_state]
+external_gluon_polarisation = false
+symmetrise_p1_p2 = true
+
+[common.precision]
+fallback_precision = 32
+
+[common.gammaloop]
+generation_configuration = "/home/zeno/DY/pygloop_6c15087/configs/DY/generate.toml"
+runtime_configuration = "/home/zeno/DY/pygloop_6c15087/configs/DY/runtime.toml"
+settings = []
+general_settings = []
+
+[integrate]
+implementation = "zenos"
+parameterisation = "spherical"
+multi_channeling = true
+physical_channel_multi_channeling = true
+physical_channel_backend = "saved-jit"
+physical_channel_batch_size = 256
+physical_channel_warmup_iterations = 0
+physical_channel_min_fraction = 0.075
+physical_channel_live_diagnostics = true
+integrator = "dy-paired-sobol"
+iterations = 100
+points_per_iteration = 1000000
+cores = 128
+seed = 957170001
+phase = "real"
+restart = false
+workspace_name = "dy_histogram_precision_ladder_rep03_20260917"
+
+[integrate.physical_channel_cards]
+qqbar = "/home/zeno/DY/pygloop_6c15087/cards/dy_paired_sobol_20260917/qqbar.toml"
+qg = "/home/zeno/DY/pygloop_6c15087/cards/dy_paired_sobol_20260917/qg.toml"
+
+[integrate.paired_sobol]
+replicas = 16
+learning_points = [1024, 2048, 4096]
+production_points = 262144
+max_points = 262144
+audit_block_size = 512
+target_relative_error = 0.005
+auxiliary_error_fraction = 0.1
+output_directory = "/home/zeno/DY/pygloop_6c15087/outputs/dy_histogram_precision_ladder_replicas5_20260917/run_03"
+z_histogram_edges = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+
+[integrate.runtime_parameters]
+m_top = "173"
+muv = "1000"
+lambda_sq = "8302.489924"
+mur_sq = "8302.489924"
+alpha_s = "0.118"
+alpha_ew_inverse = "132.507"
+zmin = "0"
+zmax = "1"
+
+[integrate.selection]
+integrated_uv_counterterms = "all"
+
+[integrate.stability]
+rotation_check_digits = 7
+rotation_check_count = 2
+rotation_check_eps = 1e-15
+rotation_check_arb_digits = 32
+backend = "double-float"
+precision_ladder = [16, 32, 60]
+theta_tolerance = 0.0
+
+[integrate.beams]
+enabled = true
+parameterisation = "x1_x2"
+z_bin = [0.0, 1.0]
+q_min = 300.0
+physical_normalisation = true
+integrated_leptonic_phase_space = true
+
+[integrate.beams.pdf]
+set = "PDF4LHC21_40"
+member = 0
+muf_sq = 8302.489924
+
+[integrate.beams.scheme_counterterm]
+enabled = false
+sobol_power = 15
+replicas = 8
+alpha_s = 0.118
+
+[integrate.decoupling]
+enabled = false
