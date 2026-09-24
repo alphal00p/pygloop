@@ -1,0 +1,589 @@
+{
+  "source": "saved_effective_card_values",
+  "source_cards": {
+    "qqbar": {
+      "source_path": "outputs/ttbar_fullxs_sampling_20260918/cards/qqbar.toml",
+      "archive_path": "provenance/source_tree/outputs/ttbar_fullxs_sampling_20260918/cards/qqbar.toml",
+      "sha256": "bb74ad5001c74408105a1e7698d7aceea12b7df934d6a9eccd36edaef752f2f3",
+      "channel": "qqbar"
+    },
+    "qg": {
+      "source_path": "outputs/ttbar_fullxs_sampling_20260918/cards/qg.toml",
+      "archive_path": "provenance/source_tree/outputs/ttbar_fullxs_sampling_20260918/cards/qg.toml",
+      "sha256": "575034303b340545d3f4fd5ad240a5210c4618760b7da0003926b8b241f77d29",
+      "channel": "qg"
+    },
+    "gg": {
+      "source_path": "outputs/ttbar_fullxs_sampling_20260918/cards/gg.toml",
+      "archive_path": "provenance/source_tree/outputs/ttbar_fullxs_sampling_20260918/cards/gg.toml",
+      "sha256": "d91a7e9ddf9af11c1133e6ca0da2c33acddf02c2271ebcc07514a65ff813a524",
+      "channel": "gg"
+    }
+  },
+  "channel_effective_settings": {
+    "qqbar": {
+      "common": {
+        "process": "dy",
+        "process_name": "tt~",
+        "n_loops": 2,
+        "final_state": [
+          "t",
+          "t"
+        ],
+        "channel": [
+          1,
+          -1
+        ],
+        "diagrams": [],
+        "process_basename": "TTBAR_QQBAR_FULLXS_SAMPLING_20260918",
+        "verbosity": "info",
+        "skip_ps_validation": true,
+        "kinematics": {
+          "m_top": 173.0,
+          "m_higgs": 125.0,
+          "pg1": [
+            1000.0,
+            0.0,
+            0.0,
+            1000.0
+          ],
+          "pg2": [
+            1000.0,
+            0.0,
+            0.0,
+            -1000.0
+          ],
+          "helicities": [
+            1,
+            1,
+            0,
+            0,
+            0
+          ]
+        },
+        "scales": {
+          "muv": 1000.0,
+          "lambda_sq": 8302.489924,
+          "mur_sq": 8302.489924
+        },
+        "initial_state": {
+          "external_gluon_polarisation": false,
+          "symmetrise_p1_p2": true
+        },
+        "precision": {
+          "fallback_precision": 32
+        },
+        "gammaloop": {
+          "generation_configuration": "/home/zeno/DY/pygloop_6c15087/configs/DY/generate.toml",
+          "runtime_configuration": "/home/zeno/DY/pygloop_6c15087/configs/DY/runtime.toml",
+          "settings": [],
+          "general_settings": []
+        }
+      },
+      "generate": {
+        "clean": false,
+        "generation_type": "gammaloop",
+        "parallel_graphs": 16,
+        "enable_integrated_uv_counterterms": true,
+        "top_self_energy_renormalisation": "projected-os",
+        "check_generation_limits": false,
+        "threshold_h_function": "gaussian"
+      },
+      "integrate": {
+        "implementation": "zenos",
+        "parameterisation": "spherical",
+        "multi_channeling": true,
+        "integrator": "symbolica",
+        "iterations": 100,
+        "points_per_iteration": 1000000,
+        "cores": 128,
+        "seed": 909150061,
+        "phase": "real",
+        "restart": false,
+        "workspace_name": "g_hybrid_s2000_200m_20260922_qqbar",
+        "runtime_parameters": {
+          "m_top": "173",
+          "muv": "1000",
+          "lambda_sq": "8302.489924",
+          "mur_sq": "8302.489924",
+          "alpha_s": "0.118",
+          "alpha_ew_inverse": "132.507",
+          "zmin": "0",
+          "zmax": "1"
+        },
+        "selection": {
+          "integrated_uv_counterterms": "all"
+        },
+        "stability": {
+          "precision_ladder": [
+            16,
+            32,
+            60
+          ],
+          "rotation_check_digits": 7,
+          "rotation_check_eps": 1e-15,
+          "rotation_check_arb_digits": 32,
+          "backend": "double-float",
+          "theta_tolerance": 0.0,
+          "large_weight_precision": 5.884862406745324e-07,
+          "soft_mirror_edges": [
+            "GL07:7",
+            "GL09:8"
+          ],
+          "large_weight_clip": null
+        },
+        "beams": {
+          "enabled": true,
+          "parameterisation": "beta_y",
+          "physical_normalisation": true,
+          "integrated_leptonic_phase_space": false,
+          "pdf": {
+            "set": "PDF4LHC21_40",
+            "member": 0,
+            "muf_sq": 8302.489924
+          },
+          "scheme_counterterm": {
+            "enabled": true,
+            "sobol_power": 18,
+            "replicas": 8,
+            "born_bundle": "TTBAR_QQBAR_BORN_FULLXS_SAMPLING_20260918_1L_processed",
+            "alpha_s": 0.118,
+            "clip": null
+          }
+        },
+        "decoupling": {
+          "enabled": true
+        }
+      }
+    },
+    "qg": {
+      "common": {
+        "process": "dy",
+        "process_name": "tt~",
+        "n_loops": 2,
+        "final_state": [
+          "t",
+          "t"
+        ],
+        "channel": [
+          1,
+          0
+        ],
+        "diagrams": [],
+        "process_basename": "TTBAR_QG_FULLXS_SAMPLING_20260918",
+        "verbosity": "info",
+        "skip_ps_validation": true,
+        "kinematics": {
+          "m_top": 173.0,
+          "m_higgs": 125.0,
+          "pg1": [
+            1000.0,
+            0.0,
+            0.0,
+            1000.0
+          ],
+          "pg2": [
+            1000.0,
+            0.0,
+            0.0,
+            -1000.0
+          ],
+          "helicities": [
+            1,
+            1,
+            0,
+            0,
+            0
+          ]
+        },
+        "scales": {
+          "muv": 1000.0,
+          "lambda_sq": 8302.489924,
+          "mur_sq": 8302.489924
+        },
+        "initial_state": {
+          "external_gluon_polarisation": true,
+          "symmetrise_p1_p2": true
+        },
+        "precision": {
+          "fallback_precision": 32
+        },
+        "gammaloop": {
+          "generation_configuration": "/home/zeno/DY/pygloop_6c15087/configs/DY/generate.toml",
+          "runtime_configuration": "/home/zeno/DY/pygloop_6c15087/configs/DY/runtime.toml",
+          "settings": [],
+          "general_settings": []
+        }
+      },
+      "generate": {
+        "clean": false,
+        "generation_type": "gammaloop",
+        "parallel_graphs": 11,
+        "enable_integrated_uv_counterterms": true,
+        "top_self_energy_renormalisation": "no-os",
+        "check_generation_limits": false,
+        "threshold_h_function": "gaussian"
+      },
+      "integrate": {
+        "implementation": "zenos",
+        "parameterisation": "spherical",
+        "multi_channeling": true,
+        "integrator": "symbolica",
+        "iterations": 100,
+        "points_per_iteration": 1000000,
+        "cores": 128,
+        "seed": 909150073,
+        "phase": "real",
+        "restart": false,
+        "workspace_name": "g_hybrid_s2000_200m_20260922_qg",
+        "runtime_parameters": {
+          "m_top": "173",
+          "muv": "1000",
+          "lambda_sq": "8302.489924",
+          "mur_sq": "8302.489924",
+          "alpha_s": "0.118",
+          "alpha_ew_inverse": "132.507",
+          "zmin": "0",
+          "zmax": "1"
+        },
+        "selection": {
+          "integrated_uv_counterterms": "all"
+        },
+        "stability": {
+          "precision_ladder": [
+            16,
+            32,
+            60
+          ],
+          "rotation_check_digits": 7,
+          "rotation_check_eps": 1e-15,
+          "rotation_check_arb_digits": 32,
+          "backend": "double-float",
+          "theta_tolerance": 0.0,
+          "large_weight_precision": 1.2405658892244432e-07,
+          "large_weight_clip": null
+        },
+        "beams": {
+          "enabled": true,
+          "parameterisation": "beta_y",
+          "physical_normalisation": true,
+          "integrated_leptonic_phase_space": false,
+          "pdf": {
+            "set": "PDF4LHC21_40",
+            "member": 0,
+            "muf_sq": 8302.489924
+          },
+          "scheme_counterterm": {
+            "enabled": true,
+            "sobol_power": 18,
+            "replicas": 8,
+            "born_bundles": [
+              "TTBAR_QQBAR_BORN_FULLXS_SAMPLING_20260918_1L_processed",
+              "TTBAR_GG_BORN_FULLXS_SAMPLING_20260918_1L_processed"
+            ],
+            "alpha_s": 0.118,
+            "clip": null
+          }
+        },
+        "decoupling": {
+          "enabled": true
+        }
+      }
+    },
+    "gg": {
+      "common": {
+        "process": "dy",
+        "process_name": "tt~",
+        "n_loops": 2,
+        "final_state": [
+          "t",
+          "t"
+        ],
+        "channel": [
+          0,
+          0
+        ],
+        "diagrams": [],
+        "process_basename": "TTBAR_GG_FULLXS_SAMPLING_20260918",
+        "verbosity": "info",
+        "skip_ps_validation": true,
+        "kinematics": {
+          "m_top": 173.0,
+          "m_higgs": 125.0,
+          "pg1": [
+            1000.0,
+            0.0,
+            0.0,
+            1000.0
+          ],
+          "pg2": [
+            1000.0,
+            0.0,
+            0.0,
+            -1000.0
+          ],
+          "helicities": [
+            1,
+            1,
+            0,
+            0,
+            0
+          ]
+        },
+        "scales": {
+          "muv": 1000.0,
+          "lambda_sq": 8302.489924,
+          "mur_sq": 8302.489924
+        },
+        "initial_state": {
+          "external_gluon_polarisation": true,
+          "symmetrise_p1_p2": true
+        },
+        "precision": {
+          "fallback_precision": 32
+        },
+        "gammaloop": {
+          "generation_configuration": "/home/zeno/DY/pygloop_6c15087/configs/DY/generate.toml",
+          "runtime_configuration": "/home/zeno/DY/pygloop_6c15087/configs/DY/runtime.toml",
+          "settings": [],
+          "general_settings": []
+        }
+      },
+      "generate": {
+        "clean": false,
+        "generation_type": "gammaloop",
+        "parallel_graphs": 65,
+        "enable_integrated_uv_counterterms": true,
+        "top_self_energy_renormalisation": "projected-os",
+        "check_generation_limits": false,
+        "threshold_h_function": "gaussian"
+      },
+      "integrate": {
+        "implementation": "zenos",
+        "parameterisation": "spherical",
+        "multi_channeling": true,
+        "integrator": "symbolica",
+        "iterations": 100,
+        "points_per_iteration": 1000000,
+        "cores": 128,
+        "seed": 909150087,
+        "phase": "real",
+        "restart": false,
+        "workspace_name": "g_hybrid_s2000_200m_20260922_gg",
+        "runtime_parameters": {
+          "m_top": "173",
+          "muv": "1000",
+          "lambda_sq": "8302.489924",
+          "mur_sq": "8302.489924",
+          "alpha_s": "0.118",
+          "alpha_ew_inverse": "132.507",
+          "zmin": "0",
+          "zmax": "1"
+        },
+        "selection": {
+          "integrated_uv_counterterms": "all"
+        },
+        "stability": {
+          "precision_ladder": [
+            16,
+            32,
+            60
+          ],
+          "rotation_check_digits": 7,
+          "rotation_check_eps": 1e-15,
+          "rotation_check_arb_digits": 32,
+          "backend": "double-float",
+          "theta_tolerance": 0.0,
+          "large_weight_precision": 8.06735219931739e-06,
+          "soft_mirror_edges": [
+            "GL015:7",
+            "GL018:8",
+            "GL059:8",
+            "GL071:7",
+            "GL075:8",
+            "GL099:8",
+            "GL115:8"
+          ],
+          "large_weight_clip": null
+        },
+        "beams": {
+          "enabled": true,
+          "parameterisation": "beta_y",
+          "physical_normalisation": true,
+          "integrated_leptonic_phase_space": false,
+          "pdf": {
+            "set": "PDF4LHC21_40",
+            "member": 0,
+            "muf_sq": 8302.489924
+          },
+          "scheme_counterterm": {
+            "enabled": true,
+            "sobol_power": 18,
+            "replicas": 8,
+            "born_bundle": "TTBAR_GG_BORN_FULLXS_SAMPLING_20260918_1L_processed",
+            "alpha_s": 0.118,
+            "clip": null
+          }
+        },
+        "decoupling": {
+          "enabled": true
+        }
+      }
+    }
+  },
+  "controller_schedule_overrides_card_iterations_points_and_seeds": true,
+  "sampling": {
+    "strategy": "G_hybrid",
+    "implementation_storage": "RAM only; no production-source changes",
+    "integrator": "Symbolica",
+    "joint_discrete_choices": [
+      "channel",
+      "graph"
+    ],
+    "joint_channel_graph_leaves": 92,
+    "base_parameterisation": "spherical",
+    "beam_parameterisation": "beta_y",
+    "local_threshold_soft_chart_probability": 0.25,
+    "outer_multicentre_chart_probability": 0.75,
+    "local_angular_pairing": "matched-CDF opposite-sign angular contributions",
+    "threshold_soft_graphs": [
+      {
+        "channel": "qqbar",
+        "graph": 9,
+        "source_graph": "GL09"
+      },
+      {
+        "channel": "gg",
+        "graph": 13,
+        "source_graph": "GL018"
+      },
+      {
+        "channel": "gg",
+        "graph": 35,
+        "source_graph": "GL059"
+      },
+      {
+        "channel": "gg",
+        "graph": 40,
+        "source_graph": "GL071"
+      },
+      {
+        "channel": "gg",
+        "graph": 61,
+        "source_graph": "GL115"
+      }
+    ],
+    "adaptation": "3 x 1M learning per replica, then frozen for 50M production",
+    "production_block_samples": 250000,
+    "production_blocks_per_replica": 200,
+    "schedule": "learn all four grids, then round-robin 250k frozen-grid production blocks",
+    "sample_definition": "one joint channel/graph importance-sampling trial, including its complete angular/mirror packet; learning and auxiliary samples are separate",
+    "all_replicas_included": true,
+    "chart_probability_scope": "Only the five threshold-soft graphs; all other graphs retain the D-style multichannel maps."
+  },
+  "precision": {
+    "ladder": [
+      16,
+      32,
+      60
+    ],
+    "highest_precision_failure": "zero",
+    "clipping": false,
+    "channel_settings": {
+      "qqbar": {
+        "precision_ladder": [
+          16,
+          32,
+          60
+        ],
+        "rotation_check_digits": 7,
+        "rotation_check_eps": 1e-15,
+        "rotation_check_arb_digits": 32,
+        "backend": "double-float",
+        "theta_tolerance": 0.0,
+        "large_weight_precision": 5.884862406745324e-07,
+        "soft_mirror_edges": [
+          "GL07:7",
+          "GL09:8"
+        ],
+        "large_weight_clip": null
+      },
+      "qg": {
+        "precision_ladder": [
+          16,
+          32,
+          60
+        ],
+        "rotation_check_digits": 7,
+        "rotation_check_eps": 1e-15,
+        "rotation_check_arb_digits": 32,
+        "backend": "double-float",
+        "theta_tolerance": 0.0,
+        "large_weight_precision": 1.2405658892244432e-07,
+        "large_weight_clip": null
+      },
+      "gg": {
+        "precision_ladder": [
+          16,
+          32,
+          60
+        ],
+        "rotation_check_digits": 7,
+        "rotation_check_eps": 1e-15,
+        "rotation_check_arb_digits": 32,
+        "backend": "double-float",
+        "theta_tolerance": 0.0,
+        "large_weight_precision": 8.06735219931739e-06,
+        "soft_mirror_edges": [
+          "GL015:7",
+          "GL018:8",
+          "GL059:8",
+          "GL071:7",
+          "GL075:8",
+          "GL099:8",
+          "GL115:8"
+        ],
+        "large_weight_clip": null
+      }
+    },
+    "ram_conditioning_guard": {
+      "native_relative_condition_limit": 10000000.0,
+      "hp": "propagated Decimal term resolution",
+      "highest_precision_failure": "zero",
+      "preserve_term_collection_context": true
+    },
+    "preserve_term_collection_decimal_context": "collect HP terms before leaving max(80,digits+24) Decimal context"
+  },
+  "controller_execution_overrides": {
+    "physical_channel_integrator": {
+      "workers": 128,
+      "parameterisation": "spherical",
+      "phase": "real",
+      "evaluation_backend": "saved-jit",
+      "batch_size": 256,
+      "min_channel_fraction": 0,
+      "live_iteration_diagnostics": false
+    },
+    "learning": {
+      "iterations_per_replica": 3,
+      "points_per_iteration": 1000000,
+      "excluded_from_production": true
+    },
+    "production": {
+      "blocks_per_replica": 200,
+      "points_per_block": 250000,
+      "adaptation_frozen": true
+    },
+    "final_auxiliary": {
+      "sobol_power": 23,
+      "scrambled_replicas_per_channel": 8,
+      "base_seed": 2022009100,
+      "channel_seeds": {
+        "qqbar": 2022010109,
+        "qg": 2022011118,
+        "gg": 2022012127
+      },
+      "clip": null
+    }
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "values": {
+    "gg": {
+      "central_value_pb": 0.06475846,
+      "error_pb": 9.912927e-05,
+      "high": 1.5,
+      "low": 0.5
+    },
+    "qg": {
+      "central_value_pb": -0.0018101688,
+      "error_pb": 1.5646926e-05,
+      "high": 1.5,
+      "low": 0.5
+    },
+    "qqbar": {
+      "central_value_pb": -0.002954498,
+      "error_pb": 1.8020939e-05,
+      "high": 1.5,
+      "low": 0.5
+    },
+    "total": {
+      "central_value_pb": 0.059993792,
+      "error_pb": 0.00010207104,
+      "high": 1.5,
+      "low": 0.5
+    },
+    "unclassified": {
+      "central_value_pb": 0.0,
+      "error_pb": 0.0,
+      "high": 1.5,
+      "low": 0.5
+    }
+  },
+  "source": "outputs/mg5_ttbar_1500_20260915/results.json",
+  "coupling_note": "MG5 alpha_s(muR)=0.11801390904201399; pygloop alpha_s=0.118; native benchmark retained, coupling-matched optional diagnostic."
+}

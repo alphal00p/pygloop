@@ -1,0 +1,109 @@
+{
+  "created_utc": "2026-09-24T08:35:01.580616+00:00",
+  "scope": "Append three new 200M hadronic ttbar G-hybrid campaigns without replacing historical runs",
+  "campaigns": [
+    {
+      "id": "ttbar_hadronic_s1000_g_hybrid_200m",
+      "metadata_file": "ttbar_hadronic/s1000/g_hybrid_200m/metadata.json",
+      "individual_runs": 4,
+      "production_points": 200000000,
+      "warmup_or_learning_points": 12000000
+    },
+    {
+      "id": "ttbar_hadronic_s1500_g_hybrid_200m",
+      "metadata_file": "ttbar_hadronic/s1500/g_hybrid_200m/metadata.json",
+      "individual_runs": 4,
+      "production_points": 200000000,
+      "warmup_or_learning_points": 12000000
+    },
+    {
+      "id": "ttbar_hadronic_s2000_g_hybrid_200m",
+      "metadata_file": "ttbar_hadronic/s2000/g_hybrid_200m/metadata.json",
+      "individual_runs": 4,
+      "production_points": 200000000,
+      "warmup_or_learning_points": 12000000
+    }
+  ],
+  "new_individual_runs": 12,
+  "added_production_points": 600000000,
+  "added_learning_points": 36000000,
+  "source_validations": [
+    {
+      "energy_gev": 1000,
+      "source_archive_file_count": 842,
+      "source_archive_checksums_verified": true,
+      "production_points": 200000000,
+      "learning_points": 12000000,
+      "replicas": 4,
+      "production_checkpoints": 800,
+      "learning_checkpoints": 12,
+      "unique_seeds": 812,
+      "graphs_per_record": 92,
+      "replay_disagreements": 1,
+      "saved_estimate": {
+        "central_value_pb": 0.004407268149793526,
+        "error_pb": 2.9609802016042263e-05,
+        "central_value_gev_minus2": 1.1318691248005934e-11,
+        "error_gev_minus2": 7.604352527310303e-14
+      }
+    },
+    {
+      "energy_gev": 1500,
+      "source_archive_file_count": 835,
+      "source_archive_checksums_verified": true,
+      "production_points": 200000000,
+      "learning_points": 12000000,
+      "replicas": 4,
+      "production_checkpoints": 800,
+      "learning_checkpoints": 12,
+      "unique_seeds": 812,
+      "graphs_per_record": 92,
+      "replay_disagreements": 0,
+      "saved_estimate": {
+        "central_value_pb": 0.060573927029586694,
+        "error_pb": 0.0005896118777303138,
+        "central_value_gev_minus2": 1.5556520602433803e-10,
+        "error_gev_minus2": 1.5142338912369325e-12
+      }
+    },
+    {
+      "energy_gev": 2000,
+      "source_archive_file_count": 842,
+      "source_archive_checksums_verified": true,
+      "production_points": 200000000,
+      "learning_points": 12000000,
+      "replicas": 4,
+      "production_checkpoints": 800,
+      "learning_checkpoints": 12,
+      "unique_seeds": 812,
+      "graphs_per_record": 92,
+      "replay_disagreements": 0,
+      "saved_estimate": {
+        "central_value_pb": 0.2539860452341158,
+        "error_pb": 0.003256484288429432,
+        "central_value_gev_minus2": 6.5228380248243e-10,
+        "error_gev_minus2": 8.363262447836726e-12
+      }
+    }
+  ],
+  "production_code_changed": false,
+  "new_integrations_performed": false,
+  "historical_run_metadata_unchanged": true,
+  "saved_estimates_unchanged": true,
+  "metadata_validation": {
+    "source_copies_byte_identical": 58,
+    "old_result_entries_unchanged": 14,
+    "campaigns": 3,
+    "new_individual_replicas": 12,
+    "graph_records_checked": 1380,
+    "production_points": 600000000,
+    "learning_points": 36000000,
+    "unique_new_block_seeds": 2436,
+    "pooled_estimators_reproduced": true,
+    "shared_auxiliary_counted_once": true,
+    "mg5_pulls_verified": true,
+    "production_code_unchanged": true,
+    "known_1000_replay_issue_preserved": true,
+    "historical_non_index_files_unchanged": true
+  }
+}

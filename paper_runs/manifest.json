@@ -1069,15 +1069,421 @@
       "role": "run_log",
       "sha256": "710a7cf7de7e31ae744a8ef039f4495f5001e2939440e2aa359fbebd785fc12b",
       "source_path": "outputs/ttbar_dy_msbar_scan_20260901/logs/production_validation/production/ttbar/partonic/s400/qqbar.log"
+    },
+    {
+      "source_path": "outputs/ttbar_fullxs_sampling_20260918/cards/qqbar.toml",
+      "archive_path": "provenance/source_tree/outputs/ttbar_fullxs_sampling_20260918/cards/qqbar.toml",
+      "role": "sampling_campaign_input_card",
+      "bytes": 2291,
+      "sha256": "bb74ad5001c74408105a1e7698d7aceea12b7df934d6a9eccd36edaef752f2f3"
+    },
+    {
+      "source_path": "outputs/evaluators/tt~/TTBAR_QQBAR_FULLXS_SAMPLING_20260918_2L_processed/bundle_metadata.json",
+      "archive_path": "provenance/source_tree/outputs/evaluators/tt~/TTBAR_QQBAR_FULLXS_SAMPLING_20260918_2L_processed/bundle_metadata.json",
+      "role": "compiled_bundle_metadata_only",
+      "bytes": 318847,
+      "sha256": "7becc26717eed8201ae205894a53da7cb0a7367da4599f97318f8041aef3139d"
+    },
+    {
+      "source_path": "outputs/evaluators/tt~/TTBAR_QQBAR_BORN_FULLXS_SAMPLING_20260918_1L_processed/bundle_metadata.json",
+      "archive_path": "provenance/source_tree/outputs/evaluators/tt~/TTBAR_QQBAR_BORN_FULLXS_SAMPLING_20260918_1L_processed/bundle_metadata.json",
+      "role": "compiled_bundle_metadata_only",
+      "bytes": 11970,
+      "sha256": "5166f9780697d4b9eab7cf83b724e51575c11c415b6bb7281c1b776dafed3ec3"
+    },
+    {
+      "source_path": "outputs/ttbar_fullxs_sampling_20260918/cards/qg.toml",
+      "archive_path": "provenance/source_tree/outputs/ttbar_fullxs_sampling_20260918/cards/qg.toml",
+      "role": "sampling_campaign_input_card",
+      "bytes": 2297,
+      "sha256": "575034303b340545d3f4fd5ad240a5210c4618760b7da0003926b8b241f77d29"
+    },
+    {
+      "source_path": "outputs/evaluators/tt~/TTBAR_QG_FULLXS_SAMPLING_20260918_2L_processed/bundle_metadata.json",
+      "archive_path": "provenance/source_tree/outputs/evaluators/tt~/TTBAR_QG_FULLXS_SAMPLING_20260918_2L_processed/bundle_metadata.json",
+      "role": "compiled_bundle_metadata_only",
+      "bytes": 116213,
+      "sha256": "0db05cb277113dbf9b56acb4b08ae2e41b8b830b874c788f82342526517834bb"
+    },
+    {
+      "source_path": "outputs/evaluators/tt~/TTBAR_GG_BORN_FULLXS_SAMPLING_20260918_1L_processed/bundle_metadata.json",
+      "archive_path": "provenance/source_tree/outputs/evaluators/tt~/TTBAR_GG_BORN_FULLXS_SAMPLING_20260918_1L_processed/bundle_metadata.json",
+      "role": "compiled_bundle_metadata_only",
+      "bytes": 20315,
+      "sha256": "cb586baebf38ea0507b50b0db53f9337dbbdbb456b235b74fc551428aff07e98"
+    },
+    {
+      "source_path": "outputs/ttbar_fullxs_sampling_20260918/cards/gg.toml",
+      "archive_path": "provenance/source_tree/outputs/ttbar_fullxs_sampling_20260918/cards/gg.toml",
+      "role": "sampling_campaign_input_card",
+      "bytes": 2332,
+      "sha256": "d91a7e9ddf9af11c1133e6ca0da2c33acddf02c2271ebcc07514a65ff813a524"
+    },
+    {
+      "source_path": "outputs/evaluators/tt~/TTBAR_GG_FULLXS_SAMPLING_20260918_2L_processed/bundle_metadata.json",
+      "archive_path": "provenance/source_tree/outputs/evaluators/tt~/TTBAR_GG_FULLXS_SAMPLING_20260918_2L_processed/bundle_metadata.json",
+      "role": "compiled_bundle_metadata_only",
+      "bytes": 1152067,
+      "sha256": "c56456077d962587048ff2b0ad1b18202736d399dda8a2386058ff20e743ff22"
+    },
+    {
+      "source_path": "outputs/ttbar_g_hybrid_s1000_200m_20260923/final_results.json",
+      "archive_path": "ttbar_hadronic/s1000/g_hybrid_200m/final_results.json",
+      "role": "unmodified_campaign_result",
+      "bytes": 3629576,
+      "sha256": "74dfbbd1ce34f3106b5d97539f29678b8ce46839e1c2713a0772a536cb0548e5"
+    },
+    {
+      "source_path": "outputs/ttbar_g_hybrid_s1000_200m_20260923/manifest.json",
+      "archive_path": "ttbar_hadronic/s1000/g_hybrid_200m/provenance/manifest.json",
+      "role": "unmodified_campaign_metadata",
+      "bytes": 1371029,
+      "sha256": "819fd67d82ba422fdccb79afd674e6b3f5871613467e7029cb98d52297f835d1"
+    },
+    {
+      "source_path": "outputs/ttbar_g_hybrid_s1000_200m_20260923/campaign.log",
+      "archive_path": "ttbar_hadronic/s1000/g_hybrid_200m/run.log",
+      "role": "run_log",
+      "bytes": 281394,
+      "sha256": "913eac5b5983c27827eb14a038a5b9f08002a61975d4866ccb1dfbe916b5add7"
+    },
+    {
+      "source_path": "outputs/ttbar_g_hybrid_s1000_200m_20260923/runtime_provenance.json",
+      "archive_path": "ttbar_hadronic/s1000/g_hybrid_200m/provenance/runtime_provenance.json",
+      "role": "unmodified_campaign_metadata",
+      "bytes": 23495,
+      "sha256": "df85af5d9adf2662c10e19ae000da95af27b108e9a3b6a8d12ccafc8b15c4a35"
+    },
+    {
+      "source_path": "outputs/ttbar_g_hybrid_s1000_200m_20260923/source_hashes_before.json",
+      "archive_path": "ttbar_hadronic/s1000/g_hybrid_200m/provenance/source_hashes_before.json",
+      "role": "unmodified_campaign_metadata",
+      "bytes": 21618,
+      "sha256": "9c3156757c6f8accb75c8165d72b421bf073bdd0c810d95949e2f8b01b091317"
+    },
+    {
+      "source_path": "outputs/ttbar_g_hybrid_s1000_200m_20260923/mg5_benchmark.json",
+      "archive_path": "ttbar_hadronic/s1000/g_hybrid_200m/provenance/mg5_benchmark.json",
+      "role": "unmodified_campaign_metadata",
+      "bytes": 2387,
+      "sha256": "62e1fa6a135330881a871dc70d836768a8a07f63629ef0e9d810a87199801e1b"
+    },
+    {
+      "source_path": "outputs/ttbar_g_hybrid_s1000_200m_20260923/auxiliary.json",
+      "archive_path": "ttbar_hadronic/s1000/g_hybrid_200m/provenance/auxiliary.json",
+      "role": "unmodified_campaign_metadata",
+      "bytes": 12098,
+      "sha256": "1cdd20159776170a4c4fb789ec7c12af0115aa0e535c1a01b975c06977480936"
+    },
+    {
+      "source_path": "outputs/ttbar_g_hybrid_s1000_200m_20260923/setup_checks.json",
+      "archive_path": "ttbar_hadronic/s1000/g_hybrid_200m/provenance/setup_checks.json",
+      "role": "unmodified_campaign_metadata",
+      "bytes": 1997,
+      "sha256": "3c259fd9e5084025f7a0240d1ae820bd692e50e181af52ec7766093be2b881e5"
+    },
+    {
+      "source_path": "outputs/ttbar_g_hybrid_s1000_200m_20260923/startup_checks.json",
+      "archive_path": "ttbar_hadronic/s1000/g_hybrid_200m/provenance/startup_checks.json",
+      "role": "unmodified_campaign_metadata",
+      "bytes": 302,
+      "sha256": "6f5300d39a5f6cfb69c347587ec2b86ca89e9b5de2a26ba7ed24f400489313f6"
+    },
+    {
+      "source_path": "outputs/ttbar_g_hybrid_s1000_200m_20260923/physics_parameters.json",
+      "archive_path": "ttbar_hadronic/s1000/g_hybrid_200m/provenance/physics_parameters.json",
+      "role": "unmodified_campaign_metadata",
+      "bytes": 537,
+      "sha256": "c95ed23f75d9e2313c090731631a338c41ffb385596d9d622a6ecc73bf9ddf76"
+    },
+    {
+      "source_path": "outputs/ttbar_g_hybrid_s1000_200m_20260923/replay_issues.json",
+      "archive_path": "ttbar_hadronic/s1000/g_hybrid_200m/provenance/replay_issues.json",
+      "role": "unmodified_campaign_metadata",
+      "bytes": 5528,
+      "sha256": "9d6851850f49878802fbf95b712030e6beb7ddf2de190e851408a58b2ac4ab9e"
+    },
+    {
+      "source_path": "outputs/ttbar_g_hybrid_s1000_200m_20260923/auxiliary_power20.json",
+      "archive_path": "ttbar_hadronic/s1000/g_hybrid_200m/provenance/auxiliary_power20.json",
+      "role": "unmodified_campaign_metadata",
+      "bytes": 12101,
+      "sha256": "de46719e137b9f8a09ed8cb21131c34fe19bca3c383925415a18516c8cc15a6d"
+    },
+    {
+      "source_path": "outputs/ttbar_g_hybrid_s1000_200m_20260923/auxiliary_power21.json",
+      "archive_path": "ttbar_hadronic/s1000/g_hybrid_200m/provenance/auxiliary_power21.json",
+      "role": "unmodified_campaign_metadata",
+      "bytes": 12129,
+      "sha256": "cd3fc17d4b5f35399bc6735aa50dd6a72f06ff3e735813d8a850ab0e7ffdd3e6"
+    },
+    {
+      "source_path": "outputs/ttbar_g_hybrid_s1000_200m_20260923/auxiliary_power22.json",
+      "archive_path": "ttbar_hadronic/s1000/g_hybrid_200m/provenance/auxiliary_power22.json",
+      "role": "unmodified_campaign_metadata",
+      "bytes": 12106,
+      "sha256": "a06850bec32e3421aeaea478304a5e37ea7d6c8a63f33d02b170414d786df535"
+    },
+    {
+      "source_path": "outputs/ttbar_g_hybrid_s1000_200m_20260923/auxiliary_power23.json",
+      "archive_path": "ttbar_hadronic/s1000/g_hybrid_200m/provenance/auxiliary_power23.json",
+      "role": "unmodified_campaign_metadata",
+      "bytes": 12098,
+      "sha256": "1cdd20159776170a4c4fb789ec7c12af0115aa0e535c1a01b975c06977480936"
+    },
+    {
+      "source_path": "outputs/ttbar_g_hybrid_s1000_200m_20260923/archive_index.json",
+      "archive_path": "ttbar_hadronic/s1000/g_hybrid_200m/provenance/source_archive_index.json",
+      "role": "original_campaign_file_inventory",
+      "bytes": 147339,
+      "sha256": "412fdd14e5939890b1fea06c23bf5c3b5d02b673debaafee1c3149182a9a7436"
+    },
+    {
+      "source_path": "outputs/ttbar_g_hybrid_s1000_200m_20260923/effective_cards/qqbar.json",
+      "archive_path": "ttbar_hadronic/s1000/g_hybrid_200m/provenance/effective_cards/qqbar.json",
+      "role": "saved_effective_card_values",
+      "bytes": 4665,
+      "sha256": "f8920dae20a2937501544df0adbaf9ec93ffbc1564627ee6edc9c73f9bde90d9"
+    },
+    {
+      "source_path": "outputs/ttbar_g_hybrid_s1000_200m_20260923/effective_cards/qg.json",
+      "archive_path": "ttbar_hadronic/s1000/g_hybrid_200m/provenance/effective_cards/qg.json",
+      "role": "saved_effective_card_values",
+      "bytes": 4636,
+      "sha256": "9ddbf6cd29596dacebf735a8e230a5cd6ed4cc179f03580f1ef45787641fd82b"
+    },
+    {
+      "source_path": "outputs/ttbar_g_hybrid_s1000_200m_20260923/effective_cards/gg.json",
+      "archive_path": "ttbar_hadronic/s1000/g_hybrid_200m/provenance/effective_cards/gg.json",
+      "role": "saved_effective_card_values",
+      "bytes": 4734,
+      "sha256": "0d25c698f7dcb354f484e2624f5d3400e193197196df816d2b1577f8a9277710"
+    },
+    {
+      "source_path": "outputs/ttbar_g_hybrid_200m_20260921/final_results.json",
+      "archive_path": "ttbar_hadronic/s1500/g_hybrid_200m/final_results.json",
+      "role": "unmodified_campaign_result",
+      "bytes": 3608962,
+      "sha256": "2db091d7fe73f4dfde2ca76ca5445ef96479d660866429717f20c536a9183d0a"
+    },
+    {
+      "source_path": "outputs/ttbar_g_hybrid_200m_20260921/manifest.json",
+      "archive_path": "ttbar_hadronic/s1500/g_hybrid_200m/provenance/manifest.json",
+      "role": "unmodified_campaign_metadata",
+      "bytes": 1357893,
+      "sha256": "e0c2dd4640c019acc18f575332d029a16de1a36c3b4bab96e438ccc9cc7c78d0"
+    },
+    {
+      "source_path": "outputs/ttbar_g_hybrid_200m_20260921/campaign.log",
+      "archive_path": "ttbar_hadronic/s1500/g_hybrid_200m/run.log",
+      "role": "run_log",
+      "bytes": 483077,
+      "sha256": "f7846209d1df51c33bebd6827e7309e3b3e64ae75caed66b8f103054367efddd"
+    },
+    {
+      "source_path": "outputs/ttbar_g_hybrid_200m_20260921/runtime_provenance.json",
+      "archive_path": "ttbar_hadronic/s1500/g_hybrid_200m/provenance/runtime_provenance.json",
+      "role": "unmodified_campaign_metadata",
+      "bytes": 22396,
+      "sha256": "8a879823da40078bf732952dc23786165ea849797b9281e901495e044f758b2a"
+    },
+    {
+      "source_path": "outputs/ttbar_g_hybrid_200m_20260921/source_hashes_before.json",
+      "archive_path": "ttbar_hadronic/s1500/g_hybrid_200m/provenance/source_hashes_before.json",
+      "role": "unmodified_campaign_metadata",
+      "bytes": 21618,
+      "sha256": "9c3156757c6f8accb75c8165d72b421bf073bdd0c810d95949e2f8b01b091317"
+    },
+    {
+      "source_path": "outputs/ttbar_g_hybrid_200m_20260921/mg5_benchmark.json",
+      "archive_path": "ttbar_hadronic/s1500/g_hybrid_200m/provenance/mg5_benchmark.json",
+      "role": "unmodified_campaign_metadata",
+      "bytes": 863,
+      "sha256": "137b465944c7cde57e582e81c720732634996d09c9a2cf96c36a0a9f609f4947"
+    },
+    {
+      "source_path": "outputs/ttbar_g_hybrid_200m_20260921/auxiliary.json",
+      "archive_path": "ttbar_hadronic/s1500/g_hybrid_200m/provenance/auxiliary.json",
+      "role": "unmodified_campaign_metadata",
+      "bytes": 12114,
+      "sha256": "76ee6cffcbe393398dc43e45e9dc52e35e10e2b874a6568188a5b042ad302d64"
+    },
+    {
+      "source_path": "outputs/ttbar_g_hybrid_200m_20260921/setup_checks.json",
+      "archive_path": "ttbar_hadronic/s1500/g_hybrid_200m/provenance/setup_checks.json",
+      "role": "unmodified_campaign_metadata",
+      "bytes": 1997,
+      "sha256": "3c259fd9e5084025f7a0240d1ae820bd692e50e181af52ec7766093be2b881e5"
+    },
+    {
+      "source_path": "outputs/ttbar_g_hybrid_200m_20260921/startup_checks.json",
+      "archive_path": "ttbar_hadronic/s1500/g_hybrid_200m/provenance/startup_checks.json",
+      "role": "unmodified_campaign_metadata",
+      "bytes": 9049,
+      "sha256": "95c90c84c479ffdd8a17e61930f32f81bf4dd102243edf2bd423499654240d63"
+    },
+    {
+      "source_path": "outputs/ttbar_g_hybrid_200m_20260921/auxiliary_power21.json",
+      "archive_path": "ttbar_hadronic/s1500/g_hybrid_200m/provenance/auxiliary_power21.json",
+      "role": "unmodified_campaign_metadata",
+      "bytes": 12080,
+      "sha256": "002cc9549272ffa49f81f39531a9fc5952ab74f0550259ccf2c8dcc5293b432c"
+    },
+    {
+      "source_path": "outputs/ttbar_g_hybrid_200m_20260921/auxiliary_power22.json",
+      "archive_path": "ttbar_hadronic/s1500/g_hybrid_200m/provenance/auxiliary_power22.json",
+      "role": "unmodified_campaign_metadata",
+      "bytes": 12088,
+      "sha256": "d37004d951227f83346b22ac10fcd6b6a138fed88e235f96b0f2109f1ceec7c3"
+    },
+    {
+      "source_path": "outputs/ttbar_g_hybrid_200m_20260921/auxiliary_power23.json",
+      "archive_path": "ttbar_hadronic/s1500/g_hybrid_200m/provenance/auxiliary_power23.json",
+      "role": "unmodified_campaign_metadata",
+      "bytes": 12114,
+      "sha256": "76ee6cffcbe393398dc43e45e9dc52e35e10e2b874a6568188a5b042ad302d64"
+    },
+    {
+      "source_path": "outputs/ttbar_g_hybrid_200m_20260921/archive_index.json",
+      "archive_path": "ttbar_hadronic/s1500/g_hybrid_200m/provenance/source_archive_index.json",
+      "role": "original_campaign_file_inventory",
+      "bytes": 146246,
+      "sha256": "ccb873b68d2b658a3e4659a0a98462bdb36423a5befb9889a846e26ff2b4a826"
+    },
+    {
+      "source_path": "outputs/ttbar_g_hybrid_s2000_200m_20260922/final_results.json",
+      "archive_path": "ttbar_hadronic/s2000/g_hybrid_200m/final_results.json",
+      "role": "unmodified_campaign_result",
+      "bytes": 3598332,
+      "sha256": "c28d12f08550ca6271faf8b08c578422074dd97e3231c71b831e44030a176400"
+    },
+    {
+      "source_path": "outputs/ttbar_g_hybrid_s2000_200m_20260922/manifest.json",
+      "archive_path": "ttbar_hadronic/s2000/g_hybrid_200m/provenance/manifest.json",
+      "role": "unmodified_campaign_metadata",
+      "bytes": 1360509,
+      "sha256": "ad5bfc6218ff6f944fb89c1daaddeeecf982453e3b2cef87fb1410e6effc2fec"
+    },
+    {
+      "source_path": "outputs/ttbar_g_hybrid_s2000_200m_20260922/campaign.log",
+      "archive_path": "ttbar_hadronic/s2000/g_hybrid_200m/run.log",
+      "role": "run_log",
+      "bytes": 601888,
+      "sha256": "252d048c3dd150bd94bd7b6c20aa3b9f63e665024d2d7931731a99fa1b99e37b"
+    },
+    {
+      "source_path": "outputs/ttbar_g_hybrid_s2000_200m_20260922/runtime_provenance.json",
+      "archive_path": "ttbar_hadronic/s2000/g_hybrid_200m/provenance/runtime_provenance.json",
+      "role": "unmodified_campaign_metadata",
+      "bytes": 23133,
+      "sha256": "480861eeb584a6b9a0bf9de3f29cac867851d0173ba47a57a502def163f6b956"
+    },
+    {
+      "source_path": "outputs/ttbar_g_hybrid_s2000_200m_20260922/source_hashes_before.json",
+      "archive_path": "ttbar_hadronic/s2000/g_hybrid_200m/provenance/source_hashes_before.json",
+      "role": "unmodified_campaign_metadata",
+      "bytes": 21618,
+      "sha256": "9c3156757c6f8accb75c8165d72b421bf073bdd0c810d95949e2f8b01b091317"
+    },
+    {
+      "source_path": "outputs/ttbar_g_hybrid_s2000_200m_20260922/mg5_benchmark.json",
+      "archive_path": "ttbar_hadronic/s2000/g_hybrid_200m/provenance/mg5_benchmark.json",
+      "role": "unmodified_campaign_metadata",
+      "bytes": 2368,
+      "sha256": "7c112ab20704b8ec0ca9aa266561f17fd20d9442cb68273bdfb553a5cbbd9206"
+    },
+    {
+      "source_path": "outputs/ttbar_g_hybrid_s2000_200m_20260922/auxiliary.json",
+      "archive_path": "ttbar_hadronic/s2000/g_hybrid_200m/provenance/auxiliary.json",
+      "role": "unmodified_campaign_metadata",
+      "bytes": 12111,
+      "sha256": "9df979acb92a0158e9655b6c051707ce01fbd690686b778d19b27368fc06b06d"
+    },
+    {
+      "source_path": "outputs/ttbar_g_hybrid_s2000_200m_20260922/setup_checks.json",
+      "archive_path": "ttbar_hadronic/s2000/g_hybrid_200m/provenance/setup_checks.json",
+      "role": "unmodified_campaign_metadata",
+      "bytes": 1997,
+      "sha256": "3c259fd9e5084025f7a0240d1ae820bd692e50e181af52ec7766093be2b881e5"
+    },
+    {
+      "source_path": "outputs/ttbar_g_hybrid_s2000_200m_20260922/startup_checks.json",
+      "archive_path": "ttbar_hadronic/s2000/g_hybrid_200m/provenance/startup_checks.json",
+      "role": "unmodified_campaign_metadata",
+      "bytes": 303,
+      "sha256": "87a49cfd748dd24d29cd04ab4ee8a5b399a32db7f193bbebaaa27c05bff3e312"
+    },
+    {
+      "source_path": "outputs/ttbar_g_hybrid_s2000_200m_20260922/physics_parameters.json",
+      "archive_path": "ttbar_hadronic/s2000/g_hybrid_200m/provenance/physics_parameters.json",
+      "role": "unmodified_campaign_metadata",
+      "bytes": 538,
+      "sha256": "1b0433db5ac4f1488e8c3d4d13a2297061e3456fc091fe4a70100969f7befa20"
+    },
+    {
+      "source_path": "outputs/ttbar_g_hybrid_s2000_200m_20260922/auxiliary_power20.json",
+      "archive_path": "ttbar_hadronic/s2000/g_hybrid_200m/provenance/auxiliary_power20.json",
+      "role": "unmodified_campaign_metadata",
+      "bytes": 12077,
+      "sha256": "2172b59521812e5a42694f3379a80cafa12c4827fa008c5d67bc3751d261cf05"
+    },
+    {
+      "source_path": "outputs/ttbar_g_hybrid_s2000_200m_20260922/auxiliary_power21.json",
+      "archive_path": "ttbar_hadronic/s2000/g_hybrid_200m/provenance/auxiliary_power21.json",
+      "role": "unmodified_campaign_metadata",
+      "bytes": 12101,
+      "sha256": "7e51035d421f1fcf3a1bf52498a3608d70984bc09c84ebf89f4d5f38c7dbbb2a"
+    },
+    {
+      "source_path": "outputs/ttbar_g_hybrid_s2000_200m_20260922/auxiliary_power22.json",
+      "archive_path": "ttbar_hadronic/s2000/g_hybrid_200m/provenance/auxiliary_power22.json",
+      "role": "unmodified_campaign_metadata",
+      "bytes": 12113,
+      "sha256": "37b2b515941c340df5273b19d9515c5e3c9c4b8fa30ecb2a29ff166f9d38660b"
+    },
+    {
+      "source_path": "outputs/ttbar_g_hybrid_s2000_200m_20260922/auxiliary_power23.json",
+      "archive_path": "ttbar_hadronic/s2000/g_hybrid_200m/provenance/auxiliary_power23.json",
+      "role": "unmodified_campaign_metadata",
+      "bytes": 12111,
+      "sha256": "9df979acb92a0158e9655b6c051707ce01fbd690686b778d19b27368fc06b06d"
+    },
+    {
+      "source_path": "outputs/ttbar_g_hybrid_s2000_200m_20260922/archive_index.json",
+      "archive_path": "ttbar_hadronic/s2000/g_hybrid_200m/provenance/source_archive_index.json",
+      "role": "original_campaign_file_inventory",
+      "bytes": 147359,
+      "sha256": "cae5c061aa71247de087405c5b3a2c81fc570dceac1f7744378003f659589636"
+    },
+    {
+      "source_path": "outputs/ttbar_g_hybrid_s2000_200m_20260922/effective_cards/qqbar.json",
+      "archive_path": "ttbar_hadronic/s2000/g_hybrid_200m/provenance/effective_cards/qqbar.json",
+      "role": "saved_effective_card_values",
+      "bytes": 4677,
+      "sha256": "d866f21c4fd6168fa02e65adc9ec6b689792f5d6a90360832b20a8ba4c1ddc94"
+    },
+    {
+      "source_path": "outputs/ttbar_g_hybrid_s2000_200m_20260922/effective_cards/qg.json",
+      "archive_path": "ttbar_hadronic/s2000/g_hybrid_200m/provenance/effective_cards/qg.json",
+      "role": "saved_effective_card_values",
+      "bytes": 4648,
+      "sha256": "f34ba2373b24c1b266a3fdad8cf679f79d1e28be6dd7bdb623024ec0e197cdd9"
+    },
+    {
+      "source_path": "outputs/ttbar_g_hybrid_s2000_200m_20260922/effective_cards/gg.json",
+      "archive_path": "ttbar_hadronic/s2000/g_hybrid_200m/provenance/effective_cards/gg.json",
+      "role": "saved_effective_card_values",
+      "bytes": 4746,
+      "sha256": "15034d2282f814baf728107c38d096c4efeffe03e1792d144e19fbcc440f7978"
     }
   ],
   "created_utc": "2026-09-21T21:23:17.647636+00:00",
   "generated_files": [
     {
       "archive_path": "README.md",
-      "bytes": 5713,
+      "bytes": 9678,
       "role": "documentation",
-      "sha256": "789f21834b8321847122668895f5c91762e5504925279cc219e567c555739c62"
+      "sha256": "d4d1e41421dc448442de91f35d4ddbbe63645d37624e53c3a4dd5b681f7c090e"
     },
     {
       "archive_path": "drell_yan/combined.json",
@@ -1123,15 +1529,21 @@
     },
     {
       "archive_path": "provenance/bundles_index.json",
-      "bytes": 13742,
+      "bytes": 17595,
       "role": "bundle_inventory",
-      "sha256": "2c2142e717888f6f1cb5650915e594cf6ddaa2f98315264a1328599209784774"
+      "sha256": "43c8a0f80f840dae17e09a2f536c59c9204a662bac44702033ab35d6b37c2740"
     },
     {
       "archive_path": "provenance/cards_index.json",
-      "bytes": 19795,
+      "bytes": 21238,
       "role": "input_card_inventory",
-      "sha256": "af47c848766ae545f2a74d56789192ed39150e7112fd43cc02348ad97ad7756c"
+      "sha256": "e540c66876a62f5f6ead7f393ebc9250aec555e9fac8eec181489d8c0488de5f"
+    },
+    {
+      "archive_path": "provenance/g_hybrid_200m_addition_20260924.json",
+      "role": "derived_metadata",
+      "bytes": 3636,
+      "sha256": "fa520622572885d8e05569c7fef28eca0a482c9f9759d5a7f79cc45dff81fb7c"
     },
     {
       "archive_path": "provenance/partonic_value_audit.json",
@@ -1171,9 +1583,51 @@
     },
     {
       "archive_path": "results.json",
-      "bytes": 12476,
+      "bytes": 21341,
       "role": "final_results_index",
-      "sha256": "13e83348297ca632e6ec4c2cb30c3f149b137e7c847738518953615b90c469b9"
+      "sha256": "ed8516a4cd216b89dc3c5a8866f88a211ed12e50a10614f1984f4a47d92c9767"
+    },
+    {
+      "archive_path": "ttbar_hadronic/s1000/g_hybrid_200m/effective_settings.json",
+      "role": "derived_metadata",
+      "bytes": 16517,
+      "sha256": "0fc2d217a43d06ce96e424cd51902ef550dab2e48d870385850e6b85d823c7e4"
+    },
+    {
+      "archive_path": "ttbar_hadronic/s1000/g_hybrid_200m/metadata.json",
+      "role": "derived_metadata",
+      "bytes": 97447,
+      "sha256": "a6d4b32b3d8a969027dd02a75e51972806f7045803700479a0a4c398f785410f"
+    },
+    {
+      "archive_path": "ttbar_hadronic/s1000/g_hybrid_200m/numerical_validation.json",
+      "role": "derived_metadata",
+      "bytes": 1798,
+      "sha256": "3421f759720d3163b0bb90cadf0ab7452b5ae69e7b7ab991df432cd2a2c0d4fa"
+    },
+    {
+      "archive_path": "ttbar_hadronic/s1000/g_hybrid_200m/replica_01/metadata.json",
+      "role": "derived_metadata",
+      "bytes": 95985,
+      "sha256": "8ab06f34e8bcd6575640fd27c275886f06e2b0966f71a6cc5e9ab16c19d9dbc4"
+    },
+    {
+      "archive_path": "ttbar_hadronic/s1000/g_hybrid_200m/replica_02/metadata.json",
+      "role": "derived_metadata",
+      "bytes": 96013,
+      "sha256": "a63d976782a1291b01effa2aff32cd4b0e14e1c3809b5e93dbc8a2d65f6d843f"
+    },
+    {
+      "archive_path": "ttbar_hadronic/s1000/g_hybrid_200m/replica_03/metadata.json",
+      "role": "derived_metadata",
+      "bytes": 96024,
+      "sha256": "70c48c7aba435bfef1e7f3103941fd1b58f98db07858eb8fdbb9e246618fa085"
+    },
+    {
+      "archive_path": "ttbar_hadronic/s1000/g_hybrid_200m/replica_04/metadata.json",
+      "role": "derived_metadata",
+      "bytes": 96037,
+      "sha256": "0cda78bc658d152e2a8ca4bbc816e565bfadc0d44c7ebcdb2a1626eba4ffd327"
     },
     {
       "archive_path": "ttbar_hadronic/s1000/metadata.json",
@@ -1182,10 +1636,94 @@
       "sha256": "3a3adf496502b66a6029b42d648df17f393c8e61f2dcbe87fec95610553fe0f9"
     },
     {
+      "archive_path": "ttbar_hadronic/s1500/g_hybrid_200m/effective_settings.json",
+      "role": "derived_metadata",
+      "bytes": 16754,
+      "sha256": "277a8a70a339a3e6986dd9074fa06aa3635366f98f01c76d50ad5baa88e953bf"
+    },
+    {
+      "archive_path": "ttbar_hadronic/s1500/g_hybrid_200m/metadata.json",
+      "role": "derived_metadata",
+      "bytes": 96393,
+      "sha256": "a9b4da3bd32fc1fd5a3a821da41ca692b7295aa2d11144da604a232b4b9c59e7"
+    },
+    {
+      "archive_path": "ttbar_hadronic/s1500/g_hybrid_200m/numerical_validation.json",
+      "role": "derived_metadata",
+      "bytes": 1084,
+      "sha256": "e3b078df47beef2bcdce6ecf8e66a81c88d351c09eee64a34b617284f6466347"
+    },
+    {
+      "archive_path": "ttbar_hadronic/s1500/g_hybrid_200m/replica_01/metadata.json",
+      "role": "derived_metadata",
+      "bytes": 96013,
+      "sha256": "e846b2bbd9ff69cad160539252ac78bf082d6df93af265a8308716c20ada8852"
+    },
+    {
+      "archive_path": "ttbar_hadronic/s1500/g_hybrid_200m/replica_02/metadata.json",
+      "role": "derived_metadata",
+      "bytes": 96020,
+      "sha256": "dc3e3d79cbc14c22b5a6436b5f6b614d9261c615a8e14cefb39baa4f75cd8786"
+    },
+    {
+      "archive_path": "ttbar_hadronic/s1500/g_hybrid_200m/replica_03/metadata.json",
+      "role": "derived_metadata",
+      "bytes": 96014,
+      "sha256": "402e01d06226e0da52a0a1049afed7841b5e90e0065483e2e4294b736f367856"
+    },
+    {
+      "archive_path": "ttbar_hadronic/s1500/g_hybrid_200m/replica_04/metadata.json",
+      "role": "derived_metadata",
+      "bytes": 96009,
+      "sha256": "54a750332e1fc13fd0588e08e523e48dc956e369856d839747bac0e17a3a6e56"
+    },
+    {
       "archive_path": "ttbar_hadronic/s1500/metadata.json",
       "bytes": 14834,
       "role": "derived_metadata",
       "sha256": "83ebbecc058fd23976c0142ab9b98c8e38ce1bd080dd43e3f90cb79dc4b97b32"
+    },
+    {
+      "archive_path": "ttbar_hadronic/s2000/g_hybrid_200m/effective_settings.json",
+      "role": "derived_metadata",
+      "bytes": 16535,
+      "sha256": "331794256477cf5be5fabc2c13ab7585df9519bfa82f29f57e20d26e796819e8"
+    },
+    {
+      "archive_path": "ttbar_hadronic/s2000/g_hybrid_200m/metadata.json",
+      "role": "derived_metadata",
+      "bytes": 96206,
+      "sha256": "b8b921cd41c006cca9276b5d795b6321611b96859d05349ccdc06bb7a16f3342"
+    },
+    {
+      "archive_path": "ttbar_hadronic/s2000/g_hybrid_200m/numerical_validation.json",
+      "role": "derived_metadata",
+      "bytes": 1085,
+      "sha256": "cef4c686a3f9583454f42efca137a2a94cdb36eb155ad927008ac365b3cc4a2d"
+    },
+    {
+      "archive_path": "ttbar_hadronic/s2000/g_hybrid_200m/replica_01/metadata.json",
+      "role": "derived_metadata",
+      "bytes": 95656,
+      "sha256": "85c0a994f9dbe7bc37c8a908ce4e76b7f6b47101d8dedc1308f27a643563991d"
+    },
+    {
+      "archive_path": "ttbar_hadronic/s2000/g_hybrid_200m/replica_02/metadata.json",
+      "role": "derived_metadata",
+      "bytes": 95624,
+      "sha256": "59af298f1cf1188d89124aeb358a3763d81dbc56524117d29a428acd1c8d5003"
+    },
+    {
+      "archive_path": "ttbar_hadronic/s2000/g_hybrid_200m/replica_03/metadata.json",
+      "role": "derived_metadata",
+      "bytes": 95620,
+      "sha256": "0e5148a353964d3e73eb026c326004f0b5e9b99459a9379eae7fd7ab1a7fc649"
+    },
+    {
+      "archive_path": "ttbar_hadronic/s2000/g_hybrid_200m/replica_04/metadata.json",
+      "role": "derived_metadata",
+      "bytes": 95621,
+      "sha256": "d1941f10fd542942dedc64e91ceb01dfc266bed7d0ed122a464fd10d50d2cc24"
     },
     {
       "archive_path": "ttbar_hadronic/s2000/metadata.json",
@@ -1278,11 +1816,27 @@
       "sha256": "09b959a35e18ee8549709965718791b5eaaa1f96caf003021a854ff6408e65cc"
     }
   ],
-  "individual_runs": 22,
-  "last_updated_utc": "2026-09-21T21:33:04.899106+00:00",
-  "optional_metadata_unavailable": [],
-  "production_points": 4325165824,
-  "reported_results": 14,
+  "individual_runs": 34,
+  "last_updated_utc": "2026-09-24T08:43:06.061911+00:00",
+  "optional_metadata_unavailable": [
+    {
+      "scope": "1500 GeV G-hybrid",
+      "item": "Separate as-run effective-card snapshot",
+      "treatment": "Source cards plus verified campaign overrides are explicitly labelled as reconstructed effective settings."
+    },
+    {
+      "scope": "All three G-hybrid campaigns",
+      "item": "Separate as-run bundle-metadata byte digests",
+      "treatment": "Bundle identity, current metadata SHA256 and generation fingerprint are preserved; no unavailable as-run fingerprint match is asserted."
+    },
+    {
+      "scope": "All three G-hybrid campaigns",
+      "item": "Standalone source files for the RAM-only G-hybrid implementation",
+      "treatment": "Recorded runtime fragment/source digests and algorithm settings are preserved; executable evaluators and frozen grids are referenced, not copied."
+    }
+  ],
+  "production_points": 4925165824,
+  "reported_results": 17,
   "runs": [
     {
       "id": "dy_s1000_replica_00",
@@ -1393,6 +1947,78 @@
       "id": "ttbar_hadronic_s2000",
       "metadata_file": "ttbar_hadronic/s2000/metadata.json",
       "source_result": "outputs/ttbar_dy_msbar_scan_20260901/ttbar_floor075_batch512_muvsqmursq_1b/results/s2000/combined.json"
+    },
+    {
+      "id": "ttbar_hadronic_s1000_g_hybrid_200m_replica_01",
+      "metadata_file": "ttbar_hadronic/s1000/g_hybrid_200m/replica_01/metadata.json",
+      "source_result": "outputs/ttbar_g_hybrid_s1000_200m_20260923/final_results.json",
+      "source_result_locator": "/configurations/G_hybrid/replicas/0"
+    },
+    {
+      "id": "ttbar_hadronic_s1000_g_hybrid_200m_replica_02",
+      "metadata_file": "ttbar_hadronic/s1000/g_hybrid_200m/replica_02/metadata.json",
+      "source_result": "outputs/ttbar_g_hybrid_s1000_200m_20260923/final_results.json",
+      "source_result_locator": "/configurations/G_hybrid/replicas/1"
+    },
+    {
+      "id": "ttbar_hadronic_s1000_g_hybrid_200m_replica_03",
+      "metadata_file": "ttbar_hadronic/s1000/g_hybrid_200m/replica_03/metadata.json",
+      "source_result": "outputs/ttbar_g_hybrid_s1000_200m_20260923/final_results.json",
+      "source_result_locator": "/configurations/G_hybrid/replicas/2"
+    },
+    {
+      "id": "ttbar_hadronic_s1000_g_hybrid_200m_replica_04",
+      "metadata_file": "ttbar_hadronic/s1000/g_hybrid_200m/replica_04/metadata.json",
+      "source_result": "outputs/ttbar_g_hybrid_s1000_200m_20260923/final_results.json",
+      "source_result_locator": "/configurations/G_hybrid/replicas/3"
+    },
+    {
+      "id": "ttbar_hadronic_s1500_g_hybrid_200m_replica_01",
+      "metadata_file": "ttbar_hadronic/s1500/g_hybrid_200m/replica_01/metadata.json",
+      "source_result": "outputs/ttbar_g_hybrid_200m_20260921/final_results.json",
+      "source_result_locator": "/configurations/G_hybrid/replicas/0"
+    },
+    {
+      "id": "ttbar_hadronic_s1500_g_hybrid_200m_replica_02",
+      "metadata_file": "ttbar_hadronic/s1500/g_hybrid_200m/replica_02/metadata.json",
+      "source_result": "outputs/ttbar_g_hybrid_200m_20260921/final_results.json",
+      "source_result_locator": "/configurations/G_hybrid/replicas/1"
+    },
+    {
+      "id": "ttbar_hadronic_s1500_g_hybrid_200m_replica_03",
+      "metadata_file": "ttbar_hadronic/s1500/g_hybrid_200m/replica_03/metadata.json",
+      "source_result": "outputs/ttbar_g_hybrid_200m_20260921/final_results.json",
+      "source_result_locator": "/configurations/G_hybrid/replicas/2"
+    },
+    {
+      "id": "ttbar_hadronic_s1500_g_hybrid_200m_replica_04",
+      "metadata_file": "ttbar_hadronic/s1500/g_hybrid_200m/replica_04/metadata.json",
+      "source_result": "outputs/ttbar_g_hybrid_200m_20260921/final_results.json",
+      "source_result_locator": "/configurations/G_hybrid/replicas/3"
+    },
+    {
+      "id": "ttbar_hadronic_s2000_g_hybrid_200m_replica_01",
+      "metadata_file": "ttbar_hadronic/s2000/g_hybrid_200m/replica_01/metadata.json",
+      "source_result": "outputs/ttbar_g_hybrid_s2000_200m_20260922/final_results.json",
+      "source_result_locator": "/configurations/G_hybrid/replicas/0"
+    },
+    {
+      "id": "ttbar_hadronic_s2000_g_hybrid_200m_replica_02",
+      "metadata_file": "ttbar_hadronic/s2000/g_hybrid_200m/replica_02/metadata.json",
+      "source_result": "outputs/ttbar_g_hybrid_s2000_200m_20260922/final_results.json",
+      "source_result_locator": "/configurations/G_hybrid/replicas/1"
+    },
+    {
+      "id": "ttbar_hadronic_s2000_g_hybrid_200m_replica_03",
+      "metadata_file": "ttbar_hadronic/s2000/g_hybrid_200m/replica_03/metadata.json",
+      "source_result": "outputs/ttbar_g_hybrid_s2000_200m_20260922/final_results.json",
+      "source_result_locator": "/configurations/G_hybrid/replicas/2"
+    },
+    {
+      "id": "ttbar_hadronic_s2000_g_hybrid_200m_replica_04",
+      "metadata_file": "ttbar_hadronic/s2000/g_hybrid_200m/replica_04/metadata.json",
+      "source_result": "outputs/ttbar_g_hybrid_s2000_200m_20260922/final_results.json",
+      "source_result_locator": "/configurations/G_hybrid/replicas/3"
     }
   ],
   "schema_version": 1,
@@ -1406,12 +2032,58 @@
   "validation": {
     "completed_sample_counts_verified": true,
     "historical_s2000_child_cards_recovered_by_exact_sha256": true,
-    "individual_run_count": 22,
+    "individual_run_count": 34,
     "partonic_final_values_and_unit_conversion_verified": true,
     "recorded_bundle_fingerprints_verified": true,
-    "reported_result_count": 14,
+    "reported_result_count": 17,
     "saved_gg_replica_combination_reproduced": true,
-    "source_card_hashes_verified": true
+    "source_card_hashes_verified": true,
+    "g_hybrid_source_archives_sha256_verified": true,
+    "g_hybrid_all_2400_production_and_36_learning_checkpoints_verified": true,
+    "g_hybrid_all_1380_normalized_graph_records_verified": true,
+    "g_hybrid_2436_unique_block_seeds_verified": true,
+    "g_hybrid_saved_pooled_estimators_reproduced": true,
+    "g_hybrid_auxiliary_uncertainty_counted_once": true,
+    "g_hybrid_mg5_pulls_verified": true,
+    "historical_run_payloads_and_result_entries_unchanged": true,
+    "g_hybrid_unresolved_replay_issue_preserved": true
   },
-  "warmup_or_learning_points": 42688128
+  "warmup_or_learning_points": 78688128,
+  "campaigns": [
+    {
+      "id": "ttbar_hadronic_s1000_g_hybrid_200m",
+      "metadata_file": "ttbar_hadronic/s1000/g_hybrid_200m/metadata.json",
+      "individual_runs": 4,
+      "production_points": 200000000,
+      "warmup_or_learning_points": 12000000
+    },
+    {
+      "id": "ttbar_hadronic_s1500_g_hybrid_200m",
+      "metadata_file": "ttbar_hadronic/s1500/g_hybrid_200m/metadata.json",
+      "individual_runs": 4,
+      "production_points": 200000000,
+      "warmup_or_learning_points": 12000000
+    },
+    {
+      "id": "ttbar_hadronic_s2000_g_hybrid_200m",
+      "metadata_file": "ttbar_hadronic/s2000/g_hybrid_200m/metadata.json",
+      "individual_runs": 4,
+      "production_points": 200000000,
+      "warmup_or_learning_points": 12000000
+    }
+  ],
+  "metadata_additions": [
+    {
+      "created_utc": "2026-09-24T08:35:01.580616+00:00",
+      "authorization": "User approved adding metadata for the three new 200M G-hybrid campaigns alongside historical results.",
+      "provenance_file": "provenance/g_hybrid_200m_addition_20260924.json",
+      "campaign_ids": [
+        "ttbar_hadronic_s1000_g_hybrid_200m",
+        "ttbar_hadronic_s1500_g_hybrid_200m",
+        "ttbar_hadronic_s2000_g_hybrid_200m"
+      ],
+      "added_individual_runs": 12,
+      "added_reported_results": 3
+    }
+  ]
 }

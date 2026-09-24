@@ -3,11 +3,11 @@
     "gev_minus2_to_pb": 389379660.0,
     "provenance": "Copied files remain unchanged; source paths inside them retain their original values.",
     "quantity": "Saved finite pure NLO contributions with run-configured scheme conversion and decoupling; LO is not added.",
-    "replica_combination": "Inverse-variance combination of independent run totals; DY is combined at the inclusive level.",
+    "replica_combination": "Method is specified per result: historical replica groups retain their inverse-variance combinations; G-hybrid campaigns retain saved pooled production moments and count the common auxiliary uncertainty once.",
     "sampling": "Logical production samples; warmup/learning and auxiliary work are recorded separately.",
-    "scope": "Only the 22 user-confirmed runs; original numerical treatment and final estimators are retained.",
+    "scope": "The 22 original user-confirmed runs plus 12 G-hybrid 50M replicas at 1000/1500/2000 GeV, reported as three additional 200M campaign results. Historical results remain separate.",
     "settings": "Saved effective settings take precedence; execution_overrides records actual command-line overrides.",
-    "timing": "Wall time and the saved accumulated worker elapsed_time field are kept distinct.",
+    "timing": "Historical accumulated worker elapsed_time is retained as recorded. New G-hybrid records distinguish measured evaluation CPU time, summed block wall time, and campaign elapsed wall time.",
     "unit_conversion_source": "Saved hadronic comparisons and examples/report_dy_histogram.py"
   },
   "results": [
@@ -331,6 +331,204 @@
       "process": "ttbar",
       "production_points": 1000000000,
       "sqrt_s_gev": 2000
+    },
+    {
+      "id": "ttbar_hadronic_s1000_g_hybrid_200m",
+      "process": "ttbar",
+      "collision": "hadronic",
+      "channel": "inclusive",
+      "sqrt_s_gev": 1000,
+      "n_runs": 4,
+      "estimate": {
+        "central_value_pb": 0.004407268149793526,
+        "error_pb": 2.9609802016042263e-05,
+        "central_value_gev_minus2": 1.1318691248005934e-11,
+        "error_gev_minus2": 7.604352527310303e-14
+      },
+      "metadata_file": "ttbar_hadronic/s1000/g_hybrid_200m/metadata.json",
+      "input_runs": [
+        {
+          "id": "ttbar_hadronic_s1000_g_hybrid_200m_replica_01",
+          "metadata_file": "ttbar_hadronic/s1000/g_hybrid_200m/replica_01/metadata.json",
+          "production_points": 50000000,
+          "weight": 0.25,
+          "central_value_pb": 0.004422834752971862,
+          "error_pb": 5.595904716478505e-05
+        },
+        {
+          "id": "ttbar_hadronic_s1000_g_hybrid_200m_replica_02",
+          "metadata_file": "ttbar_hadronic/s1000/g_hybrid_200m/replica_02/metadata.json",
+          "production_points": 50000000,
+          "weight": 0.25,
+          "central_value_pb": 0.004412760736635357,
+          "error_pb": 5.65782044723146e-05
+        },
+        {
+          "id": "ttbar_hadronic_s1000_g_hybrid_200m_replica_03",
+          "metadata_file": "ttbar_hadronic/s1000/g_hybrid_200m/replica_03/metadata.json",
+          "production_points": 50000000,
+          "weight": 0.25,
+          "central_value_pb": 0.004351841989746607,
+          "error_pb": 6.007483520921472e-05
+        },
+        {
+          "id": "ttbar_hadronic_s1000_g_hybrid_200m_replica_04",
+          "metadata_file": "ttbar_hadronic/s1000/g_hybrid_200m/replica_04/metadata.json",
+          "production_points": 50000000,
+          "weight": 0.25,
+          "central_value_pb": 0.00444163511982028,
+          "error_pb": 6.335020225160932e-05
+        }
+      ],
+      "method": "saved_pooled_production_moments_with_one_shared_auxiliary",
+      "formula": "N=sum_r N_r; hard=PB*sum_r S_r/N; variance_hard=PB^2*(sum_r Q_r-(sum_r S_r)^2/N)/(N*(N-1)); matched=hard+shared_auxiliary; variance_matched=variance_hard+variance_auxiliary",
+      "production_points": 200000000,
+      "warmup_or_learning_points": 12000000,
+      "benchmark": {
+        "central_value_pb": 0.0044288347,
+        "error_pb": 5.8161524e-06,
+        "central_value_gev_minus2": 1.1374078194017633e-11,
+        "error_gev_minus2": 1.4936970256741197e-14,
+        "name": "MG5",
+        "pull": 0.7147011613690638
+      },
+      "average_evaluation_cpu_ms_per_sample": 4.324556958530428,
+      "numerical_validation_status": "unresolved_replay_disagreement",
+      "numerical_validation_file": "ttbar_hadronic/s1000/g_hybrid_200m/numerical_validation.json",
+      "historical_results_replaced": false,
+      "summary_file": "ttbar_hadronic/s1000/g_hybrid_200m/metadata.json"
+    },
+    {
+      "id": "ttbar_hadronic_s1500_g_hybrid_200m",
+      "process": "ttbar",
+      "collision": "hadronic",
+      "channel": "inclusive",
+      "sqrt_s_gev": 1500,
+      "n_runs": 4,
+      "estimate": {
+        "central_value_pb": 0.060573927029586694,
+        "error_pb": 0.0005896118777303138,
+        "central_value_gev_minus2": 1.5556520602433803e-10,
+        "error_gev_minus2": 1.5142338912369325e-12
+      },
+      "metadata_file": "ttbar_hadronic/s1500/g_hybrid_200m/metadata.json",
+      "input_runs": [
+        {
+          "id": "ttbar_hadronic_s1500_g_hybrid_200m_replica_01",
+          "metadata_file": "ttbar_hadronic/s1500/g_hybrid_200m/replica_01/metadata.json",
+          "production_points": 50000000,
+          "weight": 0.25,
+          "central_value_pb": 0.06020673934038487,
+          "error_pb": 0.0012492802220668464
+        },
+        {
+          "id": "ttbar_hadronic_s1500_g_hybrid_200m_replica_02",
+          "metadata_file": "ttbar_hadronic/s1500/g_hybrid_200m/replica_02/metadata.json",
+          "production_points": 50000000,
+          "weight": 0.25,
+          "central_value_pb": 0.06037628125396276,
+          "error_pb": 0.0011608514352244327
+        },
+        {
+          "id": "ttbar_hadronic_s1500_g_hybrid_200m_replica_03",
+          "metadata_file": "ttbar_hadronic/s1500/g_hybrid_200m/replica_03/metadata.json",
+          "production_points": 50000000,
+          "weight": 0.25,
+          "central_value_pb": 0.06108712005776118,
+          "error_pb": 0.001173553502399455
+        },
+        {
+          "id": "ttbar_hadronic_s1500_g_hybrid_200m_replica_04",
+          "metadata_file": "ttbar_hadronic/s1500/g_hybrid_200m/replica_04/metadata.json",
+          "production_points": 50000000,
+          "weight": 0.25,
+          "central_value_pb": 0.060625567466238026,
+          "error_pb": 0.0011257557597893302
+        }
+      ],
+      "method": "saved_pooled_production_moments_with_one_shared_auxiliary",
+      "formula": "N=sum_r N_r; hard=PB*sum_r S_r/N; variance_hard=PB^2*(sum_r Q_r-(sum_r S_r)^2/N)/(N*(N-1)); matched=hard+shared_auxiliary; variance_matched=variance_hard+variance_auxiliary",
+      "production_points": 200000000,
+      "warmup_or_learning_points": 12000000,
+      "benchmark": {
+        "central_value_pb": 0.059993792,
+        "error_pb": 0.00010207104,
+        "central_value_gev_minus2": 1.540753104566376e-10,
+        "error_gev_minus2": 2.62137575445004e-13,
+        "name": "MG5",
+        "pull": 0.9695066306364395
+      },
+      "average_evaluation_cpu_ms_per_sample": 10.090211004583077,
+      "numerical_validation_status": "recorded_checks_passed",
+      "numerical_validation_file": "ttbar_hadronic/s1500/g_hybrid_200m/numerical_validation.json",
+      "historical_results_replaced": false,
+      "summary_file": "ttbar_hadronic/s1500/g_hybrid_200m/metadata.json"
+    },
+    {
+      "id": "ttbar_hadronic_s2000_g_hybrid_200m",
+      "process": "ttbar",
+      "collision": "hadronic",
+      "channel": "inclusive",
+      "sqrt_s_gev": 2000,
+      "n_runs": 4,
+      "estimate": {
+        "central_value_pb": 0.2539860452341158,
+        "error_pb": 0.003256484288429432,
+        "central_value_gev_minus2": 6.5228380248243e-10,
+        "error_gev_minus2": 8.363262447836726e-12
+      },
+      "metadata_file": "ttbar_hadronic/s2000/g_hybrid_200m/metadata.json",
+      "input_runs": [
+        {
+          "id": "ttbar_hadronic_s2000_g_hybrid_200m_replica_01",
+          "metadata_file": "ttbar_hadronic/s2000/g_hybrid_200m/replica_01/metadata.json",
+          "production_points": 50000000,
+          "weight": 0.25,
+          "central_value_pb": 0.256680760297103,
+          "error_pb": 0.0065913491670352145
+        },
+        {
+          "id": "ttbar_hadronic_s2000_g_hybrid_200m_replica_02",
+          "metadata_file": "ttbar_hadronic/s2000/g_hybrid_200m/replica_02/metadata.json",
+          "production_points": 50000000,
+          "weight": 0.25,
+          "central_value_pb": 0.248509783948551,
+          "error_pb": 0.006433370881556954
+        },
+        {
+          "id": "ttbar_hadronic_s2000_g_hybrid_200m_replica_03",
+          "metadata_file": "ttbar_hadronic/s2000/g_hybrid_200m/replica_03/metadata.json",
+          "production_points": 50000000,
+          "weight": 0.25,
+          "central_value_pb": 0.2504097493689052,
+          "error_pb": 0.006567002792908951
+        },
+        {
+          "id": "ttbar_hadronic_s2000_g_hybrid_200m_replica_04",
+          "metadata_file": "ttbar_hadronic/s2000/g_hybrid_200m/replica_04/metadata.json",
+          "production_points": 50000000,
+          "weight": 0.25,
+          "central_value_pb": 0.26034388732190383,
+          "error_pb": 0.006405140496086583
+        }
+      ],
+      "method": "saved_pooled_production_moments_with_one_shared_auxiliary",
+      "formula": "N=sum_r N_r; hard=PB*sum_r S_r/N; variance_hard=PB^2*(sum_r Q_r-(sum_r S_r)^2/N)/(N*(N-1)); matched=hard+shared_auxiliary; variance_matched=variance_hard+variance_auxiliary",
+      "production_points": 200000000,
+      "warmup_or_learning_points": 12000000,
+      "benchmark": {
+        "central_value_pb": 0.25238927,
+        "error_pb": 0.00050438876,
+        "central_value_gev_minus2": 6.48182984185666e-10,
+        "error_gev_minus2": 1.2953649402231233e-12,
+        "name": "MG5",
+        "pull": 0.4845592774026747
+      },
+      "average_evaluation_cpu_ms_per_sample": 21.67418079220346,
+      "numerical_validation_status": "recorded_checks_passed",
+      "numerical_validation_file": "ttbar_hadronic/s2000/g_hybrid_200m/numerical_validation.json",
+      "historical_results_replaced": false,
+      "summary_file": "ttbar_hadronic/s2000/g_hybrid_200m/metadata.json"
     }
   ],
   "schema_version": 1

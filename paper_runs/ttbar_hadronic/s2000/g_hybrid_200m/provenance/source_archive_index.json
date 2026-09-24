@@ -1,0 +1,4226 @@
+{
+  "archived_utc": "2026-09-23T04:08:28.168035+00:00",
+  "directory": "/home/zeno/DY/pygloop_6c15087/outputs/ttbar_g_hybrid_s2000_200m_20260922",
+  "final_results": "final_results.json",
+  "files": [
+    {
+      "path": "G_hybrid/replica_01/frozen_grid.bin",
+      "bytes": 12878788,
+      "sha256": "7d20744c2292f0600c43fd31c9e5c835afb7d2c2df6d3c4a8f196348cdc7f349"
+    },
+    {
+      "path": "G_hybrid/replica_01/learning_01.json",
+      "bytes": 73337,
+      "sha256": "104e47cd85572ef7be5797661856fed2befada8360fdde5359464672ea7d20f6"
+    },
+    {
+      "path": "G_hybrid/replica_01/learning_02.json",
+      "bytes": 71491,
+      "sha256": "61fd045d023d2b5408d288aeece1b9dafaba31960c18ce9e9ffa6e79f304d136"
+    },
+    {
+      "path": "G_hybrid/replica_01/learning_03.json",
+      "bytes": 70200,
+      "sha256": "d892674ecde7d90cf930d3f9b65c08283b4229226595f3a37871720053400bc9"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_001.json",
+      "bytes": 72345,
+      "sha256": "7b892cf14d4079a64b504f7b665c39c2722588299982bc97b9e84d8c3d0b0641"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_002.json",
+      "bytes": 69101,
+      "sha256": "7409874226c5f88314affe98c0bb8cce83e5a1a760d4919bc9decde2f4250857"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_003.json",
+      "bytes": 70354,
+      "sha256": "7735ba3a359607632a86aa9412b0ed8a2929877c6cd1416d84812a84251918f5"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_004.json",
+      "bytes": 70345,
+      "sha256": "388e75de36c86b567e22dfdf13fb83bfbfd4d8ffe2fd5a391f422814c6c33cca"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_005.json",
+      "bytes": 71038,
+      "sha256": "c59f6440395757f28ef06a4057816ad98047369545d392b071dae74b4da420d4"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_006.json",
+      "bytes": 71060,
+      "sha256": "0ae82e62584a4b60ceea314357a3b21f1ad8748cc5dc4cbc06ac7ed6801436dd"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_007.json",
+      "bytes": 71031,
+      "sha256": "b28e83ecf66c459f4315763b2cd4925c58756685963ecac16ae1862957408ae6"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_008.json",
+      "bytes": 70447,
+      "sha256": "7b76e36698df6a1b7f511fcceea815fc29d17f51c85f77683f6df53ef757a205"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_009.json",
+      "bytes": 71079,
+      "sha256": "5241dce8383268b0268357d04c4331553712d777c93da1d80d8759f4497b0564"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_010.json",
+      "bytes": 69101,
+      "sha256": "702eb07a479dac4511a974a7a23af98675ccff98181ab76517d0e0ba09d85730"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_011.json",
+      "bytes": 71711,
+      "sha256": "594a338590403434dcc9c73409fcf8ecd70134dd9d4871ff3cfd258edc219b9b"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_012.json",
+      "bytes": 71044,
+      "sha256": "ab5e23d90b8ab95699031e3614e04b08520c3c785ef6236496dafebca1b99914"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_013.json",
+      "bytes": 72918,
+      "sha256": "8ae0ce7a4050b93c487f7659b7c9c545f972aa5c305a48d6a3d0ba46b9829f64"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_014.json",
+      "bytes": 70446,
+      "sha256": "4a3476671f81f7614a12a9ba9d261e210015291e62350b96ab0fc60ad820d630"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_015.json",
+      "bytes": 72380,
+      "sha256": "4b5c20a70d62c73f62778306b6c69efec2133d8d1f1ca71c8ab38f10ea7431f9"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_016.json",
+      "bytes": 70400,
+      "sha256": "b9251117b914b28578efc7627627a5a0e9b9635a315d08fac3706320bdb5a02b"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_017.json",
+      "bytes": 71058,
+      "sha256": "585c5f5a33bfcf9281d0dcf10051f29bc30728caf17ef9c904f0d8f0f9fd67ae"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_018.json",
+      "bytes": 72325,
+      "sha256": "68b657489b2cadf96e26d388836ef2e49c2c88532a6044d74c9ad4d09055512a"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_019.json",
+      "bytes": 71662,
+      "sha256": "a9bbaec4b0d25a96fa23139b5260ad0d080964925cb6f657f0f09e183034bf69"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_020.json",
+      "bytes": 70435,
+      "sha256": "a22158307a4af463c1096a001c9c4870a254db6ead49220ba58a2875bfd52079"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_021.json",
+      "bytes": 71691,
+      "sha256": "dc4f6075ae19fb6e97c4dbf40d1da83988a6bd23fb23b1b2bac96dcf4689043d"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_022.json",
+      "bytes": 71033,
+      "sha256": "4afc0dd1fb90f16e84061b4d6b063b26fd9932d4f02162f9d6bb4d7439c24e3b"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_023.json",
+      "bytes": 72383,
+      "sha256": "347be5fa644f5ef64cbd65d5649cfd1fd3f572b1f4b13c2754fe8416cdf8d2bb"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_024.json",
+      "bytes": 69079,
+      "sha256": "4081bb293d13ffd359b9d13e3b9b9814233e6bab319de8e51f7e40d2c8c80e21"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_025.json",
+      "bytes": 71062,
+      "sha256": "3fefa3f2cdd2a5dd9a8c7430973933eb133e81df0970bc9f2845185f60e5d9ac"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_026.json",
+      "bytes": 69769,
+      "sha256": "64fc021662c9bcddf8d81705eee870d4a85389191dddbe5895c7fb2ede34b576"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_027.json",
+      "bytes": 70394,
+      "sha256": "8e0aa5b09408106a4225e761f0672f163033bf94fb28237fa2ace76508898045"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_028.json",
+      "bytes": 70404,
+      "sha256": "103f5d057c1ef636b84f69e07450c8211f8eb0ef579b7851f54897644ad437ef"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_029.json",
+      "bytes": 71063,
+      "sha256": "11f7672b009d94ece5bf89a24af946c9910b76296ed33d9458bf1d0bd60de38e"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_030.json",
+      "bytes": 72341,
+      "sha256": "81e5d8e19376bdf4ce785e9f8fb8e3818d8d6f0cf3c52ed9177dc296b82cac4b"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_031.json",
+      "bytes": 72370,
+      "sha256": "4a5e08c1875dcfbdac42fa833262ca340d53c03ee4335d73f1d2c0e6f19d723e"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_032.json",
+      "bytes": 71692,
+      "sha256": "d340d35368c7560ecc71c437b097665149266522275550774eb8fa621268049e"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_033.json",
+      "bytes": 71059,
+      "sha256": "08b239f6b8f08f45035e058ea771500897b244bd05fdd8c957ba8a631ce74bb9"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_034.json",
+      "bytes": 69151,
+      "sha256": "373813b105d1d728c316b0841cdc7b8c61905d8cf64440db9196072d80170cb9"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_035.json",
+      "bytes": 72339,
+      "sha256": "2337ecd0f1b921b271c938d3bb06ec18d917b9f7e148b903e6a7d956e27a0cd7"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_036.json",
+      "bytes": 70366,
+      "sha256": "18d5b09aee3ef41ccd383c0b7d01c5899be4797e5a8830314c479d78e3062903"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_037.json",
+      "bytes": 70333,
+      "sha256": "7ccffa3bf71fad890d99fe6be0cbdcc515cea49837f50b171c1e166bad022dc1"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_038.json",
+      "bytes": 71652,
+      "sha256": "bdef043797838929fcb870a1609ec2763ccae2da77ac63362539a179c3d0236c"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_039.json",
+      "bytes": 71069,
+      "sha256": "f53ad81b3f8cdf1454330105b30575ed9c31197aa755e8acafcf04ffc0c67838"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_040.json",
+      "bytes": 71691,
+      "sha256": "80dfe2186db13f998620abfd202acb51d76cde941ad128f369e4b7107f5c8988"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_041.json",
+      "bytes": 71031,
+      "sha256": "9a1701dbb7c04f980b0b3c7e6ad1a67eb2dc4f2574bb0537ef2fdfce7287b63e"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_042.json",
+      "bytes": 71054,
+      "sha256": "00bf3c7addb3219fc83335756be90433dc0c441fdb7ffd4ec5fdfd9cdc51c000"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_043.json",
+      "bytes": 71661,
+      "sha256": "5811efe29723540efb672a1a964211b44f6ad24972c39b43b2bff25a32589e97"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_044.json",
+      "bytes": 71013,
+      "sha256": "ce682bf7040e41471026107cf894ce94836e9ae2f8274fcd37f99827a3666b71"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_045.json",
+      "bytes": 70433,
+      "sha256": "6af4d0a0c96ae298dcdb9dc241789adacb5817ef4c2e8fa58c74799777aa38d3"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_046.json",
+      "bytes": 69760,
+      "sha256": "6eea8256eda00f173da634b232f66e9bc55f7077d4f3abf2f7c825f1765eadee"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_047.json",
+      "bytes": 71054,
+      "sha256": "941e4b2f0c6f78d66ade64e8aa97148de665a6e68267718a89878d1f36c2809b"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_048.json",
+      "bytes": 70383,
+      "sha256": "e36f8f95ec061b9b3c5b737fd2a22b5e08becb70c3cccfc5577b46bb3d829737"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_049.json",
+      "bytes": 71713,
+      "sha256": "d34e04f17d9e45c52c08da768c0cd7cc05abcedcd69cc22581383906c41d6ec5"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_050.json",
+      "bytes": 71663,
+      "sha256": "60bf321f17a40dba837b77f9790f5a482f8dd3ed0aa7026dd98e871e46b38fea"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_051.json",
+      "bytes": 72351,
+      "sha256": "27702252d49cd10d5e5407a02932a165d2dc635d632916d11b6dbab7352dfd29"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_052.json",
+      "bytes": 69802,
+      "sha256": "7de14f947f2bd311f06d6dc69f6b1e9944a75436e3980a8d98609a9306862cc4"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_053.json",
+      "bytes": 71661,
+      "sha256": "c82a80c3041f6d673bf867c04fd9196f59dbd9e77ec833de140b70102f296c30"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_054.json",
+      "bytes": 69152,
+      "sha256": "bf5bbbd507041fc7a7f37a3902d9db75260364a3fb5012ab3614ecd4318b0a46"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_055.json",
+      "bytes": 71644,
+      "sha256": "8340c5d3409397639bff3155f5caee395f79e2b72beb873664e67bcca7c06b84"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_056.json",
+      "bytes": 71732,
+      "sha256": "b1910736fc2fbf184ce64add63581fae25a84fe3baf58d4252586a0438529ac2"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_057.json",
+      "bytes": 71064,
+      "sha256": "72cfb8108528c3eb41fbe9c0ab527a77c8ed2a5abc3b7aec2510d8a49fe75587"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_058.json",
+      "bytes": 72340,
+      "sha256": "a4c67074a380c8ef75c6fc7305aca0448ef83826c0f8603cec5cead8ff4412e3"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_059.json",
+      "bytes": 72370,
+      "sha256": "a0aed967957909095385e0e9d44a270a78beee98ae4391d9c75c5d45adfc8ba7"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_060.json",
+      "bytes": 69795,
+      "sha256": "b080f33a372e7b1e1eaad94bb382381453aca5a41c54aa467765b2209e2bb424"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_061.json",
+      "bytes": 71097,
+      "sha256": "ca2ae3f6bcdd8e8d8cb528016efc29dcb2cffb731017ae73494f1ed064b34cb3"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_062.json",
+      "bytes": 69709,
+      "sha256": "244cbe7645472f6e8cadc333fbe735fc53b3f55206c876dca76a18447b7dbf66"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_063.json",
+      "bytes": 71061,
+      "sha256": "0f5bec11f75476c9b77102ea57f309faa1da4a89785369763eb8daea6e13b6c9"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_064.json",
+      "bytes": 72349,
+      "sha256": "42e8218623556cb2660b8fb354469ee8ffd837baaa947f43f8cc4e60238af4c0"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_065.json",
+      "bytes": 72330,
+      "sha256": "914553773269c1a0704353c3b7f48873368b616eb57c9383f43268a90148bd35"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_066.json",
+      "bytes": 70407,
+      "sha256": "c9093480aaed9a9e5c8bb71c8a57584de66c5de551571052ce3fb0d70b8d9180"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_067.json",
+      "bytes": 72379,
+      "sha256": "7d96b2c1acba695ee4e117f0eb35e694e04a9a189f0698099a6b1a19aaca657e"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_068.json",
+      "bytes": 70422,
+      "sha256": "6d928aa0717feacdfefd7afb7c52dfcac0526b64027ef7b840b1555390815b1a"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_069.json",
+      "bytes": 71065,
+      "sha256": "f601359ec39b372d3098f0e318ced8d440a7516b803eca7989cbf1ec33139e5d"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_070.json",
+      "bytes": 71705,
+      "sha256": "9c8b686acdc2ba4f203fccbfb8bf57b3dd2542554330f6e07919889ef7e7619f"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_071.json",
+      "bytes": 71723,
+      "sha256": "8ad1dcd51084acadcdb767ec497e5487482f08d7cacb53acd097d67e98becc34"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_072.json",
+      "bytes": 71720,
+      "sha256": "c9064028ab1ff4c6ad85a572d6be463d5f0f1c18d2102aa1debf7278ec0e9d6c"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_073.json",
+      "bytes": 70415,
+      "sha256": "a53e1303dfbec75d50ec6d77fd645302cea8edf387011ef81feb5ce040525b18"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_074.json",
+      "bytes": 70374,
+      "sha256": "973b284fc5070b8f17ca26cf9ecd6b3fe2e725c5d19426aff78eee8531107724"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_075.json",
+      "bytes": 72345,
+      "sha256": "c7f41f3bb40faabac2817260a2103557d7ff7377b970bc163a7a08e5ffc766ab"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_076.json",
+      "bytes": 71052,
+      "sha256": "5bdb4677bf848932c1a65e58681dd2e8473ecb77e7bd898b6347f69ca13796f5"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_077.json",
+      "bytes": 70445,
+      "sha256": "30cff2dad6cee68789f18073dd0599998a21da72f25178f86d2996be680886a1"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_078.json",
+      "bytes": 71028,
+      "sha256": "c7b0029d0c60377427c4a9a8fc711bd9eb29797be2aa3eaad920012759950572"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_079.json",
+      "bytes": 71083,
+      "sha256": "38618d281218ec8acb6fffdaa94f85ecd36341043ab76b63abe2445b899ab398"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_080.json",
+      "bytes": 70390,
+      "sha256": "e34d1bdb59eff157b994f34ae51142b87c52b05c3c1c49ef3add08803ebd9eaf"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_081.json",
+      "bytes": 71014,
+      "sha256": "c77748df78e1da8f9fadb23f758c90fd73c84d0fb63dff0a8989c3a7dd88d989"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_082.json",
+      "bytes": 71074,
+      "sha256": "57e0830f8ccce23deac782502b15bf267697e87a60bbbad8e7ad7610e13052b3"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_083.json",
+      "bytes": 70389,
+      "sha256": "84f39cabcc141f7de433163edadf40d940cece6e28d0b673e2e0d310ad6a4f24"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_084.json",
+      "bytes": 73015,
+      "sha256": "c43828ad6d879c933b5c53ee625500c7893634d475b9df0a0b7cbb79427160c5"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_085.json",
+      "bytes": 69751,
+      "sha256": "7dca0886fb12ef8b1ce6f8e5da3ef8bba4c86435478926bcaa633f0ed7c2c2f7"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_086.json",
+      "bytes": 71078,
+      "sha256": "a085002ec2834b088f1e21956f9a635acab0e07a8e0142e197b1bf1e9e38a01a"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_087.json",
+      "bytes": 71074,
+      "sha256": "9395a029683ca6ae9818497186514e00943b69997a49eb92d0ceedde4b3b088b"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_088.json",
+      "bytes": 71089,
+      "sha256": "43de600dea5f427304f726f9693289eb61346a0050a3c661427c1fe3e21def75"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_089.json",
+      "bytes": 71645,
+      "sha256": "a1a2c7fd711dcc2c64017af21c3d64baa23d4218e6ce8e8b056f60e1b440c42f"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_090.json",
+      "bytes": 69742,
+      "sha256": "74c6b57a75fb80dfeff2395780ecb86fce47041af2448975196b3ecbad61d093"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_091.json",
+      "bytes": 70371,
+      "sha256": "8b4688f44cdf6d3d8afdb6cdd142644307bb062df2d7ac1d16e7c5313f177548"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_092.json",
+      "bytes": 70448,
+      "sha256": "e13bc8711159024c316ef4691ef3d00d54c551d67e7864e48fbdd8e617d6941a"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_093.json",
+      "bytes": 72353,
+      "sha256": "bc5f3e68023da81a2b183a803e1cd4222e925b6934e4f4f7922f50ea236670d6"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_094.json",
+      "bytes": 71092,
+      "sha256": "0a55b89f756b21f26ec39049c70668ddab3566841880068c8a54e3d8fd43c20d"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_095.json",
+      "bytes": 71053,
+      "sha256": "51f8213ed11a46c4c74024d7e147810d05ff8334c0b6555212e491752517c3c2"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_096.json",
+      "bytes": 71700,
+      "sha256": "193610e76efb6f8d09999fbaad21031c99eb2b6535a1d3db3e44024ff067c4c7"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_097.json",
+      "bytes": 73006,
+      "sha256": "64bd1b9b1d0d79cbf0b291e005feefc1826b723f782ac39b75ade81ea7b9ccc1"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_098.json",
+      "bytes": 71693,
+      "sha256": "6f50002199830ce4aa7f71151e28bc055db27c5865e6aae38236603ce78383ac"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_099.json",
+      "bytes": 71696,
+      "sha256": "a43b0ae53c50602844c1cee3b6afcf9d9e6e1749cc82b778ef58938a3270ed25"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_100.json",
+      "bytes": 70423,
+      "sha256": "563d964410b292b19ce31872bb5434f409f3c024c341587719d2b4f4e928c2c4"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_101.json",
+      "bytes": 69755,
+      "sha256": "d20fe73c917d79cadf8940f9f67815675fcb5169bec82271a274193ef456da8c"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_102.json",
+      "bytes": 71077,
+      "sha256": "f1f806fd5f7a54b6a9150dd00fb6db776b589832b4b22388259a0d4d35d6edac"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_103.json",
+      "bytes": 70422,
+      "sha256": "0220d4f962ed45ed5a973be1706fa9e539bff915bc68d079d75b1a3dcec24d82"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_104.json",
+      "bytes": 72955,
+      "sha256": "02a2afa740b774caf9c40c8f9f7cc406b77341cbc6b411329c938acde1bf558a"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_105.json",
+      "bytes": 71081,
+      "sha256": "517e2a546cefec70e7a454c33e352971e897dcf8b3c22a9de710a9989de82b07"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_106.json",
+      "bytes": 72334,
+      "sha256": "2890ae7f5a3695199eb79dcec16b20463b47223d49b7e4409b6dedd3d2844af1"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_107.json",
+      "bytes": 71100,
+      "sha256": "87fd8d6bee24e4305ca492d2f97b5df9c6accda5e285455aaea92a5675d546aa"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_108.json",
+      "bytes": 72253,
+      "sha256": "bf2c6409ee216ae139fd7ed7e33798231614b1f5aa31b7eaac46aca2d782b47f"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_109.json",
+      "bytes": 70418,
+      "sha256": "3f2a17a4179a652d62f83517d282c071d2c27871f1f7168a231eb06508ca035f"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_110.json",
+      "bytes": 72367,
+      "sha256": "0d0e6830359f6fdade3e8be6fc3703e3ad0c9764f5dee972a3d4f1337cb5843b"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_111.json",
+      "bytes": 70434,
+      "sha256": "d13e5619fee57247ad07f98c1e70cf974d693129cf3b6eecf3a75585cea2722f"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_112.json",
+      "bytes": 71729,
+      "sha256": "30be4197b72b13449abb3c564e50bf5490a2b0540eae90df8c0b80db0c4b1512"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_113.json",
+      "bytes": 70414,
+      "sha256": "d6dc5661aa32395aad535924871913710e3df370342ba6a274c54dd761cf278e"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_114.json",
+      "bytes": 71112,
+      "sha256": "2887695e821768b0b01a32313198f28eacbf562aa64d8dbfc0e64ac9563b7314"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_115.json",
+      "bytes": 69122,
+      "sha256": "db4e2bdbaaecfb56cd541c77d635239fba59da4d417269a8460ec6b7a8f7ffa1"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_116.json",
+      "bytes": 70457,
+      "sha256": "4dc8acd3b288040bba736516ec3f04b6c149d58f12a971dbea0d7f17e02aabb4"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_117.json",
+      "bytes": 71073,
+      "sha256": "56f9f1708eeb0599af40bb7e41f8d2967944d63d0283a9cfa314128ceacdb18e"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_118.json",
+      "bytes": 71044,
+      "sha256": "54cabc0e9c8d26093227735997b208f1d47bb1540b7f25e6fe2bd3ed43e8cd25"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_119.json",
+      "bytes": 68458,
+      "sha256": "c582208e92c1a7cd5f2c4e133ed120ed99bb64299cbf7876494ed0028a26befb"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_120.json",
+      "bytes": 71688,
+      "sha256": "4d0d0ba2f433f4b400ebca53ce5fadda767c69eacab074b2ea93675486e14e45"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_121.json",
+      "bytes": 71732,
+      "sha256": "8f17aaec2340be41c8d6885623858f64b92edec1be7a7d34fa5d0d5037dbd3bd"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_122.json",
+      "bytes": 69118,
+      "sha256": "a2c1e42c5994f1878fad4d21cf855c1292d725aee4a611a351d00018c65adf3d"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_123.json",
+      "bytes": 70389,
+      "sha256": "c5858f1af4990413a1efeb08899c41d555cb5e4c9d6777fc2f09979f44965481"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_124.json",
+      "bytes": 71067,
+      "sha256": "92eb5e048e6251e975b4ec43ec3972889d612ddbcbe28fe443f43c391e1ad6c9"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_125.json",
+      "bytes": 69749,
+      "sha256": "ddfb45cf0745f8c66001e127964aee90f83a1ed458b75bbffb70505fe4411d73"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_126.json",
+      "bytes": 72327,
+      "sha256": "d69821fb2b5e0639129a24fb4bc3b12bd5afc792891a663e1062d97de9079600"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_127.json",
+      "bytes": 70388,
+      "sha256": "dacdbc43c8efc80763a70ab2f6c933d9d2325da8fc0bd3e02f9535f9430c18a8"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_128.json",
+      "bytes": 70428,
+      "sha256": "a0c1676962d686d6dcb1550e57b8e58232012901c3cf79e91dec4660276c3237"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_129.json",
+      "bytes": 71098,
+      "sha256": "e62833e993f7093bf7fa605c0c94654a6c10ac6e80e50d97c1923b9044f1952a"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_130.json",
+      "bytes": 71686,
+      "sha256": "c278208f3fdd682b04698f327df6b0ef41cc4db7de595d98d5baaca7e6608d7e"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_131.json",
+      "bytes": 70389,
+      "sha256": "0bfd351bbc6ed803475566640d780cc287eabf2027069de63f0abde98d5fbf7d"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_132.json",
+      "bytes": 72990,
+      "sha256": "5e88fc91c4799763a90cb2b32d85e7aae922aa973d714fd6b6fc2d6393572dca"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_133.json",
+      "bytes": 70386,
+      "sha256": "3fb7eeca1214332154f195cfaab58388418936ac7b298131b50aa02fb0e97d5f"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_134.json",
+      "bytes": 71695,
+      "sha256": "a77ecb051e7131f8657063bee8a382918fb9335014ea0fc94c87876217bcdea4"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_135.json",
+      "bytes": 72308,
+      "sha256": "6de0847b341558738dde3e428ba3232b4377b174357a8cc573b63033b6aa87e3"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_136.json",
+      "bytes": 71757,
+      "sha256": "87f2357eb3a5b3698a891eeaf112d4265bb64ed19e22a97acf3fb73c3d550744"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_137.json",
+      "bytes": 71711,
+      "sha256": "ceaad52f0f3b12fb3030d3f1403d11c42fc07e1f0381334a5f8e50fe8fdab314"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_138.json",
+      "bytes": 71023,
+      "sha256": "a177b5d42c072b428b5b6dd995ea76dea85f37c062f3cc5c0b0f86e0a956f7d2"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_139.json",
+      "bytes": 71051,
+      "sha256": "e33d35810e68746f02cf3907fe8b2c8966e7d59c8045cd741da36923bcf37f04"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_140.json",
+      "bytes": 72363,
+      "sha256": "3ba00f1b10dc6c863150c32605e49922de24ab267a7b0b29bff3e6559ab4e2f6"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_141.json",
+      "bytes": 69795,
+      "sha256": "bbd2e8015c5423432b892b7e90027276d878d3f18b7412600ff3c981448994f5"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_142.json",
+      "bytes": 71714,
+      "sha256": "a1d87d92bcffbc94ba2f1ee50a12fe734b96a5af0d7a1e6973800c7c7f8912cb"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_143.json",
+      "bytes": 71692,
+      "sha256": "4fa13094d27c068eed7738fe72cfad820d42baafdece3c11478bbfcdc372ff72"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_144.json",
+      "bytes": 71688,
+      "sha256": "00556b803b41c7081c5a5d4380d2181d9f7232151ea80a70793c8f5af46eb12b"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_145.json",
+      "bytes": 71011,
+      "sha256": "d91374e1d79f4775933924cf601289a8e05c31668d4a3cb8dce9bfe02cc16c94"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_146.json",
+      "bytes": 70438,
+      "sha256": "074e187a635e879ab614a0f5089d01cdba3f46a21e663901c4bcd06e5f0a08dc"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_147.json",
+      "bytes": 71723,
+      "sha256": "fe2111d8bda15d6c1a339c00ffb5ef78bfa89b00b1ef75b9e1c244fee0ed5117"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_148.json",
+      "bytes": 71045,
+      "sha256": "6e62f08e12c897fea0be788278572547b3cc5f175638441b29d82b6b23653e04"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_149.json",
+      "bytes": 70358,
+      "sha256": "730ddea5ad0d2919b25e34cd9c0f50240db6ebad66ef6c268c2933bfdf94e694"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_150.json",
+      "bytes": 70379,
+      "sha256": "0ee1e81bf9d640450c935b62247831f01fa3a5c5703d4927719e3f5980d21cf7"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_151.json",
+      "bytes": 69714,
+      "sha256": "d5a0dc734e66335111951ed7b01d116cb78bbce0087cda1b875f5c593e9f63b5"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_152.json",
+      "bytes": 71699,
+      "sha256": "edcbe9b09ffefc37408fa3af2cd7f1d7773ed9246c18ed03f48e7860303eb566"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_153.json",
+      "bytes": 70366,
+      "sha256": "ac5620106b4d7f063cebfebbaacf294e49652dd2a2a0aca16b5ad794f73f9e97"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_154.json",
+      "bytes": 70427,
+      "sha256": "43849a022df813e1ef85195538372c8ceef0e12c632c675bb8bb3cf2eff91935"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_155.json",
+      "bytes": 71706,
+      "sha256": "7f79b9091f06d10d8ce6533f9426451ef3c9df7652f0606437e561a90078f622"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_156.json",
+      "bytes": 70429,
+      "sha256": "2a511615b0214427c59e9d3cda5db9fb58d8003ce6b364bcf21ca1bc5ec8dac5"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_157.json",
+      "bytes": 71666,
+      "sha256": "256c9de3097ca1f54964c16d1173106860b5d11c29600ba670aeaf7ab6b25a34"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_158.json",
+      "bytes": 71690,
+      "sha256": "63acb90058f6e9bd65e72664291ec5564c9bc7d7862e41c42c087042bc0a6a24"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_159.json",
+      "bytes": 70404,
+      "sha256": "2515f88e82714a57bc2cb94acc166fa8ebbc257c9beb9d9929a12686d1e81e46"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_160.json",
+      "bytes": 73648,
+      "sha256": "0adc580ee64c2ad1f92e75d158cb31be7f68d8de4f9e98abf05f2455426cf972"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_161.json",
+      "bytes": 71770,
+      "sha256": "946774824857d2dd4c2d5af54dfc1bfc3910134e6daee7c975b4214a77776391"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_162.json",
+      "bytes": 71735,
+      "sha256": "b4b9e47419df8c9577e4b7668f85b076bfb82699a6778e5375778e87c779d43a"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_163.json",
+      "bytes": 69153,
+      "sha256": "541e6469feef1200e1c3bde6cef9c72deeab5dcf6994f3dccfb901948aab123d"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_164.json",
+      "bytes": 69734,
+      "sha256": "ab330f82435815e1dcd470801aa977aa82fa859d07a98c3890442895fe5f5568"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_165.json",
+      "bytes": 72983,
+      "sha256": "3dff4487e648e9d61f48cc49afa23fc1653c5617ac3d410eb681ff5567c216fb"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_166.json",
+      "bytes": 71696,
+      "sha256": "c3df59cf37a0061635a7e0dd3a9b71777f65a8c529afe6ebac1ca73b0778a5e4"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_167.json",
+      "bytes": 71762,
+      "sha256": "c426cb79dc6db76225f6f919a547e28024dc1121f633aef4d39837399ca8bc54"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_168.json",
+      "bytes": 72339,
+      "sha256": "9ac0467ee2efcaff6086bb8a9f6368c475cf9c1a1028d3200bb0e023acb2ec3a"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_169.json",
+      "bytes": 70392,
+      "sha256": "df329a53c9d3eec9f0cf0d47c73ee1dc7ba5f9e1e0a8fbe06a93e704a1912976"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_170.json",
+      "bytes": 71686,
+      "sha256": "9c5764e0eb189406713b88682fda1bf3de4c89ae88f244b254e129518a5ed109"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_171.json",
+      "bytes": 71110,
+      "sha256": "c0ee0c52b2b1c95644b5894cd41d21cc56edcb320cb9a0267728b13859971e08"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_172.json",
+      "bytes": 71087,
+      "sha256": "f063b57a3d5b9d319a0fbad348631343a78c52197e0f3c001aa0f90ea5bcb822"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_173.json",
+      "bytes": 71735,
+      "sha256": "e5ba6a6883eae1c0d912f6d17ec500726da1299ac3c6fb5c12b69891ea771b7b"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_174.json",
+      "bytes": 69774,
+      "sha256": "ba3b64a5709933ea4e116c3d5fe214f440a579803f1bd3deb747d8fcc9a3c192"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_175.json",
+      "bytes": 71702,
+      "sha256": "eb98d9a13cd1b26323c14daba49a6c6a58e1e6fd5ef66f2f2bd6bfc23fe78295"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_176.json",
+      "bytes": 71036,
+      "sha256": "ab2238ac88cd7a165cd1cd57d1c468c2bf653f4383d968fcb5609cd18106dc90"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_177.json",
+      "bytes": 72286,
+      "sha256": "71bf2aa6d5708460457d95233f20410124de3ed3ae323118e78832b0a19bc85c"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_178.json",
+      "bytes": 71058,
+      "sha256": "9903ecea5a9ba17e0bc2f35d3812a14341be5b856d6fb31ce08a23c079f024e8"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_179.json",
+      "bytes": 71071,
+      "sha256": "d84c324b92301226f6a16b27d063fa0ca9c88c2a219e2ec0d3b81d87c076bf07"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_180.json",
+      "bytes": 71038,
+      "sha256": "a45452d8be9eff2dbe2035e5be3ada478df73b164303c9024e721d9208ffb8c7"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_181.json",
+      "bytes": 70439,
+      "sha256": "e08a11a0e09e7ce68e78fefd1a90cf25c31e44cc8db6cf961799160dad02902d"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_182.json",
+      "bytes": 71085,
+      "sha256": "fae0c82d8258ccddbd156128add3500c3caa3333c65052346a415fcb30a19ca0"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_183.json",
+      "bytes": 73666,
+      "sha256": "2c3bf6be9305dfe13bb79df4d0841c60c2bd5c8758959900e2f279f20d79e166"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_184.json",
+      "bytes": 71066,
+      "sha256": "6ab18a7d01e6d7d9309b55f20ca9f5287db598b5e32b0f9a56e24c982f61c3d2"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_185.json",
+      "bytes": 70433,
+      "sha256": "d5a60ca9de675385e74d35570d16284d130db5dd506f93437e60829cdb8be5b6"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_186.json",
+      "bytes": 69790,
+      "sha256": "d8aa67246adc2220dc34439d5c7aa79fe135236d061980965b3baf1814e9cec4"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_187.json",
+      "bytes": 71715,
+      "sha256": "af77ab3732dc040a2d3d8ea1bc7059495fac05c7adb242adf72246a5968ae895"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_188.json",
+      "bytes": 71673,
+      "sha256": "cb007f1e7dce6329ea9bb1f392ae22b0fa9323cb0e6a612e54ad36d19222bd56"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_189.json",
+      "bytes": 71067,
+      "sha256": "5a28ba68da2cc0a94f49fa3d1445ee11b27274ad83f53aec6f8c1d5dbc7bf472"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_190.json",
+      "bytes": 71112,
+      "sha256": "4937a0c4c75f701df76141ee831f17501658f55b8ca6e83a7254662fe4aeb69a"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_191.json",
+      "bytes": 71723,
+      "sha256": "8aa9337312ffd6ef9ec695b9eded1a546c310abd4da17c18d3f82283ef8413ef"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_192.json",
+      "bytes": 69742,
+      "sha256": "0fa633c4eadcaecb89881cf24a7c5f3694f615987dab465bf36082acfde75e18"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_193.json",
+      "bytes": 72393,
+      "sha256": "ebb421c6a44693ac541945166b33bf706ca78b7b1c15e49ce1e5b5de569596d4"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_194.json",
+      "bytes": 71074,
+      "sha256": "0cbba2e9dcf6013e1b3b1fecfbd651e646fcf7498ab7e56692311e307902282c"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_195.json",
+      "bytes": 73044,
+      "sha256": "085273df6bdb825b427766abfabe1ac4a2dfdce1b991c42501df9c41b0d7f112"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_196.json",
+      "bytes": 71027,
+      "sha256": "2dd06c1a0d168b798facbed9050df07f73fcce9817d3b957561ba03f9eb2ac35"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_197.json",
+      "bytes": 72999,
+      "sha256": "dc73e048ddb74618e9928a756d07b83f0813c9a345695b7a77b9fc76cdf3cdcc"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_198.json",
+      "bytes": 71747,
+      "sha256": "466741645906653dccc9f1038f6055209a74dcf8afcc941657d9e44018054e3e"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_199.json",
+      "bytes": 71072,
+      "sha256": "c19049ba00649421c6821e9d34c2512408265d33e38315294b72aaceaa28d860"
+    },
+    {
+      "path": "G_hybrid/replica_01/production_200.json",
+      "bytes": 70442,
+      "sha256": "c7faa2f549de2f5fb5902a474353aba0487430572e104c6f91142a4343bec02b"
+    },
+    {
+      "path": "G_hybrid/replica_02/frozen_grid.bin",
+      "bytes": 12878784,
+      "sha256": "f565de630ce8ddd3e3ce618f0f81bc3201da0357e0ed1e5b4b8644e69b407090"
+    },
+    {
+      "path": "G_hybrid/replica_02/learning_01.json",
+      "bytes": 73670,
+      "sha256": "2c8403ce5c001c9fafd2edc7ce32abf7b95a841e92af90b5486ed2c0d346aa28"
+    },
+    {
+      "path": "G_hybrid/replica_02/learning_02.json",
+      "bytes": 70530,
+      "sha256": "fd5d2d02f906cb9a3f20c7e3ec018fd2ecfb39688104832cb66b78eeedb585a9"
+    },
+    {
+      "path": "G_hybrid/replica_02/learning_03.json",
+      "bytes": 72395,
+      "sha256": "5a9a1ba8eecc1c0085d5d4888011bc746ff151b0b37c4e8b67f3fe5a9d7d3818"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_001.json",
+      "bytes": 71015,
+      "sha256": "863d3e50368ca42d3dc609c14133e303593c222b934e5e528c0266fd0fb6d9f4"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_002.json",
+      "bytes": 71706,
+      "sha256": "d86902b6de598eb990f89e27b9850e5611cf6cd3be3d7060fa2332ea929c901d"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_003.json",
+      "bytes": 72341,
+      "sha256": "b639c5fad2db85745630b1d754f59640f643d296b1707f839a627876ed9a2d0c"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_004.json",
+      "bytes": 71668,
+      "sha256": "8ff180e55716b6a9d19ddadc2f190005a15d35f4188d23bae6e611e897b0d465"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_005.json",
+      "bytes": 71029,
+      "sha256": "9f789ceac59398a40a8c11e44070a5b48a23ff7483fc5632e730d78b4ddb8821"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_006.json",
+      "bytes": 72314,
+      "sha256": "7dab0250af60cefde9402678ab853bcc741e4b0c34775454e4302db354f6ce8f"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_007.json",
+      "bytes": 72968,
+      "sha256": "eaa6f5047266c93ac79a37cdc5f19abd0c7f93a2cd472856ea5dfb3109c5429d"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_008.json",
+      "bytes": 70443,
+      "sha256": "fae1ace7f3449c8854360f86aff959d8ce02a221bc22f6006b9a1c1a005749d8"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_009.json",
+      "bytes": 70337,
+      "sha256": "a91849b848a8c6e0ce3b1bbad5387ab733da110f2a718705f3e1960821511d41"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_010.json",
+      "bytes": 71033,
+      "sha256": "fea84391a17e28237ca50265919cbd02f2fb54895edbf659b818959cfa9b9d31"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_011.json",
+      "bytes": 70417,
+      "sha256": "9abb0af3cf0835290c06b65907bc5569ccebd3be6eb058fc211f99e1cf9df315"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_012.json",
+      "bytes": 69773,
+      "sha256": "a98f752c267baf9bf6bf969ce7c2793d926abb269122c4fd786c21802c5a1a6d"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_013.json",
+      "bytes": 71094,
+      "sha256": "ffba293174f012835d3bf2abf739e43b092ce107b49a673a32c67247443702c6"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_014.json",
+      "bytes": 71013,
+      "sha256": "5d285ef41f6ed933d5d709d7f1a5a790f5980dc47bf760d1ac0d37327d08eda9"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_015.json",
+      "bytes": 69771,
+      "sha256": "9733c821bf314cc63e1a9fac5575c79deb79820ded7a6e1703f9af009e753bc9"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_016.json",
+      "bytes": 73639,
+      "sha256": "2583fba06b157722fd2482335d00cc8ede750b9d0b8c57cc3514276894c09b71"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_017.json",
+      "bytes": 70403,
+      "sha256": "0e853f7302cc468bcc19da4ad2f6788421bb5ed9fc3b014459331a04b7247026"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_018.json",
+      "bytes": 69044,
+      "sha256": "b00253ae3fae5cdbe49f4d8394e6811a183333a79b9b504fa13197e535edfa31"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_019.json",
+      "bytes": 71057,
+      "sha256": "617f160044da5a7fea8c593ab0e3b876b4c9435ad4054e073071d10011109b01"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_020.json",
+      "bytes": 70391,
+      "sha256": "cf8f5f6cd30f035da8ddba4d9a548f76a928fe6d17e9079b437611e3cee1cc31"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_021.json",
+      "bytes": 70438,
+      "sha256": "ea67f5042fd132c56a97623a1361383a3845567f370e5c5171b527d59a727bd8"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_022.json",
+      "bytes": 72378,
+      "sha256": "0cac018d5ea1ebc1d5681274481e2097471ca4bad32e5d2723ad5af11071e5c4"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_023.json",
+      "bytes": 69759,
+      "sha256": "6189149081a9d09a4cc1403ff8859abe4a50de09bca8810e1b0bf20d8bb007a9"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_024.json",
+      "bytes": 71720,
+      "sha256": "812c7af11a1a911bac358b791821d843a819b1732073bf502552a38376409285"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_025.json",
+      "bytes": 69711,
+      "sha256": "d84bfdbd3e70af32395b09d70619746ed30990ba8f5af43fb1736432872975dd"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_026.json",
+      "bytes": 71080,
+      "sha256": "6043e5555f1369fdbf15c29d62b5348513e996a08443fa93978a829aab373cf1"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_027.json",
+      "bytes": 71062,
+      "sha256": "534d199f4b9bfa0dba02f68f68ee1d02413db651107c8ef1da4481f7aaba56c5"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_028.json",
+      "bytes": 71003,
+      "sha256": "1f66ec19253f2d78468f9c574fcaea3a700d7692b5c6721ae49ccad492a769ac"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_029.json",
+      "bytes": 71037,
+      "sha256": "e448e2af25930f9871805d38d64d4db46a44ef024b45c51728011a1672fe5f93"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_030.json",
+      "bytes": 71679,
+      "sha256": "c615173ac0f578c9f88a4b02fc5e688251e740ecee6582cd928c6f1f1d9db004"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_031.json",
+      "bytes": 72344,
+      "sha256": "30e1550f8d00d588540087bf7dc993764c2275e2f83eb83a2cfe24dcf11ae11f"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_032.json",
+      "bytes": 71059,
+      "sha256": "a6d16bdab812b86acec9c0fb1dbebeef96a4460b88d4089ba1f581a84633d295"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_033.json",
+      "bytes": 72379,
+      "sha256": "babe6dd7a1af4e49314695ec0ef5d877b1e84bdbc6ba603d077f134282bd703c"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_034.json",
+      "bytes": 69134,
+      "sha256": "a71e51cd279569c9c160eda25d1b8b7c9ad2a1a11ed74a1a6bcaa177a460ff4a"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_035.json",
+      "bytes": 71613,
+      "sha256": "6268f64f4acc5dc1c7eef47af1a0ec4b609326693d10af306b46c05c1e79c6fe"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_036.json",
+      "bytes": 71680,
+      "sha256": "14ec84df8dc2416458a8470cb18f5806d198d6987ec15734f0eaacb58762889a"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_037.json",
+      "bytes": 70417,
+      "sha256": "3d3e974e7791ea5808533d8273b9fb7c64d743843e5e81aba18f802299d18752"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_038.json",
+      "bytes": 71657,
+      "sha256": "a1be45d6ab8d1ab8701150ceb982e7a6932dc007e5b2a32b9d298bbe1ec8fb9f"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_039.json",
+      "bytes": 71014,
+      "sha256": "6edaaa69a32cda079d4ebb96cab83522abb89107c5f533622ec64c267fb6a78c"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_040.json",
+      "bytes": 71045,
+      "sha256": "a5f01e2d270aa5a19ffbbeef8a8df7578a3095906e4ad76d4a64bafd85112eba"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_041.json",
+      "bytes": 69723,
+      "sha256": "d2b367d6671133bb69a737a550d98b5f9a2e30af7723899eb11c8f78f9f61d27"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_042.json",
+      "bytes": 71060,
+      "sha256": "60abf5ba5a9365afeecf8c37629575576476311da507231eaa690e653cf5e73e"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_043.json",
+      "bytes": 69753,
+      "sha256": "fcc464d7339175e2ac75ec1dbe93feb9e6d2b08f965fe6378d99380337aaf186"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_044.json",
+      "bytes": 70423,
+      "sha256": "89409f7b04209a0049ee441facf0238eaf23fbf8d31f323efccff43cd76e4ce0"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_045.json",
+      "bytes": 71079,
+      "sha256": "c243a47d964ce05a084fa9ea6dcc0e4a169aadf54b950fe24566a96a3ded24b4"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_046.json",
+      "bytes": 73018,
+      "sha256": "31040f6fdb1d4fcbad1267232b4342e2718223873cd97483f224e0e5fbe72a07"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_047.json",
+      "bytes": 69075,
+      "sha256": "515b8979a51e9050600f81c4f6cb8705f6a8c4334a0e9d20d9a442bed28973a5"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_048.json",
+      "bytes": 71028,
+      "sha256": "b96edff11137204bb30bbe173d257ca9725ff6a9c2d674706631c233bcd97fef"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_049.json",
+      "bytes": 71055,
+      "sha256": "82386728ccf9f18ed21eb94df697a795b9eeeb160e6597caedbd6af7435e5efe"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_050.json",
+      "bytes": 71697,
+      "sha256": "aa96e17f7ef503fa19e1c6b24590ec212c7885ff9860b7461b6c86723f3c359e"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_051.json",
+      "bytes": 70461,
+      "sha256": "1a9d6b63d026e78e99bf44b335377dc1fcaa2caf85dfce6968d9d8f59568a325"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_052.json",
+      "bytes": 71699,
+      "sha256": "b0e4251c4e0fa6a88386a0cf97e5acacfd5b3488e04026009147578ec2898aae"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_053.json",
+      "bytes": 70350,
+      "sha256": "7052b8a419e06867ec29ea2d66b9665597ff4241684bd53ca3f73203ac0a631c"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_054.json",
+      "bytes": 70409,
+      "sha256": "3231dae33d7b2328a936461f4e7c8127b74231bdd510db2f374cf5da51372798"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_055.json",
+      "bytes": 72300,
+      "sha256": "7c4eed5ad9372deb47a75a2b28e1425ef3751a2cf1c0b964b6d05dd874a95be1"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_056.json",
+      "bytes": 71711,
+      "sha256": "44ed47906339335a8c2c69ef3ca02d5139d62922c6a684cb9d805293b0b6f644"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_057.json",
+      "bytes": 69761,
+      "sha256": "c8ffb3b82a522bf20bf5424742f8a0532a2ef6f7f360ad11c097e06c61df8cff"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_058.json",
+      "bytes": 71719,
+      "sha256": "92c3cbb02970bcdb90fb5bdbf64bd449bb5dfb28fc420eff07605689648ba74a"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_059.json",
+      "bytes": 70412,
+      "sha256": "a010dc0431c02a12604cdcef12cb69598b764ff682ffcbe0da547af4c16ecd37"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_060.json",
+      "bytes": 71017,
+      "sha256": "8bd431c3522fcd812157ef4feeff14899bc60dc4429f49094127bef204621fd9"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_061.json",
+      "bytes": 69722,
+      "sha256": "b1db1beff605062897b16543e9cf07fb4db3b561da7ae32f46b07e6ba0e24c89"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_062.json",
+      "bytes": 70389,
+      "sha256": "f5ba73a734aea91cdb2f2ab1734c18f4f53cdc93b2c398fbbf6d7709dac57efa"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_063.json",
+      "bytes": 71050,
+      "sha256": "062e8c0120f4bc5eb0aa6e2a14768f53d5bfe13435eae76940cb39748acba3ff"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_064.json",
+      "bytes": 70392,
+      "sha256": "505020745c5aeeafa2590a446549764595ef4c8d1c17f1334aefb770fed21c95"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_065.json",
+      "bytes": 70379,
+      "sha256": "a6a7f0a74c6183162168795514b154920bf03f94bcec76907729e453620d80b8"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_066.json",
+      "bytes": 71064,
+      "sha256": "f0be828471eb8386a3399c3865137d0feb7c14ae963e87f76f9176e66373160a"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_067.json",
+      "bytes": 70440,
+      "sha256": "0e9fcbecd7b81a4ff341ae549ba9d5674a8433bba7b50af8f36c92c1b84a8aff"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_068.json",
+      "bytes": 70386,
+      "sha256": "215f56420f1a8b67561bc808b30e50f2ba1284fceaf2b2561e7defdaa0d9071b"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_069.json",
+      "bytes": 69073,
+      "sha256": "f482d34157f8acc4b3be5f72b6c25e6b515dbcdf53fef2e992145762f694ab66"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_070.json",
+      "bytes": 72275,
+      "sha256": "a1b67107b61ca7e372cc09a6fc2faac981350598ffe917951cc2c9a01779e16b"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_071.json",
+      "bytes": 71089,
+      "sha256": "fac9f68d5ee79eff0b497cdd7e9965382c56e101d56bb25960c1d4f095c660d4"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_072.json",
+      "bytes": 70418,
+      "sha256": "3a1daa5ee848c95453733c54b1be02c9250aa2c85822abc7e144c5f86e79d696"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_073.json",
+      "bytes": 71685,
+      "sha256": "1cfbd486d470d93eef34f16ff373fa113c19e20ccfa5441e90b5e17ea804a16e"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_074.json",
+      "bytes": 71015,
+      "sha256": "0bc8115a3935a6fe4e98bb8d1deb6172a000209a50f2928f2d90f924d6c23711"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_075.json",
+      "bytes": 72370,
+      "sha256": "b9f0df8105cd078bd53c3fba9d96e86a69f870f29c136884497cb893f5be3ed8"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_076.json",
+      "bytes": 72367,
+      "sha256": "0ae035f6caf092f975667a9daa27b2d27fbaf79b82f73f7f4828ebb9da1b5916"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_077.json",
+      "bytes": 69768,
+      "sha256": "bef921aeb24caa1f7858b449d3bb8f414a214a4af87e12c4c00e0600a2443a20"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_078.json",
+      "bytes": 71706,
+      "sha256": "90ff8f322d695969589317a4ca35bafd9041c4d9275be59146a8daedad740afb"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_079.json",
+      "bytes": 70420,
+      "sha256": "567d1eab9fc52cc1cd2536d05045d2908b75fb640d639fe19a05527ade1f6700"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_080.json",
+      "bytes": 71631,
+      "sha256": "edfacfff3f9fb2db3b0a0833c21a0b3bda58671f5a5a490dc2911a44be4c45c7"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_081.json",
+      "bytes": 73618,
+      "sha256": "2dad22d36e3eaccb7e14efd9b5008ebd4d2f4e187f61b5ae4e6402dd937c7d83"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_082.json",
+      "bytes": 73603,
+      "sha256": "f99f6f0c41f36286c8a9e4b1120d163ed14f7644f52ccc8a41d4136ef8bcba6d"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_083.json",
+      "bytes": 71038,
+      "sha256": "ee3021e1c31f911c2a61b76480eec8be4a027156a29399a3ca5cb55d295227ab"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_084.json",
+      "bytes": 71053,
+      "sha256": "a034dd898ec4ec5769ae03b9fa38c5cf8d108826a4c0626720a181cb730ceb15"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_085.json",
+      "bytes": 70396,
+      "sha256": "33468a612ebaed0c9a5de4e0d52b6d4c9c3c5623c395669e5fba3fb856c1b9da"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_086.json",
+      "bytes": 71667,
+      "sha256": "de4e092a6083503fd60a7c9524f626922593ddc180e6d57f253ef674521e7a75"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_087.json",
+      "bytes": 72313,
+      "sha256": "7643dd42720005660c5a3808ebc2a3ccb93afc406ad38aa538ecc363bd192ce0"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_088.json",
+      "bytes": 71030,
+      "sha256": "db39a6cceccb508f69dab8ca7d3a8aa1e6d06d99413408e7c70cecb3f99c7565"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_089.json",
+      "bytes": 72341,
+      "sha256": "afbd86506fb009cce41de0b1f38ff21a4e1e41b44b33ea5e352a43be3846a92c"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_090.json",
+      "bytes": 70384,
+      "sha256": "b3355de909c994f0255f50f9538b0f0cd344a6e29047f4c76336fcbaea36ab97"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_091.json",
+      "bytes": 71682,
+      "sha256": "a824c37146931f4fb8e0c76d31ee37759c3ed69d375545844ebf33a411d8d3c8"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_092.json",
+      "bytes": 69743,
+      "sha256": "d0a830c3cd0d7c38bf8daa024634a292daa09266085cb6ad13554ebb538e6a19"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_093.json",
+      "bytes": 71059,
+      "sha256": "bba516f33c8c7b0baf2b79ab4c6df3ef666308a2cb8549eb9057c2913569e927"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_094.json",
+      "bytes": 71065,
+      "sha256": "8372e100e2914c484d1872f81f7d3f5a0892c351e2256d3803199944adfe3715"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_095.json",
+      "bytes": 69760,
+      "sha256": "103900804d96fcd107c1bc78e7fc0ca861665793bd65213afa62616033a3d9f8"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_096.json",
+      "bytes": 70415,
+      "sha256": "e58b0411421d8720f4e663297f87491351db34482f3a3353c88bfa6165ac9afa"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_097.json",
+      "bytes": 70433,
+      "sha256": "340a9777aec8f056ff2a15e62090439ab41267e6c27344704aa88d3f8d321387"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_098.json",
+      "bytes": 69707,
+      "sha256": "fb2ba9f71e866992328db6adb3b53f26587f1f9311a53a27f0e1c11622f4895d"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_099.json",
+      "bytes": 71034,
+      "sha256": "e10bc10aa2dc169883d0aeef430d5643dc7a35be1d2ecf2638ece715c0c4ee27"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_100.json",
+      "bytes": 70409,
+      "sha256": "fd42e11f17558f5f558ed187f3909085205ca5cfff03671d79c01eeea1084ef3"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_101.json",
+      "bytes": 70433,
+      "sha256": "6a9e449f2cace8c6a918be6a14fc308b8ce8d1b36a7bffadd70426bbeffb2e27"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_102.json",
+      "bytes": 71725,
+      "sha256": "e9c985d5c15283e21e273ceb1affc92b837c82c4d41456de7ca0ee7648ce6abe"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_103.json",
+      "bytes": 69141,
+      "sha256": "3f371a9cb77f4752fe7859ca5720b593e66c2af3293da07a95ce4259c69f417a"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_104.json",
+      "bytes": 71045,
+      "sha256": "78a8c722095f5d3ddc35dd9b417dfc1aa668cb72766017cd3959e86ff301fa25"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_105.json",
+      "bytes": 71045,
+      "sha256": "0a58d527719e40fa76c9208bfceee91bdc60b8c41336e3ce1222ae5e78c2152b"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_106.json",
+      "bytes": 69778,
+      "sha256": "b94e25837f9deb4fb0a36b207005bb353254d15290a56b02a566aea4d556322e"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_107.json",
+      "bytes": 71017,
+      "sha256": "11d9e20d5dc5a42153cda2bac0fa976fcfc13f2856f8ae91c0c5fba94995fb9c"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_108.json",
+      "bytes": 70395,
+      "sha256": "9378f171e5721324a4d1649238e77e09ff821f1eded84053ddac3f1aaa5a6928"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_109.json",
+      "bytes": 70397,
+      "sha256": "c05c1fdf470465306040e736a5174b41a451eae9aca0da59f8277c0555b84b96"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_110.json",
+      "bytes": 70412,
+      "sha256": "05a0c6de49f26f13c4230e640f85e087a5749117aadf3d3c35a4b3cb4827ce6b"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_111.json",
+      "bytes": 70980,
+      "sha256": "fe7a7c87110fe6bc5fbad39bb51f61d3c83fadae5379aae9c83439dba4adc92a"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_112.json",
+      "bytes": 72954,
+      "sha256": "f012bcdf0cedf6689c19b4a5be52d643497a3b590a2f5dc794cb1556dcb25f2c"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_113.json",
+      "bytes": 72370,
+      "sha256": "d6ab6d5b916160e17b790ef35f42fc4af2477c57c0922e718534938fd135d3cc"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_114.json",
+      "bytes": 71707,
+      "sha256": "fc20fd9c77104c030749eb28515809e42d3a53bbbe9534e79f126d5e20d9dc35"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_115.json",
+      "bytes": 71022,
+      "sha256": "70cb99f4d50b023cfc043cd496199fff859bfbbe82be68b4f37ea14d87f27f88"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_116.json",
+      "bytes": 71048,
+      "sha256": "c26481e9e509ecb0c019f96c6050dfb3a9b3a0c1b95a41f91cd6b10e3362c9b2"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_117.json",
+      "bytes": 71056,
+      "sha256": "c484c22883f6765e4014afe842d0f127eeb073408d1ca2854b67de7852fbd041"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_118.json",
+      "bytes": 71068,
+      "sha256": "f587b9fd17edec6728e2784291486e725355c4a28e32b937d07753ccc254be42"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_119.json",
+      "bytes": 71073,
+      "sha256": "b676bc49a42389a232225dfa8bf9ff0afc1a258c67e5ed2dcc53e37a7de8fc55"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_120.json",
+      "bytes": 71671,
+      "sha256": "730011ce5a3d3403d3605d6d5ed0f2cea5fafa48fd1da5ac1ca9ac6a58c9cdcb"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_121.json",
+      "bytes": 71066,
+      "sha256": "42f36f19edf2ade8f54a9589547939eab05917a16080ae2725fe10ca6379c1b3"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_122.json",
+      "bytes": 72336,
+      "sha256": "aa9ab732986269c39c1fabc4c0e433324a680ef95ea67b35c35e08c94b8abfae"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_123.json",
+      "bytes": 69751,
+      "sha256": "939e4576d55b3712f5aa6511ae363d5ba01e554e532a2264673957019f1f0165"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_124.json",
+      "bytes": 70417,
+      "sha256": "d7030974360448b0762249fb97341d8eb08968d8245425b841fee533879517d0"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_125.json",
+      "bytes": 69114,
+      "sha256": "701ce08994445c92086222fd0b16cd9fcb75f74aa59511b827d11369f22c78d2"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_126.json",
+      "bytes": 71652,
+      "sha256": "3d180b709c5c7a1fc852ff6c817d55a7bcfad63851853179f96afe6581fa2a65"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_127.json",
+      "bytes": 71021,
+      "sha256": "bba9a7ee73f0f3ee4f1ee6b991c099c4d518db53f61ce0ab395d397071c75716"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_128.json",
+      "bytes": 73654,
+      "sha256": "711cd3db9f5c1dab7370d90b37b64a6077fd1abe90b16610cb7c0e9070db3b3d"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_129.json",
+      "bytes": 69754,
+      "sha256": "a2372f6d2a7d40cbdba55f1cda56eeba23fc34a26343da23b06c4c81f1712fd1"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_130.json",
+      "bytes": 70414,
+      "sha256": "1fb4b8755c07f3c15191212bcbc7d56551fdf13da153819a4a769b8415c05eae"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_131.json",
+      "bytes": 71034,
+      "sha256": "965a6fca3c95245f00a55b00e7837d5ffee2f53b094016263636167a1c043b94"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_132.json",
+      "bytes": 70415,
+      "sha256": "ff33d6496b27c071501962631e22ec161a5dd9d95b63f06699ead014f55ab192"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_133.json",
+      "bytes": 70414,
+      "sha256": "3d3818976607b7e79630355abf733cd0ad00f0fd262343566714794db7943df2"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_134.json",
+      "bytes": 71697,
+      "sha256": "179df42abd7a238282fd8264351e765b9ffc01ca73f5957a98471f04daf0e36d"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_135.json",
+      "bytes": 71716,
+      "sha256": "5b9f5bd52ba1d2bf315ba069aabc4d7e353db3c6857bec0c5ebf9f2215148ada"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_136.json",
+      "bytes": 72996,
+      "sha256": "9c5212bd3f4f65d3e6a4bbc1523dfc4051712930423f66f72a03f70f4b4a83b3"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_137.json",
+      "bytes": 70400,
+      "sha256": "549b00522358cc8ada4b74ef7ccf5ea3f9470ae34e5d2fbc4b5cd2af1fd689d8"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_138.json",
+      "bytes": 69758,
+      "sha256": "23bf4b9dbc19e1bba021c9d1af0470e7b582472439c87c45168c590927c87dbf"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_139.json",
+      "bytes": 69752,
+      "sha256": "9161bb490e23b7dc3f5afd36c94b51c86bba6d92e49335cc3ebdb6aca71848ac"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_140.json",
+      "bytes": 70409,
+      "sha256": "f36a6734a7d3ed7113c16eb6260d54313e782d9633b7b56cc36b53e7d543cfca"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_141.json",
+      "bytes": 71011,
+      "sha256": "0e34d1df655e383644bc06de224f917760d4650f7f3de562886f6670394c0591"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_142.json",
+      "bytes": 70996,
+      "sha256": "c91d030f8fa7831498ff04536b667a0cd171a02e1ecb767f81cdd122b1ffdb89"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_143.json",
+      "bytes": 70384,
+      "sha256": "063b9132c6b4f9e436b90076710fb945dcf601fda3ee7b8facb7c5e5cabe54c5"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_144.json",
+      "bytes": 69114,
+      "sha256": "9b2dd28284454f18e41e9bfc020bd8620694b76f185c9e9dbd814b05df3df0f8"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_145.json",
+      "bytes": 72975,
+      "sha256": "52c579ca3ce0b2eeffd92ef26383f6be974b9af6ec87bf5a55b8b8e2e55455e1"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_146.json",
+      "bytes": 72405,
+      "sha256": "25f50cca62abc42219c8b63df758bf88715914cec493da4ec347e97d3878c05f"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_147.json",
+      "bytes": 70993,
+      "sha256": "66de108a9a6a7a2ed7eb8e0c10c65d021ab596e75dcc82bae9f6e18c8de6cf90"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_148.json",
+      "bytes": 69134,
+      "sha256": "dbde532f551418f2a9c2a059d3522cba6d67261510e064d97cb90937458b84d3"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_149.json",
+      "bytes": 71683,
+      "sha256": "1d1a59f9bb5a3e2caf678c19ce1db64b1442b8add8c3873b1bfd0ae1937be3d8"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_150.json",
+      "bytes": 69772,
+      "sha256": "7bd289cbf8605d36fce8aee8d0ae3822128e9d9f030bb713dd49d9a4cc21592b"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_151.json",
+      "bytes": 71664,
+      "sha256": "0fb85737587525ed5fb32959a0fb10e070f80f03d8e73675eda1d3c514dbf16b"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_152.json",
+      "bytes": 71729,
+      "sha256": "f2ef42f0d03336f2034b0d6327389ba5949e2311918f733ed2e290aed2f7ba8e"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_153.json",
+      "bytes": 71674,
+      "sha256": "1de0aaa79bf237454e85ed20a394a66dc5bde0c95ec397e8bb947aad0c1dce5b"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_154.json",
+      "bytes": 71683,
+      "sha256": "a3a5a0ea40ca8abbc9c3e7aa0caef26423a12226759ac599f333c61d157157d9"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_155.json",
+      "bytes": 69782,
+      "sha256": "c34327de93d5b3c010ae4aabb37681410308f72ee936a735f6e6cb36e151973a"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_156.json",
+      "bytes": 71040,
+      "sha256": "be3d36ba707aa3fa5a04dede17bc16deda9f4fc812f11bff0ebd8893c4373ef9"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_157.json",
+      "bytes": 69158,
+      "sha256": "ab0cc2a4a9c459498c8bd0ab2554a61a93e76a54b48fdd7924abd879681552b6"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_158.json",
+      "bytes": 70992,
+      "sha256": "f9a0ee27c28c57bb20b25e04fceb3c4f0d79d86ed8f038761a502a1356e726e3"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_159.json",
+      "bytes": 73622,
+      "sha256": "b334150895cab7e266321eee531c7920a7e0c53700c54282d7cbf0acbdcfaed7"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_160.json",
+      "bytes": 72362,
+      "sha256": "e7e8ca1be2d235973de7d4f7848862744770244852b5ddafa7d109b1145e9fbe"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_161.json",
+      "bytes": 72976,
+      "sha256": "71d0a55382dee8c9224436f88cdf52b54f291062105db90731eef3c6aebd1a28"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_162.json",
+      "bytes": 71030,
+      "sha256": "7869282d73a0eef74c30376227077b4a3e3fde39d824999105a0ef6cb7e79010"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_163.json",
+      "bytes": 71700,
+      "sha256": "354e6fb28604fe9b0e63f6745e7facc80f2b45360383abdb5038a344121f60cc"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_164.json",
+      "bytes": 71702,
+      "sha256": "dbb151915a18279b118010052bbeaba923e0f9e662990614c2a165b976310bc0"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_165.json",
+      "bytes": 71695,
+      "sha256": "dfcde1220c33d8c3c65ac74e69ffeb127c15e9aaadbbdf40314751853fc1a364"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_166.json",
+      "bytes": 71075,
+      "sha256": "d249a969809d0cd50c4ce2961e052e347b5a01e506b61dbc57fb8b4ffc198e60"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_167.json",
+      "bytes": 69100,
+      "sha256": "82c99aa7ca1caf2829aeba8b88ec43c989a1886aba47db2c56001e3e883d34d1"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_168.json",
+      "bytes": 69728,
+      "sha256": "f55eff21a0a0cc711cc4901e3d4fb04f4bd2a79a96e0a71b1196d2a9a4af4d17"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_169.json",
+      "bytes": 71702,
+      "sha256": "25650449c857e31761df7e8fc52fffbdb275fb05b519e4f0f2e14cbeacbb1e88"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_170.json",
+      "bytes": 70976,
+      "sha256": "7f4113cfbeae90e19e4d22218de2e326ceb18270a44eba9367dfdb497919ed65"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_171.json",
+      "bytes": 70343,
+      "sha256": "81b3944308f062a9a82243eef91588cd33d5246dc36a0d3729e5c275998522f0"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_172.json",
+      "bytes": 71007,
+      "sha256": "5d127baafa79d08392508e75382b8e8f137248ad52579adf7b14d7abb60af291"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_173.json",
+      "bytes": 73003,
+      "sha256": "02d6f0c12b8a165b92b886cc18df9d59b8ef381eb13feff09168012e23e43af0"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_174.json",
+      "bytes": 71004,
+      "sha256": "92bb70fc0748d337f23742c5c4bcfc4d513c77a7229deba050fdfe624ca66bb2"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_175.json",
+      "bytes": 71092,
+      "sha256": "a10797e6bb287d80752a6c172429ed0addfeb137eb229c773a7e1d6462819deb"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_176.json",
+      "bytes": 72346,
+      "sha256": "64e9c4c0f509c78b3c71c3c5a448d44b7ee764c80abfa71713ca0ac5a9f37593"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_177.json",
+      "bytes": 71703,
+      "sha256": "08554cc91eaf6935957b22fad52b54988234d589cef5163bb133d4943508d3fd"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_178.json",
+      "bytes": 70422,
+      "sha256": "d26388b142861ea49ee38a91bd49067975d04fb257a06322eceb71e915c20a18"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_179.json",
+      "bytes": 71059,
+      "sha256": "3e5058b7854eaf1b65edcbbeea5f1c7c8a6aee4edb23091bd71a6d92cf19e4b4"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_180.json",
+      "bytes": 72305,
+      "sha256": "79fb2b41f0ba35847b90f3c781c24497ef07a1c85ffa82fd26542f092ab39c3b"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_181.json",
+      "bytes": 71040,
+      "sha256": "2d3776b375073f3cba60fc071cacce5f83be13478c4cfb0b341d0045402cafa5"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_182.json",
+      "bytes": 69734,
+      "sha256": "375fabacd1bf95dbba8d72ce72685abac66ea97533e39a9c9740e40d87fa23a5"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_183.json",
+      "bytes": 70433,
+      "sha256": "55e47537ea7d876b71351dcf5bee4469033e2fca680f1b2acea854ba325ac464"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_184.json",
+      "bytes": 70380,
+      "sha256": "07bb24c0f406df3581e22ead5ffc6a6164cace18cc995d22cf1bdf946abaf3e3"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_185.json",
+      "bytes": 71052,
+      "sha256": "82402d2f46ca61a6e7e54f4986e857139e28e1772c3eb17295c49a93697a85ee"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_186.json",
+      "bytes": 71655,
+      "sha256": "ab61209f93130693a6b8d6800463df0590642f0f4492a9c75b47d76ac1b5b083"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_187.json",
+      "bytes": 70399,
+      "sha256": "6f2bfbfa901efb01c4ddfa377f4586322741c5907056b7219531d8914571cf02"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_188.json",
+      "bytes": 72310,
+      "sha256": "474a3e0d474afe3fa3b3f5d98dec0ca1e84e98dfda0aca35a2da5f781319a7a5"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_189.json",
+      "bytes": 70416,
+      "sha256": "cbcabe559561c37ee5df856c42bbc88d9bbc3603099bebf8e46583ad80e5e7ff"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_190.json",
+      "bytes": 71048,
+      "sha256": "85d85a5af3b6d886cec86d985d1053d4591c6320235ef05666968147a3218291"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_191.json",
+      "bytes": 69796,
+      "sha256": "a2bcdc3aa86f3a26efc79b7dd26bd68f06bc5d420cf137f1fae4eca3f758f08d"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_192.json",
+      "bytes": 69813,
+      "sha256": "00f39ccc954825d4d359ff47438c652b22ad2244c23c1ccbdbffd32acd93ec13"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_193.json",
+      "bytes": 71708,
+      "sha256": "af1c4684762f7e47df60554fc208c10b285e25db87190421bfb1c4544befb221"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_194.json",
+      "bytes": 71734,
+      "sha256": "9741e764c70a0ce2da5332e2db0a9861df7b681c464220efc001f0475deb3fb3"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_195.json",
+      "bytes": 69107,
+      "sha256": "9aedd33e8010b274469d7e5c69dbcb17efcedc36bf4ff4e427e3be34fc0a612e"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_196.json",
+      "bytes": 71039,
+      "sha256": "ccc8776427880813a8b1bb1b10f47445bb43dcea6eabd853bc1e8e55a0896e45"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_197.json",
+      "bytes": 72337,
+      "sha256": "1a605d0e7d49176dc6eca25a9b04a87c438112ea5d511b474e51d38b8f938121"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_198.json",
+      "bytes": 70374,
+      "sha256": "e9733db25816a9af85186e79d986f53bc40589b7da85fed6247add7b8795c8be"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_199.json",
+      "bytes": 71685,
+      "sha256": "dc557c81945fadebd2189f1daed033a5241543597c0c7470c50ae0e2f933d184"
+    },
+    {
+      "path": "G_hybrid/replica_02/production_200.json",
+      "bytes": 70431,
+      "sha256": "05304ded4d84e92e1bc936387c4930bf46d944ddab22b46f9c0c713bf1e3b0a5"
+    },
+    {
+      "path": "G_hybrid/replica_03/frozen_grid.bin",
+      "bytes": 12878788,
+      "sha256": "60019bef82cc5857b5eea8e657467819d5f6e52599c85b54d37108539bafb56d"
+    },
+    {
+      "path": "G_hybrid/replica_03/learning_01.json",
+      "bytes": 73669,
+      "sha256": "2a7989c06720745c40f400e84cc6c0f4fff6d2695d47684642dbe4012232d4de"
+    },
+    {
+      "path": "G_hybrid/replica_03/learning_02.json",
+      "bytes": 70495,
+      "sha256": "dee326fec4198fb261b4c98c93e739d2502626f33c4c4e048bc06cdfda0a83ff"
+    },
+    {
+      "path": "G_hybrid/replica_03/learning_03.json",
+      "bytes": 71779,
+      "sha256": "25cb7167fb5bc26d561132c3cd9d2293426eb242adeb580166210d6b638c6513"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_001.json",
+      "bytes": 71673,
+      "sha256": "c1b5fbba7edb366aff26116185c5dd36ea7aeb62f59f4a2501748363c044546b"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_002.json",
+      "bytes": 71685,
+      "sha256": "5d52dce6a1f50d5938794ef68645e9309134adbda7612412070c7249c9865b27"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_003.json",
+      "bytes": 71022,
+      "sha256": "53fd2a548f91780ff5394dda6593639081dccd1308b3558d1bf9fdaebdcf1734"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_004.json",
+      "bytes": 71657,
+      "sha256": "0a239e79d479da6a17f6f30c9c9f3b8c8cc21651bd98d621e439b0c5c63e68ec"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_005.json",
+      "bytes": 72291,
+      "sha256": "17305cbcb5c806060903b20da20203235823c7d4669a0c5aa66978585465ed15"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_006.json",
+      "bytes": 71680,
+      "sha256": "0322df25895fffca8324f16ab0221376d54f2a8f05a5a5b8c76cdaad54af6156"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_007.json",
+      "bytes": 71045,
+      "sha256": "df3d5e1e4b58ec1727a42988dfba34547b10c55b057a2a342af4bc9aff8064db"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_008.json",
+      "bytes": 70436,
+      "sha256": "1d15e5ba9905bab68f59ec668dac370b0dd82f15c4885371a1442ba21e8692d2"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_009.json",
+      "bytes": 71013,
+      "sha256": "72e4c8a74613c0017670816e86318a6104894a5a8c6f6454ff2a87f738b66380"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_010.json",
+      "bytes": 71680,
+      "sha256": "4ee7f827f0c53ec31bb6d9a7715bd507c9328da093be67af60d6ad7a487391a1"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_011.json",
+      "bytes": 71033,
+      "sha256": "e699afd68edb965504e5f095b27ae9af786b1803b5e83d17d3d93c0eb301e280"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_012.json",
+      "bytes": 71024,
+      "sha256": "b722519245c9213382e7a3291bf102aa1f4628b263b6278c695f8852f2a3d651"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_013.json",
+      "bytes": 69780,
+      "sha256": "cc4accbfbd946ad310d988f26e91247875d6da601a25aa98dd2aa90b76c42200"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_014.json",
+      "bytes": 70396,
+      "sha256": "546eff66720a6f3ad160556119041b3c8856416a26f692a1e44539613d7b13ae"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_015.json",
+      "bytes": 69767,
+      "sha256": "37a66690179c85464a6535e80e8f20f51c8686b4c9d77d25685b843b42290027"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_016.json",
+      "bytes": 71742,
+      "sha256": "783554b9892740716aebef0a7cb2228d7d134bc08f9de5559062a8b0b11a5bb7"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_017.json",
+      "bytes": 70363,
+      "sha256": "7fd5ac9441ee71e49af89ae74d892f62ac8a3d97da77323425283976a2267ac5"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_018.json",
+      "bytes": 71038,
+      "sha256": "077f5268b28ee23aa1100d484030e20774ca3ba83399b33a3a02fcbce5b1260f"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_019.json",
+      "bytes": 71675,
+      "sha256": "68c468a54072780c179c9b580de0f500bd301bf55d2378159db0a9a9b6d90070"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_020.json",
+      "bytes": 70443,
+      "sha256": "9fb55f5ae4866a24b1ba83b0ab67d4dcf3b1aab8fa592e41b1bde21fed183a56"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_021.json",
+      "bytes": 69164,
+      "sha256": "2efb2a3b8f3484d78ac47c288e896701b347955a4d9aff99a2ee4f75fd99b912"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_022.json",
+      "bytes": 72371,
+      "sha256": "7e726b414155fe4626c76920525ee41107ccc5b7ed8a1d76fb37f62ecc927034"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_023.json",
+      "bytes": 69102,
+      "sha256": "5b3134f1076f3d0516ea0d22f960423baf9f80a330387f0be53097bfad8dce0a"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_024.json",
+      "bytes": 69761,
+      "sha256": "1882c82253a38389606e57f7c928a19684de8b3f7a141dce4a501bfd1fdba486"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_025.json",
+      "bytes": 70426,
+      "sha256": "e8986a7cf51bc69fadf712b6c5de45fe75e59ce8948f323ae7d89bcc90912044"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_026.json",
+      "bytes": 71045,
+      "sha256": "3d4b63c8649b3406b91c62fcf08fc54c0472ea5496e518e020f565eb72d85bd2"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_027.json",
+      "bytes": 71660,
+      "sha256": "59f90dd3deb8071ff7e71b2a1a734ceaf2f829c541d2d2acaf83ab82bfd7df7d"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_028.json",
+      "bytes": 72374,
+      "sha256": "c672c84c3a14a01cfbd2837c1866cb5d2aee175e7c5fd585a0462f7ea4dc51c6"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_029.json",
+      "bytes": 70366,
+      "sha256": "f5189605ebabeaf1cb8b315d501034a8c29a7041ae36b592b9826e8346b66e7f"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_030.json",
+      "bytes": 71068,
+      "sha256": "1a8734a0bfb62e659beeb83ff4de3975a2add8d3fe53bb198c78a6a6162a45eb"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_031.json",
+      "bytes": 71051,
+      "sha256": "d30857a5b0de65e17cab1002bbff74a17484541313a89710cc315bb9f0e2dff7"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_032.json",
+      "bytes": 70447,
+      "sha256": "470d4baede294cc6a92ba2396dbd0383c82fb4545060c637d84feef5e6490f8f"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_033.json",
+      "bytes": 71016,
+      "sha256": "7f1eb8d0c60f2fb651d3bac518ffd1f462dc4f80ee35f40e6d7008b5a3406b1c"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_034.json",
+      "bytes": 70382,
+      "sha256": "dfea27cdcbfdcd8aaffff9f9205690c1ed501ca45d7cca2ecad43dad59018e72"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_035.json",
+      "bytes": 70394,
+      "sha256": "9c87f8e62c56a91e755ffb7e148741c8fb164ccf0aab52a300993a8f58388652"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_036.json",
+      "bytes": 71671,
+      "sha256": "886b569bda81f1f0b89639cf2bc4410127ec06ab3cdd0f92f67a01b4aab32b1b"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_037.json",
+      "bytes": 71644,
+      "sha256": "1161044f7f62557b8f48b1354432e92fdd510c057c0e1f04ddfe272d7d52881c"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_038.json",
+      "bytes": 71043,
+      "sha256": "e7b1818eb8e2105de712795fb618ad09f50b61f2bda341584e9cd793933a1ad1"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_039.json",
+      "bytes": 71788,
+      "sha256": "74c6202eedf4ca8180c6fa83c2b985b72a584d7fb06d7760c13ff0b3d94e96f3"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_040.json",
+      "bytes": 72336,
+      "sha256": "d5e936e9be89623937e014fa5c3abbb68b496d5e50304ad8afc8378a89b673e5"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_041.json",
+      "bytes": 72993,
+      "sha256": "7abcfde0977f752025c5ebb8db22cb11384027cd5422e475678f871529c69211"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_042.json",
+      "bytes": 72317,
+      "sha256": "9fda1013dad7bbe830c8ed8b70117683f6264e96d635c79ed5d37bc42fa304de"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_043.json",
+      "bytes": 71056,
+      "sha256": "09cb96d1a9f2c1566e94821f23cf5ee96daec8a5a3d730f4897ed90b0b118954"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_044.json",
+      "bytes": 69738,
+      "sha256": "3865e2ba7f89f78dcd35d85156da6d001c2601c124e420c6ab6bf0c648683d57"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_045.json",
+      "bytes": 73025,
+      "sha256": "37513866e67f9c534283531cba0e96fe96a0d25186e3856c1f492210552d5043"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_046.json",
+      "bytes": 71067,
+      "sha256": "55cbc329be1b2f05073ba971d6e31fa454ae605453ff3b9840117fffaca1bb55"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_047.json",
+      "bytes": 70432,
+      "sha256": "8ba38af9ac4cda1941f2d1f6ba3beb6220d461dc0c763677ba66778ac9deaf63"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_048.json",
+      "bytes": 70424,
+      "sha256": "fe89556e694b8883eb234bcd89ae6b97f63b00da9538856a52113d1950834800"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_049.json",
+      "bytes": 71104,
+      "sha256": "d3036625ec21dba2a8af54049da45b9825e473ef556923df4fcaf6fba551e3c1"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_050.json",
+      "bytes": 71683,
+      "sha256": "4b2d75a168d5fbb6ea96a0d2b0f8dcd6b2fddc0cbe05a20b924bb8b62e8feb6a"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_051.json",
+      "bytes": 73581,
+      "sha256": "bd08f1f6a59bd626bcf774f989825161b88022873dc09179731499bcb2293625"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_052.json",
+      "bytes": 71019,
+      "sha256": "14b228e116c2db277ae12c6f52a9cf7bb7e6f93f2b723c145f3fea5d3aebbf91"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_053.json",
+      "bytes": 71706,
+      "sha256": "f85b96eb270d5f2332c144154babaefca444cd9211c8efbd6bd4c2819123d0fb"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_054.json",
+      "bytes": 70996,
+      "sha256": "26a956338eef05d67cee9c965cf59eb3026d82b4a3f5eac56160c43b386607bb"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_055.json",
+      "bytes": 72333,
+      "sha256": "a623cd2ae11c213145fe8c727c71ccbc8e8963014a6dfe9b25cb166388131720"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_056.json",
+      "bytes": 71056,
+      "sha256": "078360c850c7aa7d83bf62097778c54582c378d7d6562f5470030d103b13eee9"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_057.json",
+      "bytes": 71730,
+      "sha256": "b9c745d2156e672fb715c9ead516cca16cf04e5c404a474c3199b158e6f916cc"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_058.json",
+      "bytes": 72356,
+      "sha256": "94a6f6264cc043b98b9ffa38e998f93bb1d9b7d6d4208ec8d0893cabb9aa0102"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_059.json",
+      "bytes": 70407,
+      "sha256": "8f7f87887fff094f750abfea0cffff2824c8b0f53720455b683ff7dca2f881b0"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_060.json",
+      "bytes": 72376,
+      "sha256": "5b17bd4719528dbcee9fa62fe1d3b82b5a2c729038b41d5b57692c68bcec7ea5"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_061.json",
+      "bytes": 69762,
+      "sha256": "8c28f08906704fca1ec4e65a2687d373bfb5005baa5622875cf7db39b52cae5b"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_062.json",
+      "bytes": 69763,
+      "sha256": "445cffe2580f06b93cc20890b1801926d30068c412267f0c8e10b9c98fff2da3"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_063.json",
+      "bytes": 71105,
+      "sha256": "19b1676d6e6e89069cdebbcd18c8db2c49786cf4e7752c1445ba155c8a36cfc0"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_064.json",
+      "bytes": 70412,
+      "sha256": "7e42625d3b19c616615a652be42310669c2217454fc055f1cdb6d20ab51f8d19"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_065.json",
+      "bytes": 71078,
+      "sha256": "d329471dce6550fee8250177dbc39e75f28f04d33bd5dec7afc116efa109a86c"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_066.json",
+      "bytes": 70423,
+      "sha256": "16d2748a3961aab59cc1121cbc9585f4b7629744e9a6dfd3be5a61833a00bde1"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_067.json",
+      "bytes": 69108,
+      "sha256": "b735725afc68fcf09a5b1c8e673f20b0bea90fa565cece03cc5d8457014a75b1"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_068.json",
+      "bytes": 69745,
+      "sha256": "0e5a3268493273c1d475460e3fa3cace6982432d911213db9fdfe5544c1df564"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_069.json",
+      "bytes": 70414,
+      "sha256": "64ea8e5b2de6149ad0243879c1f37efa4b7ccb66af30171a8a4f02b0a1c7893b"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_070.json",
+      "bytes": 71051,
+      "sha256": "d7689eaade70d6037313cc40f80b0565d93d88fba0877c4bf2cb232d5a3ce56d"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_071.json",
+      "bytes": 71738,
+      "sha256": "13a0fc84eb70532086ba67925942c317359fde483abb59da2c5348fb665accbd"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_072.json",
+      "bytes": 71050,
+      "sha256": "3c3549fb975974e7876cf8d0109a27e4a2604213257c429c9d2d4a2d243b881e"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_073.json",
+      "bytes": 69712,
+      "sha256": "51c8c2a71580c91c202a8514d208e0face544cd937663acb33710e64c37b474d"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_074.json",
+      "bytes": 71725,
+      "sha256": "96da896338b3cffa0fe4c560ec97713753632b035feb395349d8c87c1cf88ac0"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_075.json",
+      "bytes": 71052,
+      "sha256": "f4316a3a7899c98b27d39c4b50674e402a93f0c11f8cb2294fc48c4a13d1d30c"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_076.json",
+      "bytes": 69758,
+      "sha256": "7494d054ef19f3e9b85db5c7f118846e31cab17d4bda01c40fb33dfd671e6227"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_077.json",
+      "bytes": 72947,
+      "sha256": "7c11bdc6fe0b125900c7766c45c99445d8a49e7821d063dcd5be415df3d3df43"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_078.json",
+      "bytes": 70412,
+      "sha256": "d22ba623670c3333c917fc8b90168b14a120020800a754f46733ede1b508a7f2"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_079.json",
+      "bytes": 71032,
+      "sha256": "9b3bf6a78a7167025bd021c226f5135a116e1baef6e59c7fd40de96055f5f774"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_080.json",
+      "bytes": 71099,
+      "sha256": "70aa7649953bfee41d00c963c79e4752785e18a0a199dacadff3ce7f6e9a12c7"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_081.json",
+      "bytes": 71019,
+      "sha256": "248966ac0d7896ca3770c3ee0f2f9952f6b5f5778dc987d139add6894031592e"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_082.json",
+      "bytes": 71707,
+      "sha256": "dd63334edf6ac5f0545644381714e0f056f4c65294f6de3592b4b0f138722377"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_083.json",
+      "bytes": 70442,
+      "sha256": "bb119fb01d6c31dc9342de3a23c5c8a934732cc630df2f481270357e7af10b28"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_084.json",
+      "bytes": 71684,
+      "sha256": "db2da3d860bd91de45badd5ff2c75ae894ad073177e77e3d180c0a04841b2038"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_085.json",
+      "bytes": 71058,
+      "sha256": "e75d8c435bb22eb865980de98dbe8fac000b3db30e55cef95deac9363764a711"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_086.json",
+      "bytes": 71667,
+      "sha256": "f0a2164b7558c8cadc2294875b69345db597e073d13c2efed67729bbbdbff259"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_087.json",
+      "bytes": 71669,
+      "sha256": "ed891ad273d83149988ddaca65a0f6bdb93636748157cba4b5cd3962c1796ba7"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_088.json",
+      "bytes": 70414,
+      "sha256": "07c5fa5c0d798865493bff163c0ba782de2533ea6996e41dbede495ceeca6631"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_089.json",
+      "bytes": 69129,
+      "sha256": "b7d3cdd2e1d9cadcb5da29cb92c59d7242cf703047866d3c87bc1460d64fc50f"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_090.json",
+      "bytes": 71012,
+      "sha256": "9c144c3ab9f508b36581f2cf065fb8c482e501bcd704149200925af13565dd00"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_091.json",
+      "bytes": 69783,
+      "sha256": "14a7cb9fded5f7e445416005db99ac5f581ab258b36fb339b796999d32736200"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_092.json",
+      "bytes": 70362,
+      "sha256": "80a911b2e6f5148599977ee20bde0f7653ea9a151ebe62141833853887d5e5cb"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_093.json",
+      "bytes": 71037,
+      "sha256": "467c4ee255941355696b0126c509e7a1c3c45ee339a08a17701562b53bd66753"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_094.json",
+      "bytes": 69107,
+      "sha256": "c939e8309ffae4a44e5f91e7984a7200a16c6b78a9a3cdf7ef5524de3f1fcdd3"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_095.json",
+      "bytes": 71668,
+      "sha256": "9085f5d9867c0c2ee8dc9e2f0145bef41bbfa848718e223753b30c3b92b03747"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_096.json",
+      "bytes": 71062,
+      "sha256": "43e313198cb0aa506623c2510e4d43b9b08b4fa1007f9858c3d204161b129318"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_097.json",
+      "bytes": 71053,
+      "sha256": "7c442dd1297fcb88e22b275aa446bebfad9629b3b062b428b4b9e438efde08fb"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_098.json",
+      "bytes": 71038,
+      "sha256": "418790e365ba1c7acb361604bbb3d47ddae14e331e55b84f22624b0861453385"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_099.json",
+      "bytes": 72345,
+      "sha256": "2f8fc748593159dc821bf031950d6e815a0b6d5fdee89cad6e87262e79612160"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_100.json",
+      "bytes": 70366,
+      "sha256": "6df383f51e31dde99fb1760dbfc999437d0344254ba94788c62e832cfdec94a3"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_101.json",
+      "bytes": 69101,
+      "sha256": "b9e8c601553c9693f13ea5fdc875b9e400e497d77c1767a088701896aa58d81e"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_102.json",
+      "bytes": 71709,
+      "sha256": "058a64799e75ef135dc3e424f908de9d2a07268ec48fedbabaf9c9c609961eb9"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_103.json",
+      "bytes": 69769,
+      "sha256": "1d8e8314defb361da55aefe03c983803689e2380b27e3ded1ce9f13c8251b418"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_104.json",
+      "bytes": 71034,
+      "sha256": "61cbe9b2769bfe42757b8be80abc4f5bb5e72b5469002a860092fae766e302dc"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_105.json",
+      "bytes": 71017,
+      "sha256": "b4724ed2b3845b0798129975a264f881a4cfabfe148b98ee34eed580836ebcf5"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_106.json",
+      "bytes": 70414,
+      "sha256": "da20f2b236a90c1ad1dc6d2c7599be7c55f5459446b22a19b56beaf8f93cfd08"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_107.json",
+      "bytes": 71076,
+      "sha256": "f5bebd9a8be2e01c5c4d686152a042e7d0d49c5ae6f206f0bd303247adfe9ac3"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_108.json",
+      "bytes": 70411,
+      "sha256": "553192a3c490d946f844d444fe6be648667b2b2419f10bef2c92144d5255ba7c"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_109.json",
+      "bytes": 71034,
+      "sha256": "70add12318164666141ba9e057e38d23eac32f5283acfd507f6321bcfa8922eb"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_110.json",
+      "bytes": 71731,
+      "sha256": "46892d077ae79d2ee3d876661999270b6e4cc77b115621f538a91a07fb46c33e"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_111.json",
+      "bytes": 71693,
+      "sha256": "58792ed5cfa19968c45c191adcdfaa3ba0f51bdfb7a4658088a6dbd9e4860c7e"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_112.json",
+      "bytes": 71087,
+      "sha256": "48673e601c484ee58a0531af138cd88639c9e3174b6afc4abaa482b9e3e3f4f9"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_113.json",
+      "bytes": 72335,
+      "sha256": "2b2f13d71c29537ca174b875eb9f32942c2dd1fede5d87cde1251d30881a0bf9"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_114.json",
+      "bytes": 71716,
+      "sha256": "db505d53d18fc0d40bcbd0a577a03e8dc74076e6a0495e496c712d4c5a3a0b33"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_115.json",
+      "bytes": 73620,
+      "sha256": "48abca2ad926a5811bef1c0fab3e173f136c73f383d719dfb43506ca270e6445"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_116.json",
+      "bytes": 70409,
+      "sha256": "e8300f6ae7e992e752720215537ad8e1729c7611f71e4a3d7800610efd84a634"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_117.json",
+      "bytes": 72350,
+      "sha256": "1df5c116ab7c2a64927d26002f2e46079f143fcc15cf5775b415e534ea613df8"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_118.json",
+      "bytes": 72347,
+      "sha256": "f6abece98c36354d616260823959094460e6feae6cd7543bc19662cc6dae50af"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_119.json",
+      "bytes": 70422,
+      "sha256": "5bb20679eaec6bca67d3fd07fe34f14802866f2dc917cef175bbf450b807c2d2"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_120.json",
+      "bytes": 71087,
+      "sha256": "8804573bb8aaba9718a4a95a29af915739282220446fbf5aa16e1539ad77fd45"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_121.json",
+      "bytes": 73031,
+      "sha256": "03f00171638e120da186cbf8277ffb903b9e060390f951ef449242981da75501"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_122.json",
+      "bytes": 71672,
+      "sha256": "049db5c05c0b7922260a3304b0f18e72a4fed5f8c988e494cb12903952ddfd34"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_123.json",
+      "bytes": 69789,
+      "sha256": "a78aa1dc2b0583c34c94ff09ba7a78606f18c6580dcbe5a60a57d1c384bd03ae"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_124.json",
+      "bytes": 71695,
+      "sha256": "8cf5b29f03998fd0b59ea342569c3fa00e8fd79cd7f903bed52f22582f3c59bb"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_125.json",
+      "bytes": 70419,
+      "sha256": "42ecf0c4b15df6489c53478c09f2071c8a500be195888076cd2ba812cdf9a2fd"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_126.json",
+      "bytes": 70405,
+      "sha256": "2776a4c9deae8a384fa14a561a22f4d7fba05eeea9e8b6a8ae4f0f83ca526abe"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_127.json",
+      "bytes": 70427,
+      "sha256": "0a6ae607c555180580851507e4d89bdfdabbb1267677b1d6f402c9b48958bf65"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_128.json",
+      "bytes": 71054,
+      "sha256": "e8078563f6d54f7ee4d2ddbde69c5c974c107c2b7d7cc6c38d685622f70495e1"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_129.json",
+      "bytes": 72302,
+      "sha256": "66b3ddf091a00599e788c0e242fc873946c8a1e4ffaa7eaaa5dccf3598515a33"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_130.json",
+      "bytes": 68490,
+      "sha256": "6a5a8f986bd7fe820dd8d5cfb02ff02cbfd05d30d137b025e16ba082af148404"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_131.json",
+      "bytes": 71075,
+      "sha256": "fbbdb31a29e7f6b39b8a4b34eaf15a59880dba230f222c62b954d9d065a622bf"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_132.json",
+      "bytes": 71084,
+      "sha256": "7e3bc2833da9216b6e70d79fa2fcda3c7ef7e23591b4bc312e549cf0839c892a"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_133.json",
+      "bytes": 71074,
+      "sha256": "7d401ceef609d3c2128b4335d7dd2033e0500f5aaf4a1fd930efc79f875f1d2c"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_134.json",
+      "bytes": 72366,
+      "sha256": "a25194c123f5f7963d6a0d385b0a2284ad3d7c8ea0073a8a135b9a6df9f31daa"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_135.json",
+      "bytes": 73655,
+      "sha256": "ddbe5622231a603e4b543613c53c7a4ae47b6d3c57f4132eb0bc1702ed6b334c"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_136.json",
+      "bytes": 71051,
+      "sha256": "6366b25d1fafb5e52d79cba5deca60a71b14655255e71c8afc633dd653be3e42"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_137.json",
+      "bytes": 72988,
+      "sha256": "829a37c8b2c41726227fef2e1179a3b6b3c059ac1089c065cd5f7e73f80686e4"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_138.json",
+      "bytes": 72327,
+      "sha256": "7fa8cf7b577f2bbb79ab1fb9e59c5cf9d600d11d76dc436bd984bdc7c0eea8f1"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_139.json",
+      "bytes": 70377,
+      "sha256": "40c246cfee19722c5c301fdff1cc957e3998a1cb5185a0e3e9cb4da27394a76d"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_140.json",
+      "bytes": 71737,
+      "sha256": "db1d2008eabb86af784cecd6d5953d1957bd279da0f4184f38835efb8f9f6a22"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_141.json",
+      "bytes": 71695,
+      "sha256": "9970c836d2e796ad1aef130ee68cb5fe679b777aae40b3e8ca27d3d5779d1d53"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_142.json",
+      "bytes": 71676,
+      "sha256": "5f14e01fe2ab6873e1f1861c3f6d23696d3162ec5e1236fe4bee95c87246595c"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_143.json",
+      "bytes": 72334,
+      "sha256": "e9027fa30edc11f1dd3fec5f00e4e45894e5923ef781c6081628e6ead99ef07f"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_144.json",
+      "bytes": 71064,
+      "sha256": "cbcf1a6fd6e3f72220f37a7eb7b6ed512e3e9b5594b69ec8e403e3db83e77479"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_145.json",
+      "bytes": 72315,
+      "sha256": "e2e5594249158762ffe44b4d48cf5e56e79d2e0e24737ee08eb23ec6bdd95630"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_146.json",
+      "bytes": 69751,
+      "sha256": "fc4145798add9594ca236fc413afe5a9ec5332ac029075db495dd2a4d981bd99"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_147.json",
+      "bytes": 71684,
+      "sha256": "1537cc3810c93f6d19a144fc1943a7c00651af02b33d6352a706cfa4dec9f5b7"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_148.json",
+      "bytes": 71744,
+      "sha256": "c89a411e50d7a2ef88f4e4222735c2bc4ff300a44841cf825deb188fde6dd3ed"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_149.json",
+      "bytes": 71074,
+      "sha256": "9eb681d689481fd6842c3b715f152c49751b82c8b87f54ec057173f5bfd9d4f8"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_150.json",
+      "bytes": 71675,
+      "sha256": "8e2f1554fe5ddaee5c37a667c0548c4cef1011d45b246bdc03e85b56e1595e5a"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_151.json",
+      "bytes": 70445,
+      "sha256": "b6609d6d842b5271fdcb43202bf52093fe5cf8058edbd45538c6e055f4dc850e"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_152.json",
+      "bytes": 72337,
+      "sha256": "c06881bceda7c576aea7a0d0208b5901475ec2143f05b4b2011fc320721a30a6"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_153.json",
+      "bytes": 72984,
+      "sha256": "8c18132f6adf1c4c24cd2bd58b191bf0ce7641430b1aaabe55e3f8b007e9fa18"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_154.json",
+      "bytes": 71036,
+      "sha256": "61302bd118dfadd789560ec97623356843d9f6f4659316bbc82facad0a1b062c"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_155.json",
+      "bytes": 73641,
+      "sha256": "bda2f25dc2ec5692ba7f8088ed7f308e9fc6446e560b9b989a230663ef89f6e6"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_156.json",
+      "bytes": 69739,
+      "sha256": "3107454f902bf55b2b5a3e51559da0b96cc17440c5b9b73137d3b80e1239254b"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_157.json",
+      "bytes": 71024,
+      "sha256": "747d286ad4fe5c8ed8215df7f82f3b29471be19562c8115586229889ec64c336"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_158.json",
+      "bytes": 73669,
+      "sha256": "6d28b318b3678cda0035311eb963860a6fa0fa8f390f70e2ca8aba897078ca88"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_159.json",
+      "bytes": 72999,
+      "sha256": "6bff7e0942616dd0741af7d3b8556d77ebb1b94c16c4244d29e0ddbb6eb995f0"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_160.json",
+      "bytes": 71736,
+      "sha256": "593199bc1c39a4a43cbbfac49f1d4fb1697baca6ff95830c5285028faf84cbe0"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_161.json",
+      "bytes": 71665,
+      "sha256": "1cc0328676b6d2983cd918cb549ae8fbe753eb950d540e341b3849360d61768a"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_162.json",
+      "bytes": 71709,
+      "sha256": "d2c9d11662d743962a22f064849d10c97c43763818408a3f3d67cdb43511dda2"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_163.json",
+      "bytes": 71090,
+      "sha256": "1e0113aa07c7a9cf84baf06e47a4c420afa1df2211533ce92f57cced29e78176"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_164.json",
+      "bytes": 70382,
+      "sha256": "1e3ae8a4146637907f6ac9466045d910959a90b927da592e6fcc2368858b7900"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_165.json",
+      "bytes": 71725,
+      "sha256": "33efdb01904ad01c6df55211b647da5f6c1e8fd687795ca99801c79818c4c71b"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_166.json",
+      "bytes": 70386,
+      "sha256": "9cbe981a5a58f37f61fe37afb529141b59a1dea98d226d2bbfd4efa4bde69561"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_167.json",
+      "bytes": 73600,
+      "sha256": "32ac7d81037ab2115e4a4acf118c7990dce162baddd804f64667ea924286c8d9"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_168.json",
+      "bytes": 71750,
+      "sha256": "046aaea5b0eff927ac716adaf43fc1faee98ebfbfd1698a48f7b01dd3b05faae"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_169.json",
+      "bytes": 70386,
+      "sha256": "aa2bc85d71e770ec0b9d27243483298f42a837bb5a13ef472e18722b7786bc0d"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_170.json",
+      "bytes": 71686,
+      "sha256": "4e46f7a213a39dcb1fc717560d3cb4c5707d9880d920a936b4a7b0b73cb51e32"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_171.json",
+      "bytes": 72357,
+      "sha256": "a4f456d886bfeb81fa700f857dc051dc2d59a0d16a592b1a480a36b3167f3d95"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_172.json",
+      "bytes": 71047,
+      "sha256": "67dc2c5db86398c410cf1a254cb7e40bd82730b8f9331f20d2b7b24343b1b5f8"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_173.json",
+      "bytes": 71050,
+      "sha256": "9ad2e8318a19de6bd680bed3f9542f78eceecfd8223c1273298f1fa5ecbc7fc2"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_174.json",
+      "bytes": 71093,
+      "sha256": "97420e81ae82dd9288b0d5a9aeea25d97c35b8aba99d18a0dbc524ae66ec5466"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_175.json",
+      "bytes": 72386,
+      "sha256": "fdb6c57adb2b3383a6a1121ac102668b81d5435f4e39d4e7baa4074d482d4a83"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_176.json",
+      "bytes": 71687,
+      "sha256": "52f346db555578365d2da43e7c5869831a5226cd335d605c080da058b19b6b7e"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_177.json",
+      "bytes": 69774,
+      "sha256": "ef17b507d5bfb5e24624adbf544e3548e98f16f9bc8052a667e2b763abb3d338"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_178.json",
+      "bytes": 71015,
+      "sha256": "398f2abf97c71fbe6fab2ab0c2c91610aad6261acd0142645f7d3ed64f5fe6e9"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_179.json",
+      "bytes": 71091,
+      "sha256": "e8f103c39a873baa626d8c6d2dff68b2925c8249bf138fb1a800124844fe4156"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_180.json",
+      "bytes": 72380,
+      "sha256": "742593dec570d05f6ddfd78c863da057184265bb721afd99439d0d868e959fa5"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_181.json",
+      "bytes": 71667,
+      "sha256": "813927f1b56d4a272063e5d22e4c0f161e731aedaea1991bfa877c3aa2acda89"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_182.json",
+      "bytes": 70423,
+      "sha256": "126caf0d9fc2fc230d887f2745b218fc7080604fdf361e3b298061349cc35dfb"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_183.json",
+      "bytes": 71738,
+      "sha256": "f35a1c75c1557e60ee21bd5f667d38d91e2ae2fe4f9e3fec58dda88c784da608"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_184.json",
+      "bytes": 71074,
+      "sha256": "f58495bd2118d4f0a78d3259d760304a509e22ade1826917b559b4a3eb76ab15"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_185.json",
+      "bytes": 69716,
+      "sha256": "2d7b3cf435dc46508c0a046c08ebdad9b05721014aeff7b82cd83fddee03ef3a"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_186.json",
+      "bytes": 69782,
+      "sha256": "dc4425c916e87048cdd74d5806e1063ea2ca5068cf580639bc23a9c58b521cfe"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_187.json",
+      "bytes": 71083,
+      "sha256": "ebfd7c78b9e99361a2edb3ed36e8eff3123dcf2737b7958c4b50a19291d8b43f"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_188.json",
+      "bytes": 69736,
+      "sha256": "e21266aea7cba968db792641a81feb19c3faefadb6d8a237b2c73d03741ce0cf"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_189.json",
+      "bytes": 71093,
+      "sha256": "4cdf5148c1e922d581f045be3be8eac578cd809e03893c7bc4a45bdf1cca7928"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_190.json",
+      "bytes": 71711,
+      "sha256": "f8fe1291049182056f4fb4bbd86c1aa0fb92b422ffd2731a788abd746cccc54a"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_191.json",
+      "bytes": 70412,
+      "sha256": "cdc5649244454401c22fdda4363ea8c04bf61e12c23f0916d7ef62bf6084913e"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_192.json",
+      "bytes": 72331,
+      "sha256": "4d9032331945f09c6c79ffd2ad6185e6a71cd1c86b1ca69736b6b138045bc46c"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_193.json",
+      "bytes": 71675,
+      "sha256": "b08e8ae04220aaa0b4bc5f5080e699132ad64797122e5c97d80ebce7b72266c3"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_194.json",
+      "bytes": 70369,
+      "sha256": "ced8ac5c3fa6b5afa39b679ae5757fa25b43b7b326a30cc82bf4e21072aa1a7d"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_195.json",
+      "bytes": 71717,
+      "sha256": "0bb57505e9d95543038e1b3f1c836446fcb02b3a6987bc21f497af951a46a515"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_196.json",
+      "bytes": 71723,
+      "sha256": "95f92b6ab9653aaa21806b86b1d4c121f39642588e93a6fa88aebeb1113a9b6c"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_197.json",
+      "bytes": 71058,
+      "sha256": "049d7cbad94b3660dd9fdb32be990211b02ee16cad9a010c9e8157dfd0d31f51"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_198.json",
+      "bytes": 71665,
+      "sha256": "ef2c491e397ef2b96097916c92a886db29611c0d22b440573afefea9ad76219d"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_199.json",
+      "bytes": 68483,
+      "sha256": "413fa8f8a3e660ac85dd37fb0b16f500f790346b79aacc8203684532991eca57"
+    },
+    {
+      "path": "G_hybrid/replica_03/production_200.json",
+      "bytes": 71105,
+      "sha256": "5c729d036363a669be16fbaf1f90c340c4b08ece7f516e6b1357849678d7a621"
+    },
+    {
+      "path": "G_hybrid/replica_04/frozen_grid.bin",
+      "bytes": 12878788,
+      "sha256": "ecdd503c5b2c962c61882bc0a7a4aaeb6d13a3fd018fa952abc8606199e6e707"
+    },
+    {
+      "path": "G_hybrid/replica_04/learning_01.json",
+      "bytes": 73667,
+      "sha256": "7d076931bd024f0ffe5241e3f59d620b7f782099526d3ca58b3d5dfc7cc17458"
+    },
+    {
+      "path": "G_hybrid/replica_04/learning_02.json",
+      "bytes": 71125,
+      "sha256": "8d343605f9ee82c4a6a95f2b58f83cf5ad75a071102bc05ce369025f152ff1fc"
+    },
+    {
+      "path": "G_hybrid/replica_04/learning_03.json",
+      "bytes": 73737,
+      "sha256": "fe5610c7193ce403e8d2d0ea5e6156ba62885d41c155e03d6a1ee370f2911ec7"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_001.json",
+      "bytes": 69141,
+      "sha256": "751c325d3bdea4e20c49c80426a6650b8fcd43e0d4558b48093344c916006b65"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_002.json",
+      "bytes": 71005,
+      "sha256": "a9f6773dd670175dfb355bbf2771de162e5fda089f635a6b0717354c059c37ad"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_003.json",
+      "bytes": 71054,
+      "sha256": "2038f99e6fa8c222d9f2f8153f936720ee3d62f7aac67785ba51b0cd6d4f3577"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_004.json",
+      "bytes": 70438,
+      "sha256": "52ee130f4cbdb68478147c0aa0fcc8e0d8abbd30182fbe200c6ff7352dba12b8"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_005.json",
+      "bytes": 72360,
+      "sha256": "2bdfbcdde198a2483a1aceca69a4150456864abc05a55f64285132b5763cab0d"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_006.json",
+      "bytes": 72378,
+      "sha256": "70532d2cbd36cf7bdf34c1388d3d279da62917a141225915f1dd02167049209c"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_007.json",
+      "bytes": 71679,
+      "sha256": "72abbc13c83f87b4d7b4336d6a42c9fc7afa4010041dca1334800ebd5e722e1c"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_008.json",
+      "bytes": 71062,
+      "sha256": "da1c7c9fd7dc3603f37bdb91b2eaac004550117660d5c1a988a11d7ca710c957"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_009.json",
+      "bytes": 71081,
+      "sha256": "50acd84636b60d4f7be40e26b7b1a3b67fcb649183a9d115cd53959a21381d82"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_010.json",
+      "bytes": 71047,
+      "sha256": "6dff51bd53c34e925eae44222e82a22ccb28b43e433868528315b977775fe789"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_011.json",
+      "bytes": 72991,
+      "sha256": "5924d1c110a570dbb3ab32865a86affe925592d525771588129de88e0b461785"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_012.json",
+      "bytes": 72315,
+      "sha256": "96e3caa5979b2b2eb8ef824b76750b494f20a386c1630f238479c5dec2a7b4ea"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_013.json",
+      "bytes": 70457,
+      "sha256": "e7143c986df4a8f831840dea622f1d24e43003936b72b2bf0bc2aebd9ff7bec0"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_014.json",
+      "bytes": 71074,
+      "sha256": "28a3881b9c3ba1fa11fddde742cd7bcf716299940505ed347c6a0e81d504ef65"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_015.json",
+      "bytes": 71667,
+      "sha256": "f9edd094061f5160e0c0171724e805dd88f38e59f6369d1f326797792fc386f9"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_016.json",
+      "bytes": 69758,
+      "sha256": "e54350875cfff611e2275afc34f069ffa6872c2de5665e8cfd1928e080c731e3"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_017.json",
+      "bytes": 72326,
+      "sha256": "bbcb96b71d861709297f5260178805837b0308174c81e48ab40106abacca33b5"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_018.json",
+      "bytes": 71689,
+      "sha256": "4815d52755826e0cbdf8ca173c8c439d309982b1e58a762cefa5f495fd58b71a"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_019.json",
+      "bytes": 71695,
+      "sha256": "e8d00c00fa906dcbe0d6ce2493bfabf6debaa7c96f5c9f534c192965fc1b3629"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_020.json",
+      "bytes": 72327,
+      "sha256": "cc377459b034ea526c99261ac2b9db340f13a82dc576162a60e4d64a77fa8ee1"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_021.json",
+      "bytes": 71686,
+      "sha256": "5528d0a54aa07c014a20d61396f4c20ab6d507c8293beafa47d1afeb44eea6d1"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_022.json",
+      "bytes": 72377,
+      "sha256": "3db2aabd6c4ecf6712b7e472bc0ca7e31c4ac1d37851e097ccaadb5541d3b784"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_023.json",
+      "bytes": 71669,
+      "sha256": "a5d090f1c08e0fd1885fdc182569edcf296a4835c34eac77bd9eb46ffeae9fd9"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_024.json",
+      "bytes": 71049,
+      "sha256": "4667f41fb7272387980d2e30b1570759cd5b403c8637e0b406ef53291c4edc7a"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_025.json",
+      "bytes": 70399,
+      "sha256": "aa6d88105c5119666b0eb4194a5f9ea5a06732fb29ff6d333922a723db6e51e1"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_026.json",
+      "bytes": 72323,
+      "sha256": "93a820e1cc29cbd1fec2f888d07e70ca48d8c39a5d11578917701b99cf0331f4"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_027.json",
+      "bytes": 73004,
+      "sha256": "e8d7287d3f8d0f5e2416066e96b9987fa6ab192e8d522b3b0a1d9eeec08869e9"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_028.json",
+      "bytes": 71688,
+      "sha256": "67f752c3442f861c4a7394c183155d7de4c261e745741797f9064e8a5f51953e"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_029.json",
+      "bytes": 70433,
+      "sha256": "ca24f6a528c327159c97267f962af2f8361f85287cfb7c6dbe1cca9c57f4de04"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_030.json",
+      "bytes": 70428,
+      "sha256": "447da4741d5f46b47aa788698274cc0ffa68f8aa41bad58e3c598844ac24e5b4"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_031.json",
+      "bytes": 70439,
+      "sha256": "6b5253a31ae2b798353777970b1f0715e699dc247762f8447af2d4301e5c3bce"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_032.json",
+      "bytes": 69761,
+      "sha256": "e92e74ab212eaac776f8644133ebd3d5412bd1a5e454877b4ed7eb32643b5527"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_033.json",
+      "bytes": 71006,
+      "sha256": "ac483415099e1b7b99fbc7c2c8aa2c9f9e62449c4b409868ba2b69b14910a9fa"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_034.json",
+      "bytes": 71633,
+      "sha256": "665bc5e1f30183dbc3455b0725c561d1a2f2eb3fae3f6fac9fb9efe19266cf3e"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_035.json",
+      "bytes": 71003,
+      "sha256": "5e717cfe5f1d33f0229edbb9eb45c761d09f19de166408ab21ded30e762c4038"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_036.json",
+      "bytes": 71726,
+      "sha256": "68ae592d848a575a5fdbaddd164056b352ef506ac6b4ca8dacd374aecac2aeeb"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_037.json",
+      "bytes": 71688,
+      "sha256": "858589b34c3b2d4d55ad2992e9c24a2be4101220504d1b0e4c212d8a307bdec1"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_038.json",
+      "bytes": 71078,
+      "sha256": "502b2c820fa9f74a70d4889f25efcf2040204de096ee6ce0957c25f983badb93"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_039.json",
+      "bytes": 71045,
+      "sha256": "beebd60d89b8910ac7579bcf6d173efe1b6f255b9cc5ad2ccbff22bda6ca52d7"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_040.json",
+      "bytes": 70428,
+      "sha256": "7f391eb4c6d09bb69806b9272d29564846c7d4345f74bc7b7f42f38ceaa0e8fa"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_041.json",
+      "bytes": 71753,
+      "sha256": "2bf49ea6a20ec6e7dee17d0ba76b219f8bbd1794f21b7a0ad108020d0f5a8918"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_042.json",
+      "bytes": 71052,
+      "sha256": "0af2df76fddecf4ca6049de164a5ed7b4217bd6934ac61b16b4dfbf3531cb1e2"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_043.json",
+      "bytes": 70416,
+      "sha256": "8c795bb37fcf433a777f4b45e32f098fa120f43eee057713c94d626390ef7e1a"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_044.json",
+      "bytes": 71092,
+      "sha256": "147b9d3e7b34c4b12d9633660973ff37b7aa701382ecda779c06a2a0e461a0b7"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_045.json",
+      "bytes": 71026,
+      "sha256": "8b5ceba146482cdd585072e296d2ccd6da0c79e8e7e66d14a16ea22e9bf8a791"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_046.json",
+      "bytes": 71753,
+      "sha256": "c84fb6bc80ad40e83ede7c37263be467676301042ad2fe6a7825140de4d60465"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_047.json",
+      "bytes": 71070,
+      "sha256": "16285da146856552c0db795ecf64ec68126392e5f8ca89f3ca5fb166f04f8c03"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_048.json",
+      "bytes": 71062,
+      "sha256": "6315178ebcee8d66219b7436e95765a5b0212005b28bcbab9523e7f0eb7d26d5"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_049.json",
+      "bytes": 71056,
+      "sha256": "5e4a8543bb701dac2e2cba5d5ca69ca57f7e72cd8ce6299e143650e25bed98af"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_050.json",
+      "bytes": 70424,
+      "sha256": "903a56d489329441fbd6dcbb82c9f41c2ddc1345f63fcb8f017fcbd9b3c16f8b"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_051.json",
+      "bytes": 71046,
+      "sha256": "51a2558a106d78811398ebd018182f01856c54b0035d12d6df5c8d531dc4e7da"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_052.json",
+      "bytes": 71682,
+      "sha256": "7db2344f2aa9e9edde1359fb3f90ef5e7f33e5ee617d7cbae1c795242e3f50d3"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_053.json",
+      "bytes": 71723,
+      "sha256": "1b287fa87beab30d507d6cb41fe4c20197bce4409c2ff10c1cc34e1348c7bd70"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_054.json",
+      "bytes": 71098,
+      "sha256": "e2b8f029614853a4d4b9e7090b163846224de9af9fc8e6ff761cf01a1f28a337"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_055.json",
+      "bytes": 71057,
+      "sha256": "979a12700f94edcdfc8cb98a033b174fedae59e1fb7179088fdc680c1ef0a519"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_056.json",
+      "bytes": 72343,
+      "sha256": "aed18d641936d3d8a8b27ed3a87dd2afa507dd10ec1bdc2c5f5e4a21d0176b8a"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_057.json",
+      "bytes": 71709,
+      "sha256": "53c9c6da080e6aeef32be01bc7bc1900ffb5f2bb7a3b96eec4f264eddb8f0613"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_058.json",
+      "bytes": 71676,
+      "sha256": "7e16717dc19023a56cc773fa63d6addfde6a881b7c900e8831fb978eb9e0b277"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_059.json",
+      "bytes": 70399,
+      "sha256": "f83207b968de3eadaa684470bb7f1a2f80d11fe65b47c2a6e2e27201ef7c1e48"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_060.json",
+      "bytes": 71017,
+      "sha256": "7a8ece0c8bf4ff1568532d47cf88c323064801fe39ff2be4fba0bb3e8bc3bc25"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_061.json",
+      "bytes": 71021,
+      "sha256": "03e9f6a4a96c91133519f7351b0529de984354736d360c843da3f686bc3a7745"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_062.json",
+      "bytes": 71686,
+      "sha256": "a3df8ffa9898575840e97d01dbb8a2fd101e9b8c68de9570cdba7c7cb72d032c"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_063.json",
+      "bytes": 72383,
+      "sha256": "a7d69d295654aedb7840e7bffae98919c5e247a983cb1964a378579a59d2d7ec"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_064.json",
+      "bytes": 71638,
+      "sha256": "6467dc15fb48cc87a6cf54d9d0500bf5b11de409ac35a8ed0a59735c0e3b1b17"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_065.json",
+      "bytes": 70385,
+      "sha256": "7c8636df7b6f8dad4e3ba3d8cf9637b4eb37fb3d9c2e9ead912e1df77ee642ce"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_066.json",
+      "bytes": 70440,
+      "sha256": "fe9309ecdafca6f2453be6926f9bb7672c57692949ce069a2b8962204968bc56"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_067.json",
+      "bytes": 71710,
+      "sha256": "5bd09a05c4c87c3bfbed1eb748c91df3d385f0197d0f63d6c004d67f66247c2f"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_068.json",
+      "bytes": 71039,
+      "sha256": "0fafd532a6230083c88d48c8f0f8dc89b895094da94b67b7cd6aaaa333e04424"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_069.json",
+      "bytes": 71068,
+      "sha256": "d2f1dd7056a4af559b215aadc2f94b3ab050fbb002eb539164359d6e5c2ce12e"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_070.json",
+      "bytes": 70378,
+      "sha256": "b6013c2d066748e15ab00967aae1b6ccd69f20293ab2228f1d273fd289cafb12"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_071.json",
+      "bytes": 70425,
+      "sha256": "7343a968985943b0c41b6390d0cd7930cff615ea2dc517d8361d450144f37e8f"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_072.json",
+      "bytes": 71696,
+      "sha256": "70ec0cf5d3c1ffa1731aada64e44cc30550ebf49337defa55b6f62781b41b74d"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_073.json",
+      "bytes": 69758,
+      "sha256": "b2573524aeaf1c76f253a60a17e6281caf390e33bb06ccaa9eb873aaa5d45bef"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_074.json",
+      "bytes": 73033,
+      "sha256": "a62686ed613bb55ccf786c83afbde9ba5699cd3512addb52a8368ef399ded396"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_075.json",
+      "bytes": 69756,
+      "sha256": "ad554f22aed6a85d792cbce87487357d48b29ba6897bb2cc9307636297efb2c0"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_076.json",
+      "bytes": 69733,
+      "sha256": "2564413387720d64c286192723ef83e5342fb46f7fe79065ade472854217a442"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_077.json",
+      "bytes": 71071,
+      "sha256": "8de9da92979259f3e10c5e49c133eecf38e712d008c3c9cc5f126ee548b4fa4e"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_078.json",
+      "bytes": 72394,
+      "sha256": "5dbdb31093b6a49158abbd2c2020dc7422ffb88534648ee3d27feff778285d3e"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_079.json",
+      "bytes": 71744,
+      "sha256": "c142dd869549fe964a9e94f80a203f207ce3face7048728dff16fbba797f505e"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_080.json",
+      "bytes": 69726,
+      "sha256": "4fb16d2f053ee0540d1aa469fdf2298a56e4dea3201a98827d61b56f8d0afff5"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_081.json",
+      "bytes": 71097,
+      "sha256": "3440341a59667a12fd54959a35d4c2db3a1caa1a6ca36ba66ecfc938d4f1ba4c"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_082.json",
+      "bytes": 71059,
+      "sha256": "225ccb5e8913d5f048f0e3ee7c0e0377547fcd647ec8846cfcc916426b58375e"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_083.json",
+      "bytes": 71731,
+      "sha256": "4dde67b67f9726f6a0d1c261f1b356780b8f3cb6932d9620bbed2a09157da56f"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_084.json",
+      "bytes": 71005,
+      "sha256": "d422e783d851968d3c6f7ce9748431929504fafb310900097951cab856469e48"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_085.json",
+      "bytes": 71081,
+      "sha256": "b4a74c42f832b77146f97907a68632a542a06b31b3dff475f05ee008f4f2543e"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_086.json",
+      "bytes": 70397,
+      "sha256": "01fc56a120b710e83d785c87027c9e7d402d2d14f377c3296a14689be6bd42cd"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_087.json",
+      "bytes": 71056,
+      "sha256": "2090f969b419a5b2a331bba082a104a93a26930aaa251e8e5ec17a829f61c115"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_088.json",
+      "bytes": 71666,
+      "sha256": "e879224d010d131d8973378de05f41a7b7b224f050b63a70133549512ffab973"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_089.json",
+      "bytes": 71744,
+      "sha256": "fd1bd9f4f8c1a37b6425702f9bab593b9c77c8a864e618fad4b0071dfb78f047"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_090.json",
+      "bytes": 71671,
+      "sha256": "83dc379ec3fe8581d9fb6cb45c7107c7ff9afc90ddc986f306c335246514f87a"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_091.json",
+      "bytes": 71025,
+      "sha256": "e94de751690bab2f8ecbd08bd38cec65c15612b089d53f7c9120d681faf70812"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_092.json",
+      "bytes": 72378,
+      "sha256": "5981b0d8e6dc1591aca02ecc1bc9b3df9dd243f7b1f0b31017da26d8557cf2ae"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_093.json",
+      "bytes": 70436,
+      "sha256": "9cdbab4f43d20c61b9202ebc22623e5fb97f467a010ccdcdf61663b8a20321c3"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_094.json",
+      "bytes": 72991,
+      "sha256": "65593292d49dc5ac733cd4a9f2f5cb0cb145b26865f1629034d514ec657b3934"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_095.json",
+      "bytes": 71017,
+      "sha256": "01a351b78f571424d5e60db4944fd432fd274b5251e90a983176115eaead0c9b"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_096.json",
+      "bytes": 70392,
+      "sha256": "2de16917907dbe981687fe66c8640d0e94deecd65d07bfdb45e77bb78286a09d"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_097.json",
+      "bytes": 71075,
+      "sha256": "43eb35c30675a62d96db7b3bc63b2dad09baae9702dda2dd8f5730d3585b6833"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_098.json",
+      "bytes": 72986,
+      "sha256": "c1ef27eca9224d7cf5409c72de2e34a6588d1d8880af30a8dd01f9d9bc7c1789"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_099.json",
+      "bytes": 71647,
+      "sha256": "79fddfaeeea90a817aea9a3e0bed8b53f366c417f7ca681800aedfbc908b6c0a"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_100.json",
+      "bytes": 71714,
+      "sha256": "3c458d87cdcc61f6d34dbf309bf2d8c6959323baf12d878a78d18e773398a8f7"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_101.json",
+      "bytes": 73615,
+      "sha256": "8247b911eff49530796c5de168899e0d22175641425b1932cc31a8ac193eea34"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_102.json",
+      "bytes": 71098,
+      "sha256": "d3fea78dd24fc37f64a2a8af6632f073e70a099f741043b4d3502c94a9b69440"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_103.json",
+      "bytes": 71074,
+      "sha256": "1cc2345bb622b72b753f3f899a2695db4b56ce797254da0804f663c8f09674d4"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_104.json",
+      "bytes": 70411,
+      "sha256": "7cfcfa5ae2b5d06208135c24973594f55b7a0925a91683ecd11329540952a298"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_105.json",
+      "bytes": 71036,
+      "sha256": "8d174666033a3c61fbb617be758665838b3d98ec7f4ea5db41c21e4a87a12d4b"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_106.json",
+      "bytes": 71060,
+      "sha256": "47209d3a8035963c53c75af18cd2219225a1677f1a7a833332069c8138e63b13"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_107.json",
+      "bytes": 71645,
+      "sha256": "2bc3f428d3b7ca50ca433e378ee8b4501842fd14fd6f22eb1dbe55d86302390c"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_108.json",
+      "bytes": 72353,
+      "sha256": "7cb1e3383f57db761bc2bae404195a0e4f5e70c48cd351fba599f27eab657677"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_109.json",
+      "bytes": 72325,
+      "sha256": "75e4ac95675c806d9c264a766c532c755fe04f6513bb1ebd0a5bf96c7a6e605b"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_110.json",
+      "bytes": 71039,
+      "sha256": "504d62459004c77c4ac8e6bb3141d54d9debe4c15ca4990998a23e4bcd894dca"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_111.json",
+      "bytes": 72288,
+      "sha256": "ee2c68b2fdd53fb799f9762aacad5f6d641fc7216c28e93b3556fcad375a3991"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_112.json",
+      "bytes": 74313,
+      "sha256": "5dc03a795f0a285c1c85bfe7325caf84cf609d08ad424f4f32a005f48bfac412"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_113.json",
+      "bytes": 72406,
+      "sha256": "5430b3b4a93aebb1234160db5e871b76dac7f4f37df2b182016c27bb75cb5811"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_114.json",
+      "bytes": 69119,
+      "sha256": "c43d3ace585c20a5383ffe9345cd94dc1f05fb1ee76d7421fa7865c868deb693"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_115.json",
+      "bytes": 69738,
+      "sha256": "39d400a331f123f24b516d5f69b94b87a5161741a6be0c09679a2462256ced04"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_116.json",
+      "bytes": 72331,
+      "sha256": "efc416da4259a12899bc71dae80eb6665d407e455ebec61ebedf2da1700d1cca"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_117.json",
+      "bytes": 71700,
+      "sha256": "dd87f206c999254d2da03e175ebed09f6c3c90f420117cde2d1ddb8c716e02df"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_118.json",
+      "bytes": 69107,
+      "sha256": "b5b4334c9eec46e73ec67e3052ce5f4867d868db4ab492dcc38537e68af9d744"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_119.json",
+      "bytes": 69124,
+      "sha256": "7fcf6e93754525a6ca3537bbf62714308f02dc23f656b7a2d07d8d2ce23cd213"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_120.json",
+      "bytes": 70409,
+      "sha256": "b75d4c1c71dcc8d6d0724ee573c5ae8649f8adcf9f7349ab035b06dda1a3a6d0"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_121.json",
+      "bytes": 69106,
+      "sha256": "cb3fed99e346e870153484298d472d2a2e9822de6b7c4554d61cb9585de663c9"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_122.json",
+      "bytes": 73014,
+      "sha256": "51a067489691bd9eead8d9a2b5e7d7f1ccc653f849909166c6e73feac2974f01"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_123.json",
+      "bytes": 73023,
+      "sha256": "99f0e7e318057ed8739edce8a0faa6f6e4196d760455d50c34bcf8f54c26e56f"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_124.json",
+      "bytes": 71103,
+      "sha256": "a10c97c767e687ccbbfed5258f498483c43cf430e75302d821ee2d7a2e9a5602"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_125.json",
+      "bytes": 70437,
+      "sha256": "73244eae041f002a5311fd1c85de086681e309b603c4c7a1d4494664e9959092"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_126.json",
+      "bytes": 70436,
+      "sha256": "7feb4919e77010f8b1301d03b5320cc7d2a0545fca79fc39ee8814e4cfc2ade1"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_127.json",
+      "bytes": 71063,
+      "sha256": "44fbd932b94d03b53ffab7bc64b6d4663e6a109e01aef93e1628ce637f1d75b2"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_128.json",
+      "bytes": 71712,
+      "sha256": "b625b69ffd70bba4379b1241363d86dc99f28086ba83c028f46ef6abac010ad8"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_129.json",
+      "bytes": 72346,
+      "sha256": "22f9c8458a54d03455d653c450079007c11ae8aa0b657e2d0f421c653f79f7cc"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_130.json",
+      "bytes": 72398,
+      "sha256": "9da2ad850b823ac5f7ce24669d99c3eb7b72796b3d0ccb29640ce35b52eeae82"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_131.json",
+      "bytes": 71689,
+      "sha256": "2ca607ca98704e56ae1bbe678d48c674917d2dc7840dc9d9d38b7d606432c93b"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_132.json",
+      "bytes": 69739,
+      "sha256": "8a23862e582cad9714608dd947eccc1e6c4388501ff3ee73300e8033d0a8464d"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_133.json",
+      "bytes": 71037,
+      "sha256": "375b937ad1d38d52956b91206fe9155072210965ffdf8afd8848be937fa1f32e"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_134.json",
+      "bytes": 70355,
+      "sha256": "7955b42a86c4b9887f4794286054e2a5749003ac9b958c6de37d651e2752bc47"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_135.json",
+      "bytes": 69751,
+      "sha256": "82d6c0ba1430bf307ebe75a0a9b90b10589c30d1e7114e450888efa645bf102b"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_136.json",
+      "bytes": 70418,
+      "sha256": "fc34f31366d2af6bedd4e579616617857596f3e0ec5b862cccc82070dc546b15"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_137.json",
+      "bytes": 72332,
+      "sha256": "2722f1e6e563dac0288b7d08e410ef0f4a2e23ebd0842628e787c6bd9e7d54d8"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_138.json",
+      "bytes": 71738,
+      "sha256": "0eeebebffc53df9277e840a59a3178838701689ea299868aa616453be7021845"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_139.json",
+      "bytes": 70408,
+      "sha256": "0c010a713cf55c22605c6b0517def34e58887491841693eda8bff9ccbc4fa3fd"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_140.json",
+      "bytes": 69720,
+      "sha256": "d8a22697ac20bc91319232e198a1ac0209071a22f8bee8e1c04cf2d6f268af36"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_141.json",
+      "bytes": 71087,
+      "sha256": "15ddb2cb85d206662f44c1ce2a6865f714dd76595a54c43f98926da9855fae0f"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_142.json",
+      "bytes": 73025,
+      "sha256": "7d2f37c82c6fe800b4efcf6eb950910bdf4a8710b49aaefb0df7472a38fd9c93"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_143.json",
+      "bytes": 72344,
+      "sha256": "1f008f0ca2c66c7f28a20b7e8edb8290c03be92c9df0526f27de8131d2c65f17"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_144.json",
+      "bytes": 71058,
+      "sha256": "55bf1e063906c8ce653dd8ad5aa9955d761deb3434da991f9bf513557acabf11"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_145.json",
+      "bytes": 70400,
+      "sha256": "3e669376f1695a08054f95891d5d6485d48f9db4c3a495d23de975e16d2fef80"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_146.json",
+      "bytes": 71685,
+      "sha256": "30dc1cb8b409bb30443af7f92871dab8224b08a06a6e745f999d7196a1ff45bf"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_147.json",
+      "bytes": 71052,
+      "sha256": "290ab13b972cb8713e19c63016a8cd167f789af3fca7dcf5693d595e2bd5c517"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_148.json",
+      "bytes": 71720,
+      "sha256": "c79bf5e2e8de3a37e80e29816a66a69767c1a04b2327cf7d5ee9446664f4dfee"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_149.json",
+      "bytes": 70433,
+      "sha256": "9903bfdbd0167f1bc64a02350c67bc9cc9a715f4a9deb30e74fb118bb1fa975a"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_150.json",
+      "bytes": 73002,
+      "sha256": "5d2c7993785a5fe24c4aef2a228e0bda0c60d3ef133edb2048852f1fa0414221"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_151.json",
+      "bytes": 69765,
+      "sha256": "f778b2f552ebf8cff849b84774eb88abcd14a44af5087230316c9d5f9969786e"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_152.json",
+      "bytes": 73642,
+      "sha256": "bb8ed4fcc6d983f432d7e3f577138771c5f6b1bf305a1e64404acc8c1f82e084"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_153.json",
+      "bytes": 71670,
+      "sha256": "d113fd75cd049318f73787ecae895302b691ff755c1c062ab1b833ed736f3b79"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_154.json",
+      "bytes": 72381,
+      "sha256": "1a90f9ddf41a2d1174ab6dce4bf4fe48245de7c50e7b3758b62973dd721a4593"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_155.json",
+      "bytes": 69794,
+      "sha256": "294e53ebf911cea3c4b0f3baf69e36dc0ed056bd352fcd93f15754d45ff997b8"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_156.json",
+      "bytes": 70451,
+      "sha256": "1a30f945501be427588c0cedbca8e0ce96c61a0a4a05335383d1f76ebac22d5c"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_157.json",
+      "bytes": 71050,
+      "sha256": "91b7e9099416d7d00e442b98ba00e99ded86c6c768979e6576979e117e24b95b"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_158.json",
+      "bytes": 70384,
+      "sha256": "a027c367f9c62d8b8658ef472e3ec8817a7435b5f44e42745765fddc5aa79dfd"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_159.json",
+      "bytes": 71696,
+      "sha256": "9063f4a90df7854f57de593ac1e66677e9bee5b318757325522aadcb5b6b9205"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_160.json",
+      "bytes": 70402,
+      "sha256": "ea73a08715e788666111bbae1270724d2a4ae7d7b2009dde058411e3ca31d4ee"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_161.json",
+      "bytes": 72374,
+      "sha256": "a63fdf9cb924176c9fcab6b316fc0a8f9ceec55049294791aacfdf530859ba4d"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_162.json",
+      "bytes": 71697,
+      "sha256": "a9a8f611889340cdb74710e9c719e79eaad61a5dbe6f47ff413338a45dd545a7"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_163.json",
+      "bytes": 69777,
+      "sha256": "77c405f5e71f811444e828fa932c9347b82f6a4691c843f4f35644f22f60bef2"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_164.json",
+      "bytes": 71081,
+      "sha256": "a561b0f668ea2a03b8d7fe2f527e876f52800fa2257765fdce61376fce4c549a"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_165.json",
+      "bytes": 71720,
+      "sha256": "e0b4fd5e317db09e2a08f9b9119a598439d6d76c8568747c204f2ed40982d9f5"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_166.json",
+      "bytes": 70365,
+      "sha256": "aa00d3a1a7ff23b3419b050f680581894860ab92701429bf25efd6d08726c5e9"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_167.json",
+      "bytes": 71067,
+      "sha256": "bc0483c269b8b6c55119beec5cf4bc1e1269f31d861663a17a6137fd2e7008a9"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_168.json",
+      "bytes": 71734,
+      "sha256": "880ced8b621786a0f0dcce557414d401ec0360998b083e62d6d9f899a20adebb"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_169.json",
+      "bytes": 72350,
+      "sha256": "0841aad1129aacd88f611f748c1db896bf6da185a99191215613add0e4934bb9"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_170.json",
+      "bytes": 70360,
+      "sha256": "10fec2d6e8b0fd53b4f26284aa2a375d2b7a1499dd328634b826366886d21ba8"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_171.json",
+      "bytes": 70436,
+      "sha256": "e959b9fa2015c0145ff330be3bc4ed6d36fc3472036fe5a32ed77a1daa9cc7d1"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_172.json",
+      "bytes": 72986,
+      "sha256": "3c110816828477f041707015f0eed02e40a422f7a9b6cb45943b9d8312a89bd2"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_173.json",
+      "bytes": 70455,
+      "sha256": "53828b2df3712bffb8a2a50f7637b9b18b2305611d9e584ae7b0c1eaa858376d"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_174.json",
+      "bytes": 71057,
+      "sha256": "82d0ab93b360616c250646bd42cf530f5d6e2f1c1dba8d83624d6b31814207e8"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_175.json",
+      "bytes": 71057,
+      "sha256": "5953e9e0e80f86cb230ae4e769ac02f227ea25193cca79cbab9ebdaed8b2230b"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_176.json",
+      "bytes": 70396,
+      "sha256": "48b3fe641c8c8cb92e011817cf0abef7cbb242062f28cdbbeca9833103a645fa"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_177.json",
+      "bytes": 69709,
+      "sha256": "0dc66138f76a0f92b5cf8c06e9813014233b2ee840397dbedcea2024cc0896cc"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_178.json",
+      "bytes": 71733,
+      "sha256": "5c07d06bc1f85a5e78470b45b87cca8c08c71f6fa471055a1f8d7d390d31d986"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_179.json",
+      "bytes": 69781,
+      "sha256": "b954279a63dc525c0c30c948971d0074d2c7895f784423d438cb5ded85c52e9b"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_180.json",
+      "bytes": 71059,
+      "sha256": "484eb2f851a539d305784de4492ddd191fbb0cd63872eda485410420593df8a6"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_181.json",
+      "bytes": 71019,
+      "sha256": "a864429c86b3a26cc10e64fd04ceff0b792c04a78e50136a6a5f7fe87d819089"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_182.json",
+      "bytes": 70425,
+      "sha256": "5aa2c21a192e9a99752c527a13e287b26ed4761aa6942e70a9e68d34263de776"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_183.json",
+      "bytes": 70430,
+      "sha256": "8e79041745ce71a8bf8b18e48061dc4d6377587b654f51814c47c9dbfca5ddad"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_184.json",
+      "bytes": 70452,
+      "sha256": "8d5c346ab25394edf9add9473be7fa5148b67697996e5c014e6c8270cb98cb09"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_185.json",
+      "bytes": 71035,
+      "sha256": "e970cbffce89415d5677e512baabfeb721156d0bbda150de76cec9104b9f8fff"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_186.json",
+      "bytes": 71689,
+      "sha256": "e6ca954a529cf6c9f0ad7e78b63cb43b3fbaef9c05a90f51949c40b6c8d43823"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_187.json",
+      "bytes": 70394,
+      "sha256": "2e19096bffa99ca001a57454646750993aea64d69b6e45fe6f1d3bd6690b7e97"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_188.json",
+      "bytes": 70445,
+      "sha256": "16c0ade65d0ec1962436bea136f48b6cafecb2864696f94c8ea802b8cdcfced7"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_189.json",
+      "bytes": 71721,
+      "sha256": "3291200ff8e361e6659fae207048a08b4b795e503348fb3f1413fc4b4b559947"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_190.json",
+      "bytes": 70411,
+      "sha256": "0d34b3e4f7fb37b224c75d52ce194fcdc8d59620b87641a6bf022c976b774124"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_191.json",
+      "bytes": 70382,
+      "sha256": "aa07250af881c21bf423b25457e444b7730f3fd622d491154569bdf913973a83"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_192.json",
+      "bytes": 71066,
+      "sha256": "645880e6a06030081513431f143566ea82a7ea2bd4e7fff6f04b7f425cbdcc8b"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_193.json",
+      "bytes": 72344,
+      "sha256": "caa4cf63013d94f1bbf4fd9c93aec141ff9a2249d0e067dd5074626dc0af0288"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_194.json",
+      "bytes": 70411,
+      "sha256": "5d8d33995ff12e664d381665340d61ef3ae9ec172fd29b8d2964c7446c546664"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_195.json",
+      "bytes": 70457,
+      "sha256": "0dd79c6d9927c15abfe54adec46b1107f6212debed552f0389c7a88cc22be8f5"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_196.json",
+      "bytes": 71726,
+      "sha256": "d7dd388b3c12cdb22571b6a257b04f9d7694f40fde7514b3280494630173725d"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_197.json",
+      "bytes": 69773,
+      "sha256": "15a6f83adc5a07707fc66a56a80eaf7afd8bbcbc6280bd7d92d2f8d9c7d5a71f"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_198.json",
+      "bytes": 71677,
+      "sha256": "471d2fd656b557e605e2f46a03b2fc703edae3e96738e8277156f1c7d236757c"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_199.json",
+      "bytes": 72331,
+      "sha256": "2b76b9ed6163b6a3a0d0be75255d5885484a2c7943d0d1888e0742f815697ac4"
+    },
+    {
+      "path": "G_hybrid/replica_04/production_200.json",
+      "bytes": 71693,
+      "sha256": "86728be8fb11bd6745fb2af70f2b9f2d1a9f39624b3bd35d40f668eae0c0de42"
+    },
+    {
+      "path": "auxiliary.json",
+      "bytes": 12111,
+      "sha256": "9df979acb92a0158e9655b6c051707ce01fbd690686b778d19b27368fc06b06d"
+    },
+    {
+      "path": "auxiliary_power20.json",
+      "bytes": 12077,
+      "sha256": "2172b59521812e5a42694f3379a80cafa12c4827fa008c5d67bc3751d261cf05"
+    },
+    {
+      "path": "auxiliary_power21.json",
+      "bytes": 12101,
+      "sha256": "7e51035d421f1fcf3a1bf52498a3608d70984bc09c84ebf89f4d5f38c7dbbb2a"
+    },
+    {
+      "path": "auxiliary_power22.json",
+      "bytes": 12113,
+      "sha256": "37b2b515941c340df5273b19d9515c5e3c9c4b8fa30ecb2a29ff166f9d38660b"
+    },
+    {
+      "path": "auxiliary_power23.json",
+      "bytes": 12111,
+      "sha256": "9df979acb92a0158e9655b6c051707ce01fbd690686b778d19b27368fc06b06d"
+    },
+    {
+      "path": "campaign.log",
+      "bytes": 601888,
+      "sha256": "252d048c3dd150bd94bd7b6c20aa3b9f63e665024d2d7931731a99fa1b99e37b"
+    },
+    {
+      "path": "completed_1500_archive.json",
+      "bytes": 500,
+      "sha256": "8def4b0531f72f908e5bcafa5e68b65330d466ee21d1258c87db794202a8af26"
+    },
+    {
+      "path": "effective_cards/gg.json",
+      "bytes": 4746,
+      "sha256": "15034d2282f814baf728107c38d096c4efeffe03e1792d144e19fbcc440f7978"
+    },
+    {
+      "path": "effective_cards/qg.json",
+      "bytes": 4648,
+      "sha256": "f34ba2373b24c1b266a3fdad8cf679f79d1e28be6dd7bdb623024ec0e197cdd9"
+    },
+    {
+      "path": "effective_cards/qqbar.json",
+      "bytes": 4677,
+      "sha256": "d866f21c4fd6168fa02e65adc9ec6b689792f5d6a90360832b20a8ba4c1ddc94"
+    },
+    {
+      "path": "final_results.json",
+      "bytes": 3598332,
+      "sha256": "c28d12f08550ca6271faf8b08c578422074dd97e3231c71b831e44030a176400"
+    },
+    {
+      "path": "followon.log",
+      "bytes": 6247,
+      "sha256": "7876b940cfbb1738082074b5d990b25ce602da3e83c4b7f038e1de033a8d67f9"
+    },
+    {
+      "path": "manifest.json",
+      "bytes": 1360509,
+      "sha256": "ad5bfc6218ff6f944fb89c1daaddeeecf982453e3b2cef87fb1410e6effc2fec"
+    },
+    {
+      "path": "mg5_benchmark.json",
+      "bytes": 2368,
+      "sha256": "7c112ab20704b8ec0ca9aa266561f17fd20d9442cb68273bdfb553a5cbbd9206"
+    },
+    {
+      "path": "peak_replays.json",
+      "bytes": 478165,
+      "sha256": "30a6e0be73a1e6a76419e04a2f67430169a1bf7f4a40b4f638d236c07a5c008f"
+    },
+    {
+      "path": "physics_parameters.json",
+      "bytes": 538,
+      "sha256": "1b0433db5ac4f1488e8c3d4d13a2297061e3456fc091fe4a70100969f7befa20"
+    },
+    {
+      "path": "progress.json",
+      "bytes": 240,
+      "sha256": "80b0d6ab6ca3f538b581ba646631825aaa3e9e3fceec2a5e1e3e5ed4a4e4d4d6"
+    },
+    {
+      "path": "proposal_definitions.json",
+      "bytes": 66881,
+      "sha256": "27498ae59829848e638ebf0539c5699960373a84fadddc36249cd6f413e63a27"
+    },
+    {
+      "path": "resources_current.json",
+      "bytes": 408,
+      "sha256": "e995d2f1a48a97df031e08ce744ac4401b7227e2745d6b6fd88d8fd81c224c2e"
+    },
+    {
+      "path": "results.json",
+      "bytes": 75362,
+      "sha256": "fde22b9c05d88273bca9d5e6d04388f4bd53e71e1ca2f7233fbe2212b052a1e8"
+    },
+    {
+      "path": "runtime_provenance.json",
+      "bytes": 23133,
+      "sha256": "480861eeb584a6b9a0bf9de3f29cac867851d0173ba47a57a502def163f6b956"
+    },
+    {
+      "path": "setup_checks.json",
+      "bytes": 1997,
+      "sha256": "3c259fd9e5084025f7a0240d1ae820bd692e50e181af52ec7766093be2b881e5"
+    },
+    {
+      "path": "source_hashes_before.json",
+      "bytes": 21618,
+      "sha256": "9c3156757c6f8accb75c8165d72b421bf073bdd0c810d95949e2f8b01b091317"
+    },
+    {
+      "path": "startup_checks.json",
+      "bytes": 303,
+      "sha256": "87a49cfd748dd24d29cd04ab4ee8a5b399a32db7f193bbebaaa27c05bff3e312"
+    },
+    {
+      "path": "startup_checks_relative_only.json",
+      "bytes": 29793,
+      "sha256": "3ee1d46ebac880b1d315d4b64c61cfcdfa29d24fd3fdba9e44fc8d28c7e93518"
+    },
+    {
+      "path": "startup_point_checks.json",
+      "bytes": 970015,
+      "sha256": "e44b91faae936ab03c11075b1c6cfd1f4aefa98671bfdb040030673af2713477"
+    }
+  ],
+  "checks": {
+    "four_50M_production_replicas": true,
+    "twelve_1M_excluded_learning_blocks": true,
+    "all_800_production_checkpoints_present": true,
+    "all_92_graph_sample_counts_and_sums_close": true,
+    "all_812_block_seeds_unique": true,
+    "auxiliary_to_hard_error": 0.07381103320724998,
+    "replay_disagreements": 0
+  }
+}

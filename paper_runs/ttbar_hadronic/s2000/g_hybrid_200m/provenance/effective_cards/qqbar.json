@@ -1,0 +1,145 @@
+{
+  "source_card": "/home/zeno/DY/pygloop_6c15087/outputs/ttbar_fullxs_sampling_20260918/cards/qqbar.toml",
+  "overrides": {
+    "common.kinematics.pg1": [
+      1000.0,
+      0.0,
+      0.0,
+      1000.0
+    ],
+    "common.kinematics.pg2": [
+      1000.0,
+      0.0,
+      0.0,
+      -1000.0
+    ],
+    "common.scales.muv": 1000.0,
+    "integrate.runtime_parameters": {
+      "m_top": "173",
+      "muv": "1000",
+      "lambda_sq": "8302.489924",
+      "mur_sq": "8302.489924",
+      "alpha_s": "0.118",
+      "alpha_ew_inverse": "132.507",
+      "zmin": "0",
+      "zmax": "1"
+    },
+    "integrate.workspace_name": "g_hybrid_s2000_200m_20260922_qqbar",
+    "integrate.cores": 128,
+    "integrate.stability.precision_ladder": [
+      16,
+      32,
+      60
+    ],
+    "integrate.stability.large_weight_clip": null,
+    "integrate.beams.scheme_counterterm.clip": null
+  },
+  "effective_values": {
+    "common.process": "dy",
+    "common.process_name": "tt~",
+    "common.n_loops": 2,
+    "common.final_state": [
+      "t",
+      "t"
+    ],
+    "common.channel": [
+      1,
+      -1
+    ],
+    "common.diagrams": [],
+    "common.process_basename": "TTBAR_QQBAR_FULLXS_SAMPLING_20260918",
+    "common.verbosity": "info",
+    "common.skip_ps_validation": true,
+    "common.kinematics.m_top": 173.0,
+    "common.kinematics.m_higgs": 125.0,
+    "common.kinematics.pg1": [
+      1000.0,
+      0.0,
+      0.0,
+      1000.0
+    ],
+    "common.kinematics.pg2": [
+      1000.0,
+      0.0,
+      0.0,
+      -1000.0
+    ],
+    "common.kinematics.helicities": [
+      1,
+      1,
+      0,
+      0,
+      0
+    ],
+    "common.scales.muv": 1000.0,
+    "common.scales.lambda_sq": 8302.489924,
+    "common.scales.mur_sq": 8302.489924,
+    "common.initial_state.external_gluon_polarisation": false,
+    "common.initial_state.symmetrise_p1_p2": true,
+    "common.precision.fallback_precision": 32,
+    "common.gammaloop.generation_configuration": "/home/zeno/DY/pygloop_6c15087/configs/DY/generate.toml",
+    "common.gammaloop.runtime_configuration": "/home/zeno/DY/pygloop_6c15087/configs/DY/runtime.toml",
+    "common.gammaloop.settings": [],
+    "common.gammaloop.general_settings": [],
+    "generate.clean": false,
+    "generate.generation_type": "gammaloop",
+    "generate.parallel_graphs": 16,
+    "generate.enable_integrated_uv_counterterms": true,
+    "generate.top_self_energy_renormalisation": "projected-os",
+    "generate.check_generation_limits": false,
+    "generate.threshold_h_function": "gaussian",
+    "integrate.implementation": "zenos",
+    "integrate.parameterisation": "spherical",
+    "integrate.multi_channeling": true,
+    "integrate.integrator": "symbolica",
+    "integrate.iterations": 100,
+    "integrate.points_per_iteration": 1000000,
+    "integrate.cores": 128,
+    "integrate.seed": 909150061,
+    "integrate.phase": "real",
+    "integrate.restart": false,
+    "integrate.workspace_name": "g_hybrid_s2000_200m_20260922_qqbar",
+    "integrate.runtime_parameters": {
+      "m_top": "173",
+      "muv": "1000",
+      "lambda_sq": "8302.489924",
+      "mur_sq": "8302.489924",
+      "alpha_s": "0.118",
+      "alpha_ew_inverse": "132.507",
+      "zmin": "0",
+      "zmax": "1"
+    },
+    "integrate.selection.integrated_uv_counterterms": "all",
+    "integrate.stability.precision_ladder": [
+      16,
+      32,
+      60
+    ],
+    "integrate.stability.rotation_check_digits": 7,
+    "integrate.stability.rotation_check_eps": 1e-15,
+    "integrate.stability.rotation_check_arb_digits": 32,
+    "integrate.stability.backend": "double-float",
+    "integrate.stability.theta_tolerance": 0.0,
+    "integrate.stability.large_weight_precision": 5.884862406745324e-07,
+    "integrate.stability.soft_mirror_edges": [
+      "GL07:7",
+      "GL09:8"
+    ],
+    "integrate.beams.enabled": true,
+    "integrate.beams.parameterisation": "beta_y",
+    "integrate.beams.physical_normalisation": true,
+    "integrate.beams.integrated_leptonic_phase_space": false,
+    "integrate.beams.pdf.set": "PDF4LHC21_40",
+    "integrate.beams.pdf.member": 0,
+    "integrate.beams.pdf.muf_sq": 8302.489924,
+    "integrate.beams.scheme_counterterm.enabled": true,
+    "integrate.beams.scheme_counterterm.sobol_power": 18,
+    "integrate.beams.scheme_counterterm.replicas": 8,
+    "integrate.beams.scheme_counterterm.born_bundle": "TTBAR_QQBAR_BORN_FULLXS_SAMPLING_20260918_1L_processed",
+    "integrate.beams.scheme_counterterm.alpha_s": 0.118,
+    "integrate.decoupling.enabled": true,
+    "integrate.stability.large_weight_clip": null,
+    "integrate.beams.scheme_counterterm.clip": null
+  },
+  "sampling_schedule": "controlled by the RAM campaign: 3x1M learning + 50M production per replica"
+}

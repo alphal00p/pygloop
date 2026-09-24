@@ -1,0 +1,29 @@
+{
+  "production_completed": true,
+  "saved_estimate_unchanged": true,
+  "startup_checks_file": "ttbar_hadronic/s2000/g_hybrid_200m/provenance/startup_checks.json",
+  "retained_weight_replays_checked": 93,
+  "retained_weight_replay_disagreements": 0,
+  "replay_scope": "selected learning and production leaders, not an exhaustive check of all samples",
+  "validation_status": "recorded_checks_passed",
+  "production_precision_attempts": {
+    "16": 195761957,
+    "32": 21151964,
+    "60": 777
+  },
+  "production_highest_precision_failures": 0,
+  "production_whole_packets_zeroed": 0,
+  "production_clipped_points": 0,
+  "auxiliary_to_hard_error": 0.07381103320724998,
+  "auxiliary_requirement_satisfied": true,
+  "archive_checks": {
+    "four_50M_production_replicas": true,
+    "twelve_1M_excluded_learning_blocks": true,
+    "all_800_production_checkpoints_present": true,
+    "all_92_graph_sample_counts_and_sums_close": true,
+    "all_812_block_seeds_unique": true,
+    "auxiliary_to_hard_error": 0.07381103320724998,
+    "replay_disagreements": 0
+  },
+  "unresolved_issues": []
+}

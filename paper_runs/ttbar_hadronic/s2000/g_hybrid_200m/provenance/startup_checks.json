@@ -1,0 +1,12 @@
+{
+  "sqrt_s_GeV": 2000.0,
+  "mu_UV_GeV": 1000.0,
+  "point_count": 152,
+  "absolute_zero_tolerance_uniform_trial_pb": 1e-12,
+  "absolute_zero_cases": 16,
+  "issues": [],
+  "zeroed_at_cap": 0,
+  "jacobian_comparisons": 116,
+  "max_jacobian_relative_error": 3.574918139293004e-14,
+  "source_changes": []
+}

@@ -1,0 +1,47 @@
+{
+  "production_completed": true,
+  "saved_estimate_unchanged": true,
+  "startup_checks_file": "ttbar_hadronic/s1000/g_hybrid_200m/provenance/startup_checks.json",
+  "retained_weight_replays_checked": 92,
+  "retained_weight_replay_disagreements": 1,
+  "replay_scope": "selected learning and production leaders, not an exhaustive check of all samples",
+  "validation_status": "unresolved_replay_disagreement",
+  "production_precision_attempts": {
+    "16": 195137697,
+    "32": 2808159,
+    "60": 1330
+  },
+  "production_highest_precision_failures": 0,
+  "production_whole_packets_zeroed": 0,
+  "production_clipped_points": 0,
+  "auxiliary_to_hard_error": 0.08364857201490938,
+  "auxiliary_requirement_satisfied": true,
+  "archive_checks": {
+    "four_50M_production_replicas": true,
+    "twelve_1M_excluded_learning_blocks": true,
+    "all_800_production_checkpoints_present": true,
+    "all_92_graph_sample_counts_and_sums_close": true,
+    "all_812_block_seeds_unique": true,
+    "auxiliary_to_hard_error": 0.08364857201490938,
+    "replay_disagreements": 1
+  },
+  "unresolved_issues": [
+    {
+      "channel": "gg",
+      "source_graphs": [
+        "GL014"
+      ],
+      "seed": 332200349,
+      "sample_index": 41007,
+      "production_value": 1.0606633234913588e-06,
+      "hp_80_value": 1.8044552393725752e-11,
+      "hp_128_value": 1.8044552393725752e-11,
+      "production_to_hp_ratio": 58780.25125522984,
+      "full_200M_mean_shift_if_only_this_point_corrected_pb": 4.457077296030563e-06,
+      "shift_over_reported_total_error": 0.1505270887531017,
+      "correction_applied": false,
+      "cause": "unresolved: agreeing 80/128-digit replays disagree with accepted production value",
+      "evidence_file": "ttbar_hadronic/s1000/g_hybrid_200m/provenance/replay_issues.json"
+    }
+  ]
+}

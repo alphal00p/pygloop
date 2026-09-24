@@ -1,0 +1,25 @@
+{
+  "sqrt_s_GeV": 1000.0,
+  "m_top_GeV": 173.0,
+  "mu_UV_GeV": 500.0,
+  "mu_R_GeV": 91.118,
+  "mu_F_GeV": 91.118,
+  "lambda_sq_GeV2": 8302.489924,
+  "PDF": "PDF4LHC21_40",
+  "member": 0,
+  "alpha_s": 0.118,
+  "alpha_ew_inverse": 132.507,
+  "sampling_factors": {
+    "qqbar": -0.5,
+    "qg": 0.5,
+    "gg": -0.5
+  },
+  "h_normalisation": "2*exp(2)/sqrt(pi)",
+  "bundle_generation": "20260918 fresh exact-runtime bundles; beam and UV scales overridden at runtime",
+  "clipping": false,
+  "precision_ladder": [
+    16,
+    32,
+    60
+  ]
+}

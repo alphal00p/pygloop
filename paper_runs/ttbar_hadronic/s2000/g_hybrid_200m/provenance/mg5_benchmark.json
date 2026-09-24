@@ -1,0 +1,81 @@
+{
+  "values": {
+    "gg": {
+      "central_value_pb": 0.2805126,
+      "error_pb": 0.000493056,
+      "high": 1.5,
+      "low": 0.5
+    },
+    "qg": {
+      "central_value_pb": 0.000656325,
+      "error_pb": 7.7655542e-05,
+      "high": 1.5,
+      "low": 0.5
+    },
+    "qqbar": {
+      "central_value_pb": -0.02877963,
+      "error_pb": 7.2080359e-05,
+      "high": 1.5,
+      "low": 0.5
+    },
+    "total": {
+      "central_value_pb": 0.25238927,
+      "error_pb": 0.00050438876,
+      "high": 1.5,
+      "low": 0.5
+    },
+    "unclassified": {
+      "central_value_pb": 0.0,
+      "error_pb": 0.0,
+      "high": 1.5,
+      "low": 0.5
+    }
+  },
+  "source": "outputs/ttbar_dy_msbar_scan_20260901/benchmarks/mg5/results.json",
+  "historic_validation": "collector validated beam energies, PDF ID and fixed renormalisation/factorisation scales before saving this result",
+  "raw_temporary_artifacts_currently_available": false,
+  "provenance": {
+    "banner": "/tmp/pygloop_pp_ttbar_10m_20260827/mg5/PP_TTBAR_NF1_COMBINED/Events/run_ttbar_s2000_matched_20260901/run_ttbar_s2000_matched_20260901_tag_1_banner.txt",
+    "banner_sha256": "1a177ce9cbeb4ae7674310955d6b74c2d019a9a1e4ec266ffb4ee9ce7e2b2e7d",
+    "closure": {
+      "total_minus_family_sum_pb": -2.500000001459668e-08,
+      "unclassified_pb": 0.0
+    },
+    "hwu": "/tmp/pygloop_pp_ttbar_10m_20260827/mg5/PP_TTBAR_NF1_COMBINED/Events/run_ttbar_s2000_matched_20260901/MADatNLO.HwU",
+    "hwu_sha256": "3b0c131f044dcf9ad4735764154dcfb11b168f27afaf096aed4334c673195033",
+    "sqrt_s_gev": 2000,
+    "values": {
+      "gg": {
+        "central_value_pb": 0.2805126,
+        "error_pb": 0.000493056,
+        "high": 1.5,
+        "low": 0.5
+      },
+      "qg": {
+        "central_value_pb": 0.000656325,
+        "error_pb": 7.7655542e-05,
+        "high": 1.5,
+        "low": 0.5
+      },
+      "qqbar": {
+        "central_value_pb": -0.02877963,
+        "error_pb": 7.2080359e-05,
+        "high": 1.5,
+        "low": 0.5
+      },
+      "total": {
+        "central_value_pb": 0.25238927,
+        "error_pb": 0.00050438876,
+        "high": 1.5,
+        "low": 0.5
+      },
+      "unclassified": {
+        "central_value_pb": 0.0,
+        "error_pb": 0.0,
+        "high": 1.5,
+        "low": 0.5
+      }
+    }
+  },
+  "coupling_note": "native historical MG5 benchmark retained; no benchmark-based replica selection"
+}

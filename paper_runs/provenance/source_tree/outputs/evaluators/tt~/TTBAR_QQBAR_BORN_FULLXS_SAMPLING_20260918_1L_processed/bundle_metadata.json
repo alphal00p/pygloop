@@ -1,0 +1,339 @@
+{
+  "bundle_format_version": 10,
+  "process": "tt~",
+  "integrand_name": "TTBAR_QQBAR_BORN_FULLXS_SAMPLING_20260918_1L_processed",
+  "n_loops": 1,
+  "fallback_precision": 32,
+  "fallback_backend": "saved_evaluator",
+  "fallback_backends": [
+    "saved_evaluator"
+  ],
+  "fallback_parameter_order": [
+    "python::{}::k(0,1)",
+    "python::{}::k(0,2)",
+    "python::{}::k(0,3)",
+    "python::{}::p(1,1)",
+    "python::{}::p(1,2)",
+    "python::{}::p(1,3)",
+    "python::{}::p(2,1)",
+    "python::{}::p(2,2)",
+    "python::{}::p(2,3)",
+    "python::{}::z",
+    "python::{}::mUV",
+    "python::{}::t",
+    "python::{}::dy_m_top",
+    "python::{}::Lambdasq",
+    "python::{}::mursq",
+    "python::{}::zmin",
+    "python::{}::zmax",
+    "python::{}::dy_pi",
+    "python::{}::dy_G",
+    "python::{}::dy_ee",
+    "python::{}::dy_h_normalisation"
+  ],
+  "runtime_parameter_registry": {
+    "version": 2,
+    "parameter_order": [
+      "m_top",
+      "muv",
+      "lambda_sq",
+      "mur_sq",
+      "alpha_s",
+      "alpha_ew_inverse",
+      "zmin",
+      "zmax",
+      "pi"
+    ],
+    "defaults": {
+      "m_top": "173.0",
+      "muv": "1000.0",
+      "lambda_sq": "8302.489924",
+      "mur_sq": "8302.489924",
+      "alpha_s": "0.118",
+      "alpha_ew_inverse": "132.507",
+      "zmin": "0.0",
+      "zmax": "1.0",
+      "pi": "3.141592653589793238462643383279502884197169399375105820974944592307816406286208998628034825342117067982148086513282306647093844609550582231725359"
+    },
+    "derived_expressions": {
+      "strong_coupling": "2*sqrt(alpha_s*pi)",
+      "electromagnetic_coupling": "2*sqrt(pi/alpha_ew_inverse)",
+      "GC_1": "-i*electromagnetic_coupling/3",
+      "GC_10": "-strong_coupling",
+      "GC_11": "i*strong_coupling",
+      "GC_12": "i*strong_coupling^2",
+      "h_normalisation": "2*exp(2)/sqrt(pi)"
+    },
+    "evaluator_parameter_order": [
+      "m_top",
+      "muv",
+      "lambda_sq",
+      "mur_sq",
+      "zmin",
+      "zmax",
+      "pi",
+      "strong_coupling",
+      "electromagnetic_coupling",
+      "h_normalisation"
+    ],
+    "evaluator_symbols": {
+      "m_top": "dy_m_top",
+      "muv": "mUV",
+      "lambda_sq": "Lambdasq",
+      "mur_sq": "mursq",
+      "zmin": "zmin",
+      "zmax": "zmax",
+      "pi": "dy_pi",
+      "strong_coupling": "dy_G",
+      "electromagnetic_coupling": "dy_ee",
+      "h_normalisation": "dy_h_normalisation"
+    }
+  },
+  "terms": [
+    {
+      "evaluator_name": "graph_0_cut_1_term_0_integrand",
+      "e_surface_evaluator": "higher_precision_evaluators/term_0000_e_surface.sev",
+      "theta_evaluators": [],
+      "integrand_evaluator": "higher_precision_evaluators/term_0000_integrand.sev",
+      "integrand_evaluator_parameter_order": [
+        "python::{}::k(0,1)",
+        "python::{}::k(0,2)",
+        "python::{}::k(0,3)",
+        "python::{}::p(1,1)",
+        "python::{}::p(1,2)",
+        "python::{}::p(1,3)",
+        "python::{}::p(2,1)",
+        "python::{}::p(2,2)",
+        "python::{}::p(2,3)",
+        "python::{}::t",
+        "python::{}::dy_m_top",
+        "python::{}::mUV",
+        "python::{}::Lambdasq",
+        "python::{}::mursq",
+        "python::{}::zmin",
+        "python::{}::zmax",
+        "python::{}::dy_pi",
+        "python::{}::dy_G",
+        "python::{}::dy_ee",
+        "python::{}::dy_h_normalisation"
+      ],
+      "ttbar_pt_sq_evaluator": "higher_precision_evaluators/term_0000_ttbar_pt_sq.sev",
+      "t_initial_guess": 1.0,
+      "graph_group_name": "graph_0",
+      "approximation_type": "PM",
+      "source_graph_name": "GL0",
+      "routed_graph_name": "GL0_partition_['0']_['1']",
+      "edge_routings": {
+        "0": {
+          "edge_id": "0",
+          "particle": "d",
+          "loop_coefficients": [
+            "0"
+          ],
+          "p1_coefficient": "1",
+          "p2_coefficient": "0",
+          "lmb_id": null
+        },
+        "1": {
+          "edge_id": "1",
+          "particle": "d~",
+          "loop_coefficients": [
+            "0"
+          ],
+          "p1_coefficient": "0",
+          "p2_coefficient": "1",
+          "lmb_id": null
+        },
+        "2": {
+          "edge_id": "2",
+          "particle": "t",
+          "loop_coefficients": [
+            "1"
+          ],
+          "p1_coefficient": "-1",
+          "p2_coefficient": "-1",
+          "lmb_id": "0"
+        },
+        "3": {
+          "edge_id": "3",
+          "particle": "t",
+          "loop_coefficients": [
+            "1"
+          ],
+          "p1_coefficient": "0",
+          "p2_coefficient": "0",
+          "lmb_id": null
+        },
+        "4": {
+          "edge_id": "4",
+          "particle": "g",
+          "loop_coefficients": [
+            "0"
+          ],
+          "p1_coefficient": "-1",
+          "p2_coefficient": "-1",
+          "lmb_id": null
+        },
+        "5": {
+          "edge_id": "5",
+          "particle": "g",
+          "loop_coefficients": [
+            "0"
+          ],
+          "p1_coefficient": "1",
+          "p2_coefficient": "1",
+          "lmb_id": null
+        }
+      },
+      "closed_ghost_loop_count": 0,
+      "physical_z_min_theta_index": null,
+      "physical_z_max_theta_index": null
+    }
+  ],
+  "dy_top_self_energy_renormalisation": "no-os",
+  "dy_projected_os_construction_schema_version": 0,
+  "ttbar_cm_e_surface_schema": "p2_eq_minus_p1_v1",
+  "dy_cm_evaluator_schema": null,
+  "dy_generation_settings": {
+    "common.process": "dy",
+    "common.process_name": "tt~",
+    "common.n_loops": 1,
+    "common.final_state": [
+      "t",
+      "t"
+    ],
+    "common.channel": [
+      1,
+      -1
+    ],
+    "common.diagrams": [],
+    "common.process_basename": "TTBAR_QQBAR_BORN_FULLXS_SAMPLING_20260918",
+    "common.kinematics.helicities": [
+      1,
+      1,
+      0,
+      0,
+      0
+    ],
+    "common.initial_state.external_gluon_polarisation": false,
+    "common.initial_state.symmetrise_p1_p2": true,
+    "common.precision.fallback_precision": 32,
+    "common.gammaloop.generation_configuration": "sha256:cf4412aeaac64071e33fd5bd51bf20a20498c58ee9044b29546dd525d73ca1dd",
+    "common.gammaloop.runtime_configuration": "sha256:8276d1775e0f75a8d84dc7b687b5895dcc5c08c064c8498f9237d852af3d32de",
+    "common.gammaloop.settings": [],
+    "common.gammaloop.general_settings": [],
+    "generate.generation_type": "gammaloop",
+    "generate.enable_integrated_uv_counterterms": true,
+    "generate.top_self_energy_renormalisation": "no-os",
+    "generate.threshold_h_function": "gaussian",
+    "generate.top_self_energy_projected_schema_version": 0
+  },
+  "dy_generation_provenance": {
+    "common.process": "dy",
+    "common.process_name": "tt~",
+    "common.n_loops": 1,
+    "common.final_state": [
+      "t",
+      "t"
+    ],
+    "common.channel": [
+      1,
+      -1
+    ],
+    "common.diagrams": [],
+    "common.process_basename": "TTBAR_QQBAR_BORN_FULLXS_SAMPLING_20260918",
+    "common.verbosity": "info",
+    "common.skip_ps_validation": true,
+    "common.kinematics.m_top": 173.0,
+    "common.kinematics.m_higgs": 125.0,
+    "common.kinematics.pg1": [
+      1000.0,
+      0.0,
+      0.0,
+      1000.0
+    ],
+    "common.kinematics.pg2": [
+      1000.0,
+      0.0,
+      0.0,
+      -1000.0
+    ],
+    "common.kinematics.ph1": [
+      438.5555662246945,
+      155.3322001835378,
+      348.0160396513587,
+      -177.3773615718412
+    ],
+    "common.kinematics.ph2": [
+      356.3696374921922,
+      -16.802389008511,
+      -318.7291102436005,
+      97.48719163688098
+    ],
+    "common.kinematics.ph3": [
+      205.0747962831133,
+      -138.5298111750267,
+      -29.28692940775817,
+      79.8901699349603
+    ],
+    "common.kinematics.helicities": [
+      1,
+      1,
+      0,
+      0,
+      0
+    ],
+    "common.scales.muv": 1000.0,
+    "common.scales.lambda_sq": 8302.489924,
+    "common.scales.mur_sq": 8302.489924,
+    "common.initial_state.external_gluon_polarisation": false,
+    "common.initial_state.symmetrise_p1_p2": true,
+    "common.precision.fallback_precision": 32,
+    "common.gammaloop.generation_configuration": "sha256:cf4412aeaac64071e33fd5bd51bf20a20498c58ee9044b29546dd525d73ca1dd",
+    "common.gammaloop.runtime_configuration": "sha256:8276d1775e0f75a8d84dc7b687b5895dcc5c08c064c8498f9237d852af3d32de",
+    "common.gammaloop.settings": [],
+    "common.gammaloop.general_settings": [],
+    "generate.clean": false,
+    "generate.generation_type": "gammaloop",
+    "generate.parallel_graphs": 1,
+    "generate.enable_integrated_uv_counterterms": true,
+    "generate.top_self_energy_os_subtraction": false,
+    "generate.top_self_energy_renormalisation": "no-os",
+    "generate.check_generation_limits": false,
+    "generate.threshold_h_function": "gaussian",
+    "generate.top_self_energy_projected_schema_version": 0
+  },
+  "dy_generation_settings_fingerprint": "7a58556a77c9c8a375ed0486a9afe1b489fd48ef70745d30942955bd046bf78f",
+  "dy_source_card_sha256": "78194636a3e6b84315a7f561ece1a6c9dd9e28ae853f6223910c94343509e94f",
+  "dy_configuration_hashes": {
+    "common.gammaloop.generation_configuration": "cf4412aeaac64071e33fd5bd51bf20a20498c58ee9044b29546dd525d73ca1dd",
+    "common.gammaloop.runtime_configuration": "8276d1775e0f75a8d84dc7b687b5895dcc5c08c064c8498f9237d852af3d32de"
+  },
+  "dy_source_hashes": {
+    "src/pygloop.py": "9764d7cfa7f9060f5bbf062dcbb5b81ff397da4cb1f949e9e17666e2626f9ee0",
+    "src/processes/dy/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "src/processes/dy/dy.py": "ec84b81f70128ff8d2c98b8cb2b6e841ebc4f0e0c7c09798d07f5df09aa3eff0",
+    "src/processes/dy/dy_analytic.py": "e2560d342c9882a56556353add64eed5103140e8b4e0626aa700ce7541c82450",
+    "src/processes/dy/dy_card.py": "244410c09bedc52e2ae3e178857940eaf640462a9e1d7833206c0be78afe0917",
+    "src/processes/dy/dy_classes.py": "d0f7727aa1c3057dde57cd735a9b13a169295bae83ae5f3ada364a03c66354c4",
+    "src/processes/dy/dy_evaluators.py": "4e4c89e9e7ed0d6f5edfb1a8a77f224cfa536a146abf1975a21198891db0d2b5",
+    "src/processes/dy/dy_ghosts.py": "00063b1742e3ceafb5c402a182338c5507f59df5bc3327050b412e12bd2d1a5d",
+    "src/processes/dy/dy_graph_utils.py": "a39cebd9a45f1695444eaa3c9000c257da71b644993afe86cd46651733a43094",
+    "src/processes/dy/dy_histogram.py": "ffc5bc477f37626aa935ef76aa86f7e2176f0d8b44dee557ee917e14d4c2e5d3",
+    "src/processes/dy/dy_infrared_test.py": "39c2a2afcb15011a9fbc7e47056015a26bccaaf1f2067c3bb42bf2028692fb9b",
+    "src/processes/dy/dy_integrand.py": "ff4447a1b557b84d16a705fca66384d8ac2386eed8c621964bafd2dd9a98806e",
+    "src/processes/dy/dy_integrated_uv_ct.py": "866742e55fc83b33a33a43f4fe986f4d910f3c4d66c159b9bb7257368ec5e044",
+    "src/processes/dy/dy_paired_settings.py": "1cbc05ac09fbcf2d67f4960fe3ca510274e214a1f35e2f0b0e2aa9f37debd4c1",
+    "src/processes/dy/dy_paired_sobol.py": "5629f4d31001c2e2e96cccd97f9a5049cb62b8d2b43ff4831b16ab12334919ff",
+    "src/processes/dy/dy_pdf.py": "706c11b63d468931329527b6b89cfbf9234c8d2219a58fb026cf69191083d530",
+    "src/processes/dy/dy_physical_channels.py": "da7cdb2a3af0f90b834ccf96654161e6cdf64415c2b600c8f8f898e3e2a39652",
+    "src/processes/dy/dy_precision.py": "5aa270db24a69d0534b8726c802ef56ef4c8ffb60fef378720c84c6f4cb6b5b9",
+    "src/processes/dy/dy_runtime_parameters.py": "3c0b9908f3a9a7c6ef11cdcbb8a2e825bd06b93e246861ad966441a76cf7cf26",
+    "src/processes/dy/dy_stability.py": "02c50f7dd75c13070d8e2e31dd8243af4a82d5b4b5ffe6298d041bb84ce815c9",
+    "src/processes/dy/dy_symbolica_utils.py": "6071202404a49242f53fcdc06ca052acb7b098b653a39826cee82c000c06bf71",
+    "src/processes/dy/dy_top_self_energy.py": "da9f24c1e8ebd9e017b2326098623d88ed7d15c99dd9d94c5ce5c2085718823e",
+    "src/processes/dy/dy_vegas_tests/test.py": "9e8a2ee4cf1aacda5ed5ce354d4d4e4b0475289532a9d7d9515fa9abe7995a48",
+    "src/processes/dy/factorisation_test/generate_ttbar_graphs.py": "43647bcee367b2f1060be13bc8f0749b08d93cc0b62869fa95a66c0738316d76",
+    "src/processes/dy/uv_integrated_counterterms/uv_integrated_ct.py": "49df9f54baef645170a53aab57c0a73cf87fba5aea766cd2c5743c15d79839a7"
+  }
+}

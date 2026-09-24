@@ -374,6 +374,39 @@
       "restoration_record": "provenance/s2000_selection_correction.json",
       "sha256": "1e51f5764868e175f980a7ec8f35c4e1eac108faeef01af1176044bbf2165948",
       "source_path": "cards/campaigns/ttbar_dy_msbar_scan_20260901/production/ttbar/hadronic/s2000/gg.toml"
+    },
+    {
+      "source_path": "outputs/ttbar_fullxs_sampling_20260918/cards/qqbar.toml",
+      "archive_path": "provenance/source_tree/outputs/ttbar_fullxs_sampling_20260918/cards/qqbar.toml",
+      "sha256": "bb74ad5001c74408105a1e7698d7aceea12b7df934d6a9eccd36edaef752f2f3",
+      "channel": "qqbar",
+      "child_cards": [],
+      "configuration_files": [
+        "provenance/source_tree/configs/DY/generate.toml",
+        "provenance/source_tree/configs/DY/runtime.toml"
+      ]
+    },
+    {
+      "source_path": "outputs/ttbar_fullxs_sampling_20260918/cards/qg.toml",
+      "archive_path": "provenance/source_tree/outputs/ttbar_fullxs_sampling_20260918/cards/qg.toml",
+      "sha256": "575034303b340545d3f4fd5ad240a5210c4618760b7da0003926b8b241f77d29",
+      "channel": "qg",
+      "child_cards": [],
+      "configuration_files": [
+        "provenance/source_tree/configs/DY/generate.toml",
+        "provenance/source_tree/configs/DY/runtime.toml"
+      ]
+    },
+    {
+      "source_path": "outputs/ttbar_fullxs_sampling_20260918/cards/gg.toml",
+      "archive_path": "provenance/source_tree/outputs/ttbar_fullxs_sampling_20260918/cards/gg.toml",
+      "sha256": "d91a7e9ddf9af11c1133e6ca0da2c33acddf02c2271ebcc07514a65ff813a524",
+      "channel": "gg",
+      "child_cards": [],
+      "configuration_files": [
+        "provenance/source_tree/configs/DY/generate.toml",
+        "provenance/source_tree/configs/DY/runtime.toml"
+      ]
     }
   ]
 }
